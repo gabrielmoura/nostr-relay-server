@@ -1,0 +1,677 @@
+[
+  {
+    "time": "2024-12-14T11:47:22.794275936-03:00",
+    "level": "INFO",
+    "msg": "Server started",
+    "port": 9090
+  },
+  {
+    "time": "2024-12-14T11:47:31.403546979-03:00",
+    "level": "DEBUG",
+    "msg": "Event:",
+    "event": {
+      "data": [
+        "REQ",
+        "c295",
+        {
+          "authors": [
+            "160be4e07eb61fb2450085a953876424c795c4ed083386df0ed9b61b770bed3a"
+          ],
+          "kinds": [
+            0,
+            3,
+            30315,
+            10002,
+            10050,
+            10007,
+            10096,
+            10063,
+            10013
+          ],
+          "limit": 20
+        },
+        {
+          "authors": [
+            "160be4e07eb61fb2450085a953876424c795c4ed083386df0ed9b61b770bed3a"
+          ],
+          "kinds": [
+            30001,
+            30000,
+            10000,
+            30008,
+            10030
+          ],
+          "limit": 100
+        },
+        {
+          "authors": [
+            "160be4e07eb61fb2450085a953876424c795c4ed083386df0ed9b61b770bed3a"
+          ],
+          "kinds": [
+            30078
+          ],
+          "#d": [
+            "AmethystSettings"
+          ],
+          "limit": 1
+        }
+      ],
+      "request_http": {
+        "ip": "192.168.1.108:39966"
+      },
+      "ctx": {
+        "Context": {}
+      },
+      "Conn": {},
+      "Store": null
+    }
+  },
+  {
+    "time": "2024-12-14T11:47:31.419499424-03:00",
+    "level": "DEBUG",
+    "msg": "Event:",
+    "event": {
+      "data": [
+        "REQ",
+        "a6d9",
+        {
+          "authors": [
+            "160be4e07eb61fb2450085a953876424c795c4ed083386df0ed9b61b770bed3a"
+          ],
+          "kinds": [
+            1,
+            6,
+            16,
+            30402,
+            30023,
+            6969,
+            9802,
+            31337,
+            1808,
+            33888
+          ],
+          "limit": 400
+        },
+        {
+          "authors": [
+            "160be4e07eb61fb2450085a953876424c795c4ed083386df0ed9b61b770bed3a"
+          ],
+          "kinds": [
+            30296,
+            1311,
+            30311,
+            30818
+          ],
+          "limit": 400
+        },
+        {
+          "authors": [
+            "160be4e07eb61fb2450085a953876424c795c4ed083386df0ed9b61b770bed3a"
+          ],
+          "kinds": [
+            0,
+            10002
+          ]
+        }
+      ],
+      "request_http": {
+        "ip": "192.168.1.108:39966"
+      },
+      "ctx": {
+        "Context": {}
+      },
+      "Conn": {},
+      "Store": null
+    }
+  },
+  {
+    "time": "2024-12-14T11:47:31.423411306-03:00",
+    "level": "DEBUG",
+    "msg": "Event:",
+    "event": {
+      "data": [
+        "REQ",
+        "8ec6",
+        {
+          "authors": [
+            "160be4e07eb61fb2450085a953876424c795c4ed083386df0ed9b61b770bed3a"
+          ],
+          "kinds": [
+            0,
+            10002
+          ]
+        }
+      ],
+      "request_http": {
+        "ip": "192.168.1.108:39966"
+      },
+      "ctx": {
+        "Context": {}
+      },
+      "Conn": {},
+      "Store": null
+    }
+  },
+  {
+    "time": "2024-12-14T11:47:31.424407249-03:00",
+    "level": "DEBUG",
+    "msg": "Event:",
+    "event": {
+      "data": [
+        "CLOSE",
+        "c295"
+      ],
+      "request_http": {
+        "ip": "192.168.1.108:39966"
+      },
+      "ctx": {
+        "Context": {}
+      },
+      "Conn": {},
+      "Store": null
+    }
+  },
+  {
+    "time": "2024-12-14T11:47:31.424440862-03:00",
+    "level": "INFO",
+    "msg": "Close",
+    "remote_addr": "192.168.1.108:39966",
+    "id": "\"c295\""
+  },
+  {
+    "time": "2024-12-14T11:47:31.424476181-03:00",
+    "level": "ERROR",
+    "msg": "Read error:",
+    "!BADKEY": "read tcp 192.168.1.114:9090->192.168.1.108:39966: use of closed network connection"
+  },
+  {
+    "time": "2024-12-14T11:47:39.064580617-03:00",
+    "level": "DEBUG",
+    "msg": "Event:",
+    "event": {
+      "data": [
+        "REQ",
+        "a6d9",
+        {
+          "authors": [
+            "160be4e07eb61fb2450085a953876424c795c4ed083386df0ed9b61b770bed3a"
+          ],
+          "kinds": [
+            1,
+            6,
+            16,
+            30402,
+            30023,
+            6969,
+            9802,
+            31337,
+            1808,
+            33888
+          ],
+          "since": 1734187591,
+          "limit": 400
+        },
+        {
+          "authors": [
+            "160be4e07eb61fb2450085a953876424c795c4ed083386df0ed9b61b770bed3a"
+          ],
+          "kinds": [
+            30296,
+            1311,
+            30311,
+            30818
+          ],
+          "since": 1734187591,
+          "limit": 400
+        },
+        {
+          "authors": [
+            "160be4e07eb61fb2450085a953876424c795c4ed083386df0ed9b61b770bed3a"
+          ],
+          "kinds": [
+            0,
+            10002
+          ],
+          "since": 1734187591
+        }
+      ],
+      "request_http": {
+        "ip": "192.168.1.108:43402"
+      },
+      "ctx": {
+        "Context": {}
+      },
+      "Conn": {},
+      "Store": null
+    }
+  },
+  {
+    "time": "2024-12-14T11:47:39.070845858-03:00",
+    "level": "DEBUG",
+    "msg": "Event:",
+    "event": {
+      "data": [
+        "REQ",
+        "c295",
+        {
+          "authors": [
+            "160be4e07eb61fb2450085a953876424c795c4ed083386df0ed9b61b770bed3a"
+          ],
+          "kinds": [
+            0,
+            3,
+            30315,
+            10002,
+            10050,
+            10007,
+            10096,
+            10063,
+            10013
+          ],
+          "limit": 20
+        },
+        {
+          "authors": [
+            "160be4e07eb61fb2450085a953876424c795c4ed083386df0ed9b61b770bed3a"
+          ],
+          "kinds": [
+            30078
+          ],
+          "#d": [
+            "AmethystSettings"
+          ],
+          "limit": 1
+        },
+        {
+          "kinds": [
+            1,
+            6969,
+            7,
+            6,
+            16,
+            1984,
+            9735,
+            23195,
+            42,
+            8
+          ],
+          "#p": [
+            "160be4e07eb61fb2450085a953876424c795c4ed083386df0ed9b61b770bed3a"
+          ],
+          "since": 1733582851,
+          "limit": 4000
+        },
+        {
+          "kinds": [
+            1622,
+            1621,
+            1617,
+            9802,
+            1111,
+            31922,
+            31923,
+            31925,
+            30296,
+            30297
+          ],
+          "#p": [
+            "160be4e07eb61fb2450085a953876424c795c4ed083386df0ed9b61b770bed3a"
+          ],
+          "since": 1733582851,
+          "limit": 400
+        },
+        {
+          "kinds": [
+            1059
+          ],
+          "#p": [
+            "160be4e07eb61fb2450085a953876424c795c4ed083386df0ed9b61b770bed3a"
+          ]
+        },
+        {
+          "authors": [
+            "160be4e07eb61fb2450085a953876424c795c4ed083386df0ed9b61b770bed3a"
+          ],
+          "kinds": [
+            31234,
+            1984
+          ]
+        },
+        {
+          "authors": [
+            "160be4e07eb61fb2450085a953876424c795c4ed083386df0ed9b61b770bed3a"
+          ],
+          "kinds": [
+            30001,
+            30000,
+            10000,
+            30008,
+            10030
+          ],
+          "limit": 100
+        },
+        {
+          "authors": [
+            "160be4e07eb61fb2450085a953876424c795c4ed083386df0ed9b61b770bed3a"
+          ],
+          "limit": 400
+        },
+        {
+          "authors": [
+            "91bea5cd9361504c409aaf459516988f68a2fcd482762fd969a7cdc71df4451c",
+            "c23b84177e9bb5fd30281674381368e926a0237cf9b0faa77d8d02cac365ac5d"
+          ],
+          "kinds": [
+            0,
+            3,
+            10002,
+            10050,
+            10007,
+            10096,
+            10063,
+            10000,
+            30000
+          ],
+          "limit": 40
+        }
+      ],
+      "request_http": {
+        "ip": "192.168.1.108:43402"
+      },
+      "ctx": {
+        "Context": {}
+      },
+      "Conn": {},
+      "Store": null
+    }
+  },
+  {
+    "time": "2024-12-14T11:47:39.080791144-03:00",
+    "level": "DEBUG",
+    "msg": "Event:",
+    "event": {
+      "data": [
+        "REQ",
+        "d5d0",
+        {
+          "kinds": [
+            20,
+            34235,
+            34236
+          ],
+          "limit": 200
+        },
+        {
+          "kinds": [
+            1063,
+            1065
+          ],
+          "#m": [
+            "image/jpeg",
+            "image/gif",
+            "image/png",
+            "image/webp",
+            "video/mp4",
+            "video/mpeg",
+            "video/webm",
+            "audio/aac",
+            "audio/mpeg",
+            "audio/webm",
+            "audio/wav",
+            "image/avif"
+          ],
+          "limit": 200
+        }
+      ],
+      "request_http": {
+        "ip": "192.168.1.108:43402"
+      },
+      "ctx": {
+        "Context": {}
+      },
+      "Conn": {},
+      "Store": null
+    }
+  },
+  {
+    "time": "2024-12-14T11:47:39.083449589-03:00",
+    "level": "DEBUG",
+    "msg": "Event:",
+    "event": {
+      "data": [
+        "REQ",
+        "f854",
+        {
+          "kinds": [
+            4
+          ],
+          "#p": [
+            "160be4e07eb61fb2450085a953876424c795c4ed083386df0ed9b61b770bed3a"
+          ]
+        },
+        {
+          "authors": [
+            "160be4e07eb61fb2450085a953876424c795c4ed083386df0ed9b61b770bed3a"
+          ],
+          "kinds": [
+            4
+          ]
+        },
+        {
+          "ids": [
+            "25e5c82273a271cb1a840d0060391a0bf4965cafeb029d5ab55350b418953fbb",
+            "42224859763652914db53052103f0b744df79dfc4efef7e950fc0802fc3df3c5"
+          ],
+          "kinds": [
+            40
+          ]
+        },
+        {
+          "kinds": [
+            41
+          ],
+          "#e": [
+            "25e5c82273a271cb1a840d0060391a0bf4965cafeb029d5ab55350b418953fbb"
+          ],
+          "limit": 1
+        },
+        {
+          "kinds": [
+            41
+          ],
+          "#e": [
+            "42224859763652914db53052103f0b744df79dfc4efef7e950fc0802fc3df3c5"
+          ],
+          "limit": 1
+        },
+        {
+          "kinds": [
+            42
+          ],
+          "#e": [
+            "25e5c82273a271cb1a840d0060391a0bf4965cafeb029d5ab55350b418953fbb"
+          ],
+          "limit": 50
+        },
+        {
+          "kinds": [
+            42
+          ],
+          "#e": [
+            "42224859763652914db53052103f0b744df79dfc4efef7e950fc0802fc3df3c5"
+          ],
+          "limit": 50
+        }
+      ],
+      "request_http": {
+        "ip": "192.168.1.108:43402"
+      },
+      "ctx": {
+        "Context": {}
+      },
+      "Conn": {},
+      "Store": null
+    }
+  },
+  {
+    "time": "2024-12-14T11:47:39.089546943-03:00",
+    "level": "DEBUG",
+    "msg": "Event:",
+    "event": {
+      "data": [
+        "REQ",
+        "3aaf",
+        {
+          "kinds": [
+            1311,
+            30311
+          ],
+          "limit": 300
+        },
+        {
+          "kinds": [
+            31990
+          ],
+          "#k": [
+            "5300"
+          ],
+          "limit": 300
+        },
+        {
+          "kinds": [
+            42
+          ],
+          "limit": 500
+        },
+        {
+          "ids": [
+            "25e5c82273a271cb1a840d0060391a0bf4965cafeb029d5ab55350b418953fbb",
+            "42224859763652914db53052103f0b744df79dfc4efef7e950fc0802fc3df3c5"
+          ],
+          "kinds": [
+            40,
+            42
+          ],
+          "limit": 300
+        },
+        {
+          "kinds": [
+            30402
+          ],
+          "limit": 300
+        },
+        {
+          "kinds": [
+            34550,
+            4550
+          ],
+          "limit": 300
+        }
+      ],
+      "request_http": {
+        "ip": "192.168.1.108:43402"
+      },
+      "ctx": {
+        "Context": {}
+      },
+      "Conn": {},
+      "Store": null
+    }
+  },
+  {
+    "time": "2024-12-14T11:47:39.095149655-03:00",
+    "level": "DEBUG",
+    "msg": "Event:",
+    "event": {
+      "data": [
+        "EVENT",
+        {
+          "id": "1939bb44402625b36d3bbd889e08aa8f25427f6f12bd863c4ee7503c8a83200d",
+          "pubkey": "160be4e07eb61fb2450085a953876424c795c4ed083386df0ed9b61b770bed3a",
+          "created_at": 1734187659,
+          "kind": 1,
+          "tags": [],
+          "content": "Testando",
+          "sig": "2393e575d4fc2e6d5bb3d15c3b6bbffd85be382b3dc8718b666077dcd15391c7102789f44ecbe531aa10c2ec0a3eac80aaf782720bda8e4d88c79933cc73899c"
+        }
+      ],
+      "request_http": {
+        "ip": "192.168.1.108:43402"
+      },
+      "ctx": {
+        "Context": {}
+      },
+      "Conn": {},
+      "Store": null
+    }
+  },
+  {
+    "time": "2024-12-14T11:47:39.116433591-03:00",
+    "level": "INFO",
+    "msg": "event",
+    "1939bb44402625b36d3bbd889e08aa8f25427f6f12bd863c4ee7503c8a83200d": "kind",
+    "!BADKEY": 1,
+    "ok": true,
+    "reason": ""
+  },
+  {
+    "time": "2024-12-14T11:47:39.140161036-03:00",
+    "level": "DEBUG",
+    "msg": "Event:",
+    "event": {
+      "data": [
+        "REQ",
+        "8ec6",
+        {
+          "authors": [
+            "160be4e07eb61fb2450085a953876424c795c4ed083386df0ed9b61b770bed3a"
+          ],
+          "kinds": [
+            0,
+            10002
+          ]
+        }
+      ],
+      "request_http": {
+        "ip": "192.168.1.108:43402"
+      },
+      "ctx": {
+        "Context": {}
+      },
+      "Conn": {},
+      "Store": null
+    }
+  },
+  {
+    "time": "2024-12-14T11:47:39.472700379-03:00",
+    "level": "DEBUG",
+    "msg": "Event:",
+    "event": {
+      "data": [
+        "CLOSE",
+        "f2d4"
+      ],
+      "request_http": {
+        "ip": "192.168.1.108:43402"
+      },
+      "ctx": {
+        "Context": {}
+      },
+      "Conn": {},
+      "Store": null
+    }
+  },
+  {
+    "time": "2024-12-14T11:47:39.472811024-03:00",
+    "level": "INFO",
+    "msg": "Close",
+    "remote_addr": "192.168.1.108:43402",
+    "id": "f2d4"
+  },
+  {
+    "time": "2024-12-14T11:47:39.472891664-03:00",
+    "level": "ERROR",
+    "msg": "Read error:",
+    "!BADKEY": "read tcp 192.168.1.114:9090->192.168.1.108:43402: use of closed network connection"
+  }
+]

@@ -1,0 +1,29 @@
+db:
+    max_conns: 10
+    min_conns: 1
+    postgres_uri: postgres://postgres:Strong@P4ssword@localhost:5432/nostr
+port: 9090
+relay:
+    keep_recent_events: true
+    query_authors_limit: 500
+    query_ids_limit: 500
+    query_kinds_limit: 10
+    query_limit: 100
+    query_tags_limit: 20
+relay_information:
+    description: A Nostr Relay Server
+    icon: https://nostr.io/favicon.ico
+    name: Nostr Relay Server
+    canonical_url: ws://192.168.1.114:9090/relay
+    software: https://github.com/gabrielmoura/nostr-relay-server
+    supported_nips:
+        - 11
+        - 1
+        - 2
+        - 4
+        - 25
+    version: 0.1.0
+ws:
+    burst: 5
+    rate_limit: 1
+    auth: true

@@ -1,0 +1,11 @@
+@base_url = localhost:9090
+### Connect ao Relay
+WEBSOCKET ws://{{base_url}}/relay
+Content-Type: application/json
+
+### Boas vindas do Relay
+GET http://{{base_url}}
+
+### Buscar o informações do Relay
+GET http://{{base_url}}/relay
+Accept: application/nostr+json

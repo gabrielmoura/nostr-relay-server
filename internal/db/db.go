@@ -1,0 +1,68 @@
+package db
+
+import (
+	"context"
+	"github.com/gabrielmoura/nostr-relay-server/config"
+	"github.com/gabrielmoura/nostr-relay-server/infra/db"
+	"github.com/gabrielmoura/nostr-relay-server/infra/log"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/nbd-wtf/go-nostr"
+	"go.uber.org/zap"
+	"sync"
+)
+
+var (
+	DbQueries *db.Queries
+	Pool      *pgxpool.Pool
+
+	addQueue = sync.Mutex{}
+)
+
+func Init(ctx context.Context) error {
+
+	poolConfig, err := pgxpool.ParseConfig(config.Cfg.DB.PostgresURI)
+	if err != nil {
+		log.Logger.Error("Error parsing Postgres URI", zap.Error(err))
+		return err
+	}
+	poolConfig.MaxConns = config.Cfg.DB.MaxConns
+	poolConfig.MinConns = config.Cfg.DB.MinConns
+
+	poolConfig.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
+		// ...
+		return nil
+	}
+
+	pool, err := pgxpool.NewWithConfig(ctx, poolConfig)
+	if err != nil {
+		return err
+	}
+
+	if err := checkConnection(ctx, pool); err != nil {
+		log.Logger.Error("Error connecting to Postgres", zap.Error(err))
+		pool.Close()
+		return err
+	}
+
+	DbQueries = db.New(pool)
+	Pool = pool
+	return nil
+}
+
+func Close() {
+}
+
+// checkConnection checks if the connection to the database is working
+func checkConnection(ctx context.Context, pool *pgxpool.Pool) error {
+	conn, err := pool.Acquire(ctx)
+	if err != nil {
+		return err
+	}
+	defer conn.Release()
+	return conn.Ping(ctx)
+}
+
+func DeleteNostrEvent(ctx context.Context, event *nostr.Event) error {
+	return DbQueries.DeleteEvent(ctx, event.ID)
+}
