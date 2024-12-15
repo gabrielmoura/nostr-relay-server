@@ -32,18 +32,15 @@ func DoEVENT(ws *dto.WsServer, data dto.Data) string {
 	hash := sha256.Sum256(evt.Serialize())
 	if id := hex.EncodeToString(hash[:]); id != evt.ID {
 		reason := "invalid: event id is computed incorrectly"
-		//ws.Conn.WriteJSON(nostr.OKEnvelope{EventID: evt.ID, OK: false, Reason: reason})
 		ws.ChanSender <- nostr.OKEnvelope{EventID: evt.ID, OK: false, Reason: reason}
 		return ""
 	}
 
 	// check signature
 	if ok, err := evt.CheckSignature(); err != nil {
-		//ws.Conn.WriteJSON(nostr.OKEnvelope{EventID: evt.ID, OK: false, Reason: "error: failed to verify signature"})
 		ws.ChanSender <- nostr.OKEnvelope{EventID: evt.ID, OK: false, Reason: "error: failed to verify signature"}
 		return ""
 	} else if !ok {
-		//ws.Conn.WriteJSON(nostr.OKEnvelope{EventID: evt.ID, OK: false, Reason: "invalid: signature is invalid"})
 		ws.ChanSender <- nostr.OKEnvelope{EventID: evt.ID, OK: false, Reason: "invalid: signature is invalid"}
 		return ""
 	}
@@ -104,7 +101,7 @@ func DoEVENT(ws *dto.WsServer, data dto.Data) string {
 		return ""
 	}
 	if evt.Kind == nostr.KindReporting {
-		reportingEvent(evt)
+		reportingEvent(ws.Ctx, evt)
 	}
 	ok, reason := AddEvent(ws, &evt)
 	log.Logger.Info("event", evt.ID, "kind", evt.Kind, "ok", ok, "reason", reason)
@@ -214,8 +211,4 @@ func isOlder(previous, next *nostr.Event) bool {
 
 func processEphemeralEvents(ctx context.Context, evt *nostr.Event) {
 	log.Logger.InfoContext(ctx, "ephemeral events", slog.Any("event", evt))
-}
-func reportingEvent(event nostr.Event) {
-	// TODO: Caso haja 3 reports para um mesmo evento, o evento deve ser deletado
-	// TODO; Caso haja 5 reports para a mesma public key, a public key deve ser banida
 }

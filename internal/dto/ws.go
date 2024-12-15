@@ -3,8 +3,13 @@ package dto
 import (
 	"context"
 	"github.com/fasthttp/websocket"
+	"github.com/gabrielmoura/nostr-relay-server/config"
+	"github.com/gabrielmoura/nostr-relay-server/infra/log"
+	"github.com/gabrielmoura/nostr-relay-server/internal/db"
 	"github.com/goccy/go-json"
+	"log/slog"
 	"net/http"
+	"slices"
 	"sync"
 
 	"github.com/nbd-wtf/go-nostr"
@@ -32,43 +37,70 @@ type WsServer struct {
 	Authed     string           // Chave publica para identificar o usuario
 	ChanSender chan interface{} // Canal para enviar mensagens EXPERIMENTAL
 	sync.Mutex
+	ChanPing chan bool
 }
 type Data []json.RawMessage
 
-// AcceptReq é uma função que verifica se a requisição é aceita
-func (req *WsServer) AcceptReq(filters nostr.Filters) bool {
-	// TODO: verificar se usuário tem permissão para efetuar tais buscas.
-	if req.Authed != "" {
-		return true
-	}
+var publicKinds = []int{
+	nostr.KindProfileMetadata,
+	nostr.KindFollowList,
+	nostr.KindRelayListMetadata,
+}
 
-	return false
+// ################### Pedido de dados ######################
+
+func (req *WsServer) AcceptReqs(filters nostr.Filters) bool {
+	if config.Cfg.Ws.Auth {
+		if req.Authed != "" {
+			return true
+		}
+
+		for _, filter := range filters {
+			for _, kind := range publicKinds {
+				if slices.Contains(filter.Kinds, kind) {
+					return true
+				}
+			}
+		}
+
+		return false
+	}
+	return true
+
 }
 
 // SkipEventFunc é uma função que verifica se o evento solicitado deve ser ignorado
 func (req *WsServer) SkipEventFunc(event *nostr.Event) bool {
+	if config.Cfg.Ws.Auth {
+
+		if req.Authed == "" {
+			// caso o usuário não esteja autenticado, ele só pode acessar os kinds [0,3,10002]
+			return slices.Contains(publicKinds, event.Kind)
+		}
+	}
 	return false
 }
+
+// ################# Envio de dados ####################
 
 // AcceptEvent é uma função que verifica se o evento a ser salvo é aceito
 func (req *WsServer) AcceptEvent(event *nostr.Event) bool {
 
-	//found := false
-	//	for _, pubkey := range r.Whitelist {
-	//		if pubkey == evt.PubKey {
-	//			found = true
-	//			break
-	//		}
-	//	}
-	//	if !found {
-	//		return false
-	//	}
-	//
-	//	// block events that are too large
-	//	jsonb, _ := json.Marshal(evt)
-	//	if len(jsonb) > 100000 {
-	//		return false
-	//	}
+	reason, exists, err := db.DbQueries.GetUserBannedByKey(req.Ctx, event.PubKey)
+	if err != nil {
+		log.Logger.Error("Erro ao verificar se o usuário está banido", err.Error())
+		return false
+	}
+	if exists {
+		log.Logger.Info("Usuário banido", reason)
+		return false
+	}
+
+	jsonb, _ := json.Marshal(event)
+	if len(jsonb) > config.Cfg.Relay.MaxEventSize {
+		log.Logger.Debug("Evento muito grande", slog.Int("size", len(jsonb)), slog.Int("max", config.Cfg.Relay.MaxEventSize))
+		return false
+	}
 
 	return true
 }

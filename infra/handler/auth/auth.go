@@ -22,11 +22,9 @@ func DoAUTH(ws *dto.WsServer, data dto.Data) string {
 		if pubkey, ok := nip42.ValidateAuthEvent(&evt, ws.Challenge, config.Cfg.RelayInformation.CanonicalURL); ok {
 			ws.Authed = pubkey
 			ws.Ctx = context.WithValue(ws.Ctx, AuthContextKey, pubkey)
-			//ws.Conn.WriteJSON(nostr.OKEnvelope{EventID: evt.ID, OK: true})
 			ws.ChanSender <- nostr.OKEnvelope{EventID: evt.ID, OK: true}
 		} else {
 			log.Logger.WarnContext(ws.Ctx, "failed to authenticate", slog.String("event", evt.String()))
-			//ws.Conn.WriteJSON(nostr.OKEnvelope{EventID: evt.ID, OK: false, Reason: "error: failed to authenticate"})
 			ws.ChanSender <- nostr.OKEnvelope{EventID: evt.ID, OK: false, Reason: "error: failed to authenticate"}
 		}
 	}

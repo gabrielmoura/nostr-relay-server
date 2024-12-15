@@ -90,7 +90,6 @@ func NotifyListeners(event *nostr.Event) {
 			if !listener.filters.Match(event) {
 				continue
 			}
-			//ws.Conn.WriteJSON(nostr.EventEnvelope{SubscriptionID: &id, Event: *event})
 			ws.ChanSender <- nostr.EventEnvelope{SubscriptionID: &id, Event: *event}
 		}
 	}

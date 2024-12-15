@@ -27,6 +27,8 @@ type RelayConfig struct {
 	QueryKindsLimit   int  `json:"query_kinds_limit" yaml:"query_kinds_limit" mapstructure:"query_kinds_limit"`
 	QueryTagsLimit    int  `json:"query_tags_limit" yaml:"query_tags_limit" mapstructure:"query_tags_limit"`
 	KeepRecentEvents  bool `json:"keep_recent_events" yaml:"keep_recent_events" mapstructure:"keep_recent_events"`
+	MaxEventSize      int  `json:"max_size_event_in_bytes" yaml:"max_size_event_in_bytes" mapstructure:"max_size_event_in_bytes"`
+	FilterLimit       int  `json:"filter_limit" yaml:"filter_limit" mapstructure:"filter_limit"`
 }
 type WsConfig struct {
 	ReteLimit rate.Limit `json:"rate_limit" yaml:"rate_limit" mapstructure:"rate_limit"`

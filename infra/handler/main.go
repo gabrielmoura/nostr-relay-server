@@ -99,7 +99,8 @@ func wsHandler(w http.ResponseWriter, r *http.Request, ctx context.Context) {
 		Request:    r,
 		Ctx:        ctx,
 		Response:   w,
-		ChanSender: make(chan interface{}, 20),
+		ChanSender: make(chan interface{}),
+		ChanPing:   make(chan bool),
 	}
 	wss.Lock()
 	defer wss.Unlock()
@@ -153,7 +154,7 @@ func wsHandler(w http.ResponseWriter, r *http.Request, ctx context.Context) {
 				break
 			}
 			if typ == websocket.PingMessage {
-				conn.WriteMessage(websocket.PongMessage, nil)
+				wss.ChanPing <- true
 				continue
 			}
 			go handleMessage(wss, message)
@@ -167,6 +168,13 @@ func wsHandler(w http.ResponseWriter, r *http.Request, ctx context.Context) {
 			select {
 			case msg := <-wss.ChanSender:
 				wss.Conn.WriteJSON(msg)
+			case ping := <-wss.ChanPing:
+				if ping {
+					wss.Conn.SetWriteDeadline(time.Now().Add(writeWait))
+					if err := wss.Conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+						return
+					}
+				}
 			case <-ctx.Done():
 				return
 			}

@@ -27,6 +27,8 @@ func setDefaults(export bool) {
 	viper.SetDefault("relay.query_kinds_limit", 10)
 	viper.SetDefault("relay.query_tags_limit", 10)
 	viper.SetDefault("relay.keep_recent_events", true)
+	viper.SetDefault("relay.max_size_event_in_bytes", 100000) // 100KB
+	viper.SetDefault("relay.filter_limit", 9999999999)
 
 	viper.SetDefault("db.max_conns", 10)
 	viper.SetDefault("db.min_conns", 1)

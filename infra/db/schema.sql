@@ -25,3 +25,36 @@ CREATE INDEX IF NOT EXISTS timeidx ON event (created_at DESC);
 CREATE INDEX IF NOT EXISTS kindidx ON event (kind);
 CREATE INDEX IF NOT EXISTS kindtimeidx ON event(kind,created_at DESC);
 CREATE INDEX IF NOT EXISTS arbitrarytagvalues ON event USING gin (tagvalues);
+
+-- Tabela para armazenar perfis
+CREATE TABLE profiles (
+                          id BIGSERIAL PRIMARY KEY,
+                          public_key TEXT NOT NULL,
+                          name TEXT NOT NULL,
+                          about TEXT,
+                          picture TEXT,
+                          bot BOOLEAN DEFAULT FALSE,
+                          banner TEXT,
+                          website TEXT,
+                          display_name TEXT,
+                          lud16 TEXT,
+                          pronouns TEXT,
+                          nip05 TEXT
+);
+
+-- Índices para a tabela profiles
+CREATE INDEX idx_profiles_name ON profiles(name);
+CREATE INDEX idx_profiles_nip05 ON profiles(nip05);
+CREATE INDEX idx_profiles_display_name ON profiles(display_name);
+
+-- Tabela para armazenar usuários banidos
+CREATE TABLE banned_users (
+                              id BIGSERIAL PRIMARY KEY,
+                              user_id BIGINT NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+                              reason TEXT NOT NULL,
+                              related_ids VARCHAR(60)[] -- Array de strings com até 60 caracteres
+);
+
+-- Índices para a tabela banned_users
+CREATE INDEX idx_banned_users_user_id ON banned_users(user_id);
+CREATE INDEX idx_banned_users_id ON banned_users(id);

@@ -169,7 +169,7 @@ func (q *Queries) QueryEvents(ctx context.Context, filter nostr.Filter) (ch chan
 	}
 
 	rows, err := q.db.Query(ctx, query, params...)
-	if err != nil && err != sql.ErrNoRows {
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return nil, fmt.Errorf("failed to fetch events using query %q: %w", query, err)
 	}
 
@@ -209,4 +209,55 @@ func (q *Queries) CountEvents(ctx context.Context, filter nostr.Filter) (int64, 
 		return 0, fmt.Errorf("failed to fetch events using query %q: %w", query, err)
 	}
 	return count, nil
+}
+
+// GetCountReportsKey fetches the number of reports for a given Key
+func (q *Queries) GetCountReportsKey(ctx context.Context, key string) (int64, error) {
+	filter := nostr.Filter{
+		Kinds: []int{nostr.KindReporting},
+		Tags: nostr.TagMap{
+			"p": {key},
+		},
+	}
+	query, params, err := q.queryEventsSql(filter, true)
+	if err != nil {
+		return 0, err
+	}
+
+	var count int64
+
+	if err = q.db.QueryRow(ctx, query, params...).Scan(&count); err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return 0, fmt.Errorf("failed to fetch events using query %q: %w", query, err)
+	}
+	return count, nil
+}
+
+const getUserBannedByKey = `-- name: GetUserBannedByKey :one
+SELECT b.reason
+FROM banned_users b
+JOIN profiles p ON b.user_id = p.id
+WHERE p.public_key = $1::text
+LIMIT 1;
+`
+
+func (q *Queries) GetUserBannedByKey(ctx context.Context, key string) (reason string, exists bool, err error) {
+	err = q.db.QueryRow(ctx, getUserBannedByKey, key).Scan(&reason)
+	if err != nil && errors.Is(err, sql.ErrNoRows) {
+		return "", false, nil
+	}
+	return reason, true, nil
+}
+
+const BanUserByPubKey = `-- name: BanUserByPubKey :exec
+INSERT INTO banned_users (user_id, reason, related_ids)
+VALUES (
+    (SELECT id FROM profiles WHERE public_key = $1::text),
+    $2::text,
+    $3::VARCHAR(60)[]
+);
+`
+
+func (q *Queries) BanUserByPubKey(ctx context.Context, key, reason string, relatedIds []string) error {
+	_, err := q.db.Exec(ctx, BanUserByPubKey, key, reason, relatedIds)
+	return err
 }
