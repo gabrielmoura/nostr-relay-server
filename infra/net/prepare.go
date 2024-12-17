@@ -1,6 +1,7 @@
 package net
 
 import (
+	"github.com/gabrielmoura/nostr-relay-server/internal/dto"
 	"net"
 	"net/http"
 )
@@ -18,4 +19,14 @@ func PrepareListen(srv *http.Server) (net.Listener, error) {
 		return nil, err
 	}
 	return ln, nil
+}
+
+func GetRealIp(ws *dto.WsServer) string {
+	ip := ws.Conn.RemoteAddr().String()
+	if realIP := ws.Request.Header.Get("X-Forwarded-For"); realIP != "" {
+		ip = realIP // possible to be multiple comma separated
+	} else if realIP := ws.Request.Header.Get("X-Real-Ip"); realIP != "" {
+		ip = realIP
+	}
+	return ip
 }

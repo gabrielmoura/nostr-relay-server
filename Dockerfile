@@ -30,7 +30,7 @@ COPY --from=builder /app/nrserver /app/nrserver
 COPY --from=prepare /etc/passwd /etc/passwd
 COPY --from=prepare /etc/group /etc/group
 COPY --from=prepare /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
-COPY --chown=appuser:appuser  conf.yml /app/conf.yml
+VOLUME /app/conf.yml
 
 
 USER appuser:appuser

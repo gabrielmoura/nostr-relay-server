@@ -14,7 +14,11 @@ import (
 
 func DoREQ(ws *dto.WsServer, data dto.Data) string {
 	var id string
-	json.Unmarshal(data[1], &id)
+	err := json.Unmarshal(data[1], &id)
+	if err != nil {
+		log.Logger.WarnContext(ws.Ctx, "failed to decode REQ id", slog.AnyValue(err))
+		return ""
+	}
 	if id == "" {
 		return "REQ has no <id>"
 	}
@@ -73,7 +77,7 @@ func DoREQ(ws *dto.WsServer, data dto.Data) string {
 
 		events, err := db.DbQueries.QueryEvents(ws.Ctx, filter)
 		if err != nil {
-			log.Logger.ErrorContext(ws.Ctx, "store", slog.String("error", err.Error()))
+			log.Logger.ErrorContext(ws.Ctx, "store", slog.AnyValue(err))
 			continue
 		}
 

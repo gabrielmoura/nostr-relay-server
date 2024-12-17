@@ -14,17 +14,12 @@ import (
 )
 
 func handleMessage(ws *dto.WsServer, message []byte) {
-	//defer func() {
-	//	log.Logger.Info("Closing connection")
-	//	conn.Close()
-	//}()
 
 	var notice string
 	defer func() {
 
 		if notice != "" {
-			log.Logger.Debug("Notice:", slog.Any("notice", notice))
-			//ws.Conn.WriteJSON(nostr.NoticeEnvelope(notice))
+			log.Logger.Debug("Notice:", slog.String("notice", notice))
 			ws.ChanSender <- nostr.NoticeEnvelope(notice)
 		}
 	}()
@@ -41,7 +36,12 @@ func handleMessage(ws *dto.WsServer, message []byte) {
 	}
 
 	var typ string
-	json.Unmarshal(requestRaw[0], &typ)
+	err := json.Unmarshal(requestRaw[0], &typ)
+	if err != nil {
+		notice = "failed to decode event type"
+		log.Logger.ErrorContext(ws.Ctx, "failed to decode event type", slog.AnyValue(err))
+		return
+	}
 
 	log.Logger.DebugContext(ws.Ctx, "Event:", slog.Any("event", requestRaw))
 	switch typ {
@@ -63,11 +63,11 @@ func handleMessage(ws *dto.WsServer, message []byte) {
 }
 
 func handleClose(ws *dto.WsServer, data dto.Data) string {
-	//log.Logger.Info("Close", slog.String("remote_addr", req.RequestHttp.IP), slog.String("id", string(req.Data[1])))
-	//req.Conn.WriteJSON(nostr.CloseEnvelope(req.Data[1]))
-	//req.Conn.Close()
 	var id string
-	json.Unmarshal(data[1], &id)
+	err := json.Unmarshal(data[1], &id)
+	if err != nil {
+		return ""
+	}
 	listener.RemoveListenerId(ws, id)
 
 	return ""

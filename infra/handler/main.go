@@ -9,9 +9,11 @@ import (
 	"github.com/gabrielmoura/nostr-relay-server/config"
 	"github.com/gabrielmoura/nostr-relay-server/infra/handler/listener"
 	"github.com/gabrielmoura/nostr-relay-server/infra/log"
+	"github.com/gabrielmoura/nostr-relay-server/infra/net"
 	"github.com/gabrielmoura/nostr-relay-server/internal/dto"
 	"github.com/nbd-wtf/go-nostr"
 	"github.com/rs/cors"
+	"go.uber.org/zap"
 	"golang.org/x/time/rate"
 	"log/slog"
 	"net/http"
@@ -102,27 +104,25 @@ func wsHandler(w http.ResponseWriter, r *http.Request, ctx context.Context) {
 		ChanSender: make(chan interface{}),
 		ChanPing:   make(chan bool),
 	}
-	wss.Lock()
-	defer wss.Unlock()
+	//wss.Lock()
+	//defer wss.Unlock()
+
+	ticker := time.NewTicker(pingPeriod)
 
 	ctx, cancel := context.WithCancel(ctx)
+
+	ip := net.GetRealIp(wss)
+	log.Logger.Info("connected from", slog.String("ip", ip))
 
 	// reader
 	go func() {
 		defer func() {
 			cancel()
-			//ticker.Stop()
-			//s.clientsMu.Lock()
-			//wss.Lock()
-			//if _, ok := s.clients[conn]; ok {
 			conn.Close()
-			//	delete(s.clients, conn)
 			listener.RemoveListener(wss)
-			//}
-			//s.clientsMu.Unlock()
-			//wss.Unlock()
-			//s.Log.Infof("disconnected from %s", ip)
+			log.Logger.Info("disconnected from", zap.String("ip", ip))
 		}()
+
 		conn.SetReadLimit(maxMessageSize)
 		conn.SetReadDeadline(time.Now().Add(pongWait))
 		conn.SetPongHandler(func(string) error {
@@ -131,7 +131,6 @@ func wsHandler(w http.ResponseWriter, r *http.Request, ctx context.Context) {
 		})
 
 		if config.Cfg.Ws.Auth {
-			//conn.WriteJSON(nostr.AuthEnvelope{Challenge: &wss.Challenge})
 			wss.ChanSender <- nostr.AuthEnvelope{Challenge: &wss.Challenge}
 		}
 
@@ -164,17 +163,33 @@ func wsHandler(w http.ResponseWriter, r *http.Request, ctx context.Context) {
 
 	// writer
 	go func() {
+
+		defer func() {
+			cancel()
+			ticker.Stop()
+
+		}()
 		for {
 			select {
 			case msg := <-wss.ChanSender:
-				wss.Conn.WriteJSON(msg)
+				err := wss.Conn.WriteJSON(msg)
+				if err != nil {
+					log.Logger.Error("write error", zap.Error(err))
+					return
+				}
 			case ping := <-wss.ChanPing:
 				if ping {
-					wss.Conn.SetWriteDeadline(time.Now().Add(writeWait))
-					if err := wss.Conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+					if err := wss.Conn.WriteMessage(websocket.PongMessage, nil); err != nil {
+						log.Logger.Error("pong error", zap.Error(err))
 						return
 					}
 				}
+			case <-ticker.C:
+				if err := wss.Conn.WriteControl(websocket.PingMessage, nil, time.Now().Add(writeWait)); err != nil {
+					log.Logger.Error("ping error", slog.AnyValue(err))
+					return
+				}
+				log.Logger.Debug("pinging for", slog.String("ip", ip))
 			case <-ctx.Done():
 				return
 			}

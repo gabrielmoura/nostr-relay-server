@@ -104,9 +104,9 @@ func DoEVENT(ws *dto.WsServer, data dto.Data) string {
 		reportingEvent(ws.Ctx, evt)
 	}
 	ok, reason := AddEvent(ws, &evt)
-	log.Logger.Info("event", evt.ID, "kind", evt.Kind, "ok", ok, "reason", reason)
 
-	//ws.Conn.WriteJSON(nostr.OKEnvelope{EventID: evt.ID, OK: ok, Reason: reason})
+	log.Logger.Debug("Acceptation event", slog.Bool("Accept", ok), slog.String("reason", reason), slog.Any("event", evt))
+
 	ws.ChanSender <- nostr.OKEnvelope{EventID: evt.ID, OK: ok, Reason: reason}
 	return ""
 }
@@ -118,12 +118,6 @@ func AddEvent(ws *dto.WsServer, evt *nostr.Event) (accepted bool, message string
 	if evt == nil {
 		return false, ""
 	}
-	//
-	//store := relay.Storage(ctx)
-	//wrapper := &eventstore.RelayWrapper{
-	//	Store: store,
-	//}
-	//advancedSaver, _ := store.(AdvancedSaver)
 
 	// regra para aceitar ou não o evento
 	if !ws.AcceptEvent(evt) {

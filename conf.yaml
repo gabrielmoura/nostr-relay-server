@@ -1,3 +1,4 @@
+app_env: development
 db:
     max_conns: 10
     min_conns: 1

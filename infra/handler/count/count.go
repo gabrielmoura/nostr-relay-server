@@ -13,7 +13,11 @@ import (
 
 func DoCOUNT(ws *dto.WsServer, data dto.Data) string {
 	var id string
-	json.Unmarshal(data[1], &id)
+	err := json.Unmarshal(data[1], &id)
+	if err != nil {
+		log.Logger.WarnContext(ws.Ctx, "failed to decode COUNT id", slog.AnyValue(err))
+		return ""
+	}
 	if id == "" {
 		return "COUNT has no <id>"
 	}
@@ -59,7 +63,6 @@ func DoCOUNT(ws *dto.WsServer, data dto.Data) string {
 		total += count
 	}
 
-	//ws.WriteJSON([]interface{}{"COUNT", id, map[string]int64{"count": total}})
 	ws.ChanSender <- []interface{}{"COUNT", id, map[string]int64{"count": total}}
 
 	return ""
