@@ -53,7 +53,7 @@ func DoEVENT(ws *dto.WsServer, data dto.Data) string {
 				defer cancel()
 
 				// fetch event to be deleted
-				res, err := db.DbQueries.QueryEvents(ctx, nostr.Filter{IDs: []string{tag[1]}})
+				res, err := db.DbQueries.QueryEventsChan(ctx, nostr.Filter{IDs: []string{tag[1]}})
 				if err != nil {
 					//ws.Conn.WriteJSON(nostr.OKEnvelope{EventID: evt.ID, OK: false, Reason: "failed to query for target event"})
 					ws.ChanSender <- nostr.OKEnvelope{EventID: evt.ID, OK: false, Reason: "failed to query for target event"}
@@ -140,8 +140,8 @@ func AddEvent(ws *dto.WsServer, evt *nostr.Event) (accepted bool, message string
 		//}
 
 		if saveErr := publish(ws.Ctx, *evt); saveErr != nil {
-			switch saveErr {
-			case ErrDupEvent:
+			switch {
+			case errors.Is(saveErr, ErrDupEvent):
 				return true, saveErr.Error()
 			default:
 				errmsg := saveErr.Error()
@@ -170,7 +170,7 @@ func publish(ctx context.Context, evt nostr.Event) error {
 		return nil
 	} else if nostr.IsReplaceableKind(evt.Kind) {
 		// replaceable event, delete before storing
-		ch, err := db.DbQueries.QueryEvents(ctx, nostr.Filter{Authors: []string{evt.PubKey}, Kinds: []int{evt.Kind}})
+		ch, err := db.DbQueries.QueryEventsChan(ctx, nostr.Filter{Authors: []string{evt.PubKey}, Kinds: []int{evt.Kind}})
 		if err != nil {
 			return fmt.Errorf("failed to query before replacing: %w", err)
 		}
@@ -183,7 +183,7 @@ func publish(ctx context.Context, evt nostr.Event) error {
 		// parameterized replaceable event, delete before storing
 		d := evt.Tags.GetFirst([]string{"d", ""})
 		if d != nil {
-			ch, err := db.DbQueries.QueryEvents(ctx, nostr.Filter{Authors: []string{evt.PubKey}, Kinds: []int{evt.Kind}, Tags: nostr.TagMap{"d": []string{d.Value()}}})
+			ch, err := db.DbQueries.QueryEventsChan(ctx, nostr.Filter{Authors: []string{evt.PubKey}, Kinds: []int{evt.Kind}, Tags: nostr.TagMap{"d": []string{d.Value()}}})
 			if err != nil {
 				return fmt.Errorf("failed to query before parameterized replacing: %w", err)
 			}

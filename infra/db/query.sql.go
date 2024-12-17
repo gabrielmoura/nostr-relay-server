@@ -161,8 +161,26 @@ func (q *Queries) queryEventsSql(filter nostr.Filter, doCount bool) (string, []a
 func makePlaceHolders(n int) string {
 	return strings.TrimRight(strings.Repeat("?,", n), ",")
 }
+func (q *Queries) QueryEventsChan(ctx context.Context, filter nostr.Filter) (ch chan *nostr.Event, err error) {
+	query, err := q.QueryEvents(ctx, filter)
+	if err != nil {
+		return nil, err
+	}
 
-func (q *Queries) QueryEvents(ctx context.Context, filter nostr.Filter) (ch chan *nostr.Event, err error) {
+	ch = make(chan *nostr.Event)
+	go func() {
+		defer close(ch)
+		for _, evt := range query {
+			select {
+			case ch <- evt:
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+	return ch, nil
+}
+func (q *Queries) QueryEvents(ctx context.Context, filter nostr.Filter) (events []*nostr.Event, err error) {
 	query, params, err := q.queryEventsSql(filter, false)
 	if err != nil {
 		return nil, err
@@ -173,28 +191,20 @@ func (q *Queries) QueryEvents(ctx context.Context, filter nostr.Filter) (ch chan
 		return nil, fmt.Errorf("failed to fetch events using query %q: %w", query, err)
 	}
 
-	ch = make(chan *nostr.Event)
-	go func() {
-		defer rows.Close()
-		defer close(ch)
-		for rows.Next() {
-			var evt nostr.Event
-			var timestamp int64
-			err := rows.Scan(&evt.ID, &evt.PubKey, &timestamp,
-				&evt.Kind, &evt.Tags, &evt.Content, &evt.Sig)
-			if err != nil {
-				return
-			}
-			evt.CreatedAt = nostr.Timestamp(timestamp)
-			select {
-			case ch <- &evt:
-			case <-ctx.Done():
-				return
-			}
+	defer rows.Close()
+	for rows.Next() {
+		var evt nostr.Event
+		var timestamp int64
+		err := rows.Scan(&evt.ID, &evt.PubKey, &timestamp,
+			&evt.Kind, &evt.Tags, &evt.Content, &evt.Sig)
+		if err != nil {
+			return nil, err
 		}
-	}()
+		evt.CreatedAt = nostr.Timestamp(timestamp)
+		events = append(events, &evt)
+	}
 
-	return ch, nil
+	return events, nil
 }
 
 func (q *Queries) CountEvents(ctx context.Context, filter nostr.Filter) (int64, error) {

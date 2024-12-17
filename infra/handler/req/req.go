@@ -75,7 +75,7 @@ func DoREQ(ws *dto.WsServer, data dto.Data) string {
 			}
 		}
 
-		events, err := db.DbQueries.QueryEvents(ws.Ctx, filter)
+		events, err := db.DbQueries.QueryEventsChan(ws.Ctx, filter)
 		if err != nil {
 			log.Logger.Error("store", zap.Error(err))
 			continue
