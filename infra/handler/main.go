@@ -15,7 +15,6 @@ import (
 	"github.com/rs/cors"
 	"go.uber.org/zap"
 	"golang.org/x/time/rate"
-	"log/slog"
 	"net/http"
 	"time"
 )
@@ -73,7 +72,7 @@ func Init(ctx context.Context) *http.Server {
 		ReadTimeout:  2 * time.Second,
 		IdleTimeout:  30 * time.Second,
 	}
-	log.Logger.Info("Server started", slog.Int("port", config.Cfg.Port))
+	log.Logger.Info("Server started", zap.Int("port", config.Cfg.Port))
 
 	return server
 
@@ -91,7 +90,7 @@ func wsHandler(w http.ResponseWriter, r *http.Request, ctx context.Context) {
 
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		log.Logger.Error("Upgrade error:", err)
+		log.Logger.Error("Upgrade error:", zap.Error(err))
 		return
 	}
 
@@ -112,7 +111,7 @@ func wsHandler(w http.ResponseWriter, r *http.Request, ctx context.Context) {
 	ctx, cancel := context.WithCancel(ctx)
 
 	ip := net.GetRealIp(wss)
-	log.Logger.Info("connected from", slog.String("ip", ip))
+	log.Logger.Info("connected from", zap.String("ip", ip))
 
 	// reader
 	go func() {
@@ -143,11 +142,10 @@ func wsHandler(w http.ResponseWriter, r *http.Request, ctx context.Context) {
 					websocket.CloseNoStatusReceived, // 1005
 					websocket.CloseAbnormalClosure,  // 1006
 				) {
-					log.Logger.WarnContext(
-						ctx,
+					log.Logger.Warn(
 						"unexpected close error from ",
-						slog.String("for", r.Header.Get("X-Forwarded-For")),
-						slog.Any("error", err),
+						zap.String("for", r.Header.Get("X-Forwarded-For")),
+						zap.Error(err),
 					)
 				}
 				break
@@ -186,10 +184,10 @@ func wsHandler(w http.ResponseWriter, r *http.Request, ctx context.Context) {
 				}
 			case <-ticker.C:
 				if err := wss.Conn.WriteControl(websocket.PingMessage, nil, time.Now().Add(writeWait)); err != nil {
-					log.Logger.Error("ping error", slog.AnyValue(err))
+					log.Logger.Error("ping error", zap.Error(err))
 					return
 				}
-				log.Logger.Debug("pinging for", slog.String("ip", ip))
+				log.Logger.Debug("pinging for", zap.String("ip", ip))
 			case <-ctx.Done():
 				return
 			}
@@ -201,7 +199,11 @@ func wsHandler(w http.ResponseWriter, r *http.Request, ctx context.Context) {
 func genChallenge() string {
 	// NIP-42 challenge
 	challenge := make([]byte, 8)
-	rand.Read(challenge)
+	_, err := rand.Read(challenge)
+	if err != nil {
+		log.Logger.Warn("error generating challenge", zap.Error(err))
+		return ""
+	}
 
 	// ponha no contexto
 

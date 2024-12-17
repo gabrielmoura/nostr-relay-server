@@ -8,7 +8,7 @@ import (
 	"github.com/goccy/go-json"
 	"github.com/nbd-wtf/go-nostr"
 	"github.com/nbd-wtf/go-nostr/nip42"
-	"log/slog"
+	"go.uber.org/zap"
 )
 
 const AuthContextKey = "authed"
@@ -24,7 +24,7 @@ func DoAUTH(ws *dto.WsServer, data dto.Data) string {
 			ws.Ctx = context.WithValue(ws.Ctx, AuthContextKey, pubkey)
 			ws.ChanSender <- nostr.OKEnvelope{EventID: evt.ID, OK: true}
 		} else {
-			log.Logger.WarnContext(ws.Ctx, "failed to authenticate", slog.String("event", evt.String()))
+			log.Logger.Warn("failed to authenticate", zap.String("event", evt.String()))
 			ws.ChanSender <- nostr.OKEnvelope{EventID: evt.ID, OK: false, Reason: "error: failed to authenticate"}
 		}
 	}

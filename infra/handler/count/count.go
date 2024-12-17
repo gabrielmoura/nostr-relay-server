@@ -7,7 +7,7 @@ import (
 	"github.com/gabrielmoura/nostr-relay-server/internal/dto"
 	"github.com/goccy/go-json"
 	"github.com/nbd-wtf/go-nostr"
-	"log/slog"
+	"go.uber.org/zap"
 	"slices"
 )
 
@@ -15,7 +15,7 @@ func DoCOUNT(ws *dto.WsServer, data dto.Data) string {
 	var id string
 	err := json.Unmarshal(data[1], &id)
 	if err != nil {
-		log.Logger.WarnContext(ws.Ctx, "failed to decode COUNT id", slog.AnyValue(err))
+		log.Logger.Warn("failed to decode COUNT id", zap.Error(err))
 		return ""
 	}
 	if id == "" {
@@ -57,7 +57,7 @@ func DoCOUNT(ws *dto.WsServer, data dto.Data) string {
 
 		count, err := db.DbQueries.CountEvents(ws.Ctx, filter)
 		if err != nil {
-			log.Logger.Error("store: %v", slog.AnyValue(err))
+			log.Logger.Error("store: %v", zap.Error(err))
 			continue
 		}
 		total += count

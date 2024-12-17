@@ -12,7 +12,7 @@ import (
 	"github.com/gabrielmoura/nostr-relay-server/internal/dto"
 	"github.com/goccy/go-json"
 	"github.com/nbd-wtf/go-nostr"
-	"log/slog"
+	"go.uber.org/zap"
 	"regexp"
 	"time"
 )
@@ -105,7 +105,12 @@ func DoEVENT(ws *dto.WsServer, data dto.Data) string {
 	}
 	ok, reason := AddEvent(ws, &evt)
 
-	log.Logger.Debug("Acceptation event", slog.Bool("Accept", ok), slog.String("reason", reason), slog.Any("event", evt))
+	log.Logger.Debug(
+		"Acceptation event",
+		zap.Bool("Accept", ok),
+		zap.String("reason", reason),
+		zap.String("event", evt.ID),
+	)
 
 	ws.ChanSender <- nostr.OKEnvelope{EventID: evt.ID, OK: ok, Reason: reason}
 	return ""
@@ -191,7 +196,7 @@ func publish(ctx context.Context, evt nostr.Event) error {
 	}
 
 	if err := db.DbQueries.InsertEvent(ctx, &evt); err != nil && !errors.Is(err, ErrDupEvent) {
-		log.Logger.Error("failed to save", err)
+		log.Logger.Error("failed to save", zap.Error(err))
 		return fmt.Errorf("failed to save: %w", err)
 	}
 
@@ -204,5 +209,5 @@ func isOlder(previous, next *nostr.Event) bool {
 }
 
 func processEphemeralEvents(ctx context.Context, evt *nostr.Event) {
-	log.Logger.InfoContext(ctx, "ephemeral events", slog.Any("event", evt))
+	log.Logger.Info("ephemeral events", zap.Any("event", evt))
 }

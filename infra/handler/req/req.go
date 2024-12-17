@@ -8,7 +8,7 @@ import (
 	"github.com/gabrielmoura/nostr-relay-server/internal/dto"
 	"github.com/goccy/go-json"
 	"github.com/nbd-wtf/go-nostr"
-	"log/slog"
+	"go.uber.org/zap"
 	"slices"
 )
 
@@ -16,7 +16,7 @@ func DoREQ(ws *dto.WsServer, data dto.Data) string {
 	var id string
 	err := json.Unmarshal(data[1], &id)
 	if err != nil {
-		log.Logger.WarnContext(ws.Ctx, "failed to decode REQ id", slog.AnyValue(err))
+		log.Logger.Warn("failed to decode REQ id", zap.Error(err))
 		return ""
 	}
 	if id == "" {
@@ -77,7 +77,7 @@ func DoREQ(ws *dto.WsServer, data dto.Data) string {
 
 		events, err := db.DbQueries.QueryEvents(ws.Ctx, filter)
 		if err != nil {
-			log.Logger.ErrorContext(ws.Ctx, "store", slog.AnyValue(err))
+			log.Logger.Error("store", zap.Error(err))
 			continue
 		}
 

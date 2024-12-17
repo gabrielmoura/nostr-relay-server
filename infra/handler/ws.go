@@ -10,7 +10,7 @@ import (
 	"github.com/gabrielmoura/nostr-relay-server/internal/dto"
 	"github.com/goccy/go-json"
 	"github.com/nbd-wtf/go-nostr"
-	"log/slog"
+	"go.uber.org/zap"
 )
 
 func handleMessage(ws *dto.WsServer, message []byte) {
@@ -19,7 +19,7 @@ func handleMessage(ws *dto.WsServer, message []byte) {
 	defer func() {
 
 		if notice != "" {
-			log.Logger.Debug("Notice:", slog.String("notice", notice))
+			log.Logger.Debug("Notice:", zap.String("notice", notice))
 			ws.ChanSender <- nostr.NoticeEnvelope(notice)
 		}
 	}()
@@ -39,11 +39,11 @@ func handleMessage(ws *dto.WsServer, message []byte) {
 	err := json.Unmarshal(requestRaw[0], &typ)
 	if err != nil {
 		notice = "failed to decode event type"
-		log.Logger.ErrorContext(ws.Ctx, "failed to decode event type", slog.AnyValue(err))
+		log.Logger.Error("failed to decode event type", zap.Error(err))
 		return
 	}
 
-	log.Logger.DebugContext(ws.Ctx, "Event:", slog.Any("event", requestRaw))
+	log.Logger.Debug("Event:", zap.Any("event", requestRaw))
 	switch typ {
 	case dto.TypeEVENT:
 		notice = event.DoEVENT(ws, requestRaw)
@@ -56,7 +56,7 @@ func handleMessage(ws *dto.WsServer, message []byte) {
 	case dto.TypeCOUNT:
 		notice = count.DoCOUNT(ws, requestRaw)
 	default:
-		log.Logger.Error("Unknown event type:", typ)
+		log.Logger.Error("Unknown event type", zap.String("type", typ))
 		notice = "unknown event type " + typ
 	}
 

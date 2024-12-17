@@ -5,7 +5,7 @@ import (
 	"github.com/gabrielmoura/nostr-relay-server/infra/log"
 	"github.com/gabrielmoura/nostr-relay-server/internal/db"
 	"github.com/nbd-wtf/go-nostr"
-	"log/slog"
+	"go.uber.org/zap"
 )
 
 // reportingEvent tratamento de eventos de report
@@ -32,26 +32,23 @@ func reportingEvent(ctx context.Context, event nostr.Event) {
 
 	log.Logger.Info(
 		"reporting event",
-		slog.String("key", event.ID),
-		slog.Group(
-			"report",
-			slog.String("pubKey", key),
-			slog.String("reason", reason),
-			slog.String("denunciator", denunciator),
-		),
+		zap.String("key", event.ID),
+		zap.String("pubKey", key),
+		zap.String("reason", reason),
+		zap.String("denunciator", denunciator),
 	)
 
 	// Busca todos os eventos de report para a public key
 	count, err := db.DbQueries.GetCountReportsKey(ctx, key)
 	if err != nil {
-		log.Logger.Error("failed to get count reports key", err)
+		log.Logger.Error("failed to get count reports key", zap.Error(err))
 		return
 	}
 	// atingindo a marca de 5 reports, a public key é banida
 	if count+1 >= 5 {
 		err := db.DbQueries.BanUserByPubKey(ctx, key, reason, []string{})
 		if err != nil {
-			log.Logger.Error("failed to ban user", err)
+			log.Logger.Error("failed to ban user", zap.Error(err))
 			return
 		}
 	}

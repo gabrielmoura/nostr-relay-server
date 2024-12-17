@@ -2,28 +2,23 @@ package log
 
 import (
 	"github.com/gabrielmoura/nostr-relay-server/config"
-	"log/slog"
-	"os"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
-var Logger *slog.Logger
+var Logger *zap.Logger
 
 func Init() {
-	opts := new(slog.HandlerOptions)
-	var handler slog.Handler
+	var cfg zap.Config
 	if config.Cfg.AppEnv != "production" {
-		opts.AddSource = true
-		opts.Level = slog.LevelDebug
-
-	} else if config.Cfg.AppEnv == "debug" {
-		opts.AddSource = true
-		opts.Level = slog.LevelDebug
-		handler = NewPrettyHandler(os.Stdout, PrettyHandlerOptions{SlogOpts: *opts})
+		cfg = zap.NewDevelopmentConfig()
 	} else {
-		opts.AddSource = false
-		opts.Level = slog.LevelInfo
-		handler = slog.NewJSONHandler(os.Stdout, opts)
+		cfg = zap.NewProductionConfig()
+		cfg.EncoderConfig.EncodeLevel = zapcore.CapitalLevelEncoder
 	}
-
-	Logger = slog.New(handler)
+	var err error
+	Logger, err = cfg.Build()
+	if err != nil {
+		panic(err)
+	}
 }

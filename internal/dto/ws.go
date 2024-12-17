@@ -7,7 +7,7 @@ import (
 	"github.com/gabrielmoura/nostr-relay-server/infra/log"
 	"github.com/gabrielmoura/nostr-relay-server/internal/db"
 	"github.com/goccy/go-json"
-	"log/slog"
+	"go.uber.org/zap"
 	"net/http"
 	"slices"
 	"sync"
@@ -104,17 +104,21 @@ func (req *WsServer) AcceptEvent(event *nostr.Event) bool {
 
 	reason, exists, err := db.DbQueries.GetUserBannedByKey(req.Ctx, event.PubKey)
 	if err != nil {
-		log.Logger.Error("Erro ao verificar se o usuário está banido", err.Error())
+		log.Logger.Error("Erro ao verificar se o usuário está banido", zap.Error(err))
 		return false
 	}
 	if exists {
-		log.Logger.Info("Usuário banido", reason)
+		log.Logger.Info("Usuário banido", zap.String("reason", reason))
 		return false
 	}
 
 	jsonb, _ := json.Marshal(event)
 	if len(jsonb) > config.Cfg.Relay.MaxEventSize {
-		log.Logger.Debug("Evento muito grande", slog.Int("size", len(jsonb)), slog.Int("max", config.Cfg.Relay.MaxEventSize))
+		log.Logger.Debug(
+			"very big event",
+			zap.Int("size", len(jsonb)),
+			zap.Int("max", config.Cfg.Relay.MaxEventSize),
+		)
 		return false
 	}
 

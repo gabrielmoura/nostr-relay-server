@@ -1,2 +1,5 @@
 nrs
 vendor
+nrserver
+nrserver-arm64
+nrserver.exe

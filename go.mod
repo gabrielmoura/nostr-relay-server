@@ -4,7 +4,6 @@ go 1.23.3
 
 require (
 	github.com/fasthttp/websocket v1.5.11
-	github.com/fatih/color v1.14.1
 	github.com/goccy/go-json v0.10.4
 	github.com/jackc/pgx/v5 v5.7.1
 	github.com/jmoiron/sqlx v1.3.5
@@ -37,8 +36,6 @@ require (
 	github.com/klauspost/compress v1.17.11 // indirect
 	github.com/magiconair/properties v1.8.7 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
-	github.com/mattn/go-colorable v0.1.13 // indirect
-	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
