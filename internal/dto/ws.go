@@ -24,6 +24,22 @@ const (
 	TypeCOUNT = "COUNT"
 )
 
+type WsMessage struct {
+	Type int               `json:"type"`
+	Data []json.RawMessage `json:"data"`
+}
+
+func (m *WsMessage) ToJson() []byte {
+	if m.Type == websocket.PingMessage {
+		return nil
+	}
+	if m.Type == websocket.TextMessage {
+		d, _ := json.Marshal(m.Data)
+		return d
+	}
+	return nil
+}
+
 type WsRequest struct {
 	Data   []json.RawMessage `json:"data"`
 	authed string
