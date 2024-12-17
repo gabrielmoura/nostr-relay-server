@@ -4,6 +4,7 @@ go 1.23.3
 
 require (
 	github.com/fasthttp/websocket v1.5.11
+	github.com/fiatjaf/eventstore v0.9.0
 	github.com/goccy/go-json v0.10.4
 	github.com/jackc/pgx/v5 v5.7.1
 	github.com/jmoiron/sqlx v1.3.5

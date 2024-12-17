@@ -2,18 +2,19 @@ package cmd
 
 import (
 	"context"
+	"fmt"
 	"github.com/gabrielmoura/nostr-relay-server/config"
 	"github.com/gabrielmoura/nostr-relay-server/infra/handler"
 	"github.com/gabrielmoura/nostr-relay-server/infra/net"
 	"github.com/gabrielmoura/nostr-relay-server/internal/db"
 	"github.com/spf13/cobra"
-	"log"
+	"go.uber.org/zap"
 
 	"os"
 	"os/signal"
 	"syscall"
 
-	slog "github.com/gabrielmoura/nostr-relay-server/infra/log"
+	"github.com/gabrielmoura/nostr-relay-server/infra/log"
 )
 
 var serverCmd = &cobra.Command{
@@ -24,20 +25,20 @@ var serverCmd = &cobra.Command{
 }
 
 func runServer(cmd *cobra.Command, args []string) {
+
 	if cmd.Flag("config").Value != nil {
 		// Ler arquivo de configuração
 		if err := config.LoadConfig(); err != nil {
-			log.Fatalf("Erro ao carregar a configuração: %v", err)
+			fmt.Println("Erro ao carregar a configuração:", err)
 		}
 
-		slog.Init()
-
+		log.Init()
 		mainCtx, mainCancel := context.WithCancel(context.Background())
 		defer mainCancel()
 
 		// Iniciar Conexão com o banco de dados
 		if err := db.Init(mainCtx); err != nil {
-			log.Fatalf("Erro ao iniciar conexão com o banco de dados: %v", err)
+			log.Logger.Fatal("Erro ao iniciar conexão com o banco de dados", zap.Error(err))
 		}
 
 		// Canal para capturar sinais do sistema
@@ -51,13 +52,13 @@ func runServer(cmd *cobra.Command, args []string) {
 		go func() {
 			<-stopChan
 
-			log.Print("Sinal de desligamento recebido. Finalizando...")
+			log.Logger.Info("Sinal de desligamento recebido. Finalizando...")
 
 			mainCancel()
 
 			// Chamar o método Shutdown do servidor
 			if err := server.Shutdown(mainCtx); err != nil {
-				log.Fatalf("Erro ao desligar o servidor: %s", err.Error())
+				log.Logger.Fatal("Erro ao desligar o servidor", zap.Error(err))
 			}
 		}()
 
@@ -69,7 +70,7 @@ func runServer(cmd *cobra.Command, args []string) {
 		// Aguarda pelo término do contexto principal
 		<-mainCtx.Done()
 
-		log.Println("Servidor finalizado com sucesso.")
+		log.Logger.Info("Servidor finalizado com sucesso.")
 	}
 }
 
