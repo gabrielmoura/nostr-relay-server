@@ -33,6 +33,9 @@ func setDefaults(export bool) {
 	viper.SetDefault("db.max_conns", 10)
 	viper.SetDefault("db.min_conns", 1)
 
+	viper.SetDefault("stream_up.enabled", true)
+	viper.SetDefault("stream_down.enabled", false)
+
 	if export {
 		viper.SetDefault("db.postgres_uri", "postgres://user:password@localhost:5432/dbname")
 	}

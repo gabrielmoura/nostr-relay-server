@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"github.com/gabrielmoura/nostr-relay-server/infra/handler/listener"
 	"github.com/gabrielmoura/nostr-relay-server/infra/log"
+	"github.com/gabrielmoura/nostr-relay-server/infra/stream"
 	"github.com/gabrielmoura/nostr-relay-server/internal/db"
 	"github.com/gabrielmoura/nostr-relay-server/internal/dto"
 	"github.com/goccy/go-json"
@@ -194,6 +195,8 @@ func publish(ctx context.Context, evt nostr.Event) error {
 			}
 		}
 	}
+
+	stream.ForwardEvent(evt)
 
 	if err := db.DbQueries.InsertEvent(ctx, &evt); err != nil && !errors.Is(err, ErrDupEvent) {
 		log.Logger.Error("failed to save", zap.Error(err))
