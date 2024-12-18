@@ -116,3 +116,22 @@ type RelayFeesDocument struct {
 }
 
 var Cfg *Config
+
+type FileServerConfig struct {
+	APIURL         string          `json:"api_url"`
+	DownloadURL    string          `json:"download_url,omitempty"`
+	DelegatedToURL string          `json:"delegated_to_url,omitempty"`
+	SupportedNIPS  []int           `json:"supported_nips,omitempty"`
+	TOSURL         string          `json:"tos_url,omitempty"` // Terms of Service URL
+	ContentTypes   []string        `json:"content_types,omitempty"`
+	Plans          map[string]Plan `json:"plans,omitempty"`
+}
+
+type Plan struct {
+	Name                 string   `json:"name"`
+	IsNIP98Required      bool     `json:"is_nip98_required"`
+	URL                  string   `json:"url,omitempty"`
+	MaxByteSize          int64    `json:"max_byte_size"`
+	FileExpiration       [2]int   `json:"file_expiration"`
+	MediaTransformations []string `json:"media_transformations,omitempty"`
+}

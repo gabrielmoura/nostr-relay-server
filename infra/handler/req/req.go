@@ -1,9 +1,12 @@
 package req
 
 import (
+	"fmt"
+	"github.com/fiatjaf/khatru/policies"
 	"github.com/gabrielmoura/nostr-relay-server/config"
 	"github.com/gabrielmoura/nostr-relay-server/infra/handler/listener"
 	"github.com/gabrielmoura/nostr-relay-server/infra/log"
+	"github.com/gabrielmoura/nostr-relay-server/infra/stream"
 	"github.com/gabrielmoura/nostr-relay-server/internal/db"
 	"github.com/gabrielmoura/nostr-relay-server/internal/dto"
 	"github.com/goccy/go-json"
@@ -44,6 +47,26 @@ func DoREQ(ws *dto.WsServer, data dto.Data) string {
 	}
 
 	for _, filter := range filters {
+		//if ok, err := policies.NoEmptyFilters(ws.Ctx, filter); !ok {
+		//	log.Logger.Warn("empty-filter", zap.String("reason", err))
+		//	ws.ChanSender <- nostr.ClosedEnvelope{
+		//		Reason:         err,
+		//		SubscriptionID: id,
+		//	}
+		//	return ""
+		//}
+
+		// caso não haja autenticação, não permitir baixar eventos sem autor.
+		if ok, err := policies.AntiSyncBots(ws.Ctx, filter); !ok {
+			if ws.Authed == "" {
+				log.Logger.Warn("anti-sync-bot", zap.String("reason", err))
+				ws.ChanSender <- nostr.ClosedEnvelope{
+					Reason:         fmt.Sprintf("auth-required: %s", err),
+					SubscriptionID: id,
+				}
+				return ""
+			}
+		}
 
 		// prevent kind-4 events from being returned to unauthed users,
 		//   only when authentication is a thing
@@ -53,7 +76,12 @@ func DoREQ(ws *dto.WsServer, data dto.Data) string {
 			switch {
 			case ws.Authed == "":
 				// not authenticated
-				return "restricted: this relay does not serve kind-4 to unauthenticated users, does your client implement NIP-42?"
+				//return "auth-required: this relay does not serve kind-4 to unauthenticated users, does your client implement NIP-42?"
+				ws.ChanSender <- nostr.ClosedEnvelope{
+					Reason:         "auth-required: this relay does not serve kind-4 to unauthenticated users, does your client implement NIP-42?",
+					SubscriptionID: id,
+				}
+				return ""
 			case len(senders) == 1 && len(receivers) < 2 && (senders[0] == ws.Authed):
 				// allowed filter:ws.Authed is sole sender (filter specifies one or all receivers)
 			case len(receivers) == 1 && len(senders) < 2 && (receivers[0] == ws.Authed):
@@ -62,16 +90,31 @@ func DoREQ(ws *dto.WsServer, data dto.Data) string {
 				// restricted filter: do not return any events,
 				//   even if other elements in filters array were not restricted).
 				//   client should know better.
-				return "restricted: authenticated user does not have authorization for requested filters."
+				//return "auth-required: authenticated user does not have authorization for requested filters."
+				ws.ChanSender <- nostr.ClosedEnvelope{
+					Reason:         "auth-required: authenticated user does not have authorization for requested filters.",
+					SubscriptionID: id,
+				}
+				return ""
 			}
 		}
 
 		if slices.Contains(filter.Kinds, nostr.KindApplicationSpecificData) {
 			switch {
 			case ws.Authed == "":
-				return "restricted: é necessário autenticação para acessar eventos do tipo KindApplicationSpecificData"
+				//return "restricted: é necessário autenticação para acessar eventos do tipo KindApplicationSpecificData"
+				ws.ChanSender <- nostr.ClosedEnvelope{
+					Reason:         "auth-required: é necessário autenticação para acessar eventos do tipo KindApplicationSpecificData",
+					SubscriptionID: id,
+				}
+				return ""
 			case !slices.Contains(filter.Authors, ws.Authed):
-				return "restricted: usuário autenticado não tem autorização para acessar eventos do tipo KindApplicationSpecificData"
+				//return "auth-required: usuário autenticado não tem autorização para acessar eventos do tipo KindApplicationSpecificData"
+				ws.ChanSender <- nostr.ClosedEnvelope{
+					Reason:         "auth-required: usuário autenticado não tem autorização para acessar eventos do tipo KindApplicationSpecificData",
+					SubscriptionID: id,
+				}
+				return ""
 			}
 		}
 
@@ -92,6 +135,10 @@ func DoREQ(ws *dto.WsServer, data dto.Data) string {
 
 		i := 0
 		if events != nil {
+			if len(events) == 0 {
+				go stream.ForwardRequest(ws, filter, &id)
+			}
+
 			for event := range events {
 				// regra para filtrar eventos que não devem ser enviados
 				if ws.SkipEventFunc(event) {

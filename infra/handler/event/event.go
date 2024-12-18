@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"github.com/fiatjaf/khatru/policies"
 	"github.com/gabrielmoura/nostr-relay-server/infra/handler/listener"
 	"github.com/gabrielmoura/nostr-relay-server/infra/log"
 	"github.com/gabrielmoura/nostr-relay-server/infra/stream"
@@ -43,6 +44,21 @@ func DoEVENT(ws *dto.WsServer, data dto.Data) string {
 		return ""
 	} else if !ok {
 		ws.ChanSender <- nostr.OKEnvelope{EventID: evt.ID, OK: false, Reason: "invalid: signature is invalid"}
+		return ""
+	}
+
+	if ok, err := policies.PreventLargeTags(70)(ws.Ctx, &evt); !ok {
+		ws.ChanSender <- nostr.OKEnvelope{EventID: evt.ID, OK: ok, Reason: err}
+		return ""
+	}
+
+	if ok, err := policies.PreventTooManyIndexableTags(70, []int{}, []int{})(ws.Ctx, &evt); !ok {
+		ws.ChanSender <- nostr.OKEnvelope{EventID: evt.ID, OK: ok, Reason: err}
+		return ""
+	}
+
+	if ok, err := policies.RejectEventsWithBase64Media(ws.Ctx, &evt); !ok {
+		ws.ChanSender <- nostr.OKEnvelope{EventID: evt.ID, OK: ok, Reason: err}
 		return ""
 	}
 
@@ -101,6 +117,7 @@ func DoEVENT(ws *dto.WsServer, data dto.Data) string {
 		ws.ChanSender <- nostr.OKEnvelope{EventID: evt.ID, OK: true}
 		return ""
 	}
+
 	if evt.Kind == nostr.KindReporting {
 		reportingEvent(ws.Ctx, evt)
 	}

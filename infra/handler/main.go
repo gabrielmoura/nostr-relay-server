@@ -2,15 +2,15 @@ package handler
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"fmt"
 	"github.com/fasthttp/websocket"
 	"github.com/gabrielmoura/nostr-relay-server/config"
 	"github.com/gabrielmoura/nostr-relay-server/infra/handler/listener"
 	"github.com/gabrielmoura/nostr-relay-server/infra/log"
 	"github.com/gabrielmoura/nostr-relay-server/infra/net"
+	"github.com/gabrielmoura/nostr-relay-server/infra/util"
 	"github.com/gabrielmoura/nostr-relay-server/internal/dto"
+	"github.com/goccy/go-json"
 	"github.com/nbd-wtf/go-nostr"
 	"github.com/rs/cors"
 	"go.uber.org/zap"
@@ -38,8 +38,6 @@ func serverHttpRelay(w http.ResponseWriter, r *http.Request, ctx context.Context
 		wsHandler(w, r, ctx)
 	} else if r.Header.Get("Accept") == "application/nostr+json" {
 		handleRelayInfo(w, r)
-	} else {
-		serverHttpRelay(w, r, ctx)
 	}
 }
 func Init(ctx context.Context) *http.Server {
@@ -59,6 +57,15 @@ func Init(ctx context.Context) *http.Server {
 		js, _ := config.Cfg.RelayInformation.ToJson()
 		w.Header().Set("Content-Type", "application/json")
 		w.Write(js)
+	})
+
+	mux.HandleFunc("/.well-known/nostr/nip96.json", func(w http.ResponseWriter, r *http.Request) {
+		data, _ := json.Marshal(config.FileServerConfig{
+			APIURL:      "https://nostr.moura.ca/store",
+			DownloadURL: "https://nostr.moura.ca/blobs",
+		})
+		w.Header().Set("Content-Type", "application/json")
+		w.Write(data)
 	})
 
 	// Adiciona suporte a CORS
@@ -91,11 +98,12 @@ func wsHandler(w http.ResponseWriter, r *http.Request, ctx context.Context) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Logger.Error("Upgrade error:", zap.Error(err))
+		ctx.Deadline()
 		return
 	}
 
 	wss := &dto.WsServer{
-		Challenge:  genChallenge(),
+		Challenge:  util.GenChallenge(),
 		Conn:       conn,
 		Request:    r,
 		Ctx:        ctx,
@@ -194,18 +202,4 @@ func wsHandler(w http.ResponseWriter, r *http.Request, ctx context.Context) {
 		}
 	}()
 
-}
-
-func genChallenge() string {
-	// NIP-42 challenge
-	challenge := make([]byte, 8)
-	_, err := rand.Read(challenge)
-	if err != nil {
-		log.Logger.Warn("error generating challenge", zap.Error(err))
-		return ""
-	}
-
-	// ponha no contexto
-
-	return hex.EncodeToString(challenge)
 }
