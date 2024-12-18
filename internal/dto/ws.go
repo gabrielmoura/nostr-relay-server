@@ -53,7 +53,8 @@ type WsServer struct {
 	Authed     string           // Chave publica para identificar o usuario
 	ChanSender chan interface{} // Canal para enviar mensagens EXPERIMENTAL
 	sync.Mutex
-	ChanPing chan bool
+	ChanPing   chan bool
+	StreamPoll []*nostr.Relay
 }
 type Data []json.RawMessage
 
