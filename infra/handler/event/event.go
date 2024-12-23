@@ -47,17 +47,17 @@ func DoEVENT(ws *dto.WsServer, data dto.Data) string {
 		return ""
 	}
 
-	if ok, err := policies.PreventLargeTags(70)(ws.Ctx, &evt); !ok {
+	if ok, err := policies.PreventLargeTags(70)(ws.Ctx, &evt); ok {
 		ws.ChanSender <- nostr.OKEnvelope{EventID: evt.ID, OK: ok, Reason: err}
 		return ""
 	}
 
-	if ok, err := policies.PreventTooManyIndexableTags(70, []int{}, []int{})(ws.Ctx, &evt); !ok {
+	if ok, err := policies.PreventTooManyIndexableTags(70, []int{}, []int{})(ws.Ctx, &evt); ok {
 		ws.ChanSender <- nostr.OKEnvelope{EventID: evt.ID, OK: ok, Reason: err}
 		return ""
 	}
 
-	if ok, err := policies.RejectEventsWithBase64Media(ws.Ctx, &evt); !ok {
+	if ok, err := policies.RejectEventsWithBase64Media(ws.Ctx, &evt); ok {
 		ws.ChanSender <- nostr.OKEnvelope{EventID: evt.ID, OK: ok, Reason: err}
 		return ""
 	}

@@ -57,7 +57,7 @@ func DoREQ(ws *dto.WsServer, data dto.Data) string {
 		//}
 
 		// caso não haja autenticação, não permitir baixar eventos sem autor.
-		if ok, err := policies.AntiSyncBots(ws.Ctx, filter); !ok {
+		if ok, err := policies.AntiSyncBots(ws.Ctx, filter); ok {
 			if ws.Authed == "" {
 				log.Logger.Warn("anti-sync-bot", zap.String("reason", err))
 				ws.ChanSender <- nostr.ClosedEnvelope{

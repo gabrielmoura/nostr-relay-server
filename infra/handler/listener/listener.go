@@ -2,9 +2,9 @@ package listener
 
 import (
 	"github.com/gabrielmoura/nostr-relay-server/internal/dto"
-	"sync"
-
 	"github.com/nbd-wtf/go-nostr"
+	"sync"
+	"sync/atomic"
 )
 
 type Listener struct {
@@ -13,84 +13,95 @@ type Listener struct {
 
 var (
 	listeners      = make(map[*dto.WsServer]map[string]*Listener)
-	listenersMutex = sync.Mutex{}
+	listenersMutex sync.RWMutex // Using a RWMutex for read-heavy operations
+	listenerCount  atomic.Int32 // Use atomic for thread-safe counter
 )
 
+// GetListeningFilters retrieves all distinct filters currently active.
 func GetListeningFilters() nostr.Filters {
-	respfilters := make(nostr.Filters, 0, len(listeners)*2)
+	listenersMutex.RLock()
+	defer listenersMutex.RUnlock()
 
-	listenersMutex.Lock()
-	defer listenersMutex.Unlock()
+	respfilters := nostr.Filters{}
+	uniqueFilters := make(map[string]struct{})
 
-	// here we go through all the existing listeners
-	for _, connlisteners := range listeners {
-		for _, listener := range connlisteners {
-			for _, listenerfilter := range listener.filters {
-				for _, respfilter := range respfilters {
-					// check if this filter specifically is already added to respfilters
-					if nostr.FilterEqual(listenerfilter, respfilter) {
-						goto nextconn
-					}
+	for _, connListeners := range listeners {
+		for _, listener := range connListeners {
+			for _, listenerFilter := range listener.filters {
+				filterKey := listenerFilter.String()
+				if _, exists := uniqueFilters[filterKey]; !exists {
+					uniqueFilters[filterKey] = struct{}{}
+					respfilters = append(respfilters, listenerFilter)
 				}
-
-				// field not yet present on respfilters, add it
-				respfilters = append(respfilters, listenerfilter)
-
-				// continue to the next filter
-			nextconn:
-				continue
 			}
 		}
 	}
-
-	// respfilters will be a slice with all the distinct filter we currently have active
 	return respfilters
 }
 
+// SetListener adds a listener with the given ID and filters to a WebSocket server.
 func SetListener(id string, ws *dto.WsServer, filters nostr.Filters) {
 	listenersMutex.Lock()
 	defer listenersMutex.Unlock()
 
-	subs, ok := listeners[ws]
-	if !ok {
-		subs = make(map[string]*Listener)
-		listeners[ws] = subs
+	if listeners[ws] == nil {
+		listeners[ws] = make(map[string]*Listener)
 	}
 
-	subs[id] = &Listener{filters: filters}
+	if _, exists := listeners[ws][id]; !exists {
+		//atomic.AddInt32(&listenerCount, 1) // Increment count on new listener
+		listenerCount.Add(1)
+	}
+
+	listeners[ws][id] = &Listener{filters: filters}
 }
 
-// Remove a specific subscription id from listeners for a given ws client
+// RemoveListenerId removes a specific listener ID from a WebSocket server.
 func RemoveListenerId(ws *dto.WsServer, id string) {
 	listenersMutex.Lock()
 	defer listenersMutex.Unlock()
 
 	if subs, ok := listeners[ws]; ok {
-		delete(listeners[ws], id)
+		if _, exists := subs[id]; exists {
+			delete(subs, id)
+			listenerCount.Add(-1)
+		}
 		if len(subs) == 0 {
 			delete(listeners, ws)
 		}
 	}
 }
 
-// Remove WebSocket conn from listeners
+// RemoveListener removes all listeners associated with a WebSocket server.
 func RemoveListener(ws *dto.WsServer) {
 	listenersMutex.Lock()
 	defer listenersMutex.Unlock()
-	clear(listeners[ws])
-	delete(listeners, ws)
+
+	if subs, ok := listeners[ws]; ok {
+		removedCount := len(subs)
+		delete(listeners, ws)
+		listenerCount.Add(int32(-removedCount))
+	}
 }
 
+// NotifyListeners sends an event to all matching listeners.
 func NotifyListeners(event *nostr.Event) {
-	listenersMutex.Lock()
-	defer listenersMutex.Unlock()
+	listenersMutex.RLock()
+	defer listenersMutex.RUnlock()
 
 	for ws, subs := range listeners {
 		for id, listener := range subs {
-			if !listener.filters.Match(event) {
-				continue
+			if listener.filters.Match(event) {
+				ws.ChanSender <- nostr.EventEnvelope{
+					SubscriptionID: &id,
+					Event:          *event,
+				}
 			}
-			ws.ChanSender <- nostr.EventEnvelope{SubscriptionID: &id, Event: *event}
 		}
 	}
+}
+
+// GetCount returns the current count of active listeners.
+func GetCount() int {
+	return int(listenerCount.Load())
 }
