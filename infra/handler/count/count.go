@@ -3,12 +3,14 @@ package count
 import (
 	"github.com/gabrielmoura/nostr-relay-server/config"
 	"github.com/gabrielmoura/nostr-relay-server/infra/log"
+	"github.com/gabrielmoura/nostr-relay-server/infra/metrics"
 	"github.com/gabrielmoura/nostr-relay-server/internal/db"
 	"github.com/gabrielmoura/nostr-relay-server/internal/dto"
 	"github.com/goccy/go-json"
 	"github.com/nbd-wtf/go-nostr"
 	"go.uber.org/zap"
 	"slices"
+	"time"
 )
 
 func DoCOUNT(ws *dto.WsServer, data dto.Data) string {
@@ -64,6 +66,7 @@ func DoCOUNT(ws *dto.WsServer, data dto.Data) string {
 	}
 
 	ws.ChanSender <- []interface{}{"COUNT", id, map[string]int64{"count": total}}
+	metrics.NostrRequestDuration.WithLabelValues("COUNT").Observe(time.Since(ws.StartTime).Seconds())
 
 	return ""
 }

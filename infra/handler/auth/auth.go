@@ -4,11 +4,13 @@ import (
 	"context"
 	"github.com/gabrielmoura/nostr-relay-server/config"
 	"github.com/gabrielmoura/nostr-relay-server/infra/log"
+	"github.com/gabrielmoura/nostr-relay-server/infra/metrics"
 	"github.com/gabrielmoura/nostr-relay-server/internal/dto"
 	"github.com/goccy/go-json"
 	"github.com/nbd-wtf/go-nostr"
 	"github.com/nbd-wtf/go-nostr/nip42"
 	"go.uber.org/zap"
+	"time"
 )
 
 const AuthContextKey = "authed"
@@ -28,5 +30,6 @@ func DoAUTH(ws *dto.WsServer, data dto.Data) string {
 			ws.ChanSender <- nostr.OKEnvelope{EventID: evt.ID, OK: false, Reason: "error: failed to authenticate"}
 		}
 	}
+	metrics.NostrRequestDuration.WithLabelValues("AUTH").Observe(time.Since(ws.StartTime).Seconds())
 	return ""
 }

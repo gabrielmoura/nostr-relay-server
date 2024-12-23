@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/gabrielmoura/nostr-relay-server/config"
 	"github.com/gabrielmoura/nostr-relay-server/infra/handler"
+	"github.com/gabrielmoura/nostr-relay-server/infra/metrics"
 	"github.com/gabrielmoura/nostr-relay-server/infra/net"
 	"github.com/gabrielmoura/nostr-relay-server/internal/db"
 	"github.com/spf13/cobra"
@@ -45,6 +46,7 @@ func runServer(cmd *cobra.Command, args []string) {
 		stopChan := make(chan os.Signal, 1)
 		signal.Notify(stopChan, os.Interrupt, syscall.SIGTERM)
 
+		metrics.RegisterMetrics()
 		// Inicializa o handler dentro do contexto principal
 		server := handler.Init(mainCtx)
 

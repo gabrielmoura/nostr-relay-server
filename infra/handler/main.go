@@ -12,6 +12,7 @@ import (
 	"github.com/gabrielmoura/nostr-relay-server/internal/dto"
 	"github.com/goccy/go-json"
 	"github.com/nbd-wtf/go-nostr"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rs/cors"
 	"go.uber.org/zap"
 	"golang.org/x/time/rate"
@@ -67,6 +68,8 @@ func Init(ctx context.Context) *http.Server {
 		w.Header().Set("Content-Type", "application/json")
 		w.Write(data)
 	})
+
+	mux.Handle("/metrics", promhttp.Handler())
 
 	// Adiciona suporte a CORS
 	handler := cors.Default().Handler(mux)
@@ -162,6 +165,7 @@ func wsHandler(w http.ResponseWriter, r *http.Request, ctx context.Context) {
 				wss.ChanPing <- true
 				continue
 			}
+			wss.StartTime = time.Now()
 			go handleMessage(wss, message)
 		}
 

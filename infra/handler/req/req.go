@@ -6,6 +6,7 @@ import (
 	"github.com/gabrielmoura/nostr-relay-server/config"
 	"github.com/gabrielmoura/nostr-relay-server/infra/handler/listener"
 	"github.com/gabrielmoura/nostr-relay-server/infra/log"
+	"github.com/gabrielmoura/nostr-relay-server/infra/metrics"
 	"github.com/gabrielmoura/nostr-relay-server/infra/stream"
 	"github.com/gabrielmoura/nostr-relay-server/internal/db"
 	"github.com/gabrielmoura/nostr-relay-server/internal/dto"
@@ -13,6 +14,7 @@ import (
 	"github.com/nbd-wtf/go-nostr"
 	"go.uber.org/zap"
 	"slices"
+	"time"
 )
 
 func DoREQ(ws *dto.WsServer, data dto.Data) string {
@@ -157,10 +159,18 @@ func DoREQ(ws *dto.WsServer, data dto.Data) string {
 			for range events {
 			}
 		}
+		countKindReqs(filter)
 	}
 
 	ws.ChanSender <- nostr.EOSEEnvelope(id)
 
 	listener.SetListener(id, ws, filters)
+	metrics.NostrRequestDuration.WithLabelValues("REQ").Observe(time.Since(ws.StartTime).Seconds())
 	return ""
+}
+
+func countKindReqs(filter nostr.Filter) {
+	for _, kind := range filter.Kinds {
+		metrics.NostrKindReqCounter.WithLabelValues(metrics.GetKindName(kind)).Inc()
+	}
 }

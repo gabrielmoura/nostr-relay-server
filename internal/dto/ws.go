@@ -7,12 +7,12 @@ import (
 	"github.com/gabrielmoura/nostr-relay-server/infra/log"
 	"github.com/gabrielmoura/nostr-relay-server/internal/db"
 	"github.com/goccy/go-json"
+	"github.com/nbd-wtf/go-nostr"
 	"go.uber.org/zap"
 	"net/http"
 	"slices"
 	"sync"
-
-	"github.com/nbd-wtf/go-nostr"
+	"time"
 )
 
 // TODO: Separar as mensagens que são enviadas das que são recebidas
@@ -51,10 +51,11 @@ type WsServer struct {
 	Response   http.ResponseWriter
 	Ctx        context.Context
 	Authed     string           // Chave publica para identificar o usuario
-	ChanSender chan interface{} // Canal para enviar mensagens EXPERIMENTAL
-	sync.Mutex
+	ChanSender chan interface{} // Canal para enviar mensagens
 	ChanPing   chan bool
-	StreamPoll []*nostr.Relay
+	StreamPoll []*nostr.Relay // Relays para coletar e enviar eventos
+	StartTime  time.Time      // Tempo de inicio da conexão
+	sync.Mutex
 }
 type Data []json.RawMessage
 

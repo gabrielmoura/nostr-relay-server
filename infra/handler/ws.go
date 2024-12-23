@@ -7,6 +7,7 @@ import (
 	"github.com/gabrielmoura/nostr-relay-server/infra/handler/listener"
 	"github.com/gabrielmoura/nostr-relay-server/infra/handler/req"
 	"github.com/gabrielmoura/nostr-relay-server/infra/log"
+	"github.com/gabrielmoura/nostr-relay-server/infra/metrics"
 	"github.com/gabrielmoura/nostr-relay-server/internal/dto"
 	"github.com/goccy/go-json"
 	"github.com/nbd-wtf/go-nostr"
@@ -42,6 +43,8 @@ func handleMessage(ws *dto.WsServer, message []byte) {
 		log.Logger.Error("failed to decode event type", zap.Error(err))
 		return
 	}
+
+	metrics.NostrRequestCounter.WithLabelValues(typ).Inc()
 
 	log.Logger.Debug("Event:", zap.Any("event", requestRaw))
 	switch typ {

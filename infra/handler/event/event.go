@@ -9,6 +9,7 @@ import (
 	"github.com/fiatjaf/khatru/policies"
 	"github.com/gabrielmoura/nostr-relay-server/infra/handler/listener"
 	"github.com/gabrielmoura/nostr-relay-server/infra/log"
+	"github.com/gabrielmoura/nostr-relay-server/infra/metrics"
 	"github.com/gabrielmoura/nostr-relay-server/infra/stream"
 	"github.com/gabrielmoura/nostr-relay-server/internal/db"
 	"github.com/gabrielmoura/nostr-relay-server/internal/dto"
@@ -177,6 +178,7 @@ func AddEvent(ws *dto.WsServer, evt *nostr.Event) (accepted bool, message string
 	}
 
 	listener.NotifyListeners(evt)
+	metrics.NostrRequestDuration.WithLabelValues("EVENT").Observe(time.Since(ws.StartTime).Seconds())
 
 	return true, ""
 }
@@ -219,6 +221,8 @@ func publish(ctx context.Context, evt nostr.Event) error {
 		log.Logger.Error("failed to save", zap.Error(err))
 		return fmt.Errorf("failed to save: %w", err)
 	}
+	metrics.NostrKindEventCounter.WithLabelValues(metrics.GetKindName(evt.Kind)).Inc()
+	metrics.NostrUserEventCounter.WithLabelValues(evt.PubKey).Inc()
 
 	return nil
 }

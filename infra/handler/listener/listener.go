@@ -1,6 +1,7 @@
 package listener
 
 import (
+	"github.com/gabrielmoura/nostr-relay-server/infra/metrics"
 	"github.com/gabrielmoura/nostr-relay-server/internal/dto"
 	"github.com/nbd-wtf/go-nostr"
 	"sync"
@@ -51,6 +52,7 @@ func SetListener(id string, ws *dto.WsServer, filters nostr.Filters) {
 	if _, exists := listeners[ws][id]; !exists {
 		//atomic.AddInt32(&listenerCount, 1) // Increment count on new listener
 		listenerCount.Add(1)
+		metrics.NostrConnectionCounter.Inc()
 	}
 
 	listeners[ws][id] = &Listener{filters: filters}
@@ -65,6 +67,7 @@ func RemoveListenerId(ws *dto.WsServer, id string) {
 		if _, exists := subs[id]; exists {
 			delete(subs, id)
 			listenerCount.Add(-1)
+			metrics.NostrConnectionCounter.Desc()
 		}
 		if len(subs) == 0 {
 			delete(listeners, ws)
@@ -80,6 +83,7 @@ func RemoveListener(ws *dto.WsServer) {
 	if subs, ok := listeners[ws]; ok {
 		removedCount := len(subs)
 		delete(listeners, ws)
+		metrics.NostrConnectionCounter.Sub(float64(removedCount))
 		listenerCount.Add(int32(-removedCount))
 	}
 }
