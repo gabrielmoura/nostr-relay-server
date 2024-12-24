@@ -40,7 +40,7 @@ CREATE INDEX
 -- Tabela para armazenar perfis
 CREATE TABLE profiles (
                           ID BIGSERIAL PRIMARY KEY,
-                          public_key TEXT NOT NULL,
+                          public_key VARCHAR(64) NOT NULL UNIQUE CHECK ( length(public_key) = 64 ),
                           NAME TEXT NOT NULL,
                           about TEXT,
                           picture TEXT,

@@ -29,12 +29,15 @@ func setDefaults(export bool) {
 	viper.SetDefault("relay.keep_recent_events", true)
 	viper.SetDefault("relay.max_size_event_in_bytes", 100000) // 100KB
 	viper.SetDefault("relay.filter_limit", 9999999999)
+	viper.SetDefault("relay.reporting_limit", 5) // 5 reports to ban a user
+	viper.SetDefault("relay.enable_anonymous_req", true)
 
 	viper.SetDefault("db.max_conns", 10)
 	viper.SetDefault("db.min_conns", 1)
 
 	viper.SetDefault("stream_up.enabled", true)
 	viper.SetDefault("stream_down.enabled", false)
+	viper.SetDefault("enable_negentropy", false)
 
 	if export {
 		viper.SetDefault("db.postgres_uri", "postgres://user:password@localhost:5432/dbname")

@@ -16,6 +16,7 @@ type Config struct {
 	DB               DbConfig                 `json:"db" yaml:"db" mapstructure:"db"`
 	StreamUp         WsStreamConfig           `json:"stream_up" yaml:"stream_up" mapstructure:"stream_up"`
 	StreamDown       WsStreamConfig           `json:"stream_down" yaml:"stream_down" mapstructure:"stream_down"`
+	EnableNegentropy bool                     `json:"enable_negentropy" yaml:"enable_negentropy" mapstructure:"enable_negentropy"`
 }
 
 type WsStreamConfig struct {
@@ -28,14 +29,16 @@ type DbConfig struct {
 	PostgresURI string `json:"postgres_uri" yaml:"postgres_uri" mapstructure:"postgres_uri"`
 }
 type RelayConfig struct {
-	QueryLimit        int  `json:"query_limit" yaml:"query_limit" mapstructure:"query_limit"`
-	QueryIDsLimit     int  `json:"query_ids_limit" yaml:"query_ids_limit" mapstructure:"query_ids_limit"`
-	QueryAuthorsLimit int  `json:"query_authors_limit" yaml:"query_authors_limit" mapstructure:"query_authors_limit"`
-	QueryKindsLimit   int  `json:"query_kinds_limit" yaml:"query_kinds_limit" mapstructure:"query_kinds_limit"`
-	QueryTagsLimit    int  `json:"query_tags_limit" yaml:"query_tags_limit" mapstructure:"query_tags_limit"`
-	KeepRecentEvents  bool `json:"keep_recent_events" yaml:"keep_recent_events" mapstructure:"keep_recent_events"`
-	MaxEventSize      int  `json:"max_size_event_in_bytes" yaml:"max_size_event_in_bytes" mapstructure:"max_size_event_in_bytes"`
-	FilterLimit       int  `json:"filter_limit" yaml:"filter_limit" mapstructure:"filter_limit"`
+	QueryLimit         int   `json:"query_limit" yaml:"query_limit" mapstructure:"query_limit"`
+	QueryIDsLimit      int   `json:"query_ids_limit" yaml:"query_ids_limit" mapstructure:"query_ids_limit"`
+	QueryAuthorsLimit  int   `json:"query_authors_limit" yaml:"query_authors_limit" mapstructure:"query_authors_limit"`
+	QueryKindsLimit    int   `json:"query_kinds_limit" yaml:"query_kinds_limit" mapstructure:"query_kinds_limit"`
+	QueryTagsLimit     int   `json:"query_tags_limit" yaml:"query_tags_limit" mapstructure:"query_tags_limit"`
+	KeepRecentEvents   bool  `json:"keep_recent_events" yaml:"keep_recent_events" mapstructure:"keep_recent_events"`
+	MaxEventSize       int   `json:"max_size_event_in_bytes" yaml:"max_size_event_in_bytes" mapstructure:"max_size_event_in_bytes"`
+	FilterLimit        int   `json:"filter_limit" yaml:"filter_limit" mapstructure:"filter_limit"`
+	ReportingLimit     int64 `json:"reporting_limit" yaml:"reporting_limit" mapstructure:"reporting_limit"`
+	EnableAnonymousReq bool  `json:"enable_anonymous_req" yaml:"enable_anonymous_req" mapstructure:"enable_anonymous_req"`
 }
 type WsConfig struct {
 	ReteLimit rate.Limit `json:"rate_limit" yaml:"rate_limit" mapstructure:"rate_limit"`

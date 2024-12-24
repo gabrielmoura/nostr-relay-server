@@ -2,6 +2,7 @@ package event
 
 import (
 	"context"
+	"github.com/gabrielmoura/nostr-relay-server/config"
 	"github.com/gabrielmoura/nostr-relay-server/infra/log"
 	"github.com/gabrielmoura/nostr-relay-server/internal/db"
 	"github.com/nbd-wtf/go-nostr"
@@ -44,8 +45,8 @@ func reportingEvent(ctx context.Context, event nostr.Event) {
 		log.Logger.Error("failed to get count reports key", zap.Error(err))
 		return
 	}
-	// atingindo a marca de 5 reports, a public key é banida
-	if count+1 >= 5 {
+
+	if count+1 >= config.Cfg.Relay.ReportingLimit {
 		err := db.DbQueries.BanUserByPubKey(ctx, key, reason, []string{})
 		if err != nil {
 			log.Logger.Error("failed to ban user", zap.Error(err))

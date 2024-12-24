@@ -10,6 +10,7 @@ import (
 	"github.com/gabrielmoura/nostr-relay-server/infra/stream"
 	"github.com/gabrielmoura/nostr-relay-server/internal/db"
 	"github.com/gabrielmoura/nostr-relay-server/internal/dto"
+	policies2 "github.com/gabrielmoura/nostr-relay-server/internal/policies"
 	"github.com/goccy/go-json"
 	"github.com/nbd-wtf/go-nostr"
 	"go.uber.org/zap"
@@ -36,6 +37,14 @@ func DoREQ(ws *dto.WsServer, data dto.Data) string {
 		); err != nil {
 			return "failed to decode filter"
 		}
+	}
+
+	if ok, reason := policies2.RejectReqBannedUser(ws); !ok {
+		ws.ChanSender <- nostr.ClosedEnvelope{
+			Reason:         reason,
+			SubscriptionID: id,
+		}
+		return ""
 	}
 
 	// if the user is not authenticated, only allow certain kinds

@@ -271,3 +271,26 @@ func (q *Queries) BanUserByPubKey(ctx context.Context, key, reason string, relat
 	_, err := q.db.Exec(ctx, BanUserByPubKey, key, reason, relatedIds)
 	return err
 }
+
+const insertUserProfile = `-- name: InsertUserProfile :exec
+INSERT INTO profiles (public_key, name,about,picture,bot,banner,website, display_name, lud16, pronouns, nip05)
+VALUES ($1::text, $2::text, $3::text, $4::text, $5::bool, $6::text, $7::text, $8::text, $9::text, $10::text, $11::text)
+ON CONFLICT (public_key) DO UPDATE SET name = $2::text
+`
+
+func (q *Queries) InsertUserProfile(ctx context.Context, arg *Profile) error {
+	_, err := q.db.Exec(ctx, insertUserProfile,
+		arg.PublicKey,
+		arg.Name,
+		arg.About,
+		arg.Picture,
+		arg.Bot,
+		arg.Banner,
+		arg.Website,
+		arg.DisplayName,
+		arg.Lud16,
+		arg.Pronouns,
+		arg.Nip05,
+	)
+	return err
+}

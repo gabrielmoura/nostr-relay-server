@@ -7,8 +7,6 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
-//embed file schema.sql
-
 //go:embed schema.sql
 var schema string
 

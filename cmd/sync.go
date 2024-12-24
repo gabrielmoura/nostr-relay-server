@@ -4,12 +4,12 @@ import (
 	"context"
 	"fmt"
 	"github.com/fiatjaf/eventstore"
+	"github.com/gabrielmoura/nostr-relay-server/infra/nip77"
 	"github.com/gabrielmoura/nostr-relay-server/infra/store"
 	"time"
 
 	"github.com/gabrielmoura/nostr-relay-server/config"
 	"github.com/gabrielmoura/nostr-relay-server/infra/log"
-	"github.com/gabrielmoura/nostr-relay-server/infra/nip77"
 	"github.com/gabrielmoura/nostr-relay-server/internal/db"
 	"github.com/nbd-wtf/go-nostr"
 	"go.uber.org/zap"
