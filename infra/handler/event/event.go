@@ -7,9 +7,11 @@ import (
 	"errors"
 	"fmt"
 	"github.com/fiatjaf/khatru/policies"
+	"github.com/gabrielmoura/nostr-relay-server/config"
 	"github.com/gabrielmoura/nostr-relay-server/infra/handler/listener"
 	"github.com/gabrielmoura/nostr-relay-server/infra/log"
 	"github.com/gabrielmoura/nostr-relay-server/infra/metrics"
+	nostr_custom "github.com/gabrielmoura/nostr-relay-server/infra/nostr-custom"
 	"github.com/gabrielmoura/nostr-relay-server/infra/stream"
 	"github.com/gabrielmoura/nostr-relay-server/internal/db"
 	"github.com/gabrielmoura/nostr-relay-server/internal/dto"
@@ -49,17 +51,18 @@ func DoEVENT(ws *dto.WsServer, data dto.Data) string {
 		return ""
 	}
 
-	if ok, err := policies2.RejectEventBannedUser(ws.Ctx, &evt); !ok {
+	if ok, err := policies2.RejectEventBannedUser(ws.Ctx, &evt); ok {
+		log.Logger.Debug("Rejecting event", zap.String("event", evt.ID), zap.String("reason", err))
 		ws.ChanSender <- nostr.OKEnvelope{EventID: evt.ID, OK: ok, Reason: err}
 		return ""
 	}
 
-	if ok, err := policies.PreventLargeTags(70)(ws.Ctx, &evt); ok {
+	if ok, err := policies.PreventLargeTags(config.Cfg.Relay.MaxTagValueLength)(ws.Ctx, &evt); ok {
 		ws.ChanSender <- nostr.OKEnvelope{EventID: evt.ID, OK: ok, Reason: err}
 		return ""
 	}
 
-	if ok, err := policies.PreventTooManyIndexableTags(70, []int{}, []int{})(ws.Ctx, &evt); ok {
+	if ok, err := policies.PreventTooManyIndexableTags(config.Cfg.Relay.MaxTagValueLength, []int{}, []int{})(ws.Ctx, &evt); ok {
 		ws.ChanSender <- nostr.OKEnvelope{EventID: evt.ID, OK: ok, Reason: err}
 		return ""
 	}
@@ -71,6 +74,10 @@ func DoEVENT(ws *dto.WsServer, data dto.Data) string {
 
 	if evt.Kind == nostr.KindProfileMetadata {
 		handleProfile(ws, &evt)
+	}
+
+	if nostr_custom.IsJobRequest(evt.Kind) {
+		return handleJobRequest(ws, &evt)
 	}
 
 	if evt.Kind == nostr.KindNostrConnect {

@@ -10,30 +10,33 @@ import (
 func setDefaults(export bool) {
 	viper.SetDefault("ws.burst", 5)
 	viper.SetDefault("ws.rate_limit", 1)
-	viper.SetDefault("port", 8080)
+	viper.SetDefault("port", 9090)
 
 	viper.SetDefault("relay_information.name", "Nostr Relay Server")
 	viper.SetDefault("relay_information.description", "A Nostr Relay Server")
 	viper.SetDefault("relay_information.supported_nips", []int{11, 1, 2, 4, 25})
 	viper.SetDefault("relay_information.software", "https://github.com/gabrielmoura/nostr-relay-server")
 	viper.SetDefault("relay_information.version", "0.1.0")
-	viper.SetDefault("relay_information.icon", "https://nostr.io/favicon.ico")
+	viper.SetDefault("relay_information.icon", fmt.Sprintf("http://localhost:%s/nostr.png", viper.GetString("port")))
 	//canonical_url
-	viper.SetDefault("relay_information.canonical_url", fmt.Sprintf("wss://localhost:%s/relay", viper.GetString("port")))
+	viper.SetDefault("relay_information.canonical_url", fmt.Sprintf("ws://localhost:%s/relay", viper.GetString("port")))
+	viper.SetDefault("relay_information.url", fmt.Sprintf("http://localhost:%s", viper.GetString("port")))
 
 	viper.SetDefault("relay.query_limit", 100)
 	viper.SetDefault("relay.query_ids_limit", 500)
 	viper.SetDefault("relay.query_authors_limit", 500)
 	viper.SetDefault("relay.query_kinds_limit", 10)
-	viper.SetDefault("relay.query_tags_limit", 10)
+	viper.SetDefault("relay.query_tags_limit", 100)
+	viper.SetDefault("relay.max_tag_value_length", 100)
 	viper.SetDefault("relay.keep_recent_events", true)
 	viper.SetDefault("relay.max_size_event_in_bytes", 100000) // 100KB
 	viper.SetDefault("relay.filter_limit", 9999999999)
 	viper.SetDefault("relay.reporting_limit", 5) // 5 reports to ban a user
 	viper.SetDefault("relay.enable_anonymous_req", true)
 
-	viper.SetDefault("store.api_path", "http://192.168.1.103:9090/upload")
-	viper.SetDefault("store.media_path", "http://192.168.1.103:9090/blob")
+	viper.SetDefault("store.api_path", fmt.Sprintf("http://localhost:%s/upload", viper.GetString("port")))
+	viper.SetDefault("store.media_path", fmt.Sprintf("http://localhost:%s/blob", viper.GetString("port")))
+	viper.SetDefault("store.enabled", false)
 	viper.SetDefault("store.accepted_mimetypes", []string{
 		"image/jpeg",
 		"image/png",

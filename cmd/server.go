@@ -7,6 +7,7 @@ import (
 	"github.com/gabrielmoura/nostr-relay-server/infra/handler"
 	"github.com/gabrielmoura/nostr-relay-server/infra/metrics"
 	"github.com/gabrielmoura/nostr-relay-server/infra/net"
+	"github.com/gabrielmoura/nostr-relay-server/internal/bootstrap"
 	"github.com/gabrielmoura/nostr-relay-server/internal/db"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
@@ -24,6 +25,7 @@ var serverCmd = &cobra.Command{
 	Long:  `Starts a Nostr Relay Server that receives messages from a Nostr Client and forwards them to a Nostr Server.`,
 	Run:   runServer,
 }
+var bootstrapFlag bool
 
 func runServer(cmd *cobra.Command, args []string) {
 
@@ -64,6 +66,10 @@ func runServer(cmd *cobra.Command, args []string) {
 			}
 		}()
 
+		if bootstrapFlag {
+			bootstrap.CreateInitialEvents()
+		}
+
 		ln, _ := net.PrepareListen(server)
 
 		// Iniciar o servidor HTTP
@@ -78,5 +84,6 @@ func runServer(cmd *cobra.Command, args []string) {
 
 func init() {
 	serverCmd.Flags().BoolP("config", "c", true, "Enable configuration file")
+	serverCmd.Flags().BoolVarP(&bootstrapFlag, "bootstrap", "b", false, "Enable bootstrap")
 	rootCmd.AddCommand(serverCmd)
 }

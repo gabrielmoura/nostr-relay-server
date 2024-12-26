@@ -17,6 +17,8 @@ import (
 	"go.uber.org/zap"
 	"golang.org/x/time/rate"
 	"net/http"
+	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -37,9 +39,14 @@ const (
 func serverHttpRelay(w http.ResponseWriter, r *http.Request, ctx context.Context) {
 	if r.Header.Get("Upgrade") == "websocket" {
 		wsHandler(w, r, ctx)
-	} else if r.Header.Get("Accept") == "application/nostr+json" {
-		handleRelayInfo(w, r)
+	} else {
+		if strings.Contains(r.Header.Get("Accept"), "application/nostr+json") {
+			handleRelayInfo(w, r)
+		} else {
+			http.Error(w, "Not a Nostr client", http.StatusNotAcceptable)
+		}
 	}
+
 }
 func Init(ctx context.Context) *http.Server {
 	limiter := rate.NewLimiter(config.Cfg.Ws.ReteLimit, config.Cfg.Ws.Burst)
@@ -54,6 +61,10 @@ func Init(ctx context.Context) *http.Server {
 		serverHttpRelay(w, r, ctx)
 	})
 
+	mux.HandleFunc("/nostr.png", func(w http.ResponseWriter, r *http.Request) {
+		http.ServeFile(w, r, filepath.Join("nostr.png"))
+	})
+
 	mux.HandleFunc("/.well-known/nostr/nip96.json", store2.HandleWellKnownNip96)
 	mux.HandleFunc("/.well-known/nostr.json", store2.HandleWellKnown)
 	mux.HandleFunc("/blob/", store2.BlobHandler)
@@ -61,11 +72,7 @@ func Init(ctx context.Context) *http.Server {
 
 	mux.Handle("/metrics", promhttp.Handler())
 
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		js, _ := config.Cfg.RelayInformation.ToJson()
-		w.Header().Set("Content-Type", "application/json")
-		w.Write(js)
-	})
+	mux.HandleFunc("/", handleRelayInfo)
 
 	// Adiciona suporte a CORS
 	handler := cors.Default().Handler(mux)
@@ -110,8 +117,6 @@ func wsHandler(w http.ResponseWriter, r *http.Request, ctx context.Context) {
 		ChanSender: make(chan interface{}),
 		ChanPing:   make(chan bool),
 	}
-	//wss.Lock()
-	//defer wss.Unlock()
 
 	ticker := time.NewTicker(pingPeriod)
 

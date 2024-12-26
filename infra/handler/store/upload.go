@@ -12,6 +12,7 @@ import (
 	"github.com/gabrielmoura/nostr-relay-server/infra/metrics"
 	"github.com/gabrielmoura/nostr-relay-server/infra/net"
 	"github.com/gabrielmoura/nostr-relay-server/internal/db"
+	errors2 "github.com/gabrielmoura/nostr-relay-server/internal/errors"
 	"github.com/gabrielmoura/nostr-relay-server/pkg/magic"
 	"github.com/goccy/go-json"
 	"github.com/nbd-wtf/go-nostr"
@@ -24,41 +25,42 @@ import (
 	"time"
 )
 
-func processAuth(w http.ResponseWriter, r *http.Request) {
+func processAuth(r *http.Request) (string, error) {
 	// TODO: retornar erros e tratar na função principal
 	if config.Cfg.Ws.Auth {
 		authHeader := r.Header.Get("Authorization")
 		if authHeader == "" && !strings.HasPrefix(authHeader, "Nostr ") {
-			http.Error(w, "Authorization header is required", http.StatusBadRequest)
-			return
+			return "", errors2.ErrorAuthHeaderRequired
 		}
 		token := strings.TrimPrefix(authHeader, "Nostr ")
 
 		decodedBytes, err := base64.StdEncoding.DecodeString(token)
 		if err != nil {
-			http.Error(w, "Failed to decode authorization", http.StatusBadRequest)
+
 			log.Logger.Error("Decode error", zap.Error(err))
-			return
+			return "", errors2.ErrorDecodeAuthorization
 		}
 		var event nostr.Event
 		err = json.Unmarshal(decodedBytes, &event)
 		if err != nil {
-			http.Error(w, "Failed to unmarshal authorization", http.StatusBadRequest)
+
 			log.Logger.Error("Unmarshal error", zap.Error(err))
-			return
+			return "", errors2.ErrorUnmarshalAuthorization
 		}
 		if event.Kind != nostr.KindBlobs {
-			http.Error(w, "Invalid event kind", http.StatusBadRequest)
-			return
+
+			return "", errors2.ErrorInvalidEventKind
 		}
 
 		if ok, err := event.CheckSignature(); !ok || err != nil {
-			http.Error(w, "Invalid signature", http.StatusBadRequest)
-			return
+
+			return "", errors2.ErrorInvalidSignature
 		}
 		// TODO: verificar se o pubkey é valido e autorizado a fazer upload
 		// TODO: a tag x seraá o hash256 do arquivo
+		return event.Tags.GetFirst([]string{"x"}).Value(), nil
 	}
+	return "", nil
 }
 
 func UploadHandler(w http.ResponseWriter, r *http.Request) {
@@ -68,7 +70,11 @@ func UploadHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	startTime := time.Now()
 
-	processAuth(w, r)
+	hashToCheck, err := processAuth(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusUnauthorized)
+		return
+	}
 
 	file := r.Body
 	defer file.Close()
@@ -99,6 +105,14 @@ func UploadHandler(w http.ResponseWriter, r *http.Request) {
 	hasher.Write(bodyBytes)
 	hashBytes := hasher.Sum(nil)
 	hashString := hex.EncodeToString(hashBytes)
+
+	if config.Cfg.Ws.Auth {
+		if hashToCheck != "" && hashToCheck != hashString {
+			http.Error(w, "Invalid file hash", http.StatusUnauthorized)
+			return
+		}
+	}
+
 	filePath := filepath.Join(blobPath, hashString)
 	size := int64(len(bodyBytes))
 	mimeType := ternaryString(mgl.MIME, http.DetectContentType(bodyBytes))

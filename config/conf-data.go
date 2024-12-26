@@ -1,9 +1,11 @@
 package config
 
 import (
+	errors2 "github.com/gabrielmoura/nostr-relay-server/internal/errors"
 	"github.com/goccy/go-json"
 	"golang.org/x/time/rate"
-	"slices"
+	"net/url"
+	"strings"
 )
 
 type Config struct {
@@ -20,6 +22,7 @@ type Config struct {
 	Store            StoreConfig              `json:"store" yaml:"store" mapstructure:"store"`
 }
 type StoreConfig struct {
+	Enabled             bool     `json:"enabled" yaml:"enabled" mapstructure:"enabled"`
 	APIPath             string   `json:"api_path" yaml:"api_path" mapstructure:"api_path"`
 	MediaPath           string   `json:"media_path" yaml:"media_path" mapstructure:"media_path"`
 	AcceptedMimetypes   []string `json:"accepted_mimetypes" yaml:"accepted_mimetypes" mapstructure:"accepted_mimetypes"`
@@ -48,6 +51,7 @@ type RelayConfig struct {
 	FilterLimit        int   `json:"filter_limit" yaml:"filter_limit" mapstructure:"filter_limit"`
 	ReportingLimit     int64 `json:"reporting_limit" yaml:"reporting_limit" mapstructure:"reporting_limit"`
 	EnableAnonymousReq bool  `json:"enable_anonymous_req" yaml:"enable_anonymous_req" mapstructure:"enable_anonymous_req"`
+	MaxTagValueLength  int   `json:"max_tag_value_length" yaml:"max_tag_value_length" mapstructure:"max_tag_value_length"`
 }
 type WsConfig struct {
 	ReteLimit rate.Limit `json:"rate_limit" yaml:"rate_limit" mapstructure:"rate_limit"`
@@ -65,17 +69,18 @@ func (cfg *RelayInformationDocument) ToJson() (data []byte, err error) {
 }
 
 type RelayInformationDocument struct {
-	URL string `json:"-"`
+	URL string `json:"-" mapstructure:"url"`
 
-	Name          string `json:"name" mapstructure:"name"`
-	Description   string `json:"description" mapstructure:"description"`
-	PubKey        string `json:"pubkey" mapstructure:"pubkey"`
-	Contact       string `json:"contact" mapstructure:"contact"`
-	SupportedNIPs []any  `json:"supported_nips" mapstructure:"supported_nips"`
-	Software      string `json:"software" mapstructure:"software"`
-	Version       string `json:"version" mapstructure:"version"`
+	Name          string `json:"name,omitempty" mapstructure:"name"`
+	Description   string `json:"description,omitempty" mapstructure:"description"`
+	PubKey        string `json:"pub_key,omitempty" mapstructure:"pub_key"`
+	PrivKey       string `mapstructure:"priv_key"`
+	Contact       string `json:"contact,omitempty" mapstructure:"contact"`
+	SupportedNIPs []int  `json:"supported_nips,omitempty" mapstructure:"supported_nips"`
+	Software      string `json:"software,omitempty" mapstructure:"software"`
+	Version       string `json:"version,omitempty" mapstructure:"version"`
 
-	CanonicalURL string `json:"canonical_url" yaml:"canonical_url" mapstructure:"canonical_url"`
+	CanonicalURL string `json:"canonical_url,omitempty" yaml:"canonical_url" mapstructure:"canonical_url"`
 
 	Limitation     *RelayLimitationDocument `json:"limitation,omitempty" mapstructure:"limitation,omitempty"`
 	RelayCountries []string                 `json:"relay_countries,omitempty"`
@@ -87,13 +92,25 @@ type RelayInformationDocument struct {
 	Icon           string                   `json:"icon" mapstructure:"icon"`
 }
 
-func (info *RelayInformationDocument) AddSupportedNIP(number int) {
-	idx := slices.IndexFunc(info.SupportedNIPs, func(n any) bool { return n == number })
-	if idx != -1 {
-		return
+func (cfg *RelayInformationDocument) GetPrivKey() string {
+	return cfg.PrivKey
+}
+func (cfg *RelayInformationDocument) SetPrivKey(privKey string) {
+	cfg.PrivKey = privKey
+}
+
+func (cfg *RelayInformationDocument) Check() []error {
+	var errs []error
+	url1, _ := url.Parse(cfg.CanonicalURL)
+	if url1.Scheme != "wss" {
+		errs = append(errs, errors2.ErrInvalidCanonicalURL)
+	}
+	url2, _ := url.Parse(cfg.URL)
+	if strings.Contains(url2.Scheme, "http") {
+		errs = append(errs, errors2.ErrInvalidURL)
 	}
 
-	info.SupportedNIPs = append(info.SupportedNIPs, number)
+	return errs
 }
 
 type RelayLimitationDocument struct {
