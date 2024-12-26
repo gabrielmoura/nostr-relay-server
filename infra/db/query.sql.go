@@ -294,3 +294,57 @@ func (q *Queries) InsertUserProfile(ctx context.Context, arg *Profile) error {
 	)
 	return err
 }
+
+//type Object struct {
+//	Hash            [32]byte  `json:"hash"`
+//	CreatedAt       time.Time `json:"created_at"`
+//	MimeType        string    `json:"mime_type"`
+//	Size            int64     `json:"size"`
+//	Blocked         bool      `json:"blocked"`
+//	ExpiresAt       time.Time `json:"expires_at"`
+//	BlockedByReason string    `json:"blocked_by_reason,omitempty"`
+//}
+
+const insertObject = `-- name: InsertObject :exec
+INSERT INTO objects (hash, created_at, mime_type, size, blocked, expires_at, blocked_by_reason)
+VALUES ($1::text, $2::timestamptz, $3::text, $4::bigint, $5::bool, $6::timestamptz, $7::text)
+ON CONFLICT (hash) DO NOTHING
+`
+
+func (q *Queries) InsertObject(ctx context.Context, arg *Object) error {
+	_, err := q.db.Exec(ctx, insertObject,
+		arg.Hash,
+		arg.CreatedAt,
+		arg.MimeType,
+		arg.Size,
+		arg.Blocked,
+		arg.ExpiresAt,
+		arg.BlockedByReason,
+	)
+	return err
+}
+
+const getObjectByHash = `-- name: GetObjectByHash :one
+SELECT hash, created_at, mime_type, size, blocked, expires_at, blocked_by_reason
+FROM objects
+WHERE hash = $1::text
+LIMIT 1
+`
+
+func (q *Queries) GetObjectByHash(ctx context.Context, hash string) (*Object, error) {
+	var obj Object
+	err := q.db.QueryRow(ctx, getObjectByHash, hash).Scan(&obj.Hash, &obj.CreatedAt, &obj.MimeType, &obj.Size, &obj.Blocked, &obj.ExpiresAt, &obj.BlockedByReason)
+	if err != nil && errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	return &obj, err
+}
+
+const removeObject = `-- name: RemoveObject :exec
+DELETE FROM objects WHERE hash = $1::text
+`
+
+func (q *Queries) RemoveObject(ctx context.Context, hash string) error {
+	_, err := q.db.Exec(ctx, removeObject, hash)
+	return err
+}

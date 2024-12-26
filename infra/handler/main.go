@@ -6,11 +6,11 @@ import (
 	"github.com/fasthttp/websocket"
 	"github.com/gabrielmoura/nostr-relay-server/config"
 	"github.com/gabrielmoura/nostr-relay-server/infra/handler/listener"
+	store2 "github.com/gabrielmoura/nostr-relay-server/infra/handler/store"
 	"github.com/gabrielmoura/nostr-relay-server/infra/log"
 	"github.com/gabrielmoura/nostr-relay-server/infra/net"
 	"github.com/gabrielmoura/nostr-relay-server/infra/util"
 	"github.com/gabrielmoura/nostr-relay-server/internal/dto"
-	"github.com/goccy/go-json"
 	"github.com/nbd-wtf/go-nostr"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rs/cors"
@@ -54,22 +54,18 @@ func Init(ctx context.Context) *http.Server {
 		serverHttpRelay(w, r, ctx)
 	})
 
+	mux.HandleFunc("/.well-known/nostr/nip96.json", store2.HandleWellKnownNip96)
+	mux.HandleFunc("/.well-known/nostr.json", store2.HandleWellKnown)
+	mux.HandleFunc("/blob/", store2.BlobHandler)
+	mux.HandleFunc("/upload", store2.UploadHandler)
+
+	mux.Handle("/metrics", promhttp.Handler())
+
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		js, _ := config.Cfg.RelayInformation.ToJson()
 		w.Header().Set("Content-Type", "application/json")
 		w.Write(js)
 	})
-
-	mux.HandleFunc("/.well-known/nostr/nip96.json", func(w http.ResponseWriter, r *http.Request) {
-		data, _ := json.Marshal(config.FileServerConfig{
-			APIURL:      "https://nostr.moura.ca/store",
-			DownloadURL: "https://nostr.moura.ca/blobs",
-		})
-		w.Header().Set("Content-Type", "application/json")
-		w.Write(data)
-	})
-
-	mux.Handle("/metrics", promhttp.Handler())
 
 	// Adiciona suporte a CORS
 	handler := cors.Default().Handler(mux)

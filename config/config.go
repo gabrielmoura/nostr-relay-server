@@ -32,6 +32,28 @@ func setDefaults(export bool) {
 	viper.SetDefault("relay.reporting_limit", 5) // 5 reports to ban a user
 	viper.SetDefault("relay.enable_anonymous_req", true)
 
+	viper.SetDefault("store.api_path", "http://192.168.1.103:9090/upload")
+	viper.SetDefault("store.media_path", "http://192.168.1.103:9090/blob")
+	viper.SetDefault("store.accepted_mimetypes", []string{
+		"image/jpeg",
+		"image/png",
+		"image/gif",
+		"image/webp",
+		"image/svg+xml",
+		"video/mp4",
+		"video/webm",
+		"video/ogg",
+		"audio/mpeg",
+		"audio/ogg",
+		"audio/wav",
+		"audio/flac",
+		"audio/aac",
+		"audio/mp4",
+		"audio/opus",
+		"audio/vorbis",
+	},
+	)
+
 	viper.SetDefault("db.max_conns", 10)
 	viper.SetDefault("db.min_conns", 1)
 

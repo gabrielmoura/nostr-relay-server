@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"github.com/fiatjaf/eventstore"
 	"github.com/gabrielmoura/nostr-relay-server/infra/nip77"
-	"github.com/gabrielmoura/nostr-relay-server/infra/store"
+	"github.com/gabrielmoura/nostr-relay-server/internal/store"
 	"time"
 
 	"github.com/gabrielmoura/nostr-relay-server/config"

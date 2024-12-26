@@ -2,7 +2,7 @@ app_env: development
 db:
     max_conns: 10
     min_conns: 1
-    postgres_uri: postgres://postgres:Strong@P4ssword@localhost:5432/nostr
+    postgres_uri: postgres://postgres:Strong@P4ssword@127.0.0.1:5432/nostr
 port: 9090
 relay:
     keep_recent_events: true
@@ -28,3 +28,18 @@ ws:
     burst: 5
     rate_limit: 1
     auth: true
+
+stream_up:
+    enabled: false
+    relays:
+        - ws://localhost:7777
+        - wss://nostr.azzamo.net
+        - wss://relay.damus.io
+        - wss://relay02.lnfi.network
+stream_down:
+    enabled: false
+    relays:
+        - ws://localhost:7777
+        - wss://nostr.azzamo.net
+        - wss://relay.damus.io
+        - wss://relay02.lnfi.network

@@ -67,3 +67,17 @@ CREATE TABLE banned_users (
 -- Índices para a tabela banned_users
 CREATE INDEX idx_banned_users_user_id ON banned_users ( user_id );
 CREATE INDEX idx_banned_users_id ON banned_users ( ID );
+
+-- Table para armazenar metadados de arquivos
+CREATE TABLE objects (
+                         hash VARCHAR ( 64 ) NOT NULL PRIMARY KEY,
+                         created_at TIMESTAMP WITH TIME ZONE NOT NULL,
+                         mime_type VARCHAR ( 255 ),
+                         SIZE BIGINT,
+                         blocked BOOLEAN,
+                         expires_at TIMESTAMP WITH TIME ZONE,
+                         blocked_by_reason TEXT
+);
+-- Índices para a tabela objects
+CREATE INDEX idx_objects_mime_type ON objects ( mime_type );
+CREATE INDEX idx_objects_blocked ON objects ( blocked );

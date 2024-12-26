@@ -73,6 +73,10 @@ func DoEVENT(ws *dto.WsServer, data dto.Data) string {
 		handleProfile(ws, &evt)
 	}
 
+	if evt.Kind == nostr.KindNostrConnect {
+		return handleNostrConnect(ws, &evt)
+	}
+
 	if evt.Kind == nostr.KindDeletion {
 		return handleDeletionEvent(ws, evt)
 	}

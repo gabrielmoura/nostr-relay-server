@@ -17,6 +17,15 @@ type Config struct {
 	StreamUp         WsStreamConfig           `json:"stream_up" yaml:"stream_up" mapstructure:"stream_up"`
 	StreamDown       WsStreamConfig           `json:"stream_down" yaml:"stream_down" mapstructure:"stream_down"`
 	EnableNegentropy bool                     `json:"enable_negentropy" yaml:"enable_negentropy" mapstructure:"enable_negentropy"`
+	Store            StoreConfig              `json:"store" yaml:"store" mapstructure:"store"`
+}
+type StoreConfig struct {
+	APIPath             string   `json:"api_path" yaml:"api_path" mapstructure:"api_path"`
+	MediaPath           string   `json:"media_path" yaml:"media_path" mapstructure:"media_path"`
+	AcceptedMimetypes   []string `json:"accepted_mimetypes" yaml:"accepted_mimetypes" mapstructure:"accepted_mimetypes"`
+	AllowAdultContent   bool     `json:"allow_adult_content" yaml:"allow_adult_content" mapstructure:"allow_adult_content"`
+	AllowViolentContent bool     `json:"allow_violent_content" yaml:"allow_violent_content" mapstructure:"allow_violent_content"`
+	Names               []string `json:"names" yaml:"names" mapstructure:"names"`
 }
 
 type WsStreamConfig struct {

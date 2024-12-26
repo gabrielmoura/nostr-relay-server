@@ -1,6 +1,8 @@
 package metrics
 
-import "github.com/prometheus/client_golang/prometheus"
+import (
+	"github.com/prometheus/client_golang/prometheus"
+)
 
 var NostrRequestCounter = prometheus.NewCounterVec(
 	prometheus.CounterOpts{
@@ -80,6 +82,22 @@ var NostrTagEventCounter = prometheus.NewCounterVec(
 	[]string{"tag"},
 )
 
+var (
+	UploadCounter = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "uploads",
+		Help: "The total number of uploads",
+	})
+	DownloadCounter = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "downloads",
+		Help: "The total number of files fetched",
+	})
+
+	HttpDuration = prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		Name: "http_response_duration_seconds",
+		Help: "Latency of requests in second.",
+	}, []string{"path"})
+)
+
 func RegisterMetrics() {
 	prometheus.MustRegister(NostrRequestCounter)
 	prometheus.MustRegister(NostrRequestDuration)
@@ -90,5 +108,8 @@ func RegisterMetrics() {
 	prometheus.MustRegister(NostrTagReqCounter)
 	prometheus.MustRegister(NostrTagEventCounter)
 	prometheus.MustRegister(NostrUserEventCounter)
+	prometheus.MustRegister(UploadCounter)
+	prometheus.MustRegister(DownloadCounter)
+	prometheus.MustRegister(HttpDuration)
 
 }
