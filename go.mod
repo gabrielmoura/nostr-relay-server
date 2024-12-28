@@ -7,6 +7,7 @@ require (
 	github.com/fiatjaf/eventstore v0.14.2
 	github.com/fiatjaf/khatru v0.14.0
 	github.com/goccy/go-json v0.10.4
+	github.com/google/uuid v1.6.0
 	github.com/jackc/pgx/v5 v5.7.1
 	github.com/jmoiron/sqlx v1.4.0
 	github.com/liamg/magic v0.0.1

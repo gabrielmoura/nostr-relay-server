@@ -6,24 +6,24 @@ import (
 )
 
 type BannedUser struct {
-	ID     int64   `json:"id"`
 	User   Profile `json:"user"`
-	Reason string  `json:"reason"` // Reason for ban
+	Reason string  `json:"reason"`
+	ID     int64   `json:"id"`
 }
 
 type Profile struct {
-	ID          int64  `json:"id"`
 	PublicKey   string `json:"public_key"`
 	Name        string `json:"name"`
 	About       string `json:"about,omitempty"`
 	Picture     string `json:"picture,omitempty"`
-	Bot         bool   `json:"bot,omitempty"`
 	Banner      string `json:"banner,omitempty"`
 	Website     string `json:"website,omitempty"`
 	DisplayName string `json:"display_name,omitempty"`
 	Lud16       string `json:"lud16,omitempty"`
 	Pronouns    string `json:"pronouns,omitempty"`
 	Nip05       string `json:"nip05,omitempty"`
+	ID          int64  `json:"id"`
+	Bot         bool   `json:"bot,omitempty"`
 }
 
 func (o *Object) ToJson() []byte {
@@ -40,24 +40,24 @@ func StringToObjectHash(s string) ObjectHash {
 }
 
 type Object struct {
-	Hash            string    `json:"hash"`
 	CreatedAt       time.Time `json:"created_at"`
+	ExpiresAt       time.Time `json:"expires_at"`
+	Hash            string    `json:"hash"`
 	MimeType        string    `json:"mime_type"`
+	BlockedByReason string    `json:"blocked_by_reason,omitempty"`
 	Size            int64     `json:"size"`
 	Blocked         bool      `json:"blocked"`
-	ExpiresAt       time.Time `json:"expires_at"`
-	BlockedByReason string    `json:"blocked_by_reason,omitempty"`
 }
 
 type ObjectResponse struct {
 	Hash      string `json:"hash"`
-	CreatedAt int64  `json:"created_at"`
 	Url       string `json:"url"`
 	MimeType  string `json:"mime_type"`
+	CreatedAt int64  `json:"created_at"`
 }
 type ObjectResponseData struct {
 	Hash      string `json:"hash"`
-	CreatedAt int64  `json:"created_at"`
 	Link      string `json:"link"`
 	MimeType  string `json:"mime_type"`
+	CreatedAt int64  `json:"created_at"`
 }

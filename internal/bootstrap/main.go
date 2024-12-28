@@ -2,11 +2,13 @@ package bootstrap
 
 import (
 	"context"
+	"fmt"
 	"github.com/gabrielmoura/nostr-relay-server/config"
 	"github.com/gabrielmoura/nostr-relay-server/infra/log"
 	nostrcustom "github.com/gabrielmoura/nostr-relay-server/infra/nostr-custom"
 	"github.com/gabrielmoura/nostr-relay-server/internal/db"
 	"github.com/goccy/go-json"
+	"github.com/google/uuid"
 	"github.com/nbd-wtf/go-nostr"
 	"github.com/nbd-wtf/go-nostr/nip19"
 	"go.uber.org/zap"
@@ -110,9 +112,9 @@ type RelayInfo struct {
 	Description   string `json:"description"`
 	PubKey        string `json:"pubkey"`
 	Contact       string `json:"contact"`
-	SupportedNips []int  `json:"supported_nips"`
 	Software      string `json:"software"`
 	Version       string `json:"version"`
+	SupportedNips []int  `json:"supported_nips"`
 }
 
 type ProfileMetadata struct {
@@ -126,4 +128,60 @@ type ProfileMetadata struct {
 	LUD16       string `json:"lud16,omitempty"`
 
 	Bot bool `json:"bot,omitempty"`
+}
+
+func discoveryServices(pubKey, privKey string) []nostr.Event {
+	// Exemplo de evento de recomendação de aplicativo
+	j, _ := json.Marshal(RecommendAppData{
+		Name:                "Popular from npubs you follow",
+		Image:               "https://i.nostr.build/ZJqko0W9ApEVZAPt.png",
+		Picture:             "https://i.nostr.build/ZJqko0W9ApEVZAPt.png",
+		About:               "I show notes that are currently popular from people you follow",
+		LUD16:               "discovery_content_followers@nostrdvm.com",
+		EncryptionSupported: true,
+		CashuAccepted:       true,
+		Personalized:        true,
+		Amount:              "free",
+		NIP90Params: NIP90Params{
+			MaxResults: MaxResults{
+				Required:    false,
+				Values:      []string{},
+				Description: "The number of maximum results to return (default currently 100)",
+			},
+		},
+	})
+
+	rlev := nostr.Event{
+		PubKey:    pubKey,
+		Kind:      nostrcustom.KindRecommendAppPublisher,
+		CreatedAt: nostr.Now(),
+		Content:   string(j),
+		Tags: nostr.Tags{
+			nostr.Tag{"k", fmt.Sprintf("%d", nostrcustom.KindContentDiscovery)},
+			nostr.Tag{"d", uuid.NewString()},
+		},
+	}
+	rlev.Sign(privKey)
+	return []nostr.Event{rlev}
+}
+
+type RecommendAppData struct {
+	NIP90Params         NIP90Params `json:"nip90Params"`
+	Name                string      `json:"name"`
+	Image               string      `json:"image"`
+	Picture             string      `json:"picture"`
+	About               string      `json:"about"`
+	LUD16               string      `json:"lud16"`
+	Amount              string      `json:"amount"`
+	EncryptionSupported bool        `json:"encryptionSupported"`
+	CashuAccepted       bool        `json:"cashuAccepted"`
+	Personalized        bool        `json:"personalized"`
+}
+type NIP90Params struct {
+	MaxResults MaxResults `json:"max_results"`
+}
+type MaxResults struct {
+	Description string   `json:"description"`
+	Values      []string `json:"values"`
+	Required    bool     `json:"required"`
 }

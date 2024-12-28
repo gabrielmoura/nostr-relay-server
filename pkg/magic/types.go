@@ -9,8 +9,8 @@ type FileType struct {
 	MIME        string
 	Extension   string
 	Magic       []byte
-	Offset      int
 	children    []FileType
+	Offset      int
 }
 
 func (ft *FileType) check(data []byte, offset int) *FileType {

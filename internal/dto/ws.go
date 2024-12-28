@@ -22,11 +22,17 @@ const (
 	TypeCLOSE = "CLOSE"
 	TypeAUTH  = "AUTH"
 	TypeCOUNT = "COUNT"
+
+	// NEG
+	TypeNegMsg   = "NEG-MSG"
+	TypeNegOpen  = "NEG-OPEN"
+	TypeNegErr   = "NEG-ERR"
+	TypeNegClose = "NEG-CLOSE"
 )
 
 type WsMessage struct {
-	Type int               `json:"type"`
 	Data []json.RawMessage `json:"data"`
+	Type int               `json:"type"`
 }
 
 func (m *WsMessage) ToJson() []byte {
@@ -41,20 +47,20 @@ func (m *WsMessage) ToJson() []byte {
 }
 
 type WsRequest struct {
-	Data   []json.RawMessage `json:"data"`
 	authed string
+	Data   []json.RawMessage `json:"data"`
 }
 type WsServer struct {
-	Challenge  string // desafio para autenticacao
-	Conn       *websocket.Conn
-	Request    *http.Request
+	StartTime  time.Time
 	Response   http.ResponseWriter
 	Ctx        context.Context
-	Authed     string           // Chave publica para identificar o usuario
-	ChanSender chan interface{} // Canal para enviar mensagens
+	Conn       *websocket.Conn
+	Request    *http.Request
+	ChanSender chan interface{}
 	ChanPing   chan bool
-	StreamPoll []*nostr.Relay // Relays para coletar e enviar eventos
-	StartTime  time.Time      // Tempo de inicio da conexão
+	Challenge  string
+	Authed     string
+	StreamPoll []*nostr.Relay
 	sync.Mutex
 }
 type Data []json.RawMessage
