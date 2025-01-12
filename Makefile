@@ -1,3 +1,6 @@
+TIME := $(shell date -u +'%Y-%m-%dT%H:%M:%SZ')
+VERSION :=$(shell git describe --tags --always)
+
 # Main target to display usage information
 all:
 	@echo "** Build Instructions **"
@@ -21,4 +24,8 @@ windows:
 	@echo "Building for Windows (x86-64)..."
 	GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -a -installsuffix cgo -ldflags="-w -s" -o nrserver.exe cmd/nrserver/main.go
 
-.PHONY: all linux-pc linux-rpi windows
+docker:
+	@echo "Building Docker image..."
+	docker build -t gmouradev96/nrserver --build-arg VERSION=$(VERSION) --build-arg BUILD_DATE=$(TIME) .
+
+.PHONY: all linux-pc linux-rpi windows docker

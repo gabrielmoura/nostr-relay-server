@@ -1,4 +1,4 @@
-@base_url = localhost:9090
+@base_url = 192.168.1.103:9090
 ### Connect ao Relay
 WEBSOCKET ws://{{base_url}}/relay
 Content-Type: application/json

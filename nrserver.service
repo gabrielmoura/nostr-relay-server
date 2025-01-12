@@ -1,0 +1,12 @@
+[Unit]
+Description=Nostr Relay Server Service
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/nrs
+ExecStart=/opt/nrs/nrserver
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

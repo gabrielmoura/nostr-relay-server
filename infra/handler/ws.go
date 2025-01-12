@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"github.com/gabrielmoura/nostr-relay-server/config"
 	"github.com/gabrielmoura/nostr-relay-server/infra/handler/auth"
 	"github.com/gabrielmoura/nostr-relay-server/infra/handler/count"
 	"github.com/gabrielmoura/nostr-relay-server/infra/handler/event"
@@ -12,6 +13,7 @@ import (
 	"github.com/goccy/go-json"
 	"github.com/nbd-wtf/go-nostr"
 	"go.uber.org/zap"
+	"strings"
 )
 
 func handleMessage(ws *dto.WsServer, message []byte) {
@@ -47,6 +49,11 @@ func handleMessage(ws *dto.WsServer, message []byte) {
 	metrics.NostrRequestCounter.WithLabelValues(typ).Inc()
 
 	log.Logger.Debug("Event:", zap.Any("event", requestRaw))
+	if config.Cfg.EnableNegentropy && strings.Contains(typ, "NEG-") {
+		//notice = handleNeg(ws, requestRaw)
+		notice = "Negentropy is not implemented"
+		return
+	}
 	switch typ {
 	case dto.TypeEVENT:
 		notice = event.DoEVENT(ws, requestRaw)

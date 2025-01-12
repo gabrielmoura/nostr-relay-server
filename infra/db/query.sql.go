@@ -9,6 +9,7 @@ import (
 	"github.com/jmoiron/sqlx"
 	"github.com/nbd-wtf/go-nostr"
 	"strings"
+	"time"
 )
 
 var (
@@ -347,4 +348,33 @@ DELETE FROM objects WHERE hash = $1::text
 func (q *Queries) RemoveObject(ctx context.Context, hash string) error {
 	_, err := q.db.Exec(ctx, removeObject, hash)
 	return err
+}
+
+const getOldEvents = `-- name: GetOldEvents :many
+SELECT id, pubkey, created_at, kind, tags, content, sig
+FROM event
+WHERE created_at < $1::timestamptz
+`
+
+func (q *Queries) GetOldEvents(ctx context.Context, before time.Time) ([]*nostr.Event, error) {
+	rows, err := q.db.Query(ctx, getOldEvents, before)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var events []*nostr.Event
+	for rows.Next() {
+		var evt nostr.Event
+		var timestamp int64
+		err := rows.Scan(&evt.ID, &evt.PubKey, &timestamp,
+			&evt.Kind, &evt.Tags, &evt.Content, &evt.Sig)
+		if err != nil {
+			return nil, err
+		}
+		evt.CreatedAt = nostr.Timestamp(timestamp)
+		events = append(events, &evt)
+	}
+
+	return events, nil
 }
