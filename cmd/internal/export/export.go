@@ -11,13 +11,15 @@ import (
 	"go.uber.org/zap"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 )
 
 type Options struct {
-	Filename  string
-	BatchSize int
+	Filename      string
+	BatchSize     int
+	WriterWorkers int
 }
 
 func Export(opt *Options) error {
@@ -42,7 +44,6 @@ func loadAndInit() error {
 		fmt.Printf("Erro ao carregar a configuração: %v", err)
 		return err
 	}
-
 	log.Init()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -52,7 +53,6 @@ func loadAndInit() error {
 		log.Logger.Fatal("Erro ao iniciar conexão com o banco de dados", zap.Error(err))
 		return err
 	}
-
 	return nil
 }
 
@@ -69,64 +69,86 @@ func setupContext() (context.Context, context.CancelFunc) {
 		cancel()
 	}()
 
-	return ctx, func() {
-		cancel()
-	}
+	return ctx, cancel
 }
 
 func streamAndWriteEvents(ctx context.Context, opt *Options) (int64, error) {
-
-	writer := &bytes.Buffer{}
-	w := NewWriter(writer)
-
+	writeJobs := make(chan *bytes.Buffer, opt.WriterWorkers*2)
+	var wg sync.WaitGroup
 	var count int64
+	var countMu sync.Mutex
+
+	// Buffer pool
+	bufferPool := sync.Pool{
+		New: func() any {
+			return new(bytes.Buffer)
+		},
+	}
+
+	// Start writer workers
+	for i := 0; i < opt.WriterWorkers; i++ {
+		wg.Add(1)
+		go func(id int, pool *sync.Pool) {
+			defer wg.Done()
+			for buf := range writeJobs {
+				if err := writeBytesToFileAppend(opt.Filename, buf); err != nil {
+					log.Logger.Error("Erro ao escrever arquivo de exportação", zap.Error(err))
+				}
+				pool.Put(buf) // Reutiliza o buffer
+			}
+		}(i, &bufferPool)
+	}
+
 	evChan := db.DbQueries.StreamAllEvents(ctx, opt.BatchSize)
 
 	for batch := range evChan {
 		select {
 		case <-ctx.Done():
 			log.Logger.Info("Exportação cancelada pelo usuário")
+			close(writeJobs)
+			wg.Wait()
 			return count, ctx.Err()
 		default:
+			buf := bufferPool.Get().(*bytes.Buffer)
+			buf.Reset()
+
+			w := NewWriter(buf)
 			for _, ev := range *batch {
 				if err := w.Write(ev); err != nil {
-					log.Logger.Error("Erro ao escrever evento no arquivo", zap.Error(err))
-					return count, fmt.Errorf("failed to write event to file: %w", err)
+					log.Logger.Error("Erro ao escrever evento no buffer", zap.Error(err))
+					close(writeJobs)
+					wg.Wait()
+					return count, fmt.Errorf("failed to write event to buffer: %w", err)
 				}
-				count++
 			}
-			err := writeBytesToFileAppend(opt.Filename, writer)
-			if err != nil {
-				log.Logger.Error("Erro ao escrever arquivo de exportação", zap.Error(err))
-				return count, fmt.Errorf("failed to write export file: %w", err)
-			} else {
-				writer.Reset() // limpa o buffer após cada lote
-			}
+
+			writeJobs <- buf
+
+			countMu.Lock()
+			count += int64(len(*batch))
+			countMu.Unlock()
 		}
 	}
 
+	close(writeJobs)
+	wg.Wait()
+
 	return count, nil
 }
-func writeBytesToFileAppend(filename string, w *bytes.Buffer) error {
-	// Abrir (ou criar) o arquivo só para escrita, posicionando o cursor no fim
-	f, err := os.OpenFile(
-		filename,
-		os.O_APPEND|os.O_CREATE|os.O_WRONLY,
-		0o644, // permissões: rw-r--r--
-	)
+
+func writeBytesToFileAppend(filename string, buf *bytes.Buffer) error {
+	f, err := os.OpenFile(filename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
 	if err != nil {
 		return fmt.Errorf("abrindo %s: %w", filename, err)
 	}
 	defer f.Close()
 
-	// Usamos bufio.Writer para evitar syscalls excessivas em lotes grandes
 	bw := bufio.NewWriter(f)
-	if _, err := bw.Write(w.Bytes()); err != nil {
+	if _, err := bw.Write(buf.Bytes()); err != nil {
 		return fmt.Errorf("gravando em %s: %w", filename, err)
 	}
-	if err := bw.Flush(); err != nil { // garante escrita em disco
+	if err := bw.Flush(); err != nil {
 		return fmt.Errorf("flush em %s: %w", filename, err)
 	}
-
 	return nil
 }
