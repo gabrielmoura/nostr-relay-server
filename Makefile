@@ -8,6 +8,7 @@ all:
 	@echo "  make linux-pc    # Build for Linux PC (x86-64)"
 	@echo "  make linux-rpi   # Build for Linux Raspberry Pi (ARM64)"
 	@echo "  make windows     # Build for Windows (x86-64)"
+	@echo "  make windows32   # Build for Windows (x86-32)"
 
 # Target to build for Linux PC (x86-64)
 linux-pc:
@@ -23,9 +24,13 @@ linux-rpi:
 windows:
 	@echo "Building for Windows (x86-64)..."
 	GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -a -installsuffix cgo -ldflags="-w -s" -o nrserver.exe cmd/nrserver/main.go
+# Target to build for Windows (x86-32)
+windows32:
+	@echo "Building for Windows (x86-32)..."
+	GOOS=windows GOARCH=386 CGO_ENABLED=0 go build -a -installsuffix cgo -ldflags="-w -s" -o nrserver32.exe cmd/nrserver/main.go
 
 docker:
 	@echo "Building Docker image..."
 	docker build -t gmouradev96/nrserver --build-arg VERSION=$(VERSION) --build-arg BUILD_DATE=$(TIME) .
 
-.PHONY: all linux-pc linux-rpi windows docker
+.PHONY: all linux-pc linux-rpi windows docker windows32
