@@ -1,45 +1,80 @@
-app_env: development
-db:
-    max_conns: 10
-    min_conns: 1
-    postgres_uri: postgres://postgres:Strong@P4ssword@127.0.0.1:5432/nostr
 port: 9090
-relay:
-    keep_recent_events: true
-    query_authors_limit: 500
-    query_ids_limit: 500
-    query_kinds_limit: 10
-    query_limit: 100
-    query_tags_limit: 20
+app_env: development
+ws:
+    rate_limit: 1
+    burst: 5
+    auth: true
 relay_information:
-    description: A Nostr Relay Server
-    icon: https://nostr.io/favicon.ico
+    url: http://0.tcp.sa.ngrok.io:14344
     name: Nostr Relay Server
-    canonical_url: ws://192.168.1.114:9090/relay
-    software: https://github.com/gabrielmoura/nostr-relay-server
+    description: A Nostr Relay Server
+    pub_key: "7ef721e77149c737014971b141b0b590a5ebe82b79130228cdbe56e9be2d8e50"
+    priv_key: "e4d347b85fe3429ac1995d3eab801a3858990f66fb0"
     supported_nips:
         - 11
         - 1
         - 2
         - 4
         - 25
+        - 9
+        - 45
+        - 17
+    software: https://github.com/gabrielmoura/nostr-relay-server
     version: 0.1.0
-ws:
-    burst: 5
-    rate_limit: 1
-    auth: true
-
+    canonical_url: ws://0.tcp.sa.ngrok.io:14344/relay
+    icon: http://0.tcp.sa.ngrok.io:14344/nostr.png
+relay:
+    query_limit: 100
+    query_ids_limit: 500
+    query_authors_limit: 500
+    query_kinds_limit: 10
+    query_tags_limit: 100
+    keep_recent_events: true
+    max_size_event_in_bytes: 100000
+    filter_limit: 9999999999
+    reporting_limit: 5
+    enable_anonymous_req: true
+    max_tag_value_length: 150
+db:
+    max_conns: 10
+    min_conns: 1
+    postgres_uri: postgres://postgres:Strong@P4ssword@127.0.0.1:5432/nostr
 stream_up:
-    enabled: false
     relays:
-        - ws://localhost:7777
+        - ws://192.168.1.109:7777
         - wss://nostr.azzamo.net
         - wss://relay.damus.io
         - wss://relay02.lnfi.network
+    enabled: false
 stream_down:
-    enabled: false
     relays:
-        - ws://localhost:7777
+        - ws://192.168.1.109:7777
         - wss://nostr.azzamo.net
         - wss://relay.damus.io
         - wss://relay02.lnfi.network
+    enabled: false
+store:
+    enabled: true
+    api_path: http://0.tcp.sa.ngrok.io:14344/upload
+    media_path: http://0.tcp.sa.ngrok.io:14344/blob
+    accepted_mimetypes:
+        - image/jpeg
+        - image/png
+        - image/gif
+        - image/webp
+        - image/svg+xml
+        - video/mp4
+        - video/webm
+        - video/ogg
+        - audio/mpeg
+        - audio/ogg
+        - audio/wav
+        - audio/flac
+        - audio/aac
+        - audio/mp4
+        - audio/opus
+        - audio/vorbis
+    allow_adult_content: false
+    allow_violent_content: false
+    names: [ ]
+

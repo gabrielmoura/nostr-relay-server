@@ -37,6 +37,7 @@ CREATE INDEX
 CREATE INDEX
     IF
     NOT EXISTS content_search_idx ON event USING gin ( content_search );
+CREATE INDEX IF NOT EXISTS idx_event_created_at_id ON event (created_at, id);
 -- Tabela para armazenar perfis
 CREATE TABLE profiles (
                           ID BIGSERIAL PRIMARY KEY,

@@ -30,7 +30,7 @@ func setDefaults(export bool) {
 	viper.SetDefault("relay.max_tag_value_length", 100)
 	viper.SetDefault("relay.keep_recent_events", true)
 	viper.SetDefault("relay.max_size_event_in_bytes", 100000) // 100KB
-	viper.SetDefault("relay.filter_limit", 9999999999)
+	viper.SetDefault("relay.filter_limit", 99999999)
 	viper.SetDefault("relay.reporting_limit", 5) // 5 reports to ban a user
 	viper.SetDefault("relay.enable_anonymous_req", true)
 

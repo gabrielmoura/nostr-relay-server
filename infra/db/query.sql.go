@@ -378,3 +378,99 @@ func (q *Queries) GetOldEvents(ctx context.Context, before time.Time) ([]*nostr.
 
 	return events, nil
 }
+
+const getAllEvents = `-- name: GetAllEvents :many
+SELECT id, pubkey, created_at, kind, tags, content, sig
+FROM event
+`
+
+func (q *Queries) GetAllEvents(ctx context.Context) ([]*nostr.Event, error) {
+	rows, err := q.db.Query(ctx, getAllEvents)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var events []*nostr.Event
+	for rows.Next() {
+		var evt nostr.Event
+		var timestamp int64
+		err := rows.Scan(&evt.ID, &evt.PubKey, &timestamp,
+			&evt.Kind, &evt.Tags, &evt.Content, &evt.Sig)
+		if err != nil {
+			return nil, err
+		}
+		evt.CreatedAt = nostr.Timestamp(timestamp)
+		events = append(events, &evt)
+	}
+
+	return events, nil
+}
+
+const streamAllEventsCursor = `-- name: StreamAllEvents :many
+SELECT id, pubkey, created_at, kind, tags, content, sig
+FROM event
+WHERE (created_at > $1 OR (created_at = $1 AND id > $2))
+ORDER BY created_at, id
+LIMIT $3
+`
+
+// StreamAllEvents streams all events from the database in batches, using a cursor approach
+// to avoid loading all events into memory at once. It returns a channel that emits slices of events.
+// The channel will be closed when there are no more events to stream.
+// The parameters are:
+// - ctx: the context for cancellation and timeout
+// - pageSize: the number of events to fetch in each batch
+func (q *Queries) StreamAllEvents(ctx context.Context, pageSize int) <-chan *[]nostr.Event {
+	out := make(chan *[]nostr.Event)
+
+	go func() {
+		defer close(out)
+
+		var lastCreatedAt int64 = 0
+		var lastID string = ""
+
+		for {
+			rows, err := q.db.Query(ctx, streamAllEventsCursor, lastCreatedAt, lastID, pageSize)
+			if err != nil {
+				return // você pode logar o erro aqui
+			}
+
+			var batch []nostr.Event
+			count := 0
+
+			for rows.Next() {
+				var evt nostr.Event
+				var timestamp int64
+
+				err := rows.Scan(&evt.ID, &evt.PubKey, &timestamp,
+					&evt.Kind, &evt.Tags, &evt.Content, &evt.Sig)
+				if err != nil {
+					rows.Close()
+					return
+				}
+
+				evt.CreatedAt = nostr.Timestamp(timestamp)
+				batch = append(batch, evt)
+
+				// Atualiza o cursor
+				lastCreatedAt = timestamp
+				lastID = evt.ID
+				count++
+			}
+
+			rows.Close()
+
+			if count > 0 {
+				// envia um ponteiro para a fatia
+				out <- &batch
+			}
+
+			if count < pageSize {
+				break
+			}
+		}
+	}()
+
+	return out
+}

@@ -4,3 +4,5 @@ nrserver
 nrserver-arm64
 nrserver.exe
 files
+badger_data
+export*
