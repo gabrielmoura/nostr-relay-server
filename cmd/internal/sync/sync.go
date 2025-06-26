@@ -9,6 +9,7 @@ import (
 	"github.com/gabrielmoura/nostr-relay-server/infra/log"
 	"github.com/gabrielmoura/nostr-relay-server/infra/nip77"
 	"github.com/nbd-wtf/go-nostr"
+	"github.com/nbd-wtf/go-nostr/nip19"
 	"go.uber.org/zap"
 	"os"
 	"os/signal"
@@ -34,6 +35,14 @@ func Sync(cf *ConfSync) {
 
 	filter := nostr.Filter{}
 	if cf.Pk != "" {
+		if strings.HasPrefix(cf.Pk, "npub") {
+			_, npk, err := nip19.Decode(cf.Pk)
+			if err != nil {
+				log.Logger.Fatal("Chave pública inválida", zap.Error(err))
+				return
+			}
+			cf.Pk = npk.(string)
+		}
 		filter.Authors = []string{cf.Pk}
 	}
 
