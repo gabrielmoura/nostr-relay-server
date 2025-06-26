@@ -32,9 +32,9 @@ func Init(ctx context.Context) error {
 
 	var logDbLevel tracelog.LogLevel
 	if config.Cfg.AppEnv != "production" {
-		logDbLevel = tracelog.LogLevelTrace
-	} else {
 		logDbLevel = tracelog.LogLevelWarn
+	} else {
+		logDbLevel = tracelog.LogLevelError
 	}
 
 	poolConfig.ConnConfig.Tracer = &tracelog.TraceLog{
