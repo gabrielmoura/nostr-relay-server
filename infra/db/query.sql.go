@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/gabrielmoura/nostr-relay-server/config"
+	"github.com/jackc/pgx/v5"
 	"github.com/jmoiron/sqlx"
 	"github.com/nbd-wtf/go-nostr"
 	"strings"
@@ -74,6 +75,31 @@ func (q *Queries) InsertEvent(ctx context.Context, arg *nostr.Event) error {
 		arg.Sig,
 	)
 	return err
+}
+func (q *Queries) InsertEventBatch(ctx context.Context, arg []*nostr.Event) error {
+	if len(arg) == 0 {
+		return errors.New("no events to insert")
+	}
+	b := pgx.Batch{}
+	for _, evt := range arg {
+		b.Queue(insertEvent,
+			evt.ID,
+			evt.PubKey,
+			evt.CreatedAt,
+			evt.Kind,
+			evt.Tags,
+			evt.Content,
+			evt.Sig,
+		)
+	}
+	br := q.db.SendBatch(ctx, &b)
+	defer br.Close()
+	for i := 0; i < len(arg); i++ {
+		if _, err := br.Exec(); err != nil {
+			return fmt.Errorf("failed to insert event %d: %w", i, err)
+		}
+	}
+	return nil
 }
 
 func (q *Queries) queryEventsSql(filter nostr.Filter, doCount bool) (string, []any, error) {

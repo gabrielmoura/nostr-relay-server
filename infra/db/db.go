@@ -5,6 +5,7 @@ import (
 	_ "embed"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 //go:embed schema.sql
@@ -14,6 +15,7 @@ type DBTX interface {
 	Exec(context.Context, string, ...interface{}) (pgconn.CommandTag, error)
 	Query(context.Context, string, ...interface{}) (pgx.Rows, error)
 	QueryRow(context.Context, string, ...interface{}) pgx.Row
+	SendBatch(context.Context, *pgx.Batch) pgx.BatchResults
 }
 
 func New(db DBTX) *Queries {
@@ -25,6 +27,9 @@ func New(db DBTX) *Queries {
 func (q *Queries) Migrate(ctx context.Context) error {
 	_, err := q.db.Exec(ctx, schema)
 	return err
+}
+func (q *Queries) StatPool() *pgxpool.Stat {
+	return q.db.(*pgxpool.Pool).Stat()
 }
 
 type Queries struct {
