@@ -24,7 +24,7 @@ func importFromJSON(reader *bufio.Reader, store *dbx.Queries) (int, error) {
 			continue
 		}
 
-		if err := saveEvent(context.Background(), store, &event); err != nil {
+		if err := saveToDatabase(context.Background(), store, &event); err != nil {
 			if errors.Is(err, ErrDupEvent) {
 				continue
 			}

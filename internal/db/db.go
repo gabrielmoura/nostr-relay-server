@@ -7,6 +7,7 @@ import (
 	"github.com/gabrielmoura/nostr-relay-server/infra/log"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/jackc/pgx/v5/tracelog"
 	"github.com/nbd-wtf/go-nostr"
 	"go.uber.org/zap"
 	"sync"
@@ -28,6 +29,26 @@ func Init(ctx context.Context) error {
 	}
 	poolConfig.MaxConns = config.Cfg.DB.MaxConns
 	poolConfig.MinConns = config.Cfg.DB.MinConns
+
+	var logDbLevel tracelog.LogLevel
+	if config.Cfg.AppEnv != "production" {
+		logDbLevel = tracelog.LogLevelTrace
+	} else {
+		logDbLevel = tracelog.LogLevelWarn
+	}
+
+	poolConfig.ConnConfig.Tracer = &tracelog.TraceLog{
+		Logger: tracelog.LoggerFunc(func(ctx context.Context, level tracelog.LogLevel, msg string, data map[string]any) {
+			if level == tracelog.LogLevelError {
+				log.Logger.Error(msg, zap.Any("data", data))
+			} else if level == tracelog.LogLevelWarn {
+				log.Logger.Warn(msg, zap.Any("data", data))
+			} else {
+				log.Logger.Info(msg, zap.Any("data", data))
+			}
+		}),
+		LogLevel: logDbLevel,
+	}
 
 	poolConfig.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
 		// ...
