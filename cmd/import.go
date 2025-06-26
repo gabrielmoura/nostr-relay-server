@@ -15,10 +15,22 @@ var importCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(importCmd)
 	importCmd.Flags().StringP("file", "f", "events.jsonl", "JSONL file to import")
+	importCmd.Flags().IntP("batch-size", "b", 100, "Batch size for import")
+	importCmd.Flags().IntP("num-workers", "w", 2, "Number of workers for parallel import")
 }
 func runImport(cmd *cobra.Command, _ []string) {
 	filename := cmd.Flag("file").Value.String()
-	err := _import.Import(filename)
+	batchSize, err := cmd.Flags().GetInt("batch-size")
+	if err != nil {
+		cmd.PrintErrf("Error getting batch size: %v\n", err)
+		return
+	}
+	numWorkers, err := cmd.Flags().GetInt("num-workers")
+	if err != nil {
+		cmd.PrintErrf("Error getting number of workers: %v\n", err)
+		return
+	}
+	err = _import.ParallelImport(filename, batchSize, numWorkers)
 	if err != nil {
 		return
 	}
