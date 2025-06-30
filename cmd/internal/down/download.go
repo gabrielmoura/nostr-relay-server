@@ -18,6 +18,9 @@ import (
 type DownloadOptions struct {
 	PublicKey string
 	RelayURL  []string
+	// If true, will download all events where the public key is mentioned
+	Mentioned bool
+	Kinds     []int
 }
 
 const pageSize = 500
@@ -58,7 +61,7 @@ func Download(cf *DownloadOptions) {
 			defer client.Close()
 
 			until := nostr.Now()
-			fetchAndStoreEvents(ctx, client, cf.PublicKey, &until)
+			fetchAndStoreEvents(ctx, client, cf.PublicKey, &until, cf.Mentioned, cf.Kinds)
 			log.Logger.Debug("Download concluído", zap.String("url", url), zap.String("publicKey", cf.PublicKey))
 			wg.Done()
 		}()
@@ -78,7 +81,7 @@ func normalizePublicKey(pk string) (string, error) {
 	return pk, nil
 }
 
-func fetchAndStoreEvents(ctx context.Context, client *nostr.Relay, pubKey string, until *nostr.Timestamp) {
+func fetchAndStoreEvents(ctx context.Context, client *nostr.Relay, pubKey string, until *nostr.Timestamp, mentioned bool, kinds []int) {
 	nUntil := until.Time().Unix()
 	eCount := 0
 	for {
@@ -86,9 +89,15 @@ func fetchAndStoreEvents(ctx context.Context, client *nostr.Relay, pubKey string
 		filter := nostr.Filter{
 			Until: until,
 			Limit: pageSize,
+			Kinds: kinds,
 		}
-		if pubKey != "" {
+		if pubKey != "" && !mentioned {
 			filter.Authors = []string{pubKey}
+		}
+		if mentioned {
+			filter.Tags = nostr.TagMap{
+				"p": []string{pubKey},
+			}
 		}
 
 		pageCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
