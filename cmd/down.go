@@ -17,12 +17,14 @@ var (
 	mentioned bool
 	kinds     []int
 	publicKey string
+	tags      []string
 )
 
 func init() {
 	rootCmd.AddCommand(downCmd)
 	downCmd.Flags().StringVarP(&publicKey, "public-key", "p", "", "Public key to filter events")
 	downCmd.Flags().StringSliceVarP(&relays, "relay-url", "r", []string{"wss://relay.damus.io"}, "Relay URL to connect to")
+	downCmd.Flags().StringSliceVarP(&tags, "tags", "t", []string{}, "Tags to filter events (e.g., tag1,tag2)")
 	downCmd.Flags().BoolVarP(&mentioned, "mentioned", "m", false, "Download events where the public key is mentioned")
 	downCmd.Flags().IntSliceVarP(&kinds, "kinds", "k", []int{
 		nostr.KindTextNote,
