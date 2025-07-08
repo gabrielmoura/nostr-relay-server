@@ -2,185 +2,99 @@ package store
 
 import (
 	"fmt"
+	"github.com/gabrielmoura/nostr-relay-server/infra/log"
 	"github.com/gabrielmoura/nostr-relay-server/infra/metrics"
 	"github.com/gabrielmoura/nostr-relay-server/internal/db"
+	"github.com/gofiber/fiber/v2"
+	"go.uber.org/zap"
 	"io"
-	"log"
 	"net/http"
 	"os"
 	"path/filepath"
-	"strconv"
-	"strings"
 	"time"
 )
 
-type ByteRange struct {
-	Start  int64
-	Length int64
-}
-
-func parseRange(rangeHeader string, fileSize int64) ([]ByteRange, error) {
-	if !strings.HasPrefix(rangeHeader, "bytes=") {
-		return nil, fmt.Errorf("invalid range header")
+func BlobHandler(c *fiber.Ctx) error {
+	if c.Method() != fiber.MethodHead && c.Method() != fiber.MethodGet {
+		return c.Status(fiber.StatusMethodNotAllowed).SendString("Invalid request method")
 	}
 
-	rangeHeader = strings.TrimPrefix(rangeHeader, "bytes=")
-	ranges := strings.Split(rangeHeader, ",")
-	var byteRanges []ByteRange
+	id := c.Params("id") // Assumindo rota "/blob/:id"
+	if id == "" {
+		return c.Status(fiber.StatusBadRequest).SendString("Invalid file ID")
+	}
 
-	for _, part := range ranges {
-		parts := strings.Split(strings.TrimSpace(part), "-")
-		if len(parts) != 2 {
-			return nil, fmt.Errorf("invalid range format")
+	filePath := filepath.Join(blobPath, id)
+	if c.Method() == fiber.MethodHead {
+		if _, err := os.Stat(filePath); err != nil {
+			return c.SendStatus(fiber.StatusNotFound)
 		}
+		return c.SendStatus(fiber.StatusOK)
+	}
 
-		start, err := strconv.ParseInt(parts[0], 10, 64)
-		if err != nil {
-			return nil, fmt.Errorf("invalid start range")
-		}
-
-		var end int64
-		if parts[1] == "" {
-			end = fileSize - 1
-		} else {
-			end, err = strconv.ParseInt(parts[1], 10, 64)
-			if err != nil {
-				return nil, fmt.Errorf("invalid end range")
+	o, err := db.DbQueries.GetObjectByHash(c.UserContext(), id)
+	if err != nil {
+		return c.Status(fiber.StatusNotFound).SendString("File not found")
+	}
+	if o.Blocked && o.BlockedByReason == "" {
+		return c.Status(fiber.StatusForbidden).SendString("File is blocked")
+	}
+	if !o.ExpiresAt.IsZero() && time.Now().After(o.ExpiresAt) {
+		go func() {
+			if err := os.Remove(filePath); err != nil {
+				log.Logger.Error("Failed to remove file", zap.Error(err), zap.String("filePath", filePath))
 			}
-		}
-
-		if start > end || start < 0 || end >= fileSize {
-			return nil, fmt.Errorf("range out of bounds")
-		}
-
-		byteRanges = append(byteRanges, ByteRange{
-			Start:  start,
-			Length: end - start + 1,
-		})
+			if err := db.DbQueries.RemoveObject(c.Context(), id); err != nil {
+				log.Logger.Error("Failed to remove object", zap.Error(err), zap.String("id", id))
+			}
+		}()
+		return c.Status(fiber.StatusGone).SendString("File has expired")
 	}
+	if o.BlockedByReason != "" {
+		return c.Status(fiber.StatusUnavailableForLegalReasons).SendString(o.BlockedByReason)
+	}
+	metrics.DownloadCounter.Inc()
 
-	return byteRanges, nil
-}
-
-func serveFile(w http.ResponseWriter, filePath string, ranges []ByteRange, mime string) {
 	file, err := os.Open(filePath)
 	if err != nil {
-		http.Error(w, "File not found", http.StatusNotFound)
-		return
+		return c.Status(fiber.StatusNotFound).SendString("File not found")
 	}
 	defer file.Close()
 
 	fileInfo, err := file.Stat()
 	if err != nil {
-		http.Error(w, "Unable to retrieve file info", http.StatusInternalServerError)
-		return
+		return c.Status(fiber.StatusInternalServerError).SendString("Unable to retrieve file info")
 	}
 
-	if len(ranges) == 0 {
-		// Serve entire file
-		w.Header().Set("Content-Type", ternaryString(mime, "application/octet-stream"))
-		w.Header().Set("Content-Length", fmt.Sprintf("%d", fileInfo.Size()))
-		w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
-		w.WriteHeader(http.StatusOK)
-		_, _ = io.Copy(w, file)
-		return
+	// Suporte a Range Requests
+	r, err := c.Range(int(fileInfo.Size()))
+	if err != nil && c.Get("Range") != "" {
+		return c.Status(fiber.StatusRequestedRangeNotSatisfiable).SendString("Invalid range")
 	}
 
-	// Serve specified ranges
-	for _, r := range ranges {
-		sectionReader := io.NewSectionReader(file, r.Start, r.Length)
-		w.Header().Set("Content-Range", fmt.Sprintf("bytes %d-%d/%d", r.Start, r.Start+r.Length-1, fileInfo.Size()))
-		w.Header().Set("Content-Length", fmt.Sprintf("%d", r.Length))
-		w.Header().Set("Content-Type", ternaryString(mime, "application/octet-stream"))
-		w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
-		w.WriteHeader(http.StatusPartialContent)
-		_, _ = io.Copy(w, sectionReader)
-		return // Serve only the first range if multiple are specified
-	}
-}
+	c.Set("Cache-Control", "public, max-age=31536000, immutable")
+	//c.Type(o.MimeType)
+	c.Set("Content-Type", o.MimeType)
+	c.Set("Last-Modified", o.CreatedAt.Format(http.TimeFormat))
 
-func BlobHandler(w http.ResponseWriter, r *http.Request) {
-	if !acceptMethods(r.Method, []string{http.MethodHead, http.MethodGet}) {
-		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
-		return
+	if len(r.Ranges) == 0 {
+		c.Set("Content-Length", fmt.Sprintf("%d", fileInfo.Size()))
+		return c.Status(fiber.StatusOK).SendFile(filePath, false)
 	}
 
-	id := strings.TrimPrefix(r.URL.Path, "/blob/")
-	if id == "" {
-		http.Error(w, "Invalid file ID", http.StatusBadRequest)
-		return
+	// Serve apenas o primeiro range, como no original
+	start := r.Ranges[0].Start
+	end := r.Ranges[0].End
+	length := end - start + 1
+
+	sectionReader := io.NewSectionReader(file, int64(start), int64(length))
+	c.Set("Content-Range", fmt.Sprintf("bytes %d-%d/%d", start, end, fileInfo.Size()))
+	c.Set("Content-Length", fmt.Sprintf("%d", length))
+
+	data := make([]byte, length)
+	if _, err := sectionReader.Read(data); err != nil && err != io.EOF {
+		return c.Status(fiber.StatusInternalServerError).SendString("Error reading file section")
 	}
 
-	filePath := filepath.Join(blobPath, id)
-	if r.Method == http.MethodHead {
-		if _, err := os.Stat(filePath); err != nil {
-			w.WriteHeader(http.StatusNotFound)
-
-		} else {
-			w.WriteHeader(http.StatusOK)
-		}
-		w.Write([]byte(""))
-		return
-	}
-
-	// Simulated object retrieval from a database.
-	o, err := db.DbQueries.GetObjectByHash(r.Context(), id)
-	if err != nil {
-		http.Error(w, "File not found", http.StatusNotFound)
-		return
-	}
-	if o.Blocked {
-		http.Error(w, "File is blocked", http.StatusForbidden)
-		return
-	}
-	if !o.ExpiresAt.IsZero() && time.Now().After(o.ExpiresAt) {
-		go func() {
-			if err := os.Remove(filePath); err != nil {
-				log.Println("Failed to remove file", err)
-			}
-
-			if err := db.DbQueries.RemoveObject(r.Context(), id); err != nil {
-				log.Println("Failed to remove object", err)
-			}
-		}()
-		http.Error(w, "File has expired", http.StatusGone)
-		return
-	}
-	if o.BlockedByReason != "" {
-		http.Error(w, o.BlockedByReason, http.StatusUnavailableForLegalReasons)
-		return
-	}
-	metrics.DownloadCounter.Inc()
-
-	var ranges []ByteRange
-
-	if rangeHeader := r.Header.Get("Range"); rangeHeader != "" {
-		file, err := os.Open(filePath)
-		if err != nil {
-			http.Error(w, "File not found", http.StatusNotFound)
-			return
-		}
-		defer file.Close()
-
-		fileInfo, err := file.Stat()
-		if err != nil {
-			http.Error(w, "Unable to retrieve file info", http.StatusInternalServerError)
-			return
-		}
-
-		ranges, err = parseRange(rangeHeader, fileInfo.Size())
-		if err != nil {
-			http.Error(w, "Invalid range", http.StatusRequestedRangeNotSatisfiable)
-			return
-		}
-	}
-
-	serveFile(w, filePath, ranges, o.MimeType)
-}
-
-func ternaryString(a, b string) string {
-	if a != "" {
-		return a
-	}
-	return b
+	return c.Status(fiber.StatusPartialContent).Send(data)
 }

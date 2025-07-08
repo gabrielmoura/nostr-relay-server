@@ -26,6 +26,7 @@ func DoAUTH(ws *dto.WsServer, data dto.Data) string {
 			ws.Ctx = context.WithValue(ws.Ctx, AuthContextKey, pubkey)
 			ws.ChanSender <- nostr.OKEnvelope{EventID: evt.ID, OK: true}
 		} else {
+			metrics.NostrRelayAuthFailuresTotal.Inc()
 			log.Logger.Warn("failed to authenticate", zap.String("event", evt.String()))
 			ws.ChanSender <- nostr.OKEnvelope{EventID: evt.ID, OK: false, Reason: "error: failed to authenticate"}
 		}

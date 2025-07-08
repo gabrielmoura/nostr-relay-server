@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/gabrielmoura/nostr-relay-server/infra/handler/listener"
+	"github.com/gabrielmoura/nostr-relay-server/infra/metrics"
 	"github.com/gabrielmoura/nostr-relay-server/internal/db"
 	"github.com/gabrielmoura/nostr-relay-server/internal/dto"
 	"github.com/nbd-wtf/go-nostr"
@@ -53,6 +54,7 @@ func handleDeletionEvent(ws *dto.WsServer, evt nostr.Event) string {
 				ws.ChanSender <- nostr.OKEnvelope{EventID: evt.ID, OK: false, Reason: fmt.Sprintf("error: %s", err.Error())}
 				return ""
 			}
+			metrics.NostrRelayEventDeletionSuccessful.Inc()
 
 			//if advancedDeleter != nil {
 			//	advancedDeleter.AfterDelete(tag[1], evt.PubKey)

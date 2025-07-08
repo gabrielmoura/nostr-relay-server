@@ -2,11 +2,11 @@ package dto
 
 import (
 	"context"
-	"github.com/fasthttp/websocket"
 	"github.com/gabrielmoura/nostr-relay-server/config"
 	"github.com/gabrielmoura/nostr-relay-server/infra/log"
 	"github.com/gabrielmoura/nostr-relay-server/internal/db"
 	"github.com/goccy/go-json"
+	"github.com/gofiber/contrib/websocket"
 	"github.com/nbd-wtf/go-nostr"
 	"go.uber.org/zap"
 	"net/http"
@@ -52,10 +52,10 @@ type WsRequest struct {
 }
 type WsServer struct {
 	StartTime  time.Time
-	Response   http.ResponseWriter
+	Response   http.ResponseWriter //remove
 	Ctx        context.Context
 	Conn       *websocket.Conn
-	Request    *http.Request
+	Request    *http.Request // remove
 	ChanSender chan interface{}
 	ChanPing   chan bool
 	Challenge  string
@@ -72,26 +72,6 @@ var publicKinds = []int{
 }
 
 // ################### Pedido de dados ######################
-
-func (req *WsServer) AcceptReqs(filters nostr.Filters) bool {
-	if config.Cfg.Ws.Auth {
-		if req.Authed != "" {
-			return true
-		}
-
-		for _, filter := range filters {
-			for _, kind := range publicKinds {
-				if slices.Contains(filter.Kinds, kind) {
-					return true
-				}
-			}
-		}
-
-		return false
-	}
-	return true
-
-}
 
 // SkipEventFunc é uma função que verifica se o evento solicitado deve ser ignorado
 func (req *WsServer) SkipEventFunc(event *nostr.Event) bool {

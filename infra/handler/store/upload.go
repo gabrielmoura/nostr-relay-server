@@ -10,14 +10,13 @@ import (
 	db2 "github.com/gabrielmoura/nostr-relay-server/infra/db"
 	"github.com/gabrielmoura/nostr-relay-server/infra/log"
 	"github.com/gabrielmoura/nostr-relay-server/infra/metrics"
-	"github.com/gabrielmoura/nostr-relay-server/infra/net"
 	"github.com/gabrielmoura/nostr-relay-server/internal/db"
 	errors2 "github.com/gabrielmoura/nostr-relay-server/internal/errors"
 	"github.com/gabrielmoura/nostr-relay-server/pkg/magic"
 	"github.com/goccy/go-json"
+	"github.com/gofiber/fiber/v2"
 	"github.com/nbd-wtf/go-nostr"
 	"go.uber.org/zap"
-	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -25,123 +24,103 @@ import (
 	"time"
 )
 
-func processAuth(r *http.Request) (string, error) {
-	// TODO: retornar erros e tratar na função principal
+// processAuth adapta para fiber.Ctx e retorna hash esperado ou erro
+func processAuth(c *fiber.Ctx) (string, error) {
 	if config.Cfg.Ws.Auth {
-		authHeader := r.Header.Get("Authorization")
-		if authHeader == "" && !strings.HasPrefix(authHeader, "Nostr ") {
+		authHeader := c.Get("Authorization")
+		if authHeader == "" || !strings.HasPrefix(authHeader, "Nostr ") {
 			return "", errors2.ErrorAuthHeaderRequired
 		}
 		token := strings.TrimPrefix(authHeader, "Nostr ")
 
 		decodedBytes, err := base64.StdEncoding.DecodeString(token)
 		if err != nil {
-
 			log.Logger.Error("Decode error", zap.Error(err))
 			return "", errors2.ErrorDecodeAuthorization
 		}
-		var event nostr.Event
-		err = json.Unmarshal(decodedBytes, &event)
-		if err != nil {
 
+		var event nostr.Event
+		if err := json.Unmarshal(decodedBytes, &event); err != nil {
 			log.Logger.Error("Unmarshal error", zap.Error(err))
 			return "", errors2.ErrorUnmarshalAuthorization
 		}
-		if event.Kind != nostr.KindBlobs {
 
+		if event.Kind != nostr.KindBlobs {
 			return "", errors2.ErrorInvalidEventKind
 		}
 
 		if ok, err := event.CheckSignature(); !ok || err != nil {
-
 			return "", errors2.ErrorInvalidSignature
 		}
-		// TODO: verificar se o pubkey é valido e autorizado a fazer upload
-		// TODO: a tag x seraá o hash256 do arquivo
+
+		// TODO: validar pubkey autorizado para upload
+
 		return event.Tags.GetFirst([]string{"x"}).Value(), nil
 	}
 	return "", nil
 }
 
-func UploadHandler(w http.ResponseWriter, r *http.Request) {
-	if !acceptMethods(r.Method, []string{http.MethodPost, http.MethodPut}) {
-		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
-		return
+// UploadHandler refatorado para Fiber
+func UploadHandler(c *fiber.Ctx) error {
+	if c.Method() != fiber.MethodPost && c.Method() != fiber.MethodPut {
+		return c.Status(fiber.StatusMethodNotAllowed).SendString("Invalid request method")
 	}
+
 	startTime := time.Now()
 
-	hashToCheck, err := processAuth(r)
+	hashToCheck, err := processAuth(c)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusUnauthorized)
-		return
+		return c.Status(fiber.StatusUnauthorized).SendString(err.Error())
 	}
 
-	file := r.Body
-	defer file.Close()
-
-	bodyBytes, err := io.ReadAll(r.Body)
-	if err != nil {
-		http.Error(w, "Erro ao ler o corpo da requisição", http.StatusBadRequest)
-		log.Logger.Error("Read error", zap.Error(err))
-		return
+	bodyBytes := c.Body()
+	if len(bodyBytes) == 0 {
+		return c.Status(fiber.StatusBadRequest).SendString("Empty request body")
 	}
 
 	mgl, err := magic.Lookup(bodyBytes)
 	if err != nil {
-		//if !errors.Is(err, magic.ErrUnknown) {
-		http.Error(w, "Failed to detect file type", http.StatusInternalServerError)
 		log.Logger.Error("Magic lookup error", zap.Error(err))
-		return
-		//}
+		return c.Status(fiber.StatusInternalServerError).SendString("Failed to detect file type")
 	}
 
-	if !acceptMimeType(ternaryString(mgl.MIME, http.DetectContentType(bodyBytes)), config.Cfg.Store.AcceptedMimetypes) {
-		http.Error(w, "Invalid file type", http.StatusBadRequest)
-		return
+	mimeType := ternaryString(mgl.MIME, http.DetectContentType(bodyBytes))
+	if !acceptMimeType(mimeType, config.Cfg.Store.AcceptedMimetypes) {
+		return c.Status(fiber.StatusBadRequest).SendString("Invalid file type")
 	}
 
-	// Use hash as the filename
 	hasher := sha256.New()
 	hasher.Write(bodyBytes)
 	hashBytes := hasher.Sum(nil)
 	hashString := hex.EncodeToString(hashBytes)
 
-	if config.Cfg.Ws.Auth {
-		if hashToCheck != "" && hashToCheck != hashString {
-			http.Error(w, "Invalid file hash", http.StatusUnauthorized)
-			return
-		}
+	if config.Cfg.Ws.Auth && hashToCheck != "" && hashToCheck != hashString {
+		return c.Status(fiber.StatusUnauthorized).SendString("Invalid file hash")
 	}
 
 	filePath := filepath.Join(blobPath, hashString)
 	size := int64(len(bodyBytes))
-	mimeType := ternaryString(mgl.MIME, http.DetectContentType(bodyBytes))
 	urlResponse := fmt.Sprintf("%s/%s", config.Cfg.Store.MediaPath, hashString)
 
 	if _, err := os.Stat(filePath); err == nil {
-		do, err := getFileExist(r.Context(), hashString)
+		do, err := getFileExist(c.Context(), hashString)
 		if err != nil {
-			http.Error(w, "Failed to get file", http.StatusInternalServerError)
 			log.Logger.Error("File get error", zap.Error(err))
-			return
+			return c.Status(fiber.StatusInternalServerError).SendString("Failed to get file")
 		}
-		net.JsonResponse(w, http.StatusOK, do)
-		return
+		return c.Status(fiber.StatusOK).JSON(do)
 	}
 
 	outFile, err := os.Create(filePath)
 	if err != nil {
-		http.Error(w, "Failed to create file on server", http.StatusInternalServerError)
 		log.Logger.Error("File creation error", zap.Error(err))
-		return
+		return c.Status(fiber.StatusInternalServerError).SendString("Failed to create file on server")
 	}
 	defer outFile.Close()
 
-	_, err = outFile.Write(bodyBytes)
-	if err != nil {
-		http.Error(w, "Failed to write file content", http.StatusInternalServerError)
+	if _, err := outFile.Write(bodyBytes); err != nil {
 		log.Logger.Error("File write error", zap.Error(err))
-		return
+		return c.Status(fiber.StatusInternalServerError).SendString("Failed to write file content")
 	}
 
 	obj := &db2.Object{
@@ -151,12 +130,9 @@ func UploadHandler(w http.ResponseWriter, r *http.Request) {
 		CreatedAt: time.Now(),
 	}
 
-	err = db.DbQueries.InsertObject(r.Context(), obj)
-	if err != nil {
-		http.Error(w, "Failed to save file metadata", http.StatusInternalServerError)
-		//log.Println("DB save error:", err)
+	if err := db.DbQueries.InsertObject(c.Context(), obj); err != nil {
 		log.Logger.Error("DB save error", zap.Error(err))
-		return
+		return c.Status(fiber.StatusInternalServerError).SendString("Failed to save file metadata")
 	}
 
 	response := &db2.ObjectResponse{
@@ -167,9 +143,9 @@ func UploadHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	metrics.UploadCounter.Inc()
-	net.JsonResponse(w, http.StatusOK, response)
-	metrics.HttpDuration.WithLabelValues(r.URL.Path).Observe(time.Since(startTime).Seconds())
-	return
+	metrics.HttpDuration.WithLabelValues(c.Path()).Observe(time.Since(startTime).Seconds())
+
+	return c.Status(fiber.StatusOK).JSON(response)
 }
 
 func getFileExist(ctx context.Context, hash string) (*db2.ObjectResponse, error) {
@@ -187,4 +163,10 @@ func getFileExist(ctx context.Context, hash string) (*db2.ObjectResponse, error)
 	}
 
 	return response, nil
+}
+func ternaryString(condition string, fallback string) string {
+	if condition != "" {
+		return condition
+	}
+	return fallback
 }

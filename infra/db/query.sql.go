@@ -65,7 +65,7 @@ type InsertEventParams struct {
 }
 
 func (q *Queries) InsertEvent(ctx context.Context, arg *nostr.Event) error {
-	_, err := q.db.Exec(ctx, insertEvent,
+	res, err := q.db.Exec(ctx, insertEvent,
 		arg.ID,
 		arg.PubKey,
 		arg.CreatedAt,
@@ -74,6 +74,9 @@ func (q *Queries) InsertEvent(ctx context.Context, arg *nostr.Event) error {
 		arg.Content,
 		arg.Sig,
 	)
+	if res.RowsAffected() == 0 {
+		return ErrDupEvent
+	}
 	return err
 }
 func (q *Queries) InsertEventBatch(ctx context.Context, arg []*nostr.Event) error {
@@ -358,13 +361,13 @@ WHERE hash = $1::text
 LIMIT 1
 `
 
-func (q *Queries) GetObjectByHash(ctx context.Context, hash string) (*Object, error) {
+func (q *Queries) GetObjectByHash(ctx context.Context, hash string) (Object, error) {
 	var obj Object
 	err := q.db.QueryRow(ctx, getObjectByHash, hash).Scan(&obj.Hash, &obj.CreatedAt, &obj.MimeType, &obj.Size, &obj.Blocked, &obj.ExpiresAt, &obj.BlockedByReason)
 	if err != nil && errors.Is(err, sql.ErrNoRows) {
-		return nil, nil
+		return obj, nil
 	}
-	return &obj, err
+	return obj, err
 }
 
 const removeObject = `-- name: RemoveObject :exec

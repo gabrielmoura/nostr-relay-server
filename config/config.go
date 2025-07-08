@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"github.com/nbd-wtf/go-nostr"
 	"github.com/spf13/viper"
 	"gopkg.in/yaml.v3"
 )
@@ -63,6 +64,8 @@ func setDefaults(export bool) {
 	viper.SetDefault("stream_up.enabled", true)
 	viper.SetDefault("stream_down.enabled", false)
 	viper.SetDefault("enable_negentropy", false)
+	viper.SetDefault("relay.protected_kinds", []int{nostr.KindApplicationSpecificData, nostr.KindEncryptedDirectMessage})
+	viper.SetDefault("relay.minimum_pow_limit", 0)
 
 	if export {
 		viper.SetDefault("db.postgres_uri", "postgres://user:password@localhost:5432/dbname")

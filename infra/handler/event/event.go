@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"github.com/fiatjaf/khatru/policies"
 	"github.com/gabrielmoura/nostr-relay-server/config"
+	db2 "github.com/gabrielmoura/nostr-relay-server/infra/db"
 	"github.com/gabrielmoura/nostr-relay-server/infra/handler/listener"
 	"github.com/gabrielmoura/nostr-relay-server/infra/log"
 	"github.com/gabrielmoura/nostr-relay-server/infra/metrics"
@@ -22,8 +23,6 @@ import (
 	"regexp"
 	"time"
 )
-
-var ErrDupEvent = errors.New("duplicate: event already exists")
 
 func DoEVENT(ws *dto.WsServer, data dto.Data) string {
 	latestIndex := len(data) - 1
@@ -44,14 +43,20 @@ func DoEVENT(ws *dto.WsServer, data dto.Data) string {
 
 	// check signature
 	if ok, err := evt.CheckSignature(); err != nil {
+		metrics.NostrRelayEventSignatureFailures.Inc()
 		ws.ChanSender <- nostr.OKEnvelope{EventID: evt.ID, OK: false, Reason: "error: failed to verify signature"}
 		return ""
 	} else if !ok {
+		metrics.NostrRelayEventSignatureFailures.Inc()
 		ws.ChanSender <- nostr.OKEnvelope{EventID: evt.ID, OK: false, Reason: "invalid: signature is invalid"}
 		return ""
 	}
 
-	if ok, err := policies2.RejectEventBannedUser(ws.Ctx, &evt); ok {
+	if reject, msg := policies2.P.CheckMinimumPow(evt); reject {
+		ws.ChanSender <- nostr.OKEnvelope{EventID: evt.ID, OK: false, Reason: msg}
+	}
+
+	if ok, err := policies2.P.RejectEventBannedUser(ws.Ctx, &evt); ok {
 		log.Logger.Debug("Rejecting event", zap.String("event", evt.ID), zap.String("reason", err))
 		ws.ChanSender <- nostr.OKEnvelope{EventID: evt.ID, OK: ok, Reason: err}
 		return ""
@@ -129,7 +134,8 @@ func AddEvent(ws *dto.WsServer, evt *nostr.Event) (accepted bool, message string
 
 		if saveErr := publish(ws.Ctx, *evt); saveErr != nil {
 			switch {
-			case errors.Is(saveErr, ErrDupEvent):
+			case errors.Is(saveErr, db2.ErrDupEvent):
+				metrics.NostrRelayEventDuplicateRejections.Inc()
 				return true, saveErr.Error()
 			default:
 				errmsg := saveErr.Error()
@@ -186,9 +192,12 @@ func publish(ctx context.Context, evt nostr.Event) error {
 
 	stream.ForwardEvent(evt)
 
-	if err := db.DbQueries.InsertEvent(ctx, &evt); err != nil && !errors.Is(err, ErrDupEvent) {
-		log.Logger.Error("failed to save", zap.Error(err))
-		return fmt.Errorf("failed to save: %w", err)
+	if err := db.DbQueries.InsertEvent(ctx, &evt); err != nil {
+		if !errors.Is(err, db2.ErrDupEvent) {
+			log.Logger.Error("failed to save", zap.Error(err))
+			return fmt.Errorf("failed to save: %w", err)
+		}
+		metrics.NostrRelayEventDuplicateRejections.Inc()
 	}
 	metrics.NostrKindEventCounter.WithLabelValues(metrics.GetKindName(evt.Kind)).Inc()
 	metrics.NostrUserEventCounter.WithLabelValues(evt.PubKey).Inc()

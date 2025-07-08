@@ -4,11 +4,11 @@ import (
 	"context"
 	"fmt"
 	"github.com/gabrielmoura/nostr-relay-server/config"
-	"github.com/gabrielmoura/nostr-relay-server/infra/handler"
 	"github.com/gabrielmoura/nostr-relay-server/infra/metrics"
 	"github.com/gabrielmoura/nostr-relay-server/infra/net"
 	"github.com/gabrielmoura/nostr-relay-server/internal/bootstrap"
 	"github.com/gabrielmoura/nostr-relay-server/internal/db"
+	policies2 "github.com/gabrielmoura/nostr-relay-server/internal/policies"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
 
@@ -49,8 +49,9 @@ func runServer(cmd *cobra.Command, args []string) {
 		signal.Notify(stopChan, os.Interrupt, syscall.SIGTERM)
 
 		metrics.RegisterMetrics()
+		policies2.Init()
 		// Inicializa o handler dentro do contexto principal
-		server := handler.Init(mainCtx)
+		in, ex := net.Router()
 
 		// Goroutine para aguardar sinais de desligamento
 		go func() {
@@ -61,19 +62,23 @@ func runServer(cmd *cobra.Command, args []string) {
 			mainCancel()
 
 			// Chamar o método Shutdown do servidor
-			if err := server.Shutdown(mainCtx); err != nil {
+			if err := ex.Shutdown(); err != nil {
 				log.Logger.Fatal("Erro ao desligar o servidor", zap.Error(err))
 			}
+			if err := in.Shutdown(); err != nil {
+				log.Logger.Fatal("Erro ao desligar o servidor", zap.Error(err))
+			}
+
 		}()
 
 		if bootstrapFlag {
 			bootstrap.CreateInitialEvents()
 		}
+		lnIn, _ := net.PrepareListen(":9091")
+		lnEx, _ := net.PrepareListen(":9090")
 
-		ln, _ := net.PrepareListen(server)
-
-		// Iniciar o servidor HTTP
-		server.Serve(ln)
+		go in.Listener(lnIn)
+		go ex.Listener(lnEx)
 
 		// Aguarda pelo término do contexto principal
 		<-mainCtx.Done()
