@@ -2,7 +2,9 @@ package down
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	db2 "github.com/gabrielmoura/nostr-relay-server/infra/db"
 	"strings"
 	"sync"
 	"time"
@@ -124,7 +126,9 @@ func fetchAndStoreEvents(ctx context.Context, client *nostr.Relay, pubKey string
 			}
 			count++
 			if err := db.DbQueries.InsertEvent(ctx, evt); err != nil {
-				log.Logger.Error("Erro ao salvar evento", zap.Error(err), zap.String("id", evt.ID))
+				if !errors.Is(err, db2.ErrDupEvent) {
+					log.Logger.Error("Erro ao salvar evento", zap.Error(err), zap.String("id", evt.ID))
+				}
 			}
 		}
 
