@@ -2,6 +2,8 @@ package stream
 
 import (
 	"context"
+	"github.com/gabrielmoura/nostr-relay-server/infra/metrics"
+	"github.com/gabrielmoura/nostr-relay-server/pkg/nostrpool"
 	"sync"
 	"time"
 
@@ -20,14 +22,16 @@ func ForwardRequest(ws *dto.WsServer, filter nostr.Filter, id *string) {
 		return
 	}
 
-	initializeRelays(ws)
-	allEvents := collectUniqueEvents(ws, filter)
+	//initializeRelays(ws)
+	//allEvents := collectUniqueEvents(ws, filter)
 
+	allEvents, _ := nostrpool.Subscribe(nostr.Filters{filter})
 	log.Logger.Info("Eventos encaminhados", zap.Int("total_events", len(allEvents)))
 
-	for _, ev := range allEvents {
+	for ev := range allEvents {
+		metrics.NostrRelayRequestForwardedTotal.Inc()
 		ws.ChanSender <- nostr.EventEnvelope{
-			Event:          ev,
+			Event:          *ev,
 			SubscriptionID: id,
 		}
 	}

@@ -134,6 +134,12 @@ var (
 			Name: "nostr_relay_event_forwarded_total",
 			Help: "Number of events forwarded to other relays",
 		})
+	// NostrRelayRequestForwardedTotal - Número de requisições encaminhadas para outros relays.
+	NostrRelayRequestForwardedTotal = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "nostr_relay_request_forwarded_total",
+			Help: "Number of requests forwarded to other relays",
+		})
 	// NostrRelayEventForwardedFailuresTotal - Número de falhas ao tentar encaminhar eventos para outros relays.
 	NostrRelayEventForwardedFailuresTotal = prometheus.NewCounter(
 		prometheus.CounterOpts{
@@ -194,6 +200,7 @@ func RegisterMetrics() {
 		NostrRelayEventDuplicateRejections,
 		NostrRelayEventForwardedTotal,
 		NostrRelayEventForwardedFailuresTotal,
+		NostrRelayRequestForwardedTotal,
 		NostrRelayEventDeletionSuccessful,
 		// Listener metrics
 		NostrListenerGauge,
