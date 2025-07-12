@@ -15,7 +15,6 @@ import (
 	"time"
 )
 
-// TODO: Separar as mensagens que são enviadas das que são recebidas
 const (
 	TypeREQ   = "REQ"
 	TypeEVENT = "EVENT"
@@ -23,11 +22,12 @@ const (
 	TypeAUTH  = "AUTH"
 	TypeCOUNT = "COUNT"
 
-	// NEG
 	TypeNegMsg   = "NEG-MSG"
 	TypeNegOpen  = "NEG-OPEN"
 	TypeNegErr   = "NEG-ERR"
 	TypeNegClose = "NEG-CLOSE"
+	TypeNegHave  = "NEG-HAVE"
+	TypeNegNeed  = "NEG-NEED"
 )
 
 type WsMessage struct {

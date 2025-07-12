@@ -10,6 +10,7 @@ import (
 	"github.com/gabrielmoura/nostr-relay-server/infra/log"
 	"github.com/gabrielmoura/nostr-relay-server/infra/metrics"
 	"github.com/gabrielmoura/nostr-relay-server/internal/dto"
+	"github.com/gabrielmoura/nostr-relay-server/pkg/negentropy"
 	"github.com/goccy/go-json"
 	"github.com/nbd-wtf/go-nostr"
 	"go.uber.org/zap"
@@ -65,6 +66,18 @@ func handleMessage(ws *dto.WsServer, message []byte) {
 		notice = auth.DoAUTH(ws, requestRaw)
 	case dto.TypeCOUNT:
 		notice = count.DoCOUNT(ws, requestRaw)
+	case dto.TypeNegOpen:
+		negentropy.HandleNegOpen(ws, requestRaw)
+	case dto.TypeNegMsg:
+		negentropy.HandleNegMsg(ws, requestRaw)
+	case dto.TypeNegErr:
+		log.Logger.Info("Negentropy Error", zap.String("type", typ), zap.Any("data", requestRaw[1]))
+	case dto.TypeNegClose:
+		log.Logger.Debug("Negentropy Close", zap.String("type", typ), zap.Any("data", requestRaw[1]))
+	case dto.TypeNegHave:
+		negentropy.HandleNegHave(ws, requestRaw)
+	case dto.TypeNegNeed:
+		negentropy.HandleNegNeed(ws, requestRaw)
 	default:
 		log.Logger.Error("Unknown event type", zap.String("type", typ))
 		notice = "unknown event type " + typ

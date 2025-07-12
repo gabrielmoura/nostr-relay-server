@@ -45,6 +45,7 @@ require (
 	github.com/gobwas/ws v1.4.0 // indirect
 	github.com/graph-gophers/dataloader/v7 v7.1.0 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
+	github.com/illuzen/go-negentropy v0.0.0-20240715064232-a46d8ae31fc0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
