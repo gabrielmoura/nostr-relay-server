@@ -18,6 +18,7 @@ var (
 	kinds     []int
 	publicKey string
 	tags      []string
+	timeout   int
 )
 
 func init() {
@@ -44,6 +45,7 @@ func init() {
 		nostr.KindReporting,
 		nostr.KindDirectMessage,
 	}, "Kinds of events to download")
+	downCmd.Flags().IntVarP(&timeout, "timeout", "o", 30, "Timeout in seconds for the download operation")
 
 }
 func runDownload(cmd *cobra.Command, args []string) {
@@ -52,5 +54,7 @@ func runDownload(cmd *cobra.Command, args []string) {
 		RelayURL:  relays,
 		Mentioned: mentioned,
 		Kinds:     kinds,
+		Tags:      tags,
+		Timeout:   timeout,
 	})
 }

@@ -29,4 +29,5 @@ type ConfImport struct {
 	filename   string
 	batchSize  int
 	numWorkers int
+	timeout    int
 }

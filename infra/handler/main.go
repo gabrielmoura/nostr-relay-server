@@ -25,6 +25,7 @@ const (
 
 func HandleWS(wss *dto.WsServer) {
 	ticker := time.NewTicker(pingPeriod)
+	metrics.NostrUserAgentCounter.WithLabelValues(wss.Conn.Locals("ua").(string)).Inc()
 	go func() {
 		for {
 			select {

@@ -87,6 +87,22 @@ var (
 		},
 		[]string{"tag"},
 	)
+	// NostrNegentropyCounter - Contador de mensagens de Negentropia
+	NostrNegentropyCounter = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "nostr_negentropy_count",
+			Help: "No of Negentropy messages handled by Nostr handler",
+		},
+		[]string{"type"},
+	)
+	// NostrUserAgentCounter - Contador de User-Agent
+	NostrUserAgentCounter = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "nostr_user_agent_count",
+			Help: "No of User-Agent handled by Nostr handler",
+		},
+		[]string{"user_agent"},
+	)
 
 	// NostrTagEventCounter - Qual a tag mais popular?
 	NostrTagEventCounter = prometheus.NewCounterVec(
@@ -207,6 +223,9 @@ func RegisterMetrics() {
 		NostrListenerAddCounter,
 		NostrListenerRemoveCounter,
 		NostrEventsNotifiedCounter,
+		// Negentropy metrics
+		NostrNegentropyCounter,
+		NostrUserAgentCounter,
 	)
 
 }

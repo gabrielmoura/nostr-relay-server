@@ -67,17 +67,23 @@ func handleMessage(ws *dto.WsServer, message []byte) {
 	case dto.TypeCOUNT:
 		notice = count.DoCOUNT(ws, requestRaw)
 	case dto.TypeNegOpen:
-		negentropy.HandleNegOpen(ws, requestRaw)
+		metrics.NostrNegentropyCounter.WithLabelValues(dto.TypeNegOpen).Inc()
+		notice = negentropy.HandleNegOpen(ws, requestRaw).Error()
 	case dto.TypeNegMsg:
-		negentropy.HandleNegMsg(ws, requestRaw)
+		metrics.NostrNegentropyCounter.WithLabelValues(dto.TypeNegMsg).Inc()
+		notice = negentropy.HandleNegMsg(ws, requestRaw).Error()
 	case dto.TypeNegErr:
+		metrics.NostrNegentropyCounter.WithLabelValues(dto.TypeNegErr).Inc()
 		log.Logger.Info("Negentropy Error", zap.String("type", typ), zap.Any("data", requestRaw[1]))
 	case dto.TypeNegClose:
+		metrics.NostrNegentropyCounter.WithLabelValues(dto.TypeNegClose).Inc()
 		log.Logger.Debug("Negentropy Close", zap.String("type", typ), zap.Any("data", requestRaw[1]))
 	case dto.TypeNegHave:
-		negentropy.HandleNegHave(ws, requestRaw)
+		metrics.NostrNegentropyCounter.WithLabelValues(dto.TypeNegHave).Inc()
+		notice = negentropy.HandleNegHave(ws, requestRaw).Error()
 	case dto.TypeNegNeed:
-		negentropy.HandleNegNeed(ws, requestRaw)
+		metrics.NostrNegentropyCounter.WithLabelValues(dto.TypeNegNeed).Inc()
+		notice = negentropy.HandleNegNeed(ws, requestRaw).Error()
 	default:
 		log.Logger.Error("Unknown event type", zap.String("type", typ))
 		notice = "unknown event type " + typ

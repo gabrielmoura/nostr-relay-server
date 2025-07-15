@@ -100,6 +100,7 @@ func Router() (internal, external *fiber.App) {
 		// requested upgrade to the WebSocket protocol.
 		if websocket.IsWebSocketUpgrade(c) {
 			c.Locals("allowed", true)
+			c.Locals("ua", c.Get("User-Agent"))
 			c.Locals("wss", &dto.WsServer{
 				Challenge:  util.GenChallenge(),
 				Ctx:        c.Context(),

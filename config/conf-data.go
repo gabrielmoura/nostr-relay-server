@@ -16,8 +16,7 @@ type Config struct {
 	RelayInformation RelayInformationDocument `json:"relay_information" yaml:"relay_information" mapstructure:"relay_information"`
 	Relay            RelayConfig              `json:"relay" yaml:"relay" mapstructure:"relay"`
 	DB               DbConfig                 `json:"db" yaml:"db" mapstructure:"db"`
-	StreamUp         WsStreamConfig           `json:"stream_up" yaml:"stream_up" mapstructure:"stream_up"`
-	StreamDown       WsStreamConfig           `json:"stream_down" yaml:"stream_down" mapstructure:"stream_down"`
+	Stream           WsStreamConfig           `json:"stream" yaml:"stream" mapstructure:"stream"`
 	EnableNegentropy bool                     `json:"enable_negentropy" yaml:"enable_negentropy" mapstructure:"enable_negentropy"`
 	Store            StoreConfig              `json:"store" yaml:"store" mapstructure:"store"`
 }
@@ -32,8 +31,9 @@ type StoreConfig struct {
 }
 
 type WsStreamConfig struct {
-	Relays  []string `json:"relays" yaml:"relays" mapstructure:"relays"`
-	Enabled bool     `json:"enabled" yaml:"enabled" mapstructure:"enabled"`
+	Relays     []string `json:"relays" yaml:"relays" mapstructure:"relays"`
+	StreamUp   bool     `json:"stream_up" yaml:"stream_up" mapstructure:"stream_up"`
+	StreamDown bool     `json:"stream_down" yaml:"stream_down" mapstructure:"stream_down"`
 }
 type DbConfig struct {
 	MaxConns    int32  `json:"max_conns" yaml:"max_conns" mapstructure:"max_conns"`

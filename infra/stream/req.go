@@ -13,7 +13,7 @@ import (
 
 // ForwardRequest forwards requests to the relays and processes the events.
 func ForwardRequest(ws *dto.WsServer, filter nostr.Filter, id *string) {
-	if !config.Cfg.StreamDown.Enabled {
+	if !config.Cfg.Stream.StreamDown {
 		return
 	}
 

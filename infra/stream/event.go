@@ -13,7 +13,7 @@ import (
 
 func ForwardEvent(event nostr.Event) {
 
-	if config.Cfg.StreamUp.Enabled {
+	if config.Cfg.Stream.StreamUp {
 		metrics.NostrRelayEventForwardedTotal.Inc()
 		kindsAccepted := []int{nostr.KindTextNote, nostr.KindDeletion, nostr.KindReaction, nostr.KindProfileMetadata, nostr.KindRepost, nostr_custom.KindEditContent}
 		if slices.Contains(kindsAccepted, event.Kind) {

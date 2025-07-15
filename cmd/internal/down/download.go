@@ -23,6 +23,7 @@ type DownloadOptions struct {
 	Kinds     []int
 	Tags      []string
 	Mentioned bool
+	Timeout   int
 }
 
 const pageSize = 500
@@ -63,7 +64,7 @@ func Download(cf *DownloadOptions) {
 			defer client.Close()
 
 			until := nostr.Now()
-			fetchAndStoreEvents(ctx, client, cf.PublicKey, &until, cf.Mentioned, cf.Kinds, cf.Tags)
+			fetchAndStoreEvents(ctx, client, cf.PublicKey, &until, cf.Mentioned, cf.Kinds, cf.Tags, cf.Timeout)
 			log.Logger.Debug("Download concluído", zap.String("url", url), zap.String("publicKey", cf.PublicKey))
 			wg.Done()
 		}()
@@ -83,7 +84,7 @@ func normalizePublicKey(pk string) (string, error) {
 	return pk, nil
 }
 
-func fetchAndStoreEvents(ctx context.Context, client *nostr.Relay, pubKey string, until *nostr.Timestamp, mentioned bool, kinds []int, tags []string) {
+func fetchAndStoreEvents(ctx context.Context, client *nostr.Relay, pubKey string, until *nostr.Timestamp, mentioned bool, kinds []int, tags []string, timeout int) {
 	nUntil := until.Time().Unix()
 	eCount := 0
 	for {
@@ -109,7 +110,7 @@ func fetchAndStoreEvents(ctx context.Context, client *nostr.Relay, pubKey string
 			}
 		}
 
-		pageCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		pageCtx, cancel := context.WithTimeout(ctx, time.Duration(timeout)*time.Second)
 		defer cancel()
 		sub, err := client.Subscribe(pageCtx, []nostr.Filter{filter})
 		if err != nil {

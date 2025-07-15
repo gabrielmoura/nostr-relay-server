@@ -3,6 +3,7 @@ package nostrpool
 import (
 	"context"
 	"errors"
+	"github.com/gabrielmoura/nostr-relay-server/config"
 	"sync"
 	"time"
 
@@ -42,6 +43,7 @@ func (p *RelayPool) connectAll(urls []string) error {
 	for _, url := range urls {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		r, err := nostr.RelayConnect(ctx, url)
+		r.RequestHeader.Set("User-Agent", config.Cfg.RelayInformation.Name+"/"+config.Cfg.RelayInformation.Version)
 		cancel()
 		if err != nil {
 			if firstErr == nil {
