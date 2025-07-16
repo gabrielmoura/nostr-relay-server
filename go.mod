@@ -38,6 +38,7 @@ require (
 	github.com/decred/dcrd/crypto/blake256 v1.1.0 // indirect
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.3.0 // indirect
 	github.com/dgraph-io/ristretto v1.0.0 // indirect
+	github.com/dgraph-io/ristretto/v2 v2.2.0 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/fasthttp/websocket v1.5.11 // indirect
 	github.com/fsnotify/fsnotify v1.7.0 // indirect
@@ -87,7 +88,7 @@ require (
 	golang.org/x/exp v0.0.0-20241204233417-43b7b7cde48d // indirect
 	golang.org/x/net v0.33.0 // indirect
 	golang.org/x/sync v0.10.0 // indirect
-	golang.org/x/sys v0.28.0 // indirect
+	golang.org/x/sys v0.31.0 // indirect
 	golang.org/x/text v0.21.0 // indirect
 	google.golang.org/protobuf v1.35.2 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
