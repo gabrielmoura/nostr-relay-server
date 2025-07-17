@@ -4,10 +4,12 @@ import (
 	"context"
 	"fmt"
 	"github.com/gabrielmoura/nostr-relay-server/infra/handler/listener"
+	"github.com/gabrielmoura/nostr-relay-server/infra/log"
 	"github.com/gabrielmoura/nostr-relay-server/infra/metrics"
 	"github.com/gabrielmoura/nostr-relay-server/internal/db"
 	"github.com/gabrielmoura/nostr-relay-server/internal/dto"
 	"github.com/nbd-wtf/go-nostr"
+	"go.uber.org/zap"
 	"time"
 )
 
@@ -49,8 +51,14 @@ func handleDeletionEvent(ws *dto.WsServer, evt nostr.Event) string {
 			//	advancedDeleter.BeforeDelete(ctx, tag[1], evt.PubKey)
 			//}
 
-			if err := db.DbQueries.DeleteEvent(ctx, target.ID); err != nil {
+			if err := db.DbQueries.DeleteEvent(ctx, target.ID, evt.ID); err != nil {
 				//ws.Conn.WriteJSON(nostr.OKEnvelope{EventID: evt.ID, OK: false, Reason: fmt.Sprintf("error: %s", err.Error())})
+				log.Logger.Warn("failed to delete event",
+					zap.String("event_id", target.ID),
+					zap.String("deletion_event_id", evt.ID),
+					zap.String("reason", err.Error()),
+				)
+				metrics.NostrRelayEventDeletionFailures.Inc()
 				ws.ChanSender <- nostr.OKEnvelope{EventID: evt.ID, OK: false, Reason: fmt.Sprintf("error: %s", err.Error())}
 				return ""
 			}

@@ -24,10 +24,20 @@ var (
 const deleteEvent = `-- name: DeleteEvent :exec
 DELETE FROM event WHERE id = $1::text
 `
+const fakeDeletionEvent = `-- name: FakeDeletionEvent :exec
+UPDATE event SET deleted_by = $2::text WHERE id = $1::text
+`
 
-func (q *Queries) DeleteEvent(ctx context.Context, id string) error {
-	_, err := q.db.Exec(ctx, deleteEvent, id)
-	return err
+// DeleteEvent deletes an event from the database by its ID.
+// If the relay is configured to use fake deletion, it will set the deleted_by field instead.
+func (q *Queries) DeleteEvent(ctx context.Context, id, reasonId string) error {
+	if config.Cfg.Relay.FakeDeletion {
+		_, err := q.db.Exec(ctx, fakeDeletionEvent, id, reasonId)
+		return err
+	} else {
+		_, err := q.db.Exec(ctx, deleteEvent, id)
+		return err
+	}
 }
 
 const deleteOldsEvents = `-- name: DeleteOldsEvents :exec
@@ -175,6 +185,10 @@ func (q *Queries) queryEventsSql(filter nostr.Filter, doCount bool) (string, []a
 		params = append(params, config.Cfg.Relay.QueryLimit)
 	} else {
 		params = append(params, filter.Limit)
+	}
+
+	if config.Cfg.Relay.FakeDeletion {
+		conditions = append(conditions, `deleted_by IS NULL`)
 	}
 
 	var query string

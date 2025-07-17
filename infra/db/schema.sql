@@ -13,7 +13,8 @@ CREATE TABLE
                          CONTENT TEXT NOT NULL,
                          sig TEXT NOT NULL,
                          tagvalues TEXT [] GENERATED ALWAYS AS ( tags_to_tagvalues ( tags ) ) STORED,
-                         content_search TSVECTOR GENERATED ALWAYS AS ( to_tsvector( 'portuguese', CONTENT ) ) STORED
+                         content_search TSVECTOR GENERATED ALWAYS AS ( to_tsvector( 'portuguese', CONTENT ) ) STORED,
+                         deleted_by varchar(64) DEFAULT NULL
 );
 --- Indexes
 CREATE UNIQUE INDEX

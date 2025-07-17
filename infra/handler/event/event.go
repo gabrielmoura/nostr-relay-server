@@ -174,7 +174,7 @@ func publish(ctx context.Context, evt nostr.Event) error {
 			return fmt.Errorf("failed to query before replacing: %w", err)
 		}
 		if previous := <-ch; previous != nil && isOlder(previous, &evt) {
-			if err := db.DbQueries.DeleteEvent(ctx, previous.ID); err != nil {
+			if err := db.DbQueries.DeleteEvent(ctx, previous.ID, evt.ID); err != nil {
 				return fmt.Errorf("failed to delete event for replacing: %w", err)
 			}
 		}
@@ -187,7 +187,7 @@ func publish(ctx context.Context, evt nostr.Event) error {
 				return fmt.Errorf("failed to query before parameterized replacing: %w", err)
 			}
 			if previous := <-ch; previous != nil && isOlder(previous, &evt) {
-				if err := db.DbQueries.DeleteEvent(ctx, previous.ID); err != nil {
+				if err := db.DbQueries.DeleteEvent(ctx, previous.ID, evt.ID); err != nil {
 					return fmt.Errorf("failed to delete event for parameterized replacing: %w", err)
 				}
 			}

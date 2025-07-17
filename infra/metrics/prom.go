@@ -168,6 +168,12 @@ var (
 			Name: "nostr_relay_event_deletions_successful",
 			Help: "Total events deleted successfully.",
 		})
+	// NostrRelayEventDeletionFailures - Total de falhas ao tentar deletar eventos.
+	NostrRelayEventDeletionFailures = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "nostr_relay_event_deletion_failures",
+			Help: "Total number of failures when trying to delete events.",
+		})
 	// NostrListenerGauge - Número de listeners ativos no servidor Nostr.
 	NostrListenerGauge = prometheus.NewGauge(
 		prometheus.GaugeOpts{
@@ -218,6 +224,7 @@ func RegisterMetrics() {
 		NostrRelayEventForwardedFailuresTotal,
 		NostrRelayRequestForwardedTotal,
 		NostrRelayEventDeletionSuccessful,
+		NostrRelayEventDeletionFailures,
 		// Listener metrics
 		NostrListenerGauge,
 		NostrListenerAddCounter,
