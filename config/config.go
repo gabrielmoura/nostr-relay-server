@@ -35,6 +35,7 @@ func setDefaults(export bool) {
 	viper.SetDefault("relay.reporting_limit", 5) // 5 reports to ban a user
 	viper.SetDefault("relay.enable_anonymous_req", true)
 	viper.SetDefault("relay.fake_deletion", false)
+	viper.SetDefault("relay.vanish_event", false)
 
 	viper.SetDefault("store.api_path", fmt.Sprintf("http://localhost:%s/upload", viper.GetString("port")))
 	viper.SetDefault("store.media_path", fmt.Sprintf("http://localhost:%s/blob", viper.GetString("port")))

@@ -55,6 +55,7 @@ type RelayConfig struct {
 	ProtectedKinds     []int `json:"-" yaml:"protected_kinds" mapstructure:"protected_kinds"`
 	MinimumPOWLimit    int   `json:"-" yaml:"minimum_pow_limit" mapstructure:"minimum_pow_limit"`
 	FakeDeletion       bool  `json:"fake_deletion" yaml:"fake_deletion" mapstructure:"fake_deletion"`
+	VanishEvent        bool  `json:"vanish_event" yaml:"vanish_event" mapstructure:"vanish_event"`
 }
 type WsConfig struct {
 	ReteLimit rate.Limit `json:"rate_limit" yaml:"rate_limit" mapstructure:"rate_limit"`

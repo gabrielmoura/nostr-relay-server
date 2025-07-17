@@ -300,6 +300,18 @@ Para expor seu relay como um serviço oculto do Tor, siga estes passos:
 
 ---
 
+## 📚 Protocolos Imlpementado
+- [BUD 01](https://github.com/hzrd149/blossom/blob/master/buds/01.md)
+- [BUD 02](https://github.com/hzrd149/blossom/blob/master/buds/02.md)
+- [NIP 40](https://github.com/nostr-protocol/nips/blob/master/40.md)
+- [NIP 98](https://github.com/nostr-protocol/nips/blob/master/98.md)
+- [NIP 01](https://github.com/nostr-protocol/nips/blob/master/01.md)
+- [NIP 77](https://github.com/nostr-protocol/nips/blob/master/77.md)
+- [NIP 42 - Authentication of clients to relays](https://github.com/nostr-protocol/nips/blob/master/42.md)
+- [NIP 09 - Event Deletion Request](https://github.com/nostr-protocol/nips/blob/master/09.md)
+- [NIP-50 - Search Capability](https://github.com/nostr-protocol/nips/blob/master/50.md)
+- [NIP-62 - Request to Vanish](https://github.com/nostr-protocol/nips/blob/master/62.md)
+
 ## 🤝 Como Contribuir
 
 Sua ajuda é muito bem-vinda para tornar este projeto ainda melhor!

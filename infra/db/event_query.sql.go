@@ -21,6 +21,19 @@ var (
 	EmptyTagSet      = errors.New("empty tag set")
 )
 
+const deleteAllEventsByPubkey = `-- name: DeleteAllEventsByPubkey :exec
+DELETE FROM event WHERE pubkey = $1::text
+`
+
+// DeleteAllEventsByPubkey deletes all events from the database for a given pubkey.
+func (q *Queries) DeleteAllEventsByPubkey(ctx context.Context, pubkey string) error {
+	_, err := q.db.Exec(ctx, deleteAllEventsByPubkey, pubkey)
+	if err != nil {
+		return fmt.Errorf("failed to delete events for pubkey %s: %w", pubkey, err)
+	}
+	return nil
+}
+
 const deleteEvent = `-- name: DeleteEvent :exec
 DELETE FROM event WHERE id = $1::text
 `

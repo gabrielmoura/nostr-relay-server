@@ -25,6 +25,7 @@ const (
 	// https://github.com/nostr-protocol/nips/blob/master/89.md
 	KindRecommendAppPublisher = 31990
 	KindRecommendAppReq       = 31989
+	KindVanish                = 62
 )
 
 func IsJobRequest(kind int) bool {

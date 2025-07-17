@@ -96,6 +96,9 @@ func DoEVENT(ws *dto.WsServer, data dto.Data) string {
 	if evt.Kind == nostr.KindDeletion {
 		return handleDeletionEvent(ws, evt)
 	}
+	if evt.Kind == nostr_custom.KindVanish {
+		return handleDeletionVanishEvent(ws, evt)
+	}
 
 	if evt.Kind == nostr.KindReporting {
 		reportingEvent(ws.Ctx, evt)
