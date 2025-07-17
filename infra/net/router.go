@@ -5,22 +5,30 @@ import (
 	"github.com/gabrielmoura/nostr-relay-server/infra/handler"
 	"github.com/gabrielmoura/nostr-relay-server/infra/handler/store"
 	"github.com/gabrielmoura/nostr-relay-server/infra/log"
+	"github.com/gabrielmoura/nostr-relay-server/infra/net/middleware"
 	"github.com/gabrielmoura/nostr-relay-server/infra/util"
 	"github.com/gabrielmoura/nostr-relay-server/internal/dto"
 	"github.com/goccy/go-json"
 	"github.com/gofiber/contrib/websocket"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/compress"
+	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/valyala/fasthttp/fasthttpadaptor"
 	"go.uber.org/zap"
 	"path/filepath"
+	"strconv"
 )
 
 func hooks(a *fiber.App) func() {
 	return func() {
 		a.Hooks().OnListen(func(data fiber.ListenData) error {
-			log.Logger.Info("Server is listening on", zap.String("address", data.Port))
+			if data.Port == strconv.Itoa(config.Cfg.Port) {
+				log.Logger.Info("Relay is listening on", zap.String("address", data.Port))
+			} else {
+				// Internal Server
+				log.Logger.Info("Internal Server is listening on", zap.String("address", data.Port))
+			}
 			return nil
 		})
 		a.Hooks().OnShutdown(func() error {
@@ -50,14 +58,24 @@ func Router() (internal, external *fiber.App) {
 	})
 
 	external = fiber.New(conf)
+	external.Use(cors.New(cors.Config{
+		AllowOrigins: "*",
+	}))
 
 	external.Static("/nostr.png", filepath.Join("nostr.png"))
+
+	external.Get("/terms-of-service", func(c *fiber.Ctx) error {
+		return c.Redirect(config.Cfg.Store.APIPath + "/terms-of-service")
+	})
 
 	wellKnown := external.Group("/.well-known")
 	wellKnown.Get("/nostr/nip96.json", func(c *fiber.Ctx) error {
 		return c.JSON(config.FileServerConfig{
-			APIURL:      config.Cfg.Store.APIPath,
-			DownloadURL: config.Cfg.Store.MediaPath,
+			APIURL:        config.Cfg.Store.APIPath,
+			DownloadURL:   config.Cfg.Store.MediaPath,
+			ContentTypes:  config.Cfg.Store.AcceptedMimetypes,
+			SupportedNIPS: []int{1, 4, 5, 78, 94, 96, 98},
+			TOSURL:        config.Cfg.RelayInformation.URL + "/terms-of-service",
 		})
 	})
 	wellKnown.Get("/nostr.json", func(c *fiber.Ctx) error {
@@ -84,10 +102,11 @@ func Router() (internal, external *fiber.App) {
 
 	})
 
-	external.Post("/upload", store.UploadHandler)
-	external.Put("/upload", store.UploadHandler)
-	external.Get("/blob/:id", store.BlobHandler)
-	external.Head("/blob/:id", store.BlobHandler)
+	external.Post("/upload", store.UploadHandler).Use(middleware.BlockIfStoreNotEnabled)
+	external.Put("/upload", store.UploadHandler).Use(middleware.BlockIfStoreNotEnabled)
+	external.Get("/blob/:id", store.BlobHandler).Use(middleware.BlockIfStoreNotEnabled)
+	external.Head("/blob/:id", store.BlobHandler).Use(middleware.BlockIfStoreNotEnabled)
+	external.Get("/list/:id", store.ListHandler).Use(middleware.BlockIfStoreNotEnabled)
 
 	external.Use("/", func(c *fiber.Ctx) error {
 		// se estritamente /

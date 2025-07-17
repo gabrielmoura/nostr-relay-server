@@ -52,6 +52,10 @@ func DoEVENT(ws *dto.WsServer, data dto.Data) string {
 		return ""
 	}
 
+	if reject, msg := policies2.P.RejectExpiredEvent(evt); reject {
+		ws.ChanSender <- nostr.OKEnvelope{EventID: evt.ID, OK: false, Reason: msg}
+	}
+
 	if reject, msg := policies2.P.CheckMinimumPow(evt); reject {
 		ws.ChanSender <- nostr.OKEnvelope{EventID: evt.ID, OK: false, Reason: msg}
 	}

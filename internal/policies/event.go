@@ -7,7 +7,10 @@ import (
 	"github.com/gabrielmoura/nostr-relay-server/internal/db"
 	"github.com/goccy/go-json"
 	"github.com/nbd-wtf/go-nostr"
+	"github.com/nbd-wtf/go-nostr/nip13"
 	"go.uber.org/zap"
+	"strconv"
+	"time"
 )
 
 func (p Policies) AcceptEvent(ctx context.Context, event *nostr.Event) (reject bool, msg string) {
@@ -32,4 +35,45 @@ func (p Policies) AcceptEvent(ctx context.Context, event *nostr.Event) (reject b
 	}
 
 	return false, "event accepted"
+}
+
+// RejectExpiredEvent rejects events that are older than the maximum allowed age
+// NIP-40 https://github.com/nostr-protocol/nips/blob/master/40.md
+func (p Policies) RejectExpiredEvent(event nostr.Event) (reject bool, msg string) {
+	for e := range event.Tags {
+		if event.Tags[e][0] == "expiration" {
+			if len(event.Tags[e]) < 2 {
+				return true, "invalid expiration tag"
+			}
+			if expiration, err := strconv.ParseInt(event.Tags[e][1], 10, 64); err != nil {
+				now := time.Now().Unix()
+				if expiration < now {
+					log.Logger.Debug(
+						"expired event",
+						zap.Int64("expiration", expiration),
+						zap.Int64("now", now),
+					)
+					return true, "expired event"
+				}
+			} else {
+				log.Logger.Error("Erro ao analisar a tag de expiração do evento", zap.Error(err))
+				return true, "invalid expiration tag"
+			}
+			break
+		}
+	}
+	return false, "event not expired"
+
+}
+
+func (p Policies) CheckMinimumPow(evt nostr.Event) (reject bool, msg string) {
+	if p.Config.Relay.MinimumPOWLimit == 0 {
+		return false, ""
+	}
+	err := nip13.Check(evt.ID, config.Cfg.Relay.MinimumPOWLimit)
+	if err != nil {
+		return true, "blocked: minimum POW not obtained"
+	} else {
+		return false, ""
+	}
 }

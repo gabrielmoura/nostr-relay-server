@@ -8,7 +8,6 @@ import (
 	"github.com/gabrielmoura/nostr-relay-server/internal/db"
 	"github.com/gabrielmoura/nostr-relay-server/internal/dto"
 	"github.com/nbd-wtf/go-nostr"
-	"github.com/nbd-wtf/go-nostr/nip13"
 	"slices"
 )
 
@@ -146,15 +145,4 @@ func (p Policies) AcceptReqs(filters nostr.Filters, ws *dto.WsServer) bool {
 		return false
 	}
 	return true
-}
-func (p Policies) CheckMinimumPow(evt nostr.Event) (reject bool, msg string) {
-	if p.Config.Relay.MinimumPOWLimit == 0 {
-		return false, ""
-	}
-	err := nip13.Check(evt.ID, config.Cfg.Relay.MinimumPOWLimit)
-	if err != nil {
-		return true, "blocked: minimum POW not obtained"
-	} else {
-		return false, ""
-	}
 }

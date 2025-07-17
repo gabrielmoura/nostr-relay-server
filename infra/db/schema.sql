@@ -77,7 +77,9 @@ CREATE TABLE objects (
                          SIZE BIGINT,
                          blocked BOOLEAN,
                          expires_at TIMESTAMP WITH TIME ZONE,
-                         blocked_by_reason TEXT
+                         blocked_by_reason TEXT,
+                         public_key VARCHAR ( 64 ) NOT NULL,
+                         tags JSONB
 );
 -- Índices para a tabela objects
 CREATE INDEX idx_objects_mime_type ON objects ( mime_type );

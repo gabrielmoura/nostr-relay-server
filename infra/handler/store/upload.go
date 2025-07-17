@@ -3,7 +3,6 @@ package store
 import (
 	"context"
 	"crypto/sha256"
-	"encoding/base64"
 	"encoding/hex"
 	"fmt"
 	"github.com/gabrielmoura/nostr-relay-server/config"
@@ -11,54 +10,15 @@ import (
 	"github.com/gabrielmoura/nostr-relay-server/infra/log"
 	"github.com/gabrielmoura/nostr-relay-server/infra/metrics"
 	"github.com/gabrielmoura/nostr-relay-server/internal/db"
-	errors2 "github.com/gabrielmoura/nostr-relay-server/internal/errors"
 	"github.com/gabrielmoura/nostr-relay-server/pkg/magic"
 	"github.com/goccy/go-json"
 	"github.com/gofiber/fiber/v2"
-	"github.com/nbd-wtf/go-nostr"
 	"go.uber.org/zap"
 	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 )
-
-// processAuth adapta para fiber.Ctx e retorna hash esperado ou erro
-func processAuth(c *fiber.Ctx) (string, error) {
-	if config.Cfg.Ws.Auth {
-		authHeader := c.Get("Authorization")
-		if authHeader == "" || !strings.HasPrefix(authHeader, "Nostr ") {
-			return "", errors2.ErrorAuthHeaderRequired
-		}
-		token := strings.TrimPrefix(authHeader, "Nostr ")
-
-		decodedBytes, err := base64.StdEncoding.DecodeString(token)
-		if err != nil {
-			log.Logger.Error("Decode error", zap.Error(err))
-			return "", errors2.ErrorDecodeAuthorization
-		}
-
-		var event nostr.Event
-		if err := json.Unmarshal(decodedBytes, &event); err != nil {
-			log.Logger.Error("Unmarshal error", zap.Error(err))
-			return "", errors2.ErrorUnmarshalAuthorization
-		}
-
-		if event.Kind != nostr.KindBlobs {
-			return "", errors2.ErrorInvalidEventKind
-		}
-
-		if ok, err := event.CheckSignature(); !ok || err != nil {
-			return "", errors2.ErrorInvalidSignature
-		}
-
-		// TODO: validar pubkey autorizado para upload
-
-		return event.Tags.GetFirst([]string{"x"}).Value(), nil
-	}
-	return "", nil
-}
 
 // UploadHandler refatorado para Fiber
 func UploadHandler(c *fiber.Ctx) error {
@@ -68,10 +28,11 @@ func UploadHandler(c *fiber.Ctx) error {
 
 	startTime := time.Now()
 
-	hashToCheck, err := processAuth(c)
+	tags, pubKey, err := processAuth(c)
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).SendString(err.Error())
 	}
+	hashToCheck := tags.GetFirst([]string{"x"}).Value()
 
 	bodyBytes := c.Body()
 	if len(bodyBytes) == 0 {
@@ -123,11 +84,18 @@ func UploadHandler(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).SendString("Failed to write file content")
 	}
 
+	var rawTags []byte
+	if len(tags) > 0 {
+		json.Unmarshal(rawTags, &tags)
+	}
+
 	obj := &db2.Object{
 		Hash:      hashString,
 		MimeType:  mimeType,
 		Size:      size,
 		CreatedAt: time.Now(),
+		Tags:      rawTags,
+		PublicKey: pubKey,
 	}
 
 	if err := db.DbQueries.InsertObject(c.Context(), obj); err != nil {
@@ -163,10 +131,4 @@ func getFileExist(ctx context.Context, hash string) (*db2.ObjectResponse, error)
 	}
 
 	return response, nil
-}
-func ternaryString(condition string, fallback string) string {
-	if condition != "" {
-		return condition
-	}
-	return fallback
 }
