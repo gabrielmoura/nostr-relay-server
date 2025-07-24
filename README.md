@@ -3,6 +3,8 @@
 ![GitHub issues](https://img.shields.io/github/issues/gabrielmoura/nostr-relay-server?style=for-the-badge)
 ![GitHub forks](https://img.shields.io/github/forks/gabrielmoura/nostr-relay-server?style=for-the-badge)
 ![GitHub stars](https://img.shields.io/github/stars/gabrielmoura/nostr-relay-server?style=for-the-badge)
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/gabrielmoura/nostr-relay-server)
+
 
 Seu próprio servidor Nostr, simples, poderoso e pronto para rodar. Este projeto oferece um relay Nostr de alta performance com tudo que você precisa para entrar na rede descentralizada.
 
@@ -297,6 +299,7 @@ Para expor seu relay como um serviço oculto do Tor, siga estes passos:
 2.  Edite o arquivo de configuração do Tor (`torrc`) para criar um novo `HiddenService`. Aponte a porta do serviço oculto para a porta local onde seu relay está rodando (ex: `127.0.0.1:9090`).
 3.  Após reiniciar o Tor, ele criará um hostname `.onion` para o seu serviço.
 4.  **Importante:** Atualize o `canonical_url` no seu `config.yml` para o endereço `ws://SEU_HOSTNAME.onion`. Isso garantirá que seu relay anuncie o endereço correto na rede Nostr.
+5. Use `HTTP_PROXY` para direcionar o tráfego do relay através do Tor, se necessário conforme https://pkg.go.dev/net/http#ProxyFromEnvironment.
 
 ---
 
