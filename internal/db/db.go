@@ -8,7 +8,6 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/tracelog"
-	"github.com/nbd-wtf/go-nostr"
 	"go.uber.org/zap"
 	"sync"
 )
@@ -82,8 +81,4 @@ func checkConnection(ctx context.Context, pool *pgxpool.Pool) error {
 	}
 	defer conn.Release()
 	return conn.Ping(ctx)
-}
-
-func DeleteNostrEvent(ctx context.Context, event *nostr.Event) error {
-	return DbQueries.DeleteEvent(ctx, event.ID)
 }

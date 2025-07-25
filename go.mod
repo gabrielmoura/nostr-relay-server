@@ -3,6 +3,7 @@ module github.com/gabrielmoura/nostr-relay-server
 go 1.23.3
 
 require (
+	github.com/dgraph-io/ristretto/v2 v2.2.0
 	github.com/fiatjaf/eventstore v0.14.2
 	github.com/fiatjaf/khatru v0.14.0
 	github.com/goccy/go-json v0.10.4
@@ -38,7 +39,6 @@ require (
 	github.com/decred/dcrd/crypto/blake256 v1.1.0 // indirect
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.3.0 // indirect
 	github.com/dgraph-io/ristretto v1.0.0 // indirect
-	github.com/dgraph-io/ristretto/v2 v2.2.0 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/fasthttp/websocket v1.5.11 // indirect
 	github.com/fsnotify/fsnotify v1.7.0 // indirect

@@ -22,7 +22,7 @@ func DeleteOldEvent(before time.Time) {
 	total := len(events)
 	totalDeleted := 0
 	for _, event := range events {
-		if err := db.DbQueries.DeleteEvent(ctx, event.ID); err == nil {
+		if err := db.DbQueries.DeleteEvent(ctx, event.ID, ""); err == nil {
 			totalDeleted++
 		}
 	}

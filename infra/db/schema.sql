@@ -52,7 +52,10 @@ CREATE TABLE profiles (
                           display_name TEXT,
                           lud16 TEXT,
                           pronouns TEXT,
-                          nip05 TEXT
+                          nip05 TEXT,
+                          enable_store_files BOOLEAN default false,
+                          enable_nip05 BOOLEAN DEFAULT FALSE
+
 );
 -- Índices para a tabela profiles
 CREATE INDEX idx_profiles_name ON profiles ( NAME );

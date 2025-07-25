@@ -204,17 +204,12 @@ db:
     postgres_uri: postgres://postgres:Strong@P4ssword@127.0.0.1:5432/nostr
 
 # Sincronização de eventos com outros relays
-stream_up:
-    relays:
-        - wss://nostr.azzamo.net
-        - wss://relay.damus.io
-    enabled: false
-stream_down:
-    relays:
-        - wss://nostr.azzamo.net
-        - wss://relay.damus.io
-    enabled: false
-
+stream:
+  relays:
+    - wss://nostr.azzamo.net
+    - wss://relay.damus.io
+  stream_up: false
+  stream_down: false
 # Configurações de armazenamento de mídia (Blossom - NIP-96)
 store:
     enabled: true
