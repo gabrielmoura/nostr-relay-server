@@ -1,10 +1,10 @@
-package store
+package blossom
 
 import (
-	"encoding/base64"
+	json "github.com/bytedance/sonic"
+	"github.com/emmansun/base64"
 	"github.com/gabrielmoura/nostr-relay-server/infra/log"
 	errors2 "github.com/gabrielmoura/nostr-relay-server/internal/errors"
-	"github.com/goccy/go-json"
 	"github.com/gofiber/fiber/v2"
 	"github.com/nbd-wtf/go-nostr"
 	"go.uber.org/zap"

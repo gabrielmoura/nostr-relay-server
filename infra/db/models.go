@@ -1,7 +1,7 @@
 package db
 
 import (
-	"github.com/goccy/go-json"
+	json "github.com/bytedance/sonic"
 	"time"
 )
 

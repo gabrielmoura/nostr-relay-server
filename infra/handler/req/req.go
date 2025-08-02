@@ -1,6 +1,7 @@
 package req
 
 import (
+	json "github.com/bytedance/sonic"
 	"github.com/gabrielmoura/nostr-relay-server/config"
 	"github.com/gabrielmoura/nostr-relay-server/infra/handler/listener"
 	"github.com/gabrielmoura/nostr-relay-server/infra/log"
@@ -9,7 +10,6 @@ import (
 	"github.com/gabrielmoura/nostr-relay-server/internal/db"
 	"github.com/gabrielmoura/nostr-relay-server/internal/dto"
 	policies2 "github.com/gabrielmoura/nostr-relay-server/internal/policies"
-	"github.com/goccy/go-json"
 	"github.com/nbd-wtf/go-nostr"
 	"go.uber.org/zap"
 	"time"

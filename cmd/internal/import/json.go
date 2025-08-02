@@ -5,9 +5,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	json "github.com/bytedance/sonic"
 	dbx "github.com/gabrielmoura/nostr-relay-server/infra/db"
 	"github.com/gabrielmoura/nostr-relay-server/infra/log"
-	"github.com/goccy/go-json"
 	"github.com/nbd-wtf/go-nostr"
 	"go.uber.org/zap"
 )

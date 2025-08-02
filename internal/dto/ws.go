@@ -2,10 +2,11 @@ package dto
 
 import (
 	"context"
+	jtype "encoding/json"
+	json "github.com/bytedance/sonic"
 	"github.com/gabrielmoura/nostr-relay-server/config"
 	"github.com/gabrielmoura/nostr-relay-server/infra/log"
 	"github.com/gabrielmoura/nostr-relay-server/internal/db"
-	"github.com/goccy/go-json"
 	"github.com/gofiber/contrib/websocket"
 	"github.com/nbd-wtf/go-nostr"
 	"go.uber.org/zap"
@@ -31,8 +32,8 @@ const (
 )
 
 type WsMessage struct {
-	Data []json.RawMessage `json:"data"`
-	Type int               `json:"type"`
+	Data []jtype.RawMessage `json:"data"`
+	Type int                `json:"type"`
 }
 
 func (m *WsMessage) ToJson() []byte {
@@ -48,7 +49,7 @@ func (m *WsMessage) ToJson() []byte {
 
 type WsRequest struct {
 	authed string
-	Data   []json.RawMessage `json:"data"`
+	Data   []jtype.RawMessage `json:"data"`
 }
 type WsServer struct {
 	StartTime  time.Time
@@ -63,7 +64,7 @@ type WsServer struct {
 	StreamPoll []*nostr.Relay
 	sync.Mutex
 }
-type Data []json.RawMessage
+type Data []jtype.RawMessage
 
 var publicKinds = []int{
 	nostr.KindProfileMetadata,

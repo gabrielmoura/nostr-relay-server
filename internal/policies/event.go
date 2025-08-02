@@ -9,7 +9,9 @@ import (
 	"github.com/nbd-wtf/go-nostr"
 	"github.com/nbd-wtf/go-nostr/nip13"
 	"go.uber.org/zap"
+	"slices"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -76,4 +78,63 @@ func (p Policies) CheckMinimumPow(evt nostr.Event) (reject bool, msg string) {
 	} else {
 		return false, ""
 	}
+}
+
+// PreventLargeTags rejects events that have indexable tag values greater than maxTagValueLen.
+func PreventLargeTags(maxTagValueLen int) func(context.Context, *nostr.Event) (bool, string) {
+	return func(ctx context.Context, event *nostr.Event) (reject bool, msg string) {
+		for _, tag := range event.Tags {
+			if len(tag) > 1 && len(tag[0]) == 1 {
+				if len(tag[1]) > maxTagValueLen {
+					return true, "event contains too large tags"
+				}
+			}
+		}
+		return false, ""
+	}
+}
+
+// PreventTooManyIndexableTags returns a function that can be used as a RejectFilter that will reject
+// events with more indexable (single-character) tags than the specified number.
+//
+// If ignoreKinds is given this restriction will not apply to these kinds (useful for allowing a bigger).
+// If onlyKinds is given then all other kinds will be ignored.
+func PreventTooManyIndexableTags(max int, ignoreKinds []int, onlyKinds []int) func(context.Context, *nostr.Event) (bool, string) {
+	slices.Sort(ignoreKinds)
+	slices.Sort(onlyKinds)
+
+	ignore := func(kind int) bool { return false }
+	if len(ignoreKinds) > 0 {
+		ignore = func(kind int) bool {
+			_, isIgnored := slices.BinarySearch(ignoreKinds, kind)
+			return isIgnored
+		}
+	}
+	if len(onlyKinds) > 0 {
+		ignore = func(kind int) bool {
+			_, isApplicable := slices.BinarySearch(onlyKinds, kind)
+			return !isApplicable
+		}
+	}
+
+	return func(ctx context.Context, event *nostr.Event) (reject bool, msg string) {
+		if ignore(event.Kind) {
+			return false, ""
+		}
+
+		ntags := 0
+		for _, tag := range event.Tags {
+			if len(tag) > 0 && len(tag[0]) == 1 {
+				ntags++
+			}
+		}
+		if ntags > max {
+			return true, "too many indexable tags"
+		}
+		return false, ""
+	}
+}
+
+func RejectEventsWithBase64Media(ctx context.Context, evt *nostr.Event) (bool, string) {
+	return strings.Contains(evt.Content, "data:image/") || strings.Contains(evt.Content, "data:video/"), "event with base64 media"
 }

@@ -1,18 +1,18 @@
-package store
+package blossom
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
+	json "github.com/bytedance/sonic"
 	"github.com/gabrielmoura/nostr-relay-server/config"
 	db2 "github.com/gabrielmoura/nostr-relay-server/infra/db"
 	"github.com/gabrielmoura/nostr-relay-server/infra/log"
 	"github.com/gabrielmoura/nostr-relay-server/infra/metrics"
 	"github.com/gabrielmoura/nostr-relay-server/internal/db"
 	"github.com/gabrielmoura/nostr-relay-server/pkg/magic"
-	"github.com/goccy/go-json"
 	"github.com/gofiber/fiber/v2"
+	"github.com/minio/sha256-simd"
+	"github.com/tmthrgd/go-hex"
 	"go.uber.org/zap"
 	"net/http"
 	"os"

@@ -2,15 +2,15 @@ package negentropy
 
 import (
 	"context"
-	"encoding/hex"
 	"errors"
 	"fmt"
+	json "github.com/bytedance/sonic"
 	"github.com/gabrielmoura/nostr-relay-server/infra/log"
 	"github.com/gabrielmoura/nostr-relay-server/internal/db"
 	"github.com/gabrielmoura/nostr-relay-server/internal/dto"
-	"github.com/goccy/go-json"
 	"github.com/illuzen/go-negentropy"
 	"github.com/nbd-wtf/go-nostr"
+	"github.com/tmthrgd/go-hex"
 	"go.uber.org/zap"
 	"strconv"
 )

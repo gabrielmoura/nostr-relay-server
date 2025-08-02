@@ -1,8 +1,8 @@
 package config
 
 import (
+	json "github.com/bytedance/sonic"
 	errors2 "github.com/gabrielmoura/nostr-relay-server/internal/errors"
-	"github.com/goccy/go-json"
 	"golang.org/x/time/rate"
 	"net/url"
 	"strings"

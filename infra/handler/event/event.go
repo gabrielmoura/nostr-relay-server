@@ -2,11 +2,9 @@ package event
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"fmt"
-	"github.com/fiatjaf/khatru/policies"
+	json "github.com/bytedance/sonic"
 	"github.com/gabrielmoura/nostr-relay-server/config"
 	db2 "github.com/gabrielmoura/nostr-relay-server/infra/db"
 	"github.com/gabrielmoura/nostr-relay-server/infra/handler/listener"
@@ -17,8 +15,9 @@ import (
 	"github.com/gabrielmoura/nostr-relay-server/internal/db"
 	"github.com/gabrielmoura/nostr-relay-server/internal/dto"
 	policies2 "github.com/gabrielmoura/nostr-relay-server/internal/policies"
-	"github.com/goccy/go-json"
+	"github.com/minio/sha256-simd"
 	"github.com/nbd-wtf/go-nostr"
+	"github.com/tmthrgd/go-hex"
 	"go.uber.org/zap"
 	"regexp"
 	"time"
@@ -66,17 +65,17 @@ func DoEVENT(ws *dto.WsServer, data dto.Data) string {
 		return ""
 	}
 
-	if ok, err := policies.PreventLargeTags(config.Cfg.Relay.MaxTagValueLength)(ws.Ctx, &evt); ok {
+	if ok, err := policies2.PreventLargeTags(config.Cfg.Relay.MaxTagValueLength)(ws.Ctx, &evt); ok {
 		ws.ChanSender <- nostr.OKEnvelope{EventID: evt.ID, OK: ok, Reason: err}
 		return ""
 	}
 
-	if ok, err := policies.PreventTooManyIndexableTags(config.Cfg.Relay.MaxTagValueLength, []int{}, []int{})(ws.Ctx, &evt); ok {
+	if ok, err := policies2.PreventTooManyIndexableTags(config.Cfg.Relay.MaxTagValueLength, []int{}, []int{})(ws.Ctx, &evt); ok {
 		ws.ChanSender <- nostr.OKEnvelope{EventID: evt.ID, OK: ok, Reason: err}
 		return ""
 	}
 
-	if ok, err := policies.RejectEventsWithBase64Media(ws.Ctx, &evt); ok {
+	if ok, err := policies2.RejectEventsWithBase64Media(ws.Ctx, &evt); ok {
 		ws.ChanSender <- nostr.OKEnvelope{EventID: evt.ID, OK: ok, Reason: err}
 		return ""
 	}

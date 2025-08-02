@@ -1,6 +1,7 @@
 package handler
 
 import (
+	json "github.com/bytedance/sonic"
 	"github.com/gabrielmoura/nostr-relay-server/config"
 	"github.com/gabrielmoura/nostr-relay-server/infra/handler/auth"
 	"github.com/gabrielmoura/nostr-relay-server/infra/handler/count"
@@ -11,7 +12,6 @@ import (
 	"github.com/gabrielmoura/nostr-relay-server/infra/metrics"
 	"github.com/gabrielmoura/nostr-relay-server/internal/dto"
 	"github.com/gabrielmoura/nostr-relay-server/pkg/negentropy"
-	"github.com/goccy/go-json"
 	"github.com/nbd-wtf/go-nostr"
 	"go.uber.org/zap"
 	"strings"

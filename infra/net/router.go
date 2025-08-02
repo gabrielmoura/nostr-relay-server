@@ -1,14 +1,14 @@
 package net
 
 import (
+	json "github.com/bytedance/sonic"
 	"github.com/gabrielmoura/nostr-relay-server/config"
 	"github.com/gabrielmoura/nostr-relay-server/infra/handler"
-	"github.com/gabrielmoura/nostr-relay-server/infra/handler/store"
+	Upblossom "github.com/gabrielmoura/nostr-relay-server/infra/handler/store/blossom"
 	"github.com/gabrielmoura/nostr-relay-server/infra/log"
 	"github.com/gabrielmoura/nostr-relay-server/infra/net/middleware"
 	"github.com/gabrielmoura/nostr-relay-server/infra/util"
 	"github.com/gabrielmoura/nostr-relay-server/internal/dto"
-	"github.com/goccy/go-json"
 	"github.com/gofiber/contrib/websocket"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/compress"
@@ -102,11 +102,11 @@ func Router() (internal, external *fiber.App) {
 
 	})
 
-	external.Post("/upload", store.UploadHandler).Use(middleware.BlockIfStoreNotEnabled)
-	external.Put("/upload", store.UploadHandler).Use(middleware.BlockIfStoreNotEnabled)
-	external.Get("/blob/:id", store.BlobHandler).Use(middleware.BlockIfStoreNotEnabled)
-	external.Head("/blob/:id", store.BlobHandler).Use(middleware.BlockIfStoreNotEnabled)
-	external.Get("/list/:id", store.ListHandler).Use(middleware.BlockIfStoreNotEnabled)
+	external.Post("/upload", Upblossom.UploadHandler).Use(middleware.BlockIfStoreNotEnabled)
+	external.Put("/upload", Upblossom.UploadHandler).Use(middleware.BlockIfStoreNotEnabled)
+	external.Get("/blob/:id", Upblossom.BlobHandler).Use(middleware.BlockIfStoreNotEnabled)
+	external.Head("/blob/:id", Upblossom.BlobHandler).Use(middleware.BlockIfStoreNotEnabled)
+	external.Get("/list/:id", Upblossom.ListHandler).Use(middleware.BlockIfStoreNotEnabled)
 
 	external.Use("/", func(c *fiber.Ctx) error {
 		// se estritamente /

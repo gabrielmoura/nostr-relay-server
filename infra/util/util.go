@@ -2,11 +2,11 @@ package util
 
 import (
 	"crypto/rand"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"github.com/gabrielmoura/nostr-relay-server/infra/log"
 	"github.com/liamg/magic"
+	"github.com/tmthrgd/go-hex"
 	"go.uber.org/zap"
 	"slices"
 	"time"

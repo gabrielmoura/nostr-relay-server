@@ -11,23 +11,31 @@ import (
 )
 
 type RelayPool struct {
-	relays   map[string]*nostr.Relay
-	mu       sync.Mutex
-	initOnce sync.Once
+	relays        map[string]*nostr.Relay
+	mu            sync.Mutex
+	initOnce      sync.Once
+	relayFailures map[string]int // URL -> failure count
+	context.Context
 }
 
+const MaxFailures = 5 // Número máximo de falhas antes de penalizar um relay
+
 var (
-	pool     *RelayPool
-	poolOnce sync.Once
+	pool                  *RelayPool
+	poolOnce              sync.Once
+	ErrMaxConnectFailure  = errors.New("máximo de erros ao conectar")
+	ErrPollNotInitialized = errors.New("pool não inicializado, chame Init() primeiro")
 )
 
 // Init inicializa o pool singleton com múltiplos relays.
 // Deve ser chamado uma vez no início da aplicação.
-func Init(relayURLs []string) error {
+func Init(ctx context.Context, relayURLs []string) error {
 	var err error
 	poolOnce.Do(func() {
 		pool = &RelayPool{
-			relays: make(map[string]*nostr.Relay),
+			relays:        make(map[string]*nostr.Relay),
+			relayFailures: make(map[string]int),
+			Context:       ctx,
 		}
 		err = pool.connectAll(relayURLs)
 	})
@@ -41,14 +49,16 @@ func (p *RelayPool) connectAll(urls []string) error {
 
 	var firstErr error
 	for _, url := range urls {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		r, err := nostr.RelayConnect(ctx, url)
+
+		r, err := nostr.RelayConnect(p.Context, url)
 		r.RequestHeader.Set("User-Agent", config.Cfg.RelayInformation.Name+"/"+config.Cfg.RelayInformation.Version)
-		cancel()
+
 		if err != nil {
 			if firstErr == nil {
 				firstErr = err
 			}
+			// Se falhar, adiciona ao relayFailures
+			p.relayFailures[url]++
 			continue
 		}
 		p.relays[url] = r
@@ -64,11 +74,13 @@ func (p *RelayPool) reconnectRelay(url string) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	r, err := nostr.RelayConnect(ctx, url)
+	if p.relayFailures[url] >= MaxFailures {
+		delete(p.relays, url)
+		return ErrMaxConnectFailure
+	}
+	r, err := nostr.RelayConnect(p.Context, url)
 	if err != nil {
+		p.relayFailures[url]++
 		return err
 	}
 	p.relays[url] = r
@@ -79,7 +91,7 @@ func (p *RelayPool) reconnectRelay(url string) error {
 // Retorna um canal unificado de eventos e erro.
 func Subscribe(filters nostr.Filters) (<-chan *nostr.Event, error) {
 	if pool == nil {
-		return nil, errors.New("pool não inicializado, chame Init() primeiro")
+		return nil, ErrPollNotInitialized
 	}
 
 	out := make(chan *nostr.Event)

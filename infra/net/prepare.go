@@ -1,8 +1,8 @@
 package net
 
 import (
+	json "github.com/bytedance/sonic"
 	"github.com/gabrielmoura/nostr-relay-server/internal/dto"
-	"github.com/goccy/go-json"
 	"net"
 	"net/http"
 )
@@ -35,5 +35,5 @@ func GetRealIp(ws *dto.WsServer) string {
 func JsonResponse(w http.ResponseWriter, code int, data interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)
-	json.NewEncoder(w).Encode(data)
+	json.ConfigDefault.NewEncoder(w).Encode(data)
 }

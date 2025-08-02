@@ -3,11 +3,11 @@ package bootstrap
 import (
 	"context"
 	"fmt"
+	json "github.com/bytedance/sonic"
 	"github.com/gabrielmoura/nostr-relay-server/config"
 	"github.com/gabrielmoura/nostr-relay-server/infra/log"
 	nostrcustom "github.com/gabrielmoura/nostr-relay-server/infra/nostr-custom"
 	"github.com/gabrielmoura/nostr-relay-server/internal/db"
-	"github.com/goccy/go-json"
 	"github.com/google/uuid"
 	"github.com/nbd-wtf/go-nostr"
 	"github.com/nbd-wtf/go-nostr/nip19"
