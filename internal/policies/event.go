@@ -2,10 +2,10 @@ package policies
 
 import (
 	"context"
+	json "github.com/bytedance/sonic"
 	"github.com/gabrielmoura/nostr-relay-server/config"
 	"github.com/gabrielmoura/nostr-relay-server/infra/log"
 	"github.com/gabrielmoura/nostr-relay-server/internal/db"
-	"github.com/goccy/go-json"
 	"github.com/nbd-wtf/go-nostr"
 	"github.com/nbd-wtf/go-nostr/nip13"
 	"go.uber.org/zap"

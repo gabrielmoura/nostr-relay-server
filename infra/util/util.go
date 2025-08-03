@@ -34,9 +34,6 @@ func GenChallenge() string {
 		log.Logger.Warn("error generating challenge", zap.Error(err))
 		return ""
 	}
-
-	// ponha no contexto
-
 	return hex.EncodeToString(challenge)
 }
 

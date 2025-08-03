@@ -54,7 +54,6 @@ func runServer(cmd *cobra.Command, args []string) {
 		in, ex := net.Router()
 
 		if config.Cfg.Stream.StreamUp || config.Cfg.Stream.StreamDown {
-			// TODO: Remover este bloco de código daqui
 			if err := nostrpool.Init(mainCtx, config.Cfg.Stream.Relays); err != nil {
 				log.Logger.Error("Erro ao inicializar o Relay Pool", zap.Error(err))
 			}
