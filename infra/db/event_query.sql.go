@@ -6,19 +6,10 @@ import (
 	"errors"
 	"fmt"
 	"github.com/gabrielmoura/nostr-relay-server/config"
+	"github.com/gabrielmoura/nostr-relay-server/infra/db/helper"
 	"github.com/jackc/pgx/v5"
-	"github.com/jmoiron/sqlx"
 	"github.com/nbd-wtf/go-nostr"
-	"strings"
 	"time"
-)
-
-var (
-	TooManyIDs       = errors.New("too many ids")
-	TooManyAuthors   = errors.New("too many authors")
-	TooManyKinds     = errors.New("too many kinds")
-	TooManyTagValues = errors.New("too many tag values")
-	EmptyTagSet      = errors.New("empty tag set")
 )
 
 const deleteAllEventsByPubkey = `-- name: DeleteAllEventsByPubkey :exec
@@ -127,97 +118,6 @@ func (q *Queries) InsertEventBatch(ctx context.Context, arg []*nostr.Event) erro
 	}
 	return nil
 }
-
-func (q *Queries) queryEventsSql(filter nostr.Filter, doCount bool) (string, []any, error) {
-	conditions := make([]string, 0, 7)
-	params := make([]any, 0, 20)
-
-	if len(filter.IDs) > 0 {
-		if len(filter.IDs) > config.Cfg.Relay.QueryIDsLimit {
-			return "", nil, TooManyIDs
-		}
-		for _, v := range filter.IDs {
-			params = append(params, v)
-		}
-		conditions = append(conditions, `id IN (`+makePlaceHolders(len(filter.IDs))+`)`)
-	}
-
-	if len(filter.Authors) > 0 {
-		if len(filter.Authors) > config.Cfg.Relay.QueryAuthorsLimit {
-			return "", nil, TooManyAuthors
-		}
-		for _, v := range filter.Authors {
-			params = append(params, v)
-		}
-		conditions = append(conditions, `pubkey IN (`+makePlaceHolders(len(filter.Authors))+`)`)
-	}
-
-	if len(filter.Kinds) > 0 {
-		if len(filter.Kinds) > config.Cfg.Relay.QueryKindsLimit {
-			return "", nil, TooManyKinds
-		}
-		for _, v := range filter.Kinds {
-			params = append(params, v)
-		}
-		conditions = append(conditions, `kind IN (`+makePlaceHolders(len(filter.Kinds))+`)`)
-	}
-
-	totalTags := 0
-	for _, values := range filter.Tags {
-		if len(values) == 0 {
-			return "", nil, EmptyTagSet
-		}
-		for _, tagValue := range values {
-			params = append(params, tagValue)
-		}
-		conditions = append(conditions, `tagvalues && ARRAY[`+makePlaceHolders(len(values))+`]`)
-		totalTags += len(values)
-		if totalTags > config.Cfg.Relay.QueryTagsLimit {
-			return "", nil, TooManyTagValues
-		}
-	}
-
-	if filter.Since != nil {
-		conditions = append(conditions, `created_at >= ?`)
-		params = append(params, filter.Since)
-	}
-	if filter.Until != nil {
-		conditions = append(conditions, `created_at <= ?`)
-		params = append(params, filter.Until)
-	}
-	if filter.Search != "" {
-		conditions = append(conditions, `content LIKE ?`)
-		params = append(params, `%`+strings.ReplaceAll(filter.Search, `%`, `\%`)+`%`)
-	}
-
-	if len(conditions) == 0 {
-		conditions = append(conditions, `true`)
-	}
-
-	if filter.Limit < 1 || filter.Limit > config.Cfg.Relay.QueryLimit {
-		params = append(params, config.Cfg.Relay.QueryLimit)
-	} else {
-		params = append(params, filter.Limit)
-	}
-
-	if config.Cfg.Relay.FakeDeletion {
-		conditions = append(conditions, `deleted_by IS NULL`)
-	}
-
-	var query string
-	if doCount {
-		query = sqlx.Rebind(sqlx.BindType("postgres"), `SELECT COUNT(*) FROM event WHERE `+
-			strings.Join(conditions, " AND ")+" LIMIT ?")
-	} else {
-		query = sqlx.Rebind(sqlx.BindType("postgres"), `SELECT id, pubkey, created_at, kind, tags, content, sig FROM event WHERE `+
-			strings.Join(conditions, " AND ")+" ORDER BY created_at DESC, id LIMIT ?")
-	}
-
-	return query, params, nil
-}
-func makePlaceHolders(n int) string {
-	return strings.TrimRight(strings.Repeat("?,", n), ",")
-}
 func (q *Queries) QueryEventsChan(ctx context.Context, filter nostr.Filter) (ch chan *nostr.Event, err error) {
 	query, err := q.QueryEvents(ctx, filter)
 	if err != nil {
@@ -238,7 +138,7 @@ func (q *Queries) QueryEventsChan(ctx context.Context, filter nostr.Filter) (ch 
 	return ch, nil
 }
 func (q *Queries) QueryEvents(ctx context.Context, filter nostr.Filter) (events []*nostr.Event, err error) {
-	query, params, err := q.queryEventsSql(filter, false)
+	query, params, err := helper.QueryEventsSql(&config.Cfg.Relay, filter, false)
 	if err != nil {
 		return nil, err
 	}
@@ -265,7 +165,7 @@ func (q *Queries) QueryEvents(ctx context.Context, filter nostr.Filter) (events 
 }
 
 func (q *Queries) CountEvents(ctx context.Context, filter nostr.Filter) (int64, error) {
-	query, params, err := q.queryEventsSql(filter, true)
+	query, params, err := helper.QueryEventsSql(&config.Cfg.Relay, filter, true)
 	if err != nil {
 		return 0, err
 	}

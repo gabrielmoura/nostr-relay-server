@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/gabrielmoura/nostr-relay-server/config"
+	"github.com/gabrielmoura/nostr-relay-server/infra/db/helper"
 	"github.com/nbd-wtf/go-nostr"
 )
 
@@ -121,7 +123,7 @@ func (q *Queries) GetCountReportsKey(ctx context.Context, key string) (int64, er
 			"p": {key},
 		},
 	}
-	query, params, err := q.queryEventsSql(filter, true)
+	query, params, err := helper.QueryEventsSql(&config.Cfg.Relay, filter, true)
 	if err != nil {
 		return 0, err
 	}
