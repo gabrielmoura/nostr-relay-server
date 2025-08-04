@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"github.com/nbd-wtf/go-nostr"
 	"github.com/spf13/viper"
 	"gopkg.in/yaml.v3"
 )
@@ -33,6 +34,8 @@ func setDefaults(export bool) {
 	viper.SetDefault("relay.filter_limit", 99999999)
 	viper.SetDefault("relay.reporting_limit", 5) // 5 reports to ban a user
 	viper.SetDefault("relay.enable_anonymous_req", true)
+	viper.SetDefault("relay.fake_deletion", false)
+	viper.SetDefault("relay.vanish_event", false)
 
 	viper.SetDefault("store.api_path", fmt.Sprintf("http://localhost:%s/upload", viper.GetString("port")))
 	viper.SetDefault("store.media_path", fmt.Sprintf("http://localhost:%s/blob", viper.GetString("port")))
@@ -63,6 +66,8 @@ func setDefaults(export bool) {
 	viper.SetDefault("stream_up.enabled", true)
 	viper.SetDefault("stream_down.enabled", false)
 	viper.SetDefault("enable_negentropy", false)
+	viper.SetDefault("relay.protected_kinds", []int{nostr.KindApplicationSpecificData, nostr.KindEncryptedDirectMessage})
+	viper.SetDefault("relay.minimum_pow_limit", 0)
 
 	if export {
 		viper.SetDefault("db.postgres_uri", "postgres://user:password@localhost:5432/dbname")

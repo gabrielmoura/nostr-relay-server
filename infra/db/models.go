@@ -1,7 +1,7 @@
 package db
 
 import (
-	"github.com/goccy/go-json"
+	json "github.com/bytedance/sonic"
 	"time"
 )
 
@@ -47,6 +47,8 @@ type Object struct {
 	BlockedByReason string    `json:"blocked_by_reason,omitempty"`
 	Size            int64     `json:"size"`
 	Blocked         bool      `json:"blocked"`
+	PublicKey       string    `json:"public_key"`
+	Tags            []byte    `json:"tags,omitempty"`
 }
 
 type ObjectResponse struct {

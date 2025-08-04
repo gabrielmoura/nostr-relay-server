@@ -3,9 +3,9 @@ app_env: development
 ws:
     rate_limit: 1
     burst: 5
-    auth: true
+    auth: false
 relay_information:
-    url: http://0.tcp.sa.ngrok.io:14344
+    url: http://localhost:9090
     name: Nostr Relay Server
     description: A Nostr Relay Server
     pub_key: "7ef721e77149c737014971b141b0b590a5ebe82b79130228cdbe56e9be2d8e50"
@@ -21,8 +21,8 @@ relay_information:
         - 17
     software: https://github.com/gabrielmoura/nostr-relay-server
     version: 0.1.0
-    canonical_url: ws://0.tcp.sa.ngrok.io:14344/relay
-    icon: http://0.tcp.sa.ngrok.io:14344/nostr.png
+    canonical_url: ws://localhost:9090
+    icon: http://localhost:9090/nostr.png
 relay:
     query_limit: 100
     query_ids_limit: 500
@@ -39,24 +39,16 @@ db:
     max_conns: 10
     min_conns: 1
     postgres_uri: postgres://postgres:Strong@P4ssword@127.0.0.1:5432/nostr
-stream_up:
+stream:
     relays:
-        - ws://192.168.1.109:7777
-        - wss://nostr.azzamo.net
-        - wss://relay.damus.io
-        - wss://relay02.lnfi.network
-    enabled: false
-stream_down:
-    relays:
-        - ws://192.168.1.109:7777
-        - wss://nostr.azzamo.net
-        - wss://relay.damus.io
-        - wss://relay02.lnfi.network
-    enabled: false
+        - ws://127.0.0.1:7777
+        - ws://node-ior.webhop.me:6000
+    stream_down: true
+    stream_up: true
 store:
     enabled: true
-    api_path: http://0.tcp.sa.ngrok.io:14344/upload
-    media_path: http://0.tcp.sa.ngrok.io:14344/blob
+    api_path: http://localhost:9090/upload
+    media_path: http://localhost:9090/blob
     accepted_mimetypes:
         - image/jpeg
         - image/png

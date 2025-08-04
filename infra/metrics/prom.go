@@ -87,6 +87,22 @@ var (
 		},
 		[]string{"tag"},
 	)
+	// NostrNegentropyCounter - Contador de mensagens de Negentropia
+	NostrNegentropyCounter = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "nostr_negentropy_count",
+			Help: "No of Negentropy messages handled by Nostr handler",
+		},
+		[]string{"type"},
+	)
+	// NostrUserAgentCounter - Contador de User-Agent
+	NostrUserAgentCounter = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "nostr_user_agent_count",
+			Help: "No of User-Agent handled by Nostr handler",
+		},
+		[]string{"user_agent"},
+	)
 
 	// NostrTagEventCounter - Qual a tag mais popular?
 	NostrTagEventCounter = prometheus.NewCounterVec(
@@ -96,20 +112,127 @@ var (
 		},
 		[]string{"tag"},
 	)
+	// NostrRelayAuthFailuresTotal - Total de falhas de autenticação ou assinatura inválida.
+	NostrRelayAuthFailuresTotal = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "nostr_relay_auth_failures_total",
+			Help: "total authentication failures or invalid signature.",
+		})
+
+	// NostrRelayWsMessagesReceived - Total de mensagens WebSocket recebidas pelo relay
+	NostrRelayWsMessagesReceived = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "nostr_relay_ws_messages_received",
+			Help: "Total WebSocket messages received by the relay",
+		})
+	// NostrRelayWsMessagesSend - Total de mensagens WebSocket enviadas pelo relay.
+	NostrRelayWsMessagesSend = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "nostr_relay_ws_messages_sent",
+			Help: "Total WebSocket messages sent by the relay.",
+		})
+
+	// NostrRelayEventSignatureFailures - Total de eventos com assinatura inválida.
+	NostrRelayEventSignatureFailures = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "nostr_relay_event_signature_failures",
+			Help: "Total number of events with invalid signature.",
+		})
+	// NostrRelayEventDuplicateRejections - Número de eventos rejeitados por serem duplicados.
+	NostrRelayEventDuplicateRejections = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "nostr_relay_event_duplicate_rejections",
+			Help: "number of events rejected because they are duplicates.",
+		})
+	// NostrRelayEventForwardedTotal - Número de eventos encaminhados para outros relays
+	NostrRelayEventForwardedTotal = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "nostr_relay_event_forwarded_total",
+			Help: "Number of events forwarded to other relays",
+		})
+	// NostrRelayRequestForwardedTotal - Número de requisições encaminhadas para outros relays.
+	NostrRelayRequestForwardedTotal = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "nostr_relay_request_forwarded_total",
+			Help: "Number of requests forwarded to other relays",
+		})
+	// NostrRelayEventForwardedFailuresTotal - Número de falhas ao tentar encaminhar eventos para outros relays.
+	NostrRelayEventForwardedFailuresTotal = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "nostr_relay_event_forward_failures_total",
+			Help: "Number of failures when trying to forward events to other relays.",
+		})
+	// NostrRelayEventDeletionSuccessful - Total de eventos deletados com sucesso.
+	NostrRelayEventDeletionSuccessful = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "nostr_relay_event_deletions_successful",
+			Help: "Total events deleted successfully.",
+		})
+	// NostrRelayEventDeletionFailures - Total de falhas ao tentar deletar eventos.
+	NostrRelayEventDeletionFailures = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "nostr_relay_event_deletion_failures",
+			Help: "Total number of failures when trying to delete events.",
+		})
+	// NostrListenerGauge - Número de listeners ativos no servidor Nostr.
+	NostrListenerGauge = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "nostr_listeners_active",
+			Help: "Number of active listeners on the Nostr server.",
+		},
+	)
+	// NostrListenerAddCounter - Contador de listeners adicionados.
+	NostrListenerAddCounter = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "nostr_listener_add_total",
+			Help: "Total listeners added.",
+		},
+	)
+	// NostrListenerRemoveCounter - Contador de listeners removidos.
+	NostrListenerRemoveCounter = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "nostr_listener_remove_total",
+			Help: "Total listeners removed.",
+		},
+	)
+	// NostrEventsNotifiedCounter - Contador de eventos notificados aos listeners.
+	NostrEventsNotifiedCounter = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "nostr_events_notified_total",
+			Help: "Total number of events notified to listeners.",
+		},
+	)
 )
 
 func RegisterMetrics() {
-	prometheus.MustRegister(NostrRequestCounter)
-	prometheus.MustRegister(NostrRequestDuration)
-	prometheus.MustRegister(NostrConnectionCounter)
-	prometheus.MustRegister(NostrKindReqCounter)
-	prometheus.MustRegister(NostrKindEventCounter)
-	prometheus.MustRegister(NostrUserReqCounter)
-	prometheus.MustRegister(NostrTagReqCounter)
-	prometheus.MustRegister(NostrTagEventCounter)
-	prometheus.MustRegister(NostrUserEventCounter)
-	prometheus.MustRegister(UploadCounter)
-	prometheus.MustRegister(DownloadCounter)
-	prometheus.MustRegister(HttpDuration)
+	prometheus.MustRegister(NostrRequestCounter,
+		NostrRequestDuration,
+		NostrConnectionCounter,
+		NostrKindReqCounter,
+		NostrKindEventCounter,
+		NostrUserReqCounter,
+		NostrTagReqCounter,
+		NostrTagEventCounter,
+		NostrUserEventCounter,
+		UploadCounter,
+		DownloadCounter,
+		HttpDuration,
+		NostrRelayAuthFailuresTotal,
+		NostrRelayEventSignatureFailures,
+		NostrRelayEventDuplicateRejections,
+		NostrRelayEventForwardedTotal,
+		NostrRelayEventForwardedFailuresTotal,
+		NostrRelayRequestForwardedTotal,
+		NostrRelayEventDeletionSuccessful,
+		NostrRelayEventDeletionFailures,
+		// Listener metrics
+		NostrListenerGauge,
+		NostrListenerAddCounter,
+		NostrListenerRemoveCounter,
+		NostrEventsNotifiedCounter,
+		// Negentropy metrics
+		NostrNegentropyCounter,
+		NostrUserAgentCounter,
+	)
 
 }

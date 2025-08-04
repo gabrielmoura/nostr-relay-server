@@ -1,8 +1,7 @@
 package req
 
 import (
-	"fmt"
-	"github.com/fiatjaf/khatru/policies"
+	json "github.com/bytedance/sonic"
 	"github.com/gabrielmoura/nostr-relay-server/config"
 	"github.com/gabrielmoura/nostr-relay-server/infra/handler/listener"
 	"github.com/gabrielmoura/nostr-relay-server/infra/log"
@@ -11,10 +10,8 @@ import (
 	"github.com/gabrielmoura/nostr-relay-server/internal/db"
 	"github.com/gabrielmoura/nostr-relay-server/internal/dto"
 	policies2 "github.com/gabrielmoura/nostr-relay-server/internal/policies"
-	"github.com/goccy/go-json"
 	"github.com/nbd-wtf/go-nostr"
 	"go.uber.org/zap"
-	"slices"
 	"time"
 )
 
@@ -39,7 +36,7 @@ func DoREQ(ws *dto.WsServer, data dto.Data) string {
 		}
 	}
 
-	if ok, reason := policies2.RejectReqBannedUser(ws); !ok {
+	if ok, reason := policies2.P.RejectReqBannedUser(ws); !ok {
 		ws.ChanSender <- nostr.ClosedEnvelope{
 			Reason:         reason,
 			SubscriptionID: id,
@@ -48,7 +45,7 @@ func DoREQ(ws *dto.WsServer, data dto.Data) string {
 	}
 
 	// if the user is not authenticated, only allow certain kinds
-	if !ws.AcceptReqs(filters) {
+	if !policies2.P.AcceptReqs(filters, ws) {
 		ws.ChanSender <- nostr.ClosedEnvelope{
 			Reason:         "auth-required: REQ filters are not accepted",
 			SubscriptionID: id,
@@ -58,75 +55,36 @@ func DoREQ(ws *dto.WsServer, data dto.Data) string {
 	}
 
 	for _, filter := range filters {
-		//if ok, err := policies.NoEmptyFilters(ws.Ctx, filter); !ok {
-		//	log.Logger.Warn("empty-filter", zap.String("reason", err))
-		//	ws.ChanSender <- nostr.ClosedEnvelope{
-		//		Reason:         err,
-		//		SubscriptionID: id,
-		//	}
-		//	return ""
-		//}
+		if reject, msg := policies2.P.NoEmptyFilters(ws.Ctx, filter); reject {
+			log.Logger.Warn(
+				"empty-filter",
+				zap.String("reason", msg),
+				zap.String("filter", filter.String()),
+				zap.String("ip", ws.Conn.IP()),
+			)
+			ws.ChanSender <- nostr.ClosedEnvelope{
+				Reason:         msg,
+				SubscriptionID: id,
+			}
+			return ""
+		}
 
 		// caso não haja autenticação, não permitir baixar eventos sem autor.
-		if ok, err := policies.AntiSyncBots(ws.Ctx, filter); ok {
-			if ws.Authed == "" {
-				log.Logger.Warn("anti-sync-bot", zap.String("reason", err))
-				ws.ChanSender <- nostr.ClosedEnvelope{
-					Reason:         fmt.Sprintf("auth-required: %s", err),
-					SubscriptionID: id,
-				}
-				return ""
+		if reject, msg := policies2.P.AntiSyncBots(ws.Ctx, filter); reject {
+			log.Logger.Warn("anti-sync-bot", zap.String("reason", msg))
+			ws.ChanSender <- nostr.ClosedEnvelope{
+				Reason:         msg,
+				SubscriptionID: id,
 			}
+			return ""
 		}
 
-		// prevent kind-4 events from being returned to unauthed users,
-		//   only when authentication is a thing
-		if slices.Contains(filter.Kinds, nostr.KindEncryptedDirectMessage) {
-			senders := filter.Authors
-			receivers, _ := filter.Tags["p"]
-			switch {
-			case ws.Authed == "":
-				// not authenticated
-				//return "auth-required: this relay does not serve kind-4 to unauthenticated users, does your client implement NIP-42?"
-				ws.ChanSender <- nostr.ClosedEnvelope{
-					Reason:         "auth-required: this relay does not serve kind-4 to unauthenticated users, does your client implement NIP-42?",
-					SubscriptionID: id,
-				}
-				return ""
-			case len(senders) == 1 && len(receivers) < 2 && (senders[0] == ws.Authed):
-				// allowed filter:ws.Authed is sole sender (filter specifies one or all receivers)
-			case len(receivers) == 1 && len(senders) < 2 && (receivers[0] == ws.Authed):
-				// allowed filter: req.authed is sole receiver (filter specifies one or all senders)
-			default:
-				// restricted filter: do not return any events,
-				//   even if other elements in filters array were not restricted).
-				//   client should know better.
-				//return "auth-required: authenticated user does not have authorization for requested filters."
-				ws.ChanSender <- nostr.ClosedEnvelope{
-					Reason:         "auth-required: authenticated user does not have authorization for requested filters.",
-					SubscriptionID: id,
-				}
-				return ""
+		if reject, msg := policies2.P.CheckKindsAuth(filter, ws); reject {
+			ws.ChanSender <- nostr.ClosedEnvelope{
+				Reason:         msg,
+				SubscriptionID: id,
 			}
-		}
-
-		if slices.Contains(filter.Kinds, nostr.KindApplicationSpecificData) {
-			switch {
-			case ws.Authed == "":
-				//return "restricted: é necessário autenticação para acessar eventos do tipo KindApplicationSpecificData"
-				ws.ChanSender <- nostr.ClosedEnvelope{
-					Reason:         "auth-required: é necessário autenticação para acessar eventos do tipo KindApplicationSpecificData",
-					SubscriptionID: id,
-				}
-				return ""
-			case !slices.Contains(filter.Authors, ws.Authed):
-				//return "auth-required: usuário autenticado não tem autorização para acessar eventos do tipo KindApplicationSpecificData"
-				ws.ChanSender <- nostr.ClosedEnvelope{
-					Reason:         "auth-required: usuário autenticado não tem autorização para acessar eventos do tipo KindApplicationSpecificData",
-					SubscriptionID: id,
-				}
-				return ""
-			}
+			return ""
 		}
 
 		events, err := db.DbQueries.QueryEventsChan(ws.Ctx, filter)

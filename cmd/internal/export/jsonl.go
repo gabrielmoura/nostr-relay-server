@@ -2,7 +2,7 @@ package export
 
 import (
 	"fmt"
-	"github.com/goccy/go-json"
+	json "github.com/bytedance/sonic"
 	"io"
 	"net/http"
 )

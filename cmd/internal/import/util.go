@@ -1,8 +1,8 @@
 package _import
 
 import (
-	"encoding/json"
 	"fmt"
+	json "github.com/bytedance/sonic"
 	"github.com/gabrielmoura/nostr-relay-server/config"
 	"github.com/gabrielmoura/nostr-relay-server/infra/log"
 	"path/filepath"

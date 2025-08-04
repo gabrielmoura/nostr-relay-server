@@ -5,7 +5,7 @@ import (
 )
 
 type Querier interface {
-	DeleteEvent(ctx context.Context, id string) error
+	DeleteEvent(ctx context.Context, id, reasonId string) error
 	DeleteOldsEvents(ctx context.Context, arg DeleteOldsEventsParams) error
 }
 

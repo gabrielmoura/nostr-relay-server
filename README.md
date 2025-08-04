@@ -3,6 +3,8 @@
 ![GitHub issues](https://img.shields.io/github/issues/gabrielmoura/nostr-relay-server?style=for-the-badge)
 ![GitHub forks](https://img.shields.io/github/forks/gabrielmoura/nostr-relay-server?style=for-the-badge)
 ![GitHub stars](https://img.shields.io/github/stars/gabrielmoura/nostr-relay-server?style=for-the-badge)
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/gabrielmoura/nostr-relay-server)
+
 
 Seu próprio servidor Nostr, simples, poderoso e pronto para rodar. Este projeto oferece um relay Nostr de alta performance com tudo que você precisa para entrar na rede descentralizada.
 
@@ -202,17 +204,12 @@ db:
     postgres_uri: postgres://postgres:Strong@P4ssword@127.0.0.1:5432/nostr
 
 # Sincronização de eventos com outros relays
-stream_up:
-    relays:
-        - wss://nostr.azzamo.net
-        - wss://relay.damus.io
-    enabled: false
-stream_down:
-    relays:
-        - wss://nostr.azzamo.net
-        - wss://relay.damus.io
-    enabled: false
-
+stream:
+  relays:
+    - wss://nostr.azzamo.net
+    - wss://relay.damus.io
+  stream_up: false
+  stream_down: false
 # Configurações de armazenamento de mídia (Blossom - NIP-96)
 store:
     enabled: true
@@ -297,8 +294,21 @@ Para expor seu relay como um serviço oculto do Tor, siga estes passos:
 2.  Edite o arquivo de configuração do Tor (`torrc`) para criar um novo `HiddenService`. Aponte a porta do serviço oculto para a porta local onde seu relay está rodando (ex: `127.0.0.1:9090`).
 3.  Após reiniciar o Tor, ele criará um hostname `.onion` para o seu serviço.
 4.  **Importante:** Atualize o `canonical_url` no seu `config.yml` para o endereço `ws://SEU_HOSTNAME.onion`. Isso garantirá que seu relay anuncie o endereço correto na rede Nostr.
+5. Use `HTTP_PROXY` para direcionar o tráfego do relay através do Tor, se necessário conforme https://pkg.go.dev/net/http#ProxyFromEnvironment.
 
 ---
+
+## 📚 Protocolos Imlpementado
+- [BUD 01](https://github.com/hzrd149/blossom/blob/master/buds/01.md)
+- [BUD 02](https://github.com/hzrd149/blossom/blob/master/buds/02.md)
+- [NIP 40](https://github.com/nostr-protocol/nips/blob/master/40.md)
+- [NIP 98](https://github.com/nostr-protocol/nips/blob/master/98.md)
+- [NIP 01](https://github.com/nostr-protocol/nips/blob/master/01.md)
+- [NIP 77](https://github.com/nostr-protocol/nips/blob/master/77.md)
+- [NIP 42 - Authentication of clients to relays](https://github.com/nostr-protocol/nips/blob/master/42.md)
+- [NIP 09 - Event Deletion Request](https://github.com/nostr-protocol/nips/blob/master/09.md)
+- [NIP-50 - Search Capability](https://github.com/nostr-protocol/nips/blob/master/50.md)
+- [NIP-62 - Request to Vanish](https://github.com/nostr-protocol/nips/blob/master/62.md)
 
 ## 🤝 Como Contribuir
 

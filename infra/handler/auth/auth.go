@@ -2,11 +2,11 @@ package auth
 
 import (
 	"context"
+	json "github.com/bytedance/sonic"
 	"github.com/gabrielmoura/nostr-relay-server/config"
 	"github.com/gabrielmoura/nostr-relay-server/infra/log"
 	"github.com/gabrielmoura/nostr-relay-server/infra/metrics"
 	"github.com/gabrielmoura/nostr-relay-server/internal/dto"
-	"github.com/goccy/go-json"
 	"github.com/nbd-wtf/go-nostr"
 	"github.com/nbd-wtf/go-nostr/nip42"
 	"go.uber.org/zap"
@@ -26,6 +26,7 @@ func DoAUTH(ws *dto.WsServer, data dto.Data) string {
 			ws.Ctx = context.WithValue(ws.Ctx, AuthContextKey, pubkey)
 			ws.ChanSender <- nostr.OKEnvelope{EventID: evt.ID, OK: true}
 		} else {
+			metrics.NostrRelayAuthFailuresTotal.Inc()
 			log.Logger.Warn("failed to authenticate", zap.String("event", evt.String()))
 			ws.ChanSender <- nostr.OKEnvelope{EventID: evt.ID, OK: false, Reason: "error: failed to authenticate"}
 		}

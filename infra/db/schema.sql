@@ -13,7 +13,8 @@ CREATE TABLE
                          CONTENT TEXT NOT NULL,
                          sig TEXT NOT NULL,
                          tagvalues TEXT [] GENERATED ALWAYS AS ( tags_to_tagvalues ( tags ) ) STORED,
-                         content_search TSVECTOR GENERATED ALWAYS AS ( to_tsvector( 'portuguese', CONTENT ) ) STORED
+                         content_search TSVECTOR GENERATED ALWAYS AS ( to_tsvector( 'portuguese', CONTENT ) ) STORED,
+                         deleted_by varchar(64) DEFAULT NULL
 );
 --- Indexes
 CREATE UNIQUE INDEX
@@ -51,7 +52,10 @@ CREATE TABLE profiles (
                           display_name TEXT,
                           lud16 TEXT,
                           pronouns TEXT,
-                          nip05 TEXT
+                          nip05 TEXT,
+                          enable_store_files BOOLEAN default false,
+                          enable_nip05 BOOLEAN DEFAULT FALSE
+
 );
 -- Índices para a tabela profiles
 CREATE INDEX idx_profiles_name ON profiles ( NAME );
@@ -77,7 +81,9 @@ CREATE TABLE objects (
                          SIZE BIGINT,
                          blocked BOOLEAN,
                          expires_at TIMESTAMP WITH TIME ZONE,
-                         blocked_by_reason TEXT
+                         blocked_by_reason TEXT,
+                         public_key VARCHAR ( 64 ) NOT NULL,
+                         tags JSONB
 );
 -- Índices para a tabela objects
 CREATE INDEX idx_objects_mime_type ON objects ( mime_type );

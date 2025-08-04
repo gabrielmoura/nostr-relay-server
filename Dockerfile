@@ -45,7 +45,8 @@ LABEL org.opencontainers.image.created=$BUILD_DATE
 LABEL org.opencontainers.image.version=$VERSION
 LABEL org.opencontainers.image.authors="Gabriel Moura <gmouradev96@gmail.com>"
 
-ENV PORT=8080
-EXPOSE 8080
+ENV PORT=9090
+EXPOSE 9090
+EXPOSE 9091
 
 ENTRYPOINT ["/app/nrserver","server"]
