@@ -17,8 +17,14 @@ relay_information:
         - 4
         - 25
         - 9
-        - 45
+        - 23 # Long-form Content
+        - 45 # Event Counts
+        - 42 # Authentication of clients to relays
         - 17
+        - 62 # Request to Vanish
+        - 40 # Expiration Timestamp
+        - 18
+        - 13 # Proof of Work
     software: https://github.com/gabrielmoura/nostr-relay-server
     version: 0.1.0
     canonical_url: ws://localhost:9090
