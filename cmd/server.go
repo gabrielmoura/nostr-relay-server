@@ -80,8 +80,8 @@ func runServer(cmd *cobra.Command, args []string) {
 		if bootstrapFlag {
 			bootstrap.CreateInitialEvents()
 		}
-		lnIn, _ := net.PrepareListen(":9091")
-		lnEx, _ := net.PrepareListen(":9090")
+		lnIn, _ := net.PrepareListen(fmt.Sprintf(":%d", config.Cfg.Port+1))
+		lnEx, _ := net.PrepareListen(fmt.Sprintf(":%d", config.Cfg.Port))
 
 		go in.Listener(lnIn)
 		go ex.Listener(lnEx)

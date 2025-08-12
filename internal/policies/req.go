@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/gabrielmoura/nostr-relay-server/config"
+	"github.com/gabrielmoura/nostr-relay-server/infra/cache"
 	"github.com/gabrielmoura/nostr-relay-server/infra/metrics"
 	"github.com/gabrielmoura/nostr-relay-server/internal/db"
 	"github.com/gabrielmoura/nostr-relay-server/internal/dto"
@@ -63,7 +64,8 @@ func (p Policies) RejectEventBannedUser(ctx context.Context, evt *nostr.Event) (
 		return true, "invalid: missing public key"
 	}
 
-	reason, exists, err := db.DbQueries.GetUserBannedByKey(ctx, evt.PubKey)
+	GetUserBannedByKeyCached := cache.WrapGetBanned(db.DbQueries.GetUserBannedByKey)
+	reason, exists, err := GetUserBannedByKeyCached(ctx, evt.PubKey)
 	if err != nil {
 		return true, fmt.Sprintf("error: %s", err.Error())
 	}
@@ -80,7 +82,8 @@ func (p Policies) RejectReqBannedUser(ws *dto.WsServer) (bool, string) {
 			return true, "invalid: missing public key"
 		}
 
-		reason, exists, err := db.DbQueries.GetUserBannedByKey(ws.Ctx, ws.Authed)
+		GetUserBannedByKeyCached := cache.WrapGetBanned(db.DbQueries.GetUserBannedByKey)
+		reason, exists, err := GetUserBannedByKeyCached(ws.Ctx, ws.Authed)
 		if err != nil {
 			return true, fmt.Sprintf("error: %s", err.Error())
 		}

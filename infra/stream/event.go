@@ -1,6 +1,7 @@
 package stream
 
 import (
+	"errors"
 	"github.com/gabrielmoura/nostr-relay-server/config"
 	"github.com/gabrielmoura/nostr-relay-server/infra/log"
 	"github.com/gabrielmoura/nostr-relay-server/infra/metrics"
@@ -20,7 +21,9 @@ func ForwardEvent(event nostr.Event) {
 
 			if err := nostrpool.Publish(&event); err != nil {
 				metrics.NostrRelayEventForwardedFailuresTotal.Inc()
-				log.Logger.Warn("failed to publish event to relay pool", zap.Error(err), zap.String("event_id", event.ID))
+				if !errors.Is(err, nostrpool.ErrNotRelayConnected) {
+					log.Logger.Warn("failed to publish event to relay pool", zap.Error(err), zap.String("event_id", event.ID))
+				}
 			} else {
 				metrics.NostrRelayEventForwardedTotal.Inc()
 				log.Logger.Debug("Event forwarded to relay pool", zap.String("ID", event.ID))

@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"github.com/gabrielmoura/nostr-relay-server/config"
+	"github.com/gabrielmoura/nostr-relay-server/infra/cache"
 	"github.com/gabrielmoura/nostr-relay-server/infra/db"
 	"github.com/gabrielmoura/nostr-relay-server/infra/log"
 	"github.com/jackc/pgx/v5"
@@ -67,6 +68,7 @@ func Init(ctx context.Context) error {
 
 	DbQueries = db.New(pool)
 	Pool = pool
+	cache.Init()
 	return nil
 }
 

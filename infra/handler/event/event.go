@@ -80,6 +80,11 @@ func DoEVENT(ws *dto.WsServer, data dto.Data) string {
 		return ""
 	}
 
+	// regra para aceitar ou não o evento
+	if reject, _ := policies2.P.AcceptEvent(ws.Ctx, &evt); reject {
+		return "blocked: event blocked by relay"
+	}
+
 	if evt.Kind == nostr.KindProfileMetadata {
 		handleProfile(ws, &evt)
 	}
@@ -121,11 +126,6 @@ var nip20prefixmatcher = regexp.MustCompile(`^\w+: `)
 func AddEvent(ws *dto.WsServer, evt *nostr.Event) (accepted bool, message string) {
 	if evt == nil {
 		return false, ""
-	}
-
-	// regra para aceitar ou não o evento
-	if !ws.AcceptEvent(evt) {
-		return false, "blocked: event blocked by relay"
 	}
 
 	if nostr.IsEphemeralKind(evt.Kind) {
@@ -217,5 +217,6 @@ func isOlder(previous, next *nostr.Event) bool {
 }
 
 func processEphemeralEvents(ctx context.Context, evt *nostr.Event) {
+	// TODO: process ephemeral events, like sending to another service, etc
 	log.Logger.Info("ephemeral events", zap.Any("event", evt))
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	json "github.com/bytedance/sonic"
 	"github.com/gabrielmoura/nostr-relay-server/config"
+	"github.com/gabrielmoura/nostr-relay-server/infra/cache"
 	"github.com/gabrielmoura/nostr-relay-server/infra/log"
 	"github.com/gabrielmoura/nostr-relay-server/internal/db"
 	"github.com/nbd-wtf/go-nostr"
@@ -16,7 +17,9 @@ import (
 )
 
 func (p Policies) AcceptEvent(ctx context.Context, event *nostr.Event) (reject bool, msg string) {
-	reason, exists, err := db.DbQueries.GetUserBannedByKey(ctx, event.PubKey)
+	GetUserBannedByKeyCached := cache.WrapGetBanned(db.DbQueries.GetUserBannedByKey)
+
+	reason, exists, err := GetUserBannedByKeyCached(ctx, event.PubKey)
 	if err != nil {
 		log.Logger.Error("Erro ao verificar se o usuário está banido", zap.Error(err))
 		return true, "error: " + err.Error()

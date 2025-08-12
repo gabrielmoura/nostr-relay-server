@@ -1,6 +1,7 @@
 package stream
 
 import (
+	"errors"
 	"github.com/gabrielmoura/nostr-relay-server/config"
 	"github.com/gabrielmoura/nostr-relay-server/infra/log"
 	"github.com/gabrielmoura/nostr-relay-server/infra/metrics"
@@ -19,6 +20,9 @@ func ForwardRequest(ws *dto.WsServer, filter nostr.Filter, id *string) {
 
 	allEvents, err := nostrpool.Subscribe(nostr.Filters{filter})
 	if err != nil {
+		if errors.Is(err, nostrpool.ErrNotRelayConnected) {
+			return
+		}
 		log.Logger.Warn("Erro ao coletar eventos do Relay Pool", zap.Error(err))
 		return
 	}

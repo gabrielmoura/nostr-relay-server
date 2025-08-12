@@ -143,10 +143,22 @@ func addTimeConditions(conditions *[]string, params *[]any, since, until *nostr.
 }
 
 // addSearchCondition adiciona a condição de busca por texto no conteúdo do evento.
+//
+//	func addSearchCondition(conditions *[]string, params *[]any, search string) {
+//		if search != "" {
+//			*conditions = append(*conditions, "content LIKE ?")
+//			*params = append(*params, "%"+strings.ReplaceAll(search, "%", "\\%")+"%")
+//		}
+//	}
+//
+// addSearchCondition adiciona a condição de busca por texto no conteúdo do evento.
 func addSearchCondition(conditions *[]string, params *[]any, search string) {
 	if search != "" {
-		*conditions = append(*conditions, "content LIKE ?")
-		*params = append(*params, "%"+strings.ReplaceAll(search, "%", "\\%")+"%")
+		terms := strings.Fields(search)
+		tsQuery := strings.Join(terms, " & ")
+
+		*conditions = append(*conditions, "content_search @@ to_tsquery('portuguese', ?)")
+		*params = append(*params, tsQuery)
 	}
 }
 

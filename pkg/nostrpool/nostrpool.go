@@ -4,6 +4,9 @@ import (
 	"context"
 	"errors"
 	"github.com/gabrielmoura/nostr-relay-server/config"
+	"github.com/gabrielmoura/nostr-relay-server/infra/log"
+	"go.uber.org/zap"
+	"net/http"
 	"sync"
 	"time"
 
@@ -25,6 +28,9 @@ var (
 	poolOnce              sync.Once
 	ErrMaxConnectFailure  = errors.New("máximo de erros ao conectar")
 	ErrPollNotInitialized = errors.New("pool não inicializado, chame Init() primeiro")
+
+	ErrNotRelayConnected    = errors.New("nenhum relay conectado")
+	ErrNotRelayConnectedAll = errors.New("falha ao conectar a todos os relays")
 )
 
 // Init inicializa o pool singleton com múltiplos relays.
@@ -46,12 +52,13 @@ func Init(ctx context.Context, relayURLs []string) error {
 func (p *RelayPool) connectAll(urls []string) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
+	headers := http.Header{}
+	headers.Set("User-Agent", config.Cfg.RelayInformation.Name+"/"+config.Cfg.RelayInformation.Version)
+	headers.Set("X-Nostr-Relay-Contact", config.Cfg.RelayInformation.Contact)
 
 	var firstErr error
 	for _, url := range urls {
-
-		r, err := nostr.RelayConnect(p.Context, url)
-		r.RequestHeader.Set("User-Agent", config.Cfg.RelayInformation.Name+"/"+config.Cfg.RelayInformation.Version)
+		r, err := nostr.RelayConnect(p.Context, url, nostr.WithRequestHeader(headers))
 
 		if err != nil {
 			if firstErr == nil {
@@ -64,7 +71,7 @@ func (p *RelayPool) connectAll(urls []string) error {
 		p.relays[url] = r
 	}
 	if len(p.relays) == 0 {
-		return errors.New("falha ao conectar a todos os relays")
+		return ErrNotRelayConnectedAll
 	}
 	return firstErr
 }
@@ -75,6 +82,7 @@ func (p *RelayPool) reconnectRelay(url string) error {
 	defer p.mu.Unlock()
 
 	if p.relayFailures[url] >= MaxFailures {
+		log.Logger.Warn("Removing Relay from Pool", zap.String("url", url), zap.Error(ErrMaxConnectFailure))
 		delete(p.relays, url)
 		return ErrMaxConnectFailure
 	}
@@ -105,7 +113,7 @@ func Subscribe(filters nostr.Filters) (<-chan *nostr.Event, error) {
 	pool.mu.Unlock()
 
 	if len(relays) == 0 {
-		return nil, errors.New("nenhum relay conectado")
+		return nil, ErrNotRelayConnected
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -142,7 +150,7 @@ func Subscribe(filters nostr.Filters) (<-chan *nostr.Event, error) {
 // Publish envia o evento para todos os relays com timeout e tratamento de erro.
 func Publish(ev *nostr.Event) error {
 	if pool == nil {
-		return errors.New("pool não inicializado, chame Init() primeiro")
+		return ErrPollNotInitialized
 	}
 
 	pool.mu.Lock()
@@ -153,7 +161,7 @@ func Publish(ev *nostr.Event) error {
 	pool.mu.Unlock()
 
 	if len(relays) == 0 {
-		return errors.New("nenhum relay conectado")
+		return ErrNotRelayConnected
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
