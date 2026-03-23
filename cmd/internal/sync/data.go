@@ -1,7 +1,8 @@
 package sync
 
+// ConfSync define a configuração para uma operação de sincronização
 type ConfSync struct {
-	Remote    string // Remote Nostr Server URL
-	Pk        string // Public Key to sync
-	Direction string // Direction of the sync (up, down, both)
+	Remote    string // URL do Relay Remoto (wss://...)
+	Pk        string // Chave Pública (hex ou npub) para filtrar
+	Direction string // "up", "down" ou "both" (atualmente focado em bidirecional)
 }

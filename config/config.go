@@ -63,6 +63,17 @@ func setDefaults(export bool) {
 	viper.SetDefault("db.max_conns", 10)
 	viper.SetDefault("db.min_conns", 1)
 
+	viper.SetDefault("redis.enabled", false)
+	viper.SetDefault("redis.addr", "localhost:6379")
+	viper.SetDefault("redis.password", "")
+	viper.SetDefault("redis.db", 0)
+	viper.SetDefault("redis.pool_size", 10)
+	viper.SetDefault("redis.cache.ban_ttl", 3600)
+	viper.SetDefault("redis.cache.profile_ttl", 300)
+	viper.SetDefault("redis.cache.query_ttl", 30)
+	viper.SetDefault("redis.cache.event_ttl", 600)
+	viper.SetDefault("redis.cache.dedup_ttl", 3600)
+
 	viper.SetDefault("stream_up.enabled", true)
 	viper.SetDefault("stream_down.enabled", false)
 	viper.SetDefault("enable_negentropy", false)

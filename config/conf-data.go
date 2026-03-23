@@ -1,11 +1,12 @@
 package config
 
 import (
+	"net/url"
+	"strings"
+
 	json "github.com/bytedance/sonic"
 	errors2 "github.com/gabrielmoura/nostr-relay-server/internal/errors"
 	"golang.org/x/time/rate"
-	"net/url"
-	"strings"
 )
 
 type Config struct {
@@ -16,6 +17,7 @@ type Config struct {
 	RelayInformation RelayInformationDocument `json:"relay_information" yaml:"relay_information" mapstructure:"relay_information"`
 	Relay            RelayConfig              `json:"relay" yaml:"relay" mapstructure:"relay"`
 	DB               DbConfig                 `json:"db" yaml:"db" mapstructure:"db"`
+	Redis            RedisConfig              `json:"redis" yaml:"redis" mapstructure:"redis"`
 	Stream           WsStreamConfig           `json:"stream" yaml:"stream" mapstructure:"stream"`
 	EnableNegentropy bool                     `json:"enable_negentropy" yaml:"enable_negentropy" mapstructure:"enable_negentropy"`
 	Store            StoreConfig              `json:"store" yaml:"store" mapstructure:"store"`
@@ -56,6 +58,7 @@ type RelayConfig struct {
 	MinimumPOWLimit    int   `json:"-" yaml:"minimum_pow_limit" mapstructure:"minimum_pow_limit"`
 	FakeDeletion       bool  `json:"fake_deletion" yaml:"fake_deletion" mapstructure:"fake_deletion"`
 	VanishEvent        bool  `json:"vanish_event" yaml:"vanish_event" mapstructure:"vanish_event"`
+	EnableEmptyFilter  bool  `json:"enable_empty_filter" yaml:"enable_empty_filter" mapstructure:"enable_empty_filter"`
 }
 type WsConfig struct {
 	ReteLimit rate.Limit `json:"rate_limit" yaml:"rate_limit" mapstructure:"rate_limit"`
@@ -65,6 +68,23 @@ type WsConfig struct {
 type Anon struct {
 	I2p       string `json:"i2p" yaml:"i2p" mapstructure:"i2p"`
 	EnableI2p bool   `json:"enable_i2p" yaml:"enable_i2p" mapstructure:"enable_i2p"`
+}
+
+type RedisConfig struct {
+	Enabled  bool           `json:"enabled" yaml:"enabled" mapstructure:"enabled"`
+	Addr     string         `json:"addr" yaml:"addr" mapstructure:"addr"`
+	Password string         `json:"password" yaml:"password" mapstructure:"password"`
+	DB       int            `json:"db" yaml:"db" mapstructure:"db"`
+	PoolSize int            `json:"pool_size" yaml:"pool_size" mapstructure:"pool_size"`
+	Cache    CacheTTLConfig `json:"cache" yaml:"cache" mapstructure:"cache"`
+}
+
+type CacheTTLConfig struct {
+	BanTTL     int `json:"ban_ttl" yaml:"ban_ttl" mapstructure:"ban_ttl"`
+	ProfileTTL int `json:"profile_ttl" yaml:"profile_ttl" mapstructure:"profile_ttl"`
+	QueryTTL   int `json:"query_ttl" yaml:"query_ttl" mapstructure:"query_ttl"`
+	EventTTL   int `json:"event_ttl" yaml:"event_ttl" mapstructure:"event_ttl"`
+	DedupTTL   int `json:"dedup_ttl" yaml:"dedup_ttl" mapstructure:"dedup_ttl"`
 }
 
 func (cfg *RelayInformationDocument) ToJson() (data []byte, err error) {

@@ -1,6 +1,8 @@
 package req
 
 import (
+	"time"
+
 	json "github.com/bytedance/sonic"
 	"github.com/gabrielmoura/nostr-relay-server/config"
 	"github.com/gabrielmoura/nostr-relay-server/infra/handler/listener"
@@ -12,7 +14,6 @@ import (
 	policies2 "github.com/gabrielmoura/nostr-relay-server/internal/policies"
 	"github.com/nbd-wtf/go-nostr"
 	"go.uber.org/zap"
-	"time"
 )
 
 func DoREQ(ws *dto.WsServer, data dto.Data) string {
@@ -55,18 +56,20 @@ func DoREQ(ws *dto.WsServer, data dto.Data) string {
 	}
 
 	for _, filter := range filters {
-		if reject, msg := policies2.P.NoEmptyFilters(ws.Ctx, filter); reject {
-			log.Logger.Warn(
-				"empty-filter",
-				zap.String("reason", msg),
-				zap.String("filter", filter.String()),
-				zap.String("ip", ws.Conn.IP()),
-			)
-			ws.ChanSender <- nostr.ClosedEnvelope{
-				Reason:         msg,
-				SubscriptionID: id,
+		if !config.Cfg.Relay.EnableEmptyFilter {
+			if reject, msg := policies2.P.NoEmptyFilters(ws.Ctx, filter); reject {
+				log.Logger.Warn(
+					"empty-filter",
+					zap.String("reason", msg),
+					zap.String("filter", filter.String()),
+					zap.String("ip", ws.Conn.IP()),
+				)
+				ws.ChanSender <- nostr.ClosedEnvelope{
+					Reason:         msg,
+					SubscriptionID: id,
+				}
+				return ""
 			}
-			return ""
 		}
 
 		// caso não haja autenticação, não permitir baixar eventos sem autor.

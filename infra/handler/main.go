@@ -5,6 +5,7 @@ import (
 	"github.com/gabrielmoura/nostr-relay-server/infra/metrics"
 	"github.com/gabrielmoura/nostr-relay-server/internal/dto"
 	"github.com/gofiber/contrib/websocket"
+	"github.com/nbd-wtf/go-nostr"
 	"go.uber.org/zap"
 	"time"
 )
@@ -20,7 +21,7 @@ const (
 	pingPeriod = pongWait / 2
 
 	// Maximum message size allowed from peer.
-	maxMessageSize = 512000
+	maxMessageSize = 1024 * 1024 // 1 MB
 )
 
 func HandleWS(wss *dto.WsServer) {
@@ -56,6 +57,15 @@ func HandleWS(wss *dto.WsServer) {
 	}()
 	for {
 		typ, message, err := wss.Conn.ReadMessage()
+		if len(message) > maxMessageSize {
+			log.Logger.Warn(
+				"message too large",
+				zap.String("for", wss.Conn.IP()),
+				zap.Int("size", len(message)),
+			)
+			wss.ChanSender <- nostr.NoticeEnvelope("message too large")
+			return
+		}
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(
 				err,

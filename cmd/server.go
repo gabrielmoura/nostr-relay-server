@@ -3,9 +3,13 @@ package cmd
 import (
 	"context"
 	"fmt"
+
 	"github.com/gabrielmoura/nostr-relay-server/config"
+	"github.com/gabrielmoura/nostr-relay-server/infra/cache"
 	"github.com/gabrielmoura/nostr-relay-server/infra/metrics"
 	"github.com/gabrielmoura/nostr-relay-server/infra/net"
+	"github.com/gabrielmoura/nostr-relay-server/infra/pubsub"
+	"github.com/gabrielmoura/nostr-relay-server/infra/redis"
 	"github.com/gabrielmoura/nostr-relay-server/internal/bootstrap"
 	"github.com/gabrielmoura/nostr-relay-server/internal/db"
 	policies2 "github.com/gabrielmoura/nostr-relay-server/internal/policies"
@@ -39,6 +43,15 @@ func runServer(cmd *cobra.Command, args []string) {
 		mainCtx, mainCancel := context.WithCancel(context.Background())
 		defer mainCancel()
 
+		// Iniciar Redis (cache + pub/sub)
+		if err := redis.Init(&config.Cfg.Redis); err != nil {
+			log.Logger.Warn("Redis initialization failed, continuing without Redis", zap.Error(err))
+		}
+		cache.Init()
+		if err := pubsub.Init(); err != nil {
+			log.Logger.Warn("PubSub initialization failed, continuing without pub/sub", zap.Error(err))
+		}
+
 		// Iniciar Conexão com o banco de dados
 		if err := db.Init(mainCtx); err != nil {
 			log.Logger.Fatal("Erro ao iniciar conexão com o banco de dados", zap.Error(err))
@@ -67,6 +80,11 @@ func runServer(cmd *cobra.Command, args []string) {
 
 			mainCancel()
 
+			// Shutdown pubsub
+			if ps := pubsub.GetPubSub(); ps != nil {
+				ps.Close()
+			}
+
 			// Chamar o método Shutdown do servidor
 			if err := ex.Shutdown(); err != nil {
 				log.Logger.Fatal("Erro ao desligar o servidor", zap.Error(err))
@@ -75,6 +93,10 @@ func runServer(cmd *cobra.Command, args []string) {
 				log.Logger.Fatal("Erro ao desligar o servidor", zap.Error(err))
 			}
 
+			// Fechar conexão Redis
+			if client := redis.GetClient(); client != nil {
+				client.Close()
+			}
 		}()
 
 		if bootstrapFlag {

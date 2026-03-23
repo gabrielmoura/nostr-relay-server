@@ -6,142 +6,394 @@ import (
 	"time"
 
 	json "github.com/bytedance/sonic"
-	"github.com/dgraph-io/ristretto/v2"
+	"github.com/gabrielmoura/nostr-relay-server/config"
+	"github.com/gabrielmoura/nostr-relay-server/infra/log"
+	"github.com/gabrielmoura/nostr-relay-server/infra/redis"
+	goredis "github.com/redis/go-redis/v9"
+	"go.uber.org/zap"
 )
 
-// O cache agora é fortemente tipado para armazenar valores como []byte.
-var cache *ristretto.Cache[string, []byte]
-var initialized bool
+var (
+	initialized bool
+	redisClient *redis.Client
+)
 
-// UserBanned define a estrutura para dados de banimento de usuário.
 type UserBanned struct {
 	Reason string `json:"r"`
 	Banned bool   `json:"b"`
 }
 
-// GetUserBannedByKey é uma assinatura de função para buscar o status de banimento de um usuário.
 type GetUserBannedByKey func(ctx context.Context, key string) (reason string, exists bool, err error)
 
-// Init inicializa o cache global com a configuração para armazenar []byte.
 func Init() error {
-	var err error
-	// A configuração agora especifica [string, []byte] para segurança de tipos.
-	cache, err = ristretto.NewCache(&ristretto.Config[string, []byte]{
-		NumCounters: 1e7,      // Número de chaves para rastrear a frequência (10M).
-		MaxCost:     10 << 20, // Custo máximo do cache (10MB).
-		BufferItems: 64,       // Número de chaves por buffer Get.
-	})
-	if err == nil {
+	redisClient = redis.GetClient()
+	if redisClient != nil && redisClient.IsEnabled() {
 		initialized = true
+		log.Logger.Info("Redis cache initialized")
+	} else {
+		log.Logger.Info("Redis cache disabled, using no-cache mode")
 	}
-	return err
+	return nil
 }
 
-// Set armazena um valor []byte no cache. O custo é calculado como o comprimento do slice de bytes.
-func Set(key string, value []byte) bool {
-	if len(value) == 0 {
-		return false
+func GetRedis() *redis.Client {
+	return redisClient
+}
+
+func IsEnabled() bool {
+	return initialized && redisClient != nil && redisClient.IsEnabled()
+}
+
+func Set(key string, value string) error {
+	if !IsEnabled() {
+		return nil
 	}
-	result := cache.Set(key, value, int64(len(value)))
-	cache.Wait() // Aguarda o valor passar pelos buffers para garantir a escrita.
-	return result
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+	return redisClient.Set(ctx, key, value, 0)
 }
 
-// Get recupera um valor []byte do cache.
-func Get(key string) ([]byte, bool) {
-	return cache.Get(key)
-}
-
-// Delete remove uma chave do cache.
-func Delete(key string) {
-	cache.Del(key)
-	cache.Wait() // Garante que a exclusão seja processada.
-}
-
-// SetWithTTL armazena um valor []byte no cache com um tempo de vida (TTL) específico.
-func SetWithTTL(key string, value []byte, ttl time.Duration) bool {
-	if len(value) == 0 {
-		return false
+func SetWithTTL(key string, value string, ttl time.Duration) error {
+	if !IsEnabled() {
+		return nil
 	}
-	result := cache.SetWithTTL(key, value, int64(len(value)), ttl)
-	cache.Wait() // Garante que a escrita seja processada.
-	return result
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+	return redisClient.Set(ctx, key, value, ttl)
 }
 
-// CheckSpam verifica se uma chave excedeu um limite de acesso, usando o cache para contagem.
+func Get(key string) (string, error) {
+	if !IsEnabled() {
+		return "", goredis.Nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+	return redisClient.Get(ctx, key)
+}
+
+func Delete(key string) error {
+	if !IsEnabled() {
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+	return redisClient.Del(ctx, key)
+}
+
+func SetNX(key string, value string, ttl time.Duration) (bool, error) {
+	if !IsEnabled() {
+		return false, nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+	return redisClient.SetNX(ctx, key, value, ttl)
+}
+
 func CheckSpam(key string, threshold int) (bool, error) {
 	spamKey := key + "_spam"
-	value, found := Get(spamKey)
 
-	if !found {
-		SetWithTTL(spamKey, []byte(strconv.Itoa(1)), time.Minute*5)
+	if !IsEnabled() {
 		return false, nil
 	}
 
-	count, err := strconv.Atoi(string(value))
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+
+	count, err := redisClient.Incr(ctx, spamKey)
 	if err != nil {
 		return false, err
 	}
 
-	if count >= threshold {
-		return true, nil
+	if count == 1 {
+		redisClient.Expire(ctx, spamKey, 5*time.Minute)
 	}
 
-	newCount := strconv.Itoa(count + 1)
-	SetWithTTL(spamKey, []byte(newCount), time.Minute*5)
-
-	return false, nil
+	return count >= int64(threshold), nil
 }
 
-// GetBanned recupera o status de banimento de um usuário do cache.
 func GetBanned(pubKey string) (reason string, banned bool, found bool) {
-	rawJSON, foundInCache := Get(pubKey)
-	if !foundInCache {
+	if !IsEnabled() {
+		return "", false, false
+	}
+
+	bannedKey := "ban:" + pubKey
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+
+	rawJSON, err := redisClient.Get(ctx, bannedKey)
+	if err != nil {
 		return "", false, false
 	}
 
 	var userStatus UserBanned
-	if err := json.Unmarshal(rawJSON, &userStatus); err != nil {
+	if err := json.Unmarshal([]byte(rawJSON), &userStatus); err != nil {
 		return "", false, false
 	}
 
 	return userStatus.Reason, userStatus.Banned, true
 }
 
-// SetBanned armazena o status de banimento de um usuário no cache.
 func SetBanned(pubKey string, val *UserBanned) error {
+	if !IsEnabled() {
+		return nil
+	}
+
 	rawJSON, err := json.Marshal(val)
 	if err != nil {
 		return err
 	}
-	SetWithTTL(pubKey, rawJSON, 5*time.Minute)
+
+	bannedKey := "ban:" + pubKey
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+
+	ttl := time.Duration(config.Cfg.Redis.Cache.BanTTL) * time.Second
+	if ttl == 0 {
+		ttl = time.Hour
+	}
+
+	return redisClient.Set(ctx, bannedKey, string(rawJSON), ttl)
+}
+
+func SetProfile(pubKey string, val *ProfileCache) error {
+	if !IsEnabled() {
+		return nil
+	}
+
+	rawJSON, err := json.Marshal(val)
+	if err != nil {
+		return err
+	}
+
+	profileKey := "profile:" + pubKey
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+
+	ttl := time.Duration(config.Cfg.Redis.Cache.ProfileTTL) * time.Second
+	if ttl == 0 {
+		ttl = 5 * time.Minute
+	}
+
+	return redisClient.Set(ctx, profileKey, string(rawJSON), ttl)
+}
+
+func GetProfile(pubKey string) (*ProfileCache, bool) {
+	if !IsEnabled() {
+		return nil, false
+	}
+
+	profileKey := "profile:" + pubKey
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+
+	rawJSON, err := redisClient.Get(ctx, profileKey)
+	if err != nil {
+		return nil, false
+	}
+
+	var profile ProfileCache
+	if err := json.Unmarshal([]byte(rawJSON), &profile); err != nil {
+		return nil, false
+	}
+
+	return &profile, true
+}
+
+func SetEvent(eventID string, val string) error {
+	if !IsEnabled() {
+		return nil
+	}
+
+	eventKey := "event:" + eventID
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+
+	ttl := time.Duration(config.Cfg.Redis.Cache.EventTTL) * time.Second
+	if ttl == 0 {
+		ttl = 10 * time.Minute
+	}
+
+	return redisClient.Set(ctx, eventKey, val, ttl)
+}
+
+func GetEvent(eventID string) (string, bool) {
+	if !IsEnabled() {
+		return "", false
+	}
+
+	eventKey := "event:" + eventID
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+
+	val, err := redisClient.Get(ctx, eventKey)
+	if err != nil {
+		return "", false
+	}
+
+	return val, true
+}
+
+func SetDedup(eventID string) (bool, error) {
+	if !IsEnabled() {
+		return false, nil
+	}
+
+	dedupKey := "dedup:" + eventID
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+
+	ttl := time.Duration(config.Cfg.Redis.Cache.DedupTTL) * time.Second
+	if ttl == 0 {
+		ttl = time.Hour
+	}
+
+	set, err := redisClient.SetNX(ctx, dedupKey, "1", ttl)
+	return !set, err
+}
+
+func SetQueryResult(filterHash string, val string) error {
+	if !IsEnabled() {
+		return nil
+	}
+
+	queryKey := "query:" + filterHash
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+
+	ttl := time.Duration(config.Cfg.Redis.Cache.QueryTTL) * time.Second
+	if ttl == 0 {
+		ttl = 30 * time.Second
+	}
+
+	return redisClient.Set(ctx, queryKey, val, ttl)
+}
+
+func GetQueryResult(filterHash string) (string, bool) {
+	if !IsEnabled() {
+		return "", false
+	}
+
+	queryKey := "query:" + filterHash
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+
+	val, err := redisClient.Get(ctx, queryKey)
+	if err != nil {
+		return "", false
+	}
+
+	return val, true
+}
+
+func InvalidateQueryCache() error {
+	if !IsEnabled() {
+		return nil
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	var cursor uint64
+	for {
+		keys, nextCursor, err := redisClient.Scan(ctx, cursor, "query:*", 100)
+		if err != nil {
+			return err
+		}
+
+		if len(keys) > 0 {
+			if err := redisClient.Del(ctx, keys...); err != nil {
+				log.Logger.Warn("failed to delete query cache keys", zap.Error(err))
+			}
+		}
+
+		cursor = nextCursor
+		if cursor == 0 {
+			break
+		}
+	}
+
 	return nil
 }
 
-// WrapGetBanned é um middleware que adiciona uma camada de cache à lógica de verificação de banimento.
+type ProfileCache struct {
+	Name        string `json:"name,omitempty"`
+	DisplayName string `json:"display_name,omitempty"`
+	About       string `json:"about,omitempty"`
+	Picture     string `json:"picture,omitempty"`
+	Website     string `json:"website,omitempty"`
+	NIP05       string `json:"nip05,omitempty"`
+	LUD16       string `json:"lud16,omitempty"`
+	Bot         bool   `json:"bot,omitempty"`
+}
+
 func WrapGetBanned(internalLookup GetUserBannedByKey) GetUserBannedByKey {
-	if initialized {
-		return func(ctx context.Context, key string) (reason string, exists bool, err error) {
-			bannedKey := key + "_banned"
-
-			cachedReason, isBanned, foundInCache := GetBanned(bannedKey)
-
-			if foundInCache {
-				return cachedReason, isBanned, nil
-			}
-
-			reason, exists, err = internalLookup(ctx, key)
-			if err != nil {
-				return "", false, err
-			}
-
-			if err := SetBanned(bannedKey, &UserBanned{Reason: reason, Banned: exists}); err != nil {
-				// Opcional: logar o erro do cache.
-			}
-
-			return reason, exists, nil
+	return func(ctx context.Context, key string) (reason string, exists bool, err error) {
+		if !IsEnabled() {
+			return internalLookup(ctx, key)
 		}
-	} else {
-		return internalLookup
+
+		bannedKey := "ban:" + key
+
+		cachedReason, isBanned, foundInCache := GetBanned(key)
+		if foundInCache {
+			if isBanned {
+				return cachedReason, true, nil
+			}
+			return "", false, nil
+		}
+
+		reason, exists, err = internalLookup(ctx, key)
+		if err != nil {
+			return "", false, err
+		}
+
+		if err := SetBanned(key, &UserBanned{Reason: reason, Banned: exists}); err != nil {
+			log.Logger.Debug("failed to cache ban status", zap.String("key", bannedKey), zap.Error(err))
+		}
+
+		return reason, exists, nil
 	}
+}
+
+func IncrCounter(key string) (int64, error) {
+	if !IsEnabled() {
+		return 0, nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+	return redisClient.Incr(ctx, key)
+}
+
+func IncrCounterWithExpiry(key string, expiry time.Duration) (int64, error) {
+	if !IsEnabled() {
+		return 0, nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+
+	count, err := redisClient.Incr(ctx, key)
+	if err != nil {
+		return count, err
+	}
+
+	if count == 1 {
+		redisClient.Expire(ctx, key, expiry)
+	}
+
+	return count, nil
+}
+
+func GetCounter(key string) (int64, error) {
+	if !IsEnabled() {
+		return 0, nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+
+	val, err := redisClient.Get(ctx, key)
+	if err != nil {
+		return 0, err
+	}
+
+	return strconv.ParseInt(val, 10, 64)
 }

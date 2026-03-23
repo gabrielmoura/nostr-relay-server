@@ -58,8 +58,8 @@ Começar a rodar seu próprio relay é muito simples.
     > ```
 
 Pronto! Seu relay estará acessível em:
-- **WebSocket (para clientes Nostr):** `ws://localhost:9090/relay`
-- **Métricas (para Prometheus):** `http://localhost:9090/metrics`
+- **WebSocket (para clientes Nostr):** `ws://localhost:9090`
+- **Métricas (para Prometheus):** `http://localhost:9091/metrics`
 
 ---
 

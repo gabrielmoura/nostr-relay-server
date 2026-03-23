@@ -1,5 +1,5 @@
-port: 9090
-app_env: development
+port: 4869
+app_env: production
 ws:
     rate_limit: 1
     burst: 5
@@ -11,9 +11,9 @@ relay_information:
     pub_key: "7ef721e77149c737014971b141b0b590a5ebe82b79130228cdbe56e9be2d8e50"
     priv_key: "e4d347b85fe3429ac1995d3eab801a3858990f66fb0"
     supported_nips:
-        - 11
-        - 1
-        - 2
+        - 11 # Documento de informações do relé
+        - 1 # Descrição básica do fluxo do protocolo
+        - 2 # Lista de seguidores
         - 4
         - 25
         - 9
@@ -33,24 +33,25 @@ relay:
     query_limit: 100
     query_ids_limit: 500
     query_authors_limit: 500
-    query_kinds_limit: 10
-    query_tags_limit: 100
+    query_kinds_limit: 500
+    query_tags_limit: 400
     keep_recent_events: true
     max_size_event_in_bytes: 100000
     filter_limit: 9999999999
     reporting_limit: 5
     enable_anonymous_req: true
     max_tag_value_length: 150
+    enable_empty_filter: true
 db:
-    max_conns: 10
+    max_conns: 50
     min_conns: 1
     postgres_uri: postgres://postgres:Strong@P4ssword@127.0.0.1:5432/nostr
 stream:
     relays:
         - ws://127.0.0.1:7777
         - ws://node-ior.webhop.me:6000
-    stream_down: true
-    stream_up: true
+    stream_down: false
+    stream_up: false
 store:
     enabled: true
     api_path: http://localhost:9090/upload

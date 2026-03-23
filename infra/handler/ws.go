@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"strings"
+
 	json "github.com/bytedance/sonic"
 	"github.com/gabrielmoura/nostr-relay-server/config"
 	"github.com/gabrielmoura/nostr-relay-server/infra/handler/auth"
@@ -14,7 +16,6 @@ import (
 	"github.com/gabrielmoura/nostr-relay-server/pkg/negentropy"
 	"github.com/nbd-wtf/go-nostr"
 	"go.uber.org/zap"
-	"strings"
 )
 
 func handleMessage(ws *dto.WsServer, message []byte) {

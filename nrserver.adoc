@@ -1,0 +1,375 @@
+== Nostr Relay Server ⚡
+
+image:https://img.shields.io/github/issues/gabrielmoura/nostr-relay-server?style=for-the-badge[GitHub
+issues]
+image:https://img.shields.io/github/forks/gabrielmoura/nostr-relay-server?style=for-the-badge[GitHub
+forks]
+image:https://img.shields.io/github/stars/gabrielmoura/nostr-relay-server?style=for-the-badge[GitHub
+stars]
+https://deepwiki.com/gabrielmoura/nostr-relay-server[image:https://deepwiki.com/badge.svg[Ask
+DeepWiki]]
+
+Seu próprio servidor Nostr, simples, poderoso e pronto para rodar. Este
+projeto oferece um relay Nostr de alta performance com tudo que você
+precisa para entrar na rede descentralizada.
+
+=== ✨ Funcionalidades
+
+* *Suporte aos NIPs Essenciais:* Compatível com os principais NIPs para
+uma experiência completa na rede Nostr.
+* *Armazenamento de Mídia (NIP-96):* Servidor de armazenamento integrado
+para blobs (imagens, vídeos), seguindo o padrão Blossom.
+* *Sincronização Negentropy:* Mantenha seu relay sincronizado com outros
+peers de forma eficiente.
+* *Ferramentas de Gerenciamento:* Importe, exporte e gerencie eventos
+com facilidade via linha de comando.
+* *Monitoramento com Prometheus:* Exponha métricas detalhadas para
+acompanhar a saúde e o desempenho do seu relay.
+* *Configuração Flexível:* Ajuste todos os aspectos do relay através de
+um arquivo `+config.yml+` simples e bem documentado.
+
+'''''
+
+=== 📚 Tabela de Conteúdos
+
+[arabic]
+. link:#-início-rápido[🚀 Início Rápido]
+. link:#-comandos-disponíveis[🧰 Comandos Disponíveis]
+* link:#-iniciar-o-servidor[Iniciar o Servidor]
+* link:#-gerenciar-configuração[Gerenciar Configuração]
+* link:#-importar-eventos[Importar Eventos]
+* link:#-exportar-eventos[Exportar Eventos]
+* link:#-sincronizar-com-outro-relay[Sincronizar com Outro Relay]
+* link:#-executar-tarefas-agendadas-cron[Executar Tarefas Agendadas
+(Cron)]
+* link:#-migrar-banco-de-dados[Migrar Banco de Dados]
+. link:#️-configuração-padrão[⚙️ Configuração Padrão]
+. link:++#-monitoramento-com-prometheus--grafana++[📊 Monitoramento com
+Prometheus & Grafana]
+. link:#-perguntas-frequentes-faq[❓ Perguntas Frequentes (FAQ)]
+. link:#-como-contribuir[🤝 Como Contribuir]
+. link:#-licença[📜 Licença]
+
+'''''
+
+=== 🚀 Início Rápido
+
+Começar a rodar seu próprio relay é muito simples.
+
+[arabic]
+. *Gere o arquivo de configuração:* `+bash     nrserver conf write+`
+. *Ajuste o arquivo `+config.yml+`* com as suas preferências (como
+porta, chaves e conexão com o banco de dados).
+. *Inicie o servidor:* `+bash     nrserver server+` > 💡 *Dica:* Para
+popular o servidor com dados iniciais (perfil, informações do relay,
+etc.), use a flag `+--bootstrap+`. >
+`+bash     > nrserver server --bootstrap     >+`
+
+Pronto! Seu relay estará acessível em: - *WebSocket (para clientes
+Nostr):* `+ws://localhost:9090+` - *Métricas (para Prometheus):*
+`+http://localhost:9091/metrics+`
+
+'''''
+
+=== 🧰 Comandos Disponíveis
+
+Aqui estão todos os comandos que você pode usar para gerenciar seu
+relay.
+
+==== 🛰️ Iniciar o Servidor
+
+Inicia o relay Nostr, pronto para receber conexões de clientes.
+
+[source,bash]
+----
+nrserver server [flags]
+----
+
+*Flags:* | Flag | Descrição | Padrão | | :— | :— | :— | | `+-b+`,
+`+--bootstrap+` | Habilita o bootstrap, criando eventos iniciais (Kind
+0, 411, 10002, 10063). | `+false+` | | `+-c+`, `+--config+` | Habilita o
+uso de um arquivo de configuração. | `+true+` | | `+-h+`, `+--help+` |
+Mostra a ajuda para este comando. | |
+
+==== 📝 Gerenciar Configuração
+
+Crie ou imprima o arquivo de configuração.
+
+[source,bash]
+----
+nrserver conf [command]
+----
+
+*Comandos:* - `+print+`: Imprime a configuração atual no console. -
+`+write+`: Escreve o arquivo de configuração padrão (`+config.yml+`) no
+diretório atual.
+
+==== 📥 Importar Eventos
+
+Popule seu relay com eventos a partir de um arquivo `+.jsonl+`.
+
+[source,bash]
+----
+nrserver import [flags]
+----
+
+*Flags:* | Flag | Descrição | Padrão | | :— | :— | :— | | `+-f+`,
+`+--file+` | Arquivo JSONL para importar. | `+events.jsonl+` | | `+-b+`,
+`+--batch-size+` | Quantidade de eventos por lote de importação. |
+`+100+` | | `+-w+`, `+--num-workers+`| Número de workers para importação
+paralela. | `+2+` |
+
+==== 📤 Exportar Eventos
+
+Exporte todos os eventos do seu banco de dados para um arquivo
+`+.jsonl+`.
+
+[source,bash]
+----
+nrserver export [flags]
+----
+
+*Flags:* | Flag | Descrição | Padrão | | :— | :— | :— | | `+-f+`,
+`+--file+` | Arquivo de destino para a exportação. |
+`+export-TIMESTAMP.jsonl+`| | `+-b+`, `+--batch-size+` | Quantidade de
+eventos por lote de exportação. | `+100+` | | `+-w+`,
+`+--writer-workers+` | Número de workers para escrita paralela. | `+2+`
+|
+
+==== 🔄 Sincronizar com Outro Relay
+
+Sincronize eventos com um relay remoto usando o protocolo *Negentropy*.
+
+____
+⚠️ *Atenção:* Este método só funciona se o relay remoto também tiver
+Negentropy implementado.
+____
+
+[source,bash]
+----
+nrserver sync [flags]
+----
+
+*Flags:* | Flag | Descrição | Padrão | | :— | :— | :— | | `+-r+`,
+`+--remote+` | Endereço do servidor Nostr remoto (ex:
+`+wss://relay.damus.io+`). | | | `+-p+`, `+--pk+` | Sua chave pública
+(opcional). | | | `+-d+`, `+--direction+`| Direção da sincronização
+(`+up+`, `+down+`, `+both+`). | `+both+` |
+
+==== ⏰ Executar Tarefas Agendadas (Cron)
+
+Execute tarefas de manutenção.
+
+[source,bash]
+----
+nrserver cron
+----
+
+____
+*O que ele faz?* Este comando é responsável por deletar eventos antigos
+(se habilitado na configuração) e atualizar estatísticas de uso do pool
+de conexões com o banco de dados.
+____
+
+==== 🌱 Migrar Banco de Dados
+
+Prepara o banco de dados com os dados iniciais necessários para o
+funcionamento.
+
+[source,bash]
+----
+nrserver seed
+----
+
+'''''
+
+=== ⚙️ Configuração Padrão
+
+Abaixo está um exemplo do arquivo `+config.yml+` com todas as opções
+disponíveis.
+
+[source,yaml]
+----
+# Porta em que o servidor irá rodar
+port: 9090
+app_env: development
+
+# Configurações do WebSocket
+ws:
+    rate_limit: 1  # Limite de requisições por segundo
+    burst: 5       # Pico de requisições permitidas
+    auth: true     # Exigir autenticação (NIP-42)
+
+# Informações públicas do seu relay (NIP-11)
+relay_information:
+    url: http://localhost:9090
+    name: Nostr Relay Server
+    description: A Nostr Relay Server
+    pub_key: "7ef721e77149c73701497141b0b590a5ebe82b79130228cdbe56e9be2d8e50"
+    priv_key: "e4d347b85fe3429ac1995d3eab801a3858990f66fb0"
+    supported_nips: [1, 2, 4, 9, 11, 17, 25, 45]
+    software: https://github.com/gabrielmoura/nostr-relay-server
+    version: 0.1.0
+    canonical_url: ws://localhost:9090/relay
+    icon: http://localhost:9090/nostr.png
+
+# Limites e regras do relay
+relay:
+    query_limit: 100
+    query_ids_limit: 500
+    query_authors_limit: 500
+    query_kinds_limit: 10
+    query_tags_limit: 100
+    keep_recent_events: true
+    max_size_event_in_bytes: 100000
+    filter_limit: 9999999999
+    reporting_limit: 5
+    enable_anonymous_req: true
+    max_tag_value_length: 150
+
+# Configurações do Banco de Dados (PostgreSQL)
+db:
+    max_conns: 10
+    min_conns: 1
+    postgres_uri: postgres://postgres:Strong@P4ssword@127.0.0.1:5432/nostr
+
+# Sincronização de eventos com outros relays
+stream:
+  relays:
+    - wss://nostr.azzamo.net
+    - wss://relay.damus.io
+  stream_up: false
+  stream_down: false
+# Configurações de armazenamento de mídia (Blossom - NIP-96)
+store:
+    enabled: true
+    api_path: http://localhost:9090/upload
+    media_path: http://localhost:9090/blob
+    accepted_mimetypes:
+        - image/jpeg
+        - image/png
+        - video/mp4
+    allow_adult_content: false
+    allow_violent_content: false
+    names: []
+----
+
+'''''
+
+=== 📊 Monitoramento com Prometheus & Grafana
+
+Acompanhe o desempenho do seu relay com ferramentas de monitoramento
+padrão de mercado.
+
+==== 1. Configurando o Prometheus
+
+Crie um arquivo `+prometheus.yml+` para que o Prometheus possa encontrar
+as métricas do seu relay.
+
+[source,yaml]
+----
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: 'nostr-relay'
+    scrape_interval: 5s
+    static_configs:
+      - targets: ['host.docker.internal:9090'] # Use 'localhost:9090' se não estiver usando Docker
+----
+
+Execute o Prometheus (exemplo com Docker):
+
+[source,bash]
+----
+docker run -d \
+  -p 9090:9090 \
+  --name prometheus \
+  -v ./prometheus.yml:/etc/prometheus/prometheus.yml \
+  --add-host=host.docker.internal:host-gateway \
+  prom/prometheus
+----
+
+==== 2. Visualizando com Grafana
+
+Use o Grafana para criar dashboards visuais com as métricas coletadas.
+
+[arabic]
+. *Execute o Grafana* (exemplo com Docker):
+`+bash     docker run -d \       --name=grafana \       -p 3000:3000 \       --add-host=host.docker.internal:host-gateway \       grafana/grafana-enterprise+`
+. Acesse `+http://localhost:3000+` (login padrão: `+admin+`/`+admin+`).
+. Adicione o Prometheus como uma fonte de dados (`+DataSource+`).
+. *Importe um dashboard!* Você pode usar o arquivo `+grafana.json+`
+deste repositório como ponto de partida.
+
+____
+🎨 *Observação:* O dashboard fornecido é básico. Sinta-se à vontade para
+melhorá-lo e enviar um Pull Request! Sua contribuição é muito bem-vinda.
+____
+
+'''''
+
+=== ❓ Perguntas Frequentes (FAQ)
+
+*Como hospedar este relay em um Raspberry Pi?*
+
+É totalmente possível! A maneira mais fácil é usando Docker: 1. Instale
+o Docker e o Docker Compose no seu Raspberry Pi. 2. Crie um arquivo
+`+docker-compose.yml+` para orquestrar o relay e o banco de dados
+PostgreSQL. 3. Use uma imagem Docker compatível com a arquitetura ARM
+(como as imagens oficiais do PostgreSQL e uma imagem Go compilada para
+ARM). 4. Configure as variáveis de ambiente e volumes no
+`+docker-compose.yml+` e inicie com `+docker-compose up -d+`.
+
+*Como hospedar na Deep Web (via Tor)?*
+
+Para expor seu relay como um serviço oculto do Tor, siga estes passos:
+1. Instale e configure o Tor em seu servidor. 2. Edite o arquivo de
+configuração do Tor (`+torrc+`) para criar um novo `+HiddenService+`.
+Aponte a porta do serviço oculto para a porta local onde seu relay está
+rodando (ex: `+127.0.0.1:9090+`). 3. Após reiniciar o Tor, ele criará um
+hostname `+.onion+` para o seu serviço. 4. *Importante:* Atualize o
+`+canonical_url+` no seu `+config.yml+` para o endereço
+`+ws://SEU_HOSTNAME.onion+`. Isso garantirá que seu relay anuncie o
+endereço correto na rede Nostr. 5. Use `+HTTP_PROXY+` para direcionar o
+tráfego do relay através do Tor, se necessário conforme
+https://pkg.go.dev/net/http#ProxyFromEnvironment.
+
+'''''
+
+=== 📚 Protocolos Imlpementado
+
+* https://github.com/hzrd149/blossom/blob/master/buds/01.md[BUD 01]
+* https://github.com/hzrd149/blossom/blob/master/buds/02.md[BUD 02]
+* https://github.com/nostr-protocol/nips/blob/master/40.md[NIP 40]
+* https://github.com/nostr-protocol/nips/blob/master/98.md[NIP 98]
+* https://github.com/nostr-protocol/nips/blob/master/01.md[NIP 01]
+* https://github.com/nostr-protocol/nips/blob/master/77.md[NIP 77]
+* https://github.com/nostr-protocol/nips/blob/master/42.md[NIP 42 -
+Authentication of clients to relays]
+* https://github.com/nostr-protocol/nips/blob/master/09.md[NIP 09 -
+Event Deletion Request]
+* https://github.com/nostr-protocol/nips/blob/master/50.md[NIP-50 -
+Search Capability]
+* https://github.com/nostr-protocol/nips/blob/master/62.md[NIP-62 -
+Request to Vanish]
+
+=== 🤝 Como Contribuir
+
+Sua ajuda é muito bem-vinda para tornar este projeto ainda melhor!
+
+* *Reporte Bugs:* Encontrou um problema? Abra uma
+https://github.com/gabrielmoura/nostr-relay-server/issues[Issue].
+* *Sugira Melhorias:* Tem uma ideia para uma nova funcionalidade? Abra
+uma https://github.com/gabrielmoura/nostr-relay-server/issues[Issue]
+para discutirmos.
+* *Envie Pull Requests:* Faça um fork do projeto, crie uma branch para
+sua alteração e envie um PR.
+
+'''''
+
+=== 📜 Licença
+
+Este projeto ainda não possui uma licença definida. Sinta-se à vontade
+para contribuir, mas lembre-se de que o código é fornecido "`como está`"
+sem garantias de qualquer tipo.
