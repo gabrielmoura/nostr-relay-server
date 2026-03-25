@@ -7,6 +7,8 @@ The Nostr Relay Server exposes two HTTP servers:
 1. **External (Port)**: Public relay interface for Nostr clients
 2. **Internal (Port+1)**: Admin and metrics endpoints
 
+If `admin_token` is configured, all `/admin/*` endpoints require header `X-Admin-Token: <token>`.
+
 ## WebSocket Protocol (NIP-01)
 
 All Nostr communication happens over WebSocket using JSON messages.
@@ -211,6 +213,377 @@ Prometheus metrics endpoint.
 Admin interface placeholder.
 
 **Response:** `"Admin Interface"`
+
+### `GET /panel`
+
+Serves the built React admin SPA from `infra/dash/dist` on the internal server.
+
+The production binary embeds the generated `infra/dash/dist` assets using Go `embed`.
+
+### `GET /panel/*`
+
+SPA fallback route for client-side navigation. Static assets are served from `/panel/assets/*`.
+
+### `GET /admin/connections/active`
+
+Returns active WebSocket connections for the current relay instance.
+
+**Query Parameters:**
+- `limit=<n>` - optional window size for virtual scrolling consumers
+- `offset=<n>` - optional zero-based offset for incremental loading
+
+**Response:**
+```json
+{
+  "items": [
+    {
+      "ws_id": "ws_200.188.10.11_1774345260",
+      "ip": "200.188.10.11",
+      "authed": "<pubkey>",
+      "subscription_count": 4,
+      "connected_at": "2026-03-24T09:41:00Z",
+      "last_seen_at": "2026-03-24T09:44:00Z",
+      "user_agent": "WebSocket/Chrome"
+    }
+  ],
+  "total": 1284,
+  "limit": 100,
+  "offset": 0,
+  "has_more": true
+}
+```
+
+### `GET /admin/connections/authed`
+
+Returns authenticated WebSocket connections for the current relay instance.
+
+Supports the same `limit` and `offset` parameters and response envelope used by `GET /admin/connections/active`.
+
+### `POST /admin/connections/:wsid/disconnect`
+
+Terminates a single active WebSocket connection by its administrative identifier.
+
+**Body:**
+```json
+{
+  "reason": "manual moderation"
+}
+```
+
+**Response:**
+```json
+{
+  "ws_id": "ws_200.188.10.11_1774345260",
+  "disconnected": true
+}
+```
+
+### `GET /admin/overview`
+
+Returns the dashboard KPIs required by the admin SPA.
+
+**Response:**
+```json
+{
+  "active_connections": 1284,
+  "authed_connections": 742,
+  "logged_users": 388,
+  "banned_users": 37,
+  "indexed_events": 42300000,
+  "events_per_minute": 2418,
+  "relay_status": "operational"
+}
+```
+
+### `GET /admin/users/logged`
+
+Returns authenticated users grouped by pubkey, with profile metadata and connection counters.
+
+**Query Parameters:**
+- `limit=<n>` - optional window size for virtual scrolling
+- `offset=<n>` - optional zero-based offset for incremental loading
+
+**Response:**
+```json
+{
+  "items": [
+    {
+      "pubkey": "<pubkey>",
+      "npub": "npub1...",
+      "display_name": "Relay Ops BR",
+      "handle": "relayops_br",
+      "picture": "https://...",
+      "nip05": "relayops@nostr.br",
+      "connection_count": 2,
+      "last_seen_at": "2026-03-24T09:44:00Z",
+      "connection_state": "stable"
+    }
+  ],
+  "total": 388,
+  "limit": 100,
+  "offset": 0,
+  "has_more": true
+}
+```
+
+### `GET /admin/users/banned`
+
+Returns banned users joined with their profile metadata.
+
+**Query Parameters:**
+- `q=<text>` - optional search on public key, name, display name or nip05
+- `limit=<n>` - optional window size for virtual scrolling
+- `offset=<n>` - optional zero-based offset for incremental loading
+
+### `GET /admin/users/search`
+
+Searches relay profiles for the admin panel.
+
+**Query Parameters:**
+- `q=<text>` - search over public key, `npub`, name, display name and nip05
+- `limit=<n>` - optional window size for virtual scrolling
+- `offset=<n>` - optional zero-based offset for incremental loading
+
+### `GET /admin/users/:pubkey/profile`
+
+Returns the best-known relay profile plus moderation metadata for a single user.
+
+### `GET /admin/users/:pubkey/ban`
+
+Returns whether a user is banned and the stored reason.
+
+### `POST /admin/users/:pubkey/ban`
+
+Bans a user by public key.
+
+**Body:**
+```json
+{
+  "reason": "spam",
+  "related_ids": ["event-id-1"]
+}
+```
+
+### `DELETE /admin/users/:pubkey/ban`
+
+Removes a user ban by public key.
+
+### `GET /admin/events/search`
+
+Searches stored events by tags and/or full-text search.
+
+**Query Parameters:**
+- `q=<text>` - full-text search query
+- `tag=p:value` - tag filter, repeatable
+- `author=<pubkey>` - author filter, repeatable
+- `kind=<kind>` - kind filter, repeatable
+- `limit=<n>` - result limit
+- `offset=<n>` - zero-based offset used by virtual scrolling/infinite loading
+
+**Response:**
+```json
+{
+  "items": [
+    {
+      "id": "6f9c...d12a",
+      "pubkey": "<pubkey>",
+      "created_at": 1774345260,
+      "kind": 1,
+      "tags": [["t", "relay"]],
+      "content": "Atualizacao do cluster relay",
+      "sig": "..."
+    }
+  ],
+  "total": 1284,
+  "limit": 100,
+  "offset": 0,
+  "has_more": true
+}
+```
+
+### `GET /admin/stream/status`
+
+Returns the current stream forwarding runtime state for admin observability.
+
+**Response:**
+```json
+{
+  "config": {
+    "stream_up": true,
+    "stream_down": false,
+    "relays": ["wss://relay.damus.io", "wss://nos.lol"]
+  },
+  "dispatcher": {
+    "started": true,
+    "worker_count": 2,
+    "event_queue_len": 0,
+    "event_queue_cap": 1024,
+    "request_queue_len": 1,
+    "request_queue_cap": 256,
+    "dropped_event_jobs": 0,
+    "dropped_request_jobs": 0
+  },
+  "pool": {
+    "initialized": true,
+    "connected_relays": 2,
+    "total_relays": 3,
+    "relays": [
+      {"url": "wss://relay.damus.io", "connected": true, "failure_count": 0},
+      {"url": "wss://relay.nostr.band", "connected": false, "failure_count": 4, "last_error": "dial timeout"}
+    ]
+  },
+  "counters": {
+    "forwarded_events": 348,
+    "forwarded_requests": 112,
+    "forward_failures": 5
+  }
+}
+```
+
+### `GET /admin/events/search/aggregates`
+
+Returns aggregation metrics for current event search filters.
+
+**Query Parameters:** same as `GET /admin/events/search`
+
+**Response:**
+```json
+{
+  "total": 1284,
+  "kinds": [{"kind": 1, "count": 830}],
+  "top_authors": [{"pubkey": "<pubkey>", "count": 120}],
+  "top_tags": [{"tag": "relay", "count": 410}]
+}
+```
+
+### `GET /admin/events/search/timeline`
+
+Returns timeline buckets for current event search filters.
+
+**Query Parameters:** same as `GET /admin/events/search`, plus:
+- `bucket=<hour|day>` - timeline granularity (default: `hour`)
+
+**Response:**
+```json
+{
+  "bucket": "hour",
+  "points": [
+    {"ts": 1774382400, "count": 43},
+    {"ts": 1774386000, "count": 58}
+  ]
+}
+```
+
+### `GET /admin/events/:id`
+
+Returns an enriched event detail payload for inspection and moderation.
+
+**Response:**
+```json
+{
+  "event": {"id": "...", "pubkey": "...", "kind": 1, "tags": [], "content": "..."},
+  "identifiers": {
+    "note": "note1...",
+    "nevent": "nevent1...",
+    "npub": "npub1...",
+    "nprofile": "nprofile1..."
+  },
+  "author": {
+    "pubkey": "...",
+    "display_name": "Alice",
+    "picture": "https://..."
+  },
+  "hashtags": ["relay", "nostr"],
+  "image_urls": ["https://.../image.png"]
+}
+```
+
+### `GET /admin/events/:id/reports`
+
+Returns NIP-56 report events tied to an event id.
+
+**Response:**
+```json
+{
+  "items": [
+    {
+      "report_event_id": "...",
+      "reporter_pubkey": "...",
+      "reporter_npub": "npub1...",
+      "reporter_display_name": "Mod 1",
+      "reporter_picture": "https://...",
+      "reported_event_id": "...",
+      "reported_pubkey": "...",
+      "report_type": "spam",
+      "content": "spam campaign",
+      "created_at": 1774386541
+    }
+  ],
+  "total": 12
+}
+```
+
+### `POST /admin/events/:id/fetch`
+
+Fetches a missing event from external relays and persists it locally.
+
+**Request Body:**
+```json
+{
+  "relays": [
+    "wss://relay.damus.io",
+    "wss://relay.primal.net"
+  ]
+}
+```
+
+If `relays` is omitted, the server also tries configured stream relays plus a safe default relay set.
+
+**Response:**
+```json
+{
+  "event_id": "...",
+  "source_relay": "wss://relay.damus.io",
+  "persisted": true,
+  "relays_tried": 6,
+  "relay_results": [
+    {"relay": "wss://relay.damus.io", "status": "found"},
+    {"relay": "wss://relay.primal.net", "status": "not_found"},
+    {"relay": "wss://bad-relay.example", "status": "connect_error", "error": "dial timeout"}
+  ]
+}
+```
+
+### `GET /admin/events/reported`
+
+Lists reported target events (NIP-56 kind `1984`) with moderation-friendly metadata.
+
+**Query Parameters:**
+- `q=<text>` - search by target event id, target pubkey (hex or npub), or report content
+- `type=<spam|nudity|malware|profanity|illegal|impersonation|other>` - optional report type filter
+- `limit=<n>`
+- `offset=<n>`
+
+**Response (`items[]` excerpt):**
+```json
+{
+  "target_event_id": "...",
+  "target_pubkey": "...",
+  "target_nevent": "nevent1...",
+  "target_created_at": 1774380000,
+  "target_created_at_iso": "2026-03-25T12:00:00Z",
+  "target_author": {
+    "pubkey": "...",
+    "display_name": "Alice",
+    "picture": "https://...",
+    "nip05": "alice@example.com"
+  },
+  "report_count": 5,
+  "last_reported": 1774386541,
+  "last_reported_at": "2026-03-25T13:49:01Z",
+  "report_types": ["spam", "malware"]
+}
+```
 
 ## Negentropy Protocol (NIP-47)
 

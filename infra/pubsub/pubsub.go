@@ -18,6 +18,7 @@ const (
 	ChannelWSDisconnect = "ws:disconnect"
 	ChannelSubCreate    = "sub:create"
 	ChannelSubClose     = "sub:close"
+	ChannelSubCleanup   = "sub:cleanup"
 )
 
 type EventMessage struct {
@@ -39,6 +40,10 @@ type SubCreateMessage struct {
 type SubCloseMessage struct {
 	WSID  string `json:"ws_id"`
 	SubID string `json:"sub_id"`
+}
+
+type SubCleanupMessage struct {
+	WSID string `json:"ws_id"`
 }
 
 type PubSub struct {
@@ -110,6 +115,7 @@ func (p *PubSub) startListening() error {
 		ChannelWSDisconnect,
 		ChannelSubCreate,
 		ChannelSubClose,
+		ChannelSubCleanup,
 	}
 
 	for _, ch := range channels {
@@ -253,6 +259,19 @@ func (p *PubSub) PublishSubClose(ctx context.Context, wsID, subID string) error 
 	}
 
 	return p.client.Publish(ctx, ChannelSubClose, string(data)).Err()
+}
+
+func (p *PubSub) PublishSubCleanup(ctx context.Context, wsID string) error {
+	if !p.enabled || p.client == nil {
+		return nil
+	}
+
+	msg := SubCleanupMessage{WSID: wsID}
+	data, err := json.Marshal(msg)
+	if err != nil {
+		return err
+	}
+	return p.client.Publish(ctx, ChannelSubCleanup, string(data)).Err()
 }
 
 func (p *PubSub) Close() {

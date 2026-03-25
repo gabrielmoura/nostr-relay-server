@@ -1,0 +1,21 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "postgres": {
+      "type": "local",
+      "command": [
+        "npx",
+        "-y",
+        "@modelcontextprotocol/server-postgres",
+        "postgres://postgres:Strong@P4ssword@localhost:5432/nostr"
+      ],
+      "enabled": true,
+      "timeout": 30000
+    },
+    "pencil_desktop": {
+      "type": "local",
+      "command": ["/opt/pencil-dev-bin/resources/app.asar.unpacked/out/mcp-server-linux-x64","--app","desktop"],
+      "enabled": true
+    }
+  }
+}

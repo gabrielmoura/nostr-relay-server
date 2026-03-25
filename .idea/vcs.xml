@@ -3,5 +3,6 @@
   <component name="VcsDirectoryMappings">
     <mapping directory="" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/pkg/webc/nostrudel" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/ref/blossom" vcs="Git" />
   </component>
 </project>

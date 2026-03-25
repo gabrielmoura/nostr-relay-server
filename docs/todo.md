@@ -177,6 +177,13 @@
 - [ ] Cache tuning (Redis)
 - [ ] Load testing
 
+## Phase 22: Admin API and Dashboard
+
+- [x] Expand `/admin` API with overview, users, bans and disconnect actions
+- [x] Add cursorless incremental windows (`limit` + `offset`) for admin endpoints consumed by virtual scrolling
+- [x] Connect `infra/dash` to backend-served admin endpoints
+- [x] Replace manual pagination in the SPA with virtualized incremental lists
+
 ---
 
 ## Phase 21: Redis Integration (NEW)
@@ -277,6 +284,8 @@
 - [ ] Optimize pool size calculation
 - [ ] Add pool metrics
 - [ ] Connection health checks
+- [ ] Add connection lifetime and idle timeout settings
+- [ ] Prepare statements during connection setup
 
 ---
 
@@ -296,3 +305,144 @@
 - [ ] Cache hit/miss rates
 - [ ] Latency histograms
 - [ ] Memory usage tracking
+- [ ] Query cache metadata counters
+
+---
+
+## Phase 26: Handler Refactor (NEW)
+
+### 26.1: WebSocket Routing
+- [ ] Extract message decode/dispatch from transport loop
+- [ ] Keep handler functions transport-thin
+- [ ] Centralize envelope/notice mapping
+
+### 26.2: Event / REQ Use Cases
+- [ ] Move business flow out of `infra/handler/event`
+- [ ] Move business flow out of `infra/handler/req`
+- [ ] Reuse single validation entrypoints
+
+---
+
+## Phase 27: Policy Consolidation (NEW)
+
+### 27.1: Single Policy Hub
+- [ ] Consolidate event and request policies under one package entrypoint
+- [ ] Define structured policy decisions/results
+- [ ] Remove duplicated ban and validation checks from handlers
+
+### 27.2: Policy Coverage
+- [ ] Event id validation
+- [ ] Signature validation
+- [ ] Event size validation
+- [ ] Ban checks
+- [ ] Expiration validation
+- [ ] POW validation
+- [ ] Tag size/count validation
+- [ ] Base64 content rejection
+- [ ] Empty filter rejection
+- [ ] Protected kind access validation
+- [ ] Anti-sync-bot validation
+
+---
+
+## Phase 28: Ingestion Policy Enforcement (NEW)
+
+### 28.1: Batch Validation
+- [ ] Reuse consolidated policies inside batch ingestion
+- [ ] Validate deduplicated events before persistence
+- [ ] Partition ephemeral / replaceable / addressable / regular events
+
+### 28.2: Persistence Semantics
+- [ ] Resolve replaceable conflicts in batch flow
+- [ ] Resolve addressable conflicts in batch flow
+- [ ] Skip ephemeral events without persistence
+- [ ] Publish notifications only for accepted events
+
+---
+
+## Phase 29: Stream Performance Refactor (NEW)
+
+### 29.1: Async Dispatcher
+- [ ] Introduce bounded async forwarding queue for upstream events
+- [ ] Introduce bounded async backfill queue for downstream REQ
+- [ ] Add worker-based forwarding execution
+
+### 29.2: Performance Controls
+- [ ] Add kind allowlist prefilter before enqueue
+- [ ] Avoid synchronous relay-pool calls in handler hot path
+- [ ] Add stream queue pressure metrics
+- [ ] Add drop/fallback policy for saturated queues
+
+---
+
+## Phase 30: Query / Pool / Cache Tuning (NEW)
+
+### 30.1: Query Optimization
+- [ ] Normalize query filters before SQL generation
+- [ ] Reuse prepared plans for hot query shapes
+- [ ] Add targeted query-cache invalidation on accepted writes
+
+### 30.2: Connection Pool Tuning
+- [ ] Add configurable connection lifetime
+- [ ] Add configurable idle timeout
+- [ ] Add configurable health check period
+- [ ] Export pgx pool stats to metrics
+
+### 30.3: Redis Cache Tuning
+- [ ] Add query metadata cache keys
+- [ ] Track query cache hits/misses
+- [ ] Avoid full scan invalidation when targeted invalidation is possible
+
+### 30.4: Subscription Cleanup
+- [ ] Add websocket heartbeat keys in Redis
+- [ ] Add periodic orphan subscription cleanup loop
+- [ ] Broadcast `sub:cleanup` to all instances
+
+---
+
+## Phase 31: Transport Separation (NEW)
+
+### 31.1: HTTP vs WebSocket
+- [ ] Move HTTP-only handlers into `infra/handler/http`
+- [ ] Move WebSocket-only routing into `infra/handler/ws`
+- [ ] Keep transport-agnostic orchestration outside transport packages
+- [ ] Move Blossom handlers under HTTP transport package
+
+### 31.2: Event Handler Cleanup
+- [ ] Reorganize `infra/handler/event` files by concern
+- [ ] Clarify success/error flow for EVENT handling
+- [ ] Centralize enqueue/result mapping
+
+---
+
+## Phase 33: Admin API (NEW)
+
+### 33.1: Security
+- [ ] Add optional `admin_token` configuration
+- [ ] Require `X-Admin-Token` when configured
+
+### 33.2: Endpoints
+- [ ] Add ban status endpoint
+- [ ] Add ban/unban endpoints
+- [ ] Add active connections endpoint
+- [ ] Add authenticated connections endpoint
+- [ ] Add admin event search endpoint
+
+---
+
+## Phase 32: DB Helper Refactor (NEW)
+
+### 32.1: Documentation First
+- [x] Create `infra/db/helper/README.md`
+- [ ] Document normalization, validation, SQL rendering, and hashing responsibilities
+
+### 32.2: Package Refactor
+- [ ] Split helper package into smaller focused files
+- [ ] Improve naming and control flow
+- [ ] Preserve deterministic SQL and filter hashing behavior
+
+### 32.3: Test Refactor
+- [ ] Remove debug-style assertions and prints
+- [ ] Add deterministic normalization tests
+- [ ] Add hash stability tests
+- [ ] Improve SQL generation assertions

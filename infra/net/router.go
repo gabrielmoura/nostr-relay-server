@@ -4,14 +4,14 @@ import (
 	"path/filepath"
 	"strconv"
 
-	json "github.com/bytedance/sonic"
 	"github.com/gabrielmoura/nostr-relay-server/config"
-	"github.com/gabrielmoura/nostr-relay-server/infra/handler"
-	blossomStore "github.com/gabrielmoura/nostr-relay-server/infra/handler/store/blossom"
+	httphandler "github.com/gabrielmoura/nostr-relay-server/infra/handler/http"
+	httpblossom "github.com/gabrielmoura/nostr-relay-server/infra/handler/http/blossom"
+	wshandler "github.com/gabrielmoura/nostr-relay-server/infra/handler/ws"
 	"github.com/gabrielmoura/nostr-relay-server/infra/log"
 	"github.com/gabrielmoura/nostr-relay-server/infra/net/middleware"
-	"github.com/gabrielmoura/nostr-relay-server/infra/util"
 	"github.com/gabrielmoura/nostr-relay-server/internal/dto"
+	json "github.com/gabrielmoura/nostr-relay-server/internal/jsonx"
 	"github.com/gofiber/contrib/websocket"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/compress"
@@ -86,9 +86,32 @@ func (r *RouterFactory) setupInternalRoutes(app *fiber.App) {
 		return nil
 	})
 
-	app.Get("/admin", func(c *fiber.Ctx) error {
-		return c.SendString("Admin Interface")
-	})
+	admin := app.Group("/admin", httphandler.AdminTokenMiddleware(r.Config))
+	admin.Get("", httphandler.AdminIndex())
+	admin.Get("/", httphandler.AdminIndex())
+	admin.Get("/overview", httphandler.AdminOverview())
+	admin.Get("/stream/status", httphandler.StreamStatus())
+	admin.Get("/connections/active", httphandler.ActiveConnections())
+	admin.Get("/connections/authed", httphandler.AuthedConnections())
+	admin.Post("/connections/:wsid/disconnect", httphandler.DisconnectConnection())
+	admin.Get("/users/logged", httphandler.LoggedUsers())
+	admin.Get("/users/banned", httphandler.BannedUsers())
+	admin.Get("/users/search", httphandler.SearchUsers())
+	admin.Get("/users/:pubkey/profile", httphandler.UserProfile())
+	admin.Get("/users/:pubkey/ban", httphandler.BanStatus())
+	admin.Post("/users/:pubkey/ban", httphandler.BanUser())
+	admin.Delete("/users/:pubkey/ban", httphandler.UnbanUser())
+	admin.Get("/events/search", httphandler.SearchEvents())
+	admin.Get("/events/search/aggregates", httphandler.SearchEventsAggregates())
+	admin.Get("/events/search/timeline", httphandler.SearchEventsTimeline())
+	admin.Get("/events/reported", httphandler.ReportedEvents())
+	admin.Post("/events/:id/fetch", httphandler.FetchEventFromRelays())
+	admin.Get("/events/:id", httphandler.EventDetail())
+	admin.Get("/events/:id/reports", httphandler.EventReports())
+
+	app.Get(httphandler.AdminUIBasePath(), httphandler.AdminUIIndex())
+	app.Get(httphandler.AdminUIBasePath()+"/assets/*", httphandler.AdminUIAsset())
+	app.Get(httphandler.AdminUIBasePath()+"/*", httphandler.AdminUISPAFallback())
 }
 
 // setupExternalRoutes configura as rotas públicas do Relay
@@ -101,9 +124,7 @@ func (r *RouterFactory) setupExternalRoutes(app *fiber.App) {
 	app.Static("/nostr.png", filepath.Join("nostr.png"))
 
 	// Rotas Auxiliares
-	app.Get("/terms-of-service", func(c *fiber.Ctx) error {
-		return c.Redirect(r.Config.Store.APIPath + "/terms-of-service")
-	})
+	app.Get("/terms-of-service", httphandler.TermsOfService(r.Config))
 
 	// Well-Known Handlers (NIPs)
 	r.setupWellKnownRoutes(app)
@@ -112,7 +133,7 @@ func (r *RouterFactory) setupExternalRoutes(app *fiber.App) {
 	r.setupBlossomRoutes(app)
 
 	// Rota Raiz: Lida com NIP-11 (Info) e Upgrade para WebSocket
-	app.Use("/", r.handleRootUpgrade)
+	app.Use("/", httphandler.RootUpgrade(r.Config))
 	app.Get("/", websocket.New(r.handleWebSocketConnection))
 }
 
@@ -120,36 +141,10 @@ func (r *RouterFactory) setupWellKnownRoutes(app *fiber.App) {
 	wellKnown := app.Group("/.well-known")
 
 	// NIP-96
-	wellKnown.Get("/nostr/nip96.json", func(c *fiber.Ctx) error {
-		return c.JSON(config.FileServerConfig{
-			APIURL:        r.Config.Store.APIPath,
-			DownloadURL:   r.Config.Store.MediaPath,
-			ContentTypes:  r.Config.Store.AcceptedMimetypes,
-			SupportedNIPS: []int{1, 4, 5, 78, 94, 96, 98},
-			TOSURL:        r.Config.RelayInformation.URL + "/terms-of-service",
-		})
-	})
+	wellKnown.Get("/nostr/nip96.json", httphandler.NIP96(r.Config))
 
 	// NIP-05 / Nostr.json
-	wellKnown.Get("/nostr.json", func(c *fiber.Ctx) error {
-		if name := c.Query("name"); name != "" {
-			return c.JSON(fiber.Map{
-				"names": fiber.Map{name: ""}, // Lógica placeholder do original
-			})
-		}
-		return c.JSON(fiber.Map{
-			"media": fiber.Map{
-				"apiPath":           r.Config.Store.APIPath,
-				"mediaPath":         r.Config.Store.MediaPath,
-				"acceptedMimetypes": r.Config.Store.AcceptedMimetypes,
-				"contentPolicy": fiber.Map{
-					"allowAdultContent":   r.Config.Store.AllowAdultContent,
-					"allowViolentContent": r.Config.Store.AllowViolentContent,
-				},
-			},
-			"names": r.Config.Store.Names,
-		})
-	})
+	wellKnown.Get("/nostr.json", httphandler.NostrJSON(r.Config))
 }
 
 func (r *RouterFactory) setupBlossomRoutes(app *fiber.App) {
@@ -157,35 +152,11 @@ func (r *RouterFactory) setupBlossomRoutes(app *fiber.App) {
 	// Assumindo que middleware.BlockIfStoreNotEnabled é um fiber.Handler
 	mw := middleware.BlockIfStoreNotEnabled
 
-	app.Post("/upload", mw, blossomStore.UploadHandler)
-	app.Put("/upload", mw, blossomStore.UploadHandler)
-	app.Get("/blob/:id", mw, blossomStore.BlobHandler)
-	app.Head("/blob/:id", mw, blossomStore.BlobHandler)
-	app.Get("/list/:id", mw, blossomStore.ListHandler)
-}
-
-// handleRootUpgrade atua como Middleware e Handler para a rota "/"
-// Verifica NIP-11 (Accept Header) e prepara o contexto para WebSocket
-func (r *RouterFactory) handleRootUpgrade(c *fiber.Ctx) error {
-	// NIP-11: Relay Information Document
-	if c.Get("Accept") == "application/nostr+json" {
-		return c.JSON(r.Config.RelayInformation)
-	}
-
-	// WebSocket Upgrade Check
-	if websocket.IsWebSocketUpgrade(c) {
-		c.Locals("allowed", true)
-		c.Locals("ua", c.Get("User-Agent"))
-		c.Locals("wss", &dto.WsServer{
-			Challenge:  util.GenChallenge(),
-			Ctx:        c.Context(),
-			ChanSender: make(chan interface{}),
-			ChanPing:   make(chan bool),
-		})
-		return c.Next()
-	}
-
-	return c.Status(fiber.StatusUpgradeRequired).SendString("Please use a Nostr client to connect.")
+	app.Post("/upload", mw, httpblossom.UploadHandler)
+	app.Put("/upload", mw, httpblossom.UploadHandler)
+	app.Get("/blob/:id", mw, httpblossom.BlobHandler)
+	app.Head("/blob/:id", mw, httpblossom.BlobHandler)
+	app.Get("/list/:id", mw, httpblossom.ListHandler)
 }
 
 // handleWebSocketConnection é o callback final do WebSocket
@@ -196,7 +167,7 @@ func (r *RouterFactory) handleWebSocketConnection(c *websocket.Conn) {
 		return
 	}
 	wss.Conn = c
-	handler.HandleWS(wss)
+	wshandler.HandleConnection(wss)
 }
 
 // Router Função de entrada (Entrypoint) para manter compatibilidade com a chamada original

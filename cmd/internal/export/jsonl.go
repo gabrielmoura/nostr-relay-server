@@ -2,7 +2,7 @@ package export
 
 import (
 	"fmt"
-	json "github.com/bytedance/sonic"
+	json "github.com/gabrielmoura/nostr-relay-server/internal/jsonx"
 	"io"
 	"net/http"
 )
@@ -12,7 +12,7 @@ type Writer struct {
 	prefix string
 }
 
-func (w Writer) Write(data interface{}) error {
+func (w Writer) Write(data any) error {
 	j, err := json.Marshal(data)
 	if err != nil {
 		return fmt.Errorf("could not json marshal data: %w", err)

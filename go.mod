@@ -1,11 +1,8 @@
 module github.com/gabrielmoura/nostr-relay-server
 
-go 1.24.1
-
-toolchain go1.24.4
+go 1.26.0
 
 require (
-	github.com/bytedance/sonic v1.14.0
 	github.com/emmansun/base64 v0.7.0
 	github.com/fiatjaf/eventstore v0.16.2
 	github.com/gofiber/contrib/websocket v1.3.4
@@ -39,9 +36,10 @@ require (
 	github.com/btcsuite/btcd/btcec/v2 v2.3.4 // indirect
 	github.com/btcsuite/btcd/btcutil v1.1.5 // indirect
 	github.com/btcsuite/btcd/chaincfg/chainhash v1.1.0 // indirect
+	github.com/bytedance/sonic v1.13.1 // indirect
 	github.com/bytedance/sonic/loader v0.3.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
-	github.com/cloudwego/base64x v0.1.5 // indirect
+	github.com/cloudwego/base64x v0.1.6 // indirect
 	github.com/coder/websocket v1.8.12 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/decred/dcrd/crypto/blake256 v1.1.0 // indirect

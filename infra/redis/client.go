@@ -2,7 +2,8 @@ package redis
 
 import (
 	"context"
-	"fmt"
+	"errors"
+	"net"
 	"sync"
 	"time"
 
@@ -29,11 +30,21 @@ func New(cfg *config.RedisConfig) *Client {
 		return &Client{enabled: false}
 	}
 
+	addr := cfg.Addr
+	if addr == "" {
+		addr = "127.0.0.1:6379"
+	}
+
 	rdb := goredis.NewClient(&goredis.Options{
-		Addr:     cfg.Addr,
-		Password: cfg.Password,
-		DB:       cfg.DB,
-		PoolSize: cfg.PoolSize,
+		Addr:         addr,
+		Password:     cfg.Password,
+		DB:           cfg.DB,
+		PoolSize:     cfg.PoolSize,
+		DialTimeout:  time.Second,
+		ReadTimeout:  time.Second,
+		WriteTimeout: time.Second,
+		PoolTimeout:  time.Second,
+		MaxRetries:   0,
 	})
 
 	return &Client{
@@ -44,7 +55,6 @@ func New(cfg *config.RedisConfig) *Client {
 }
 
 func Init(cfg *config.RedisConfig) error {
-	var initErr error
 	clientOnce.Do(func() {
 		client = New(cfg)
 		if !client.IsEnabled() {
@@ -52,19 +62,24 @@ func Init(cfg *config.RedisConfig) error {
 			return
 		}
 
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), 1500*time.Millisecond)
 		defer cancel()
 
 		if err := client.Ping(ctx); err != nil {
-			log.Logger.Warn("Redis connection failed, using fallback", zap.Error(err))
+			var dnsErr *net.DNSError
+			if errors.As(err, &dnsErr) {
+				log.Logger.Info("Redis DNS lookup failed, using in-memory fallback", zap.String("addr", client.cfg.Addr), zap.Error(err))
+			} else {
+				log.Logger.Info("Redis connection failed, using in-memory fallback", zap.String("addr", client.cfg.Addr), zap.Error(err))
+			}
+			_ = client.Close()
 			client.enabled = false
-			initErr = fmt.Errorf("redis connection failed: %w", err)
 			return
 		}
 
-		log.Logger.Info("Redis connected successfully")
+		log.Logger.Info("Redis connected successfully", zap.String("addr", client.cfg.Addr))
 	})
-	return initErr
+	return nil
 }
 
 func GetClient() *Client {
@@ -95,14 +110,14 @@ func (c *Client) Get(ctx context.Context, key string) (string, error) {
 	return c.rdb.Get(ctx, key).Result()
 }
 
-func (c *Client) Set(ctx context.Context, key string, value interface{}, ttl time.Duration) error {
+func (c *Client) Set(ctx context.Context, key string, value any, ttl time.Duration) error {
 	if !c.IsEnabled() {
 		return nil
 	}
 	return c.rdb.Set(ctx, key, value, ttl).Err()
 }
 
-func (c *Client) SetNX(ctx context.Context, key string, value interface{}, ttl time.Duration) (bool, error) {
+func (c *Client) SetNX(ctx context.Context, key string, value any, ttl time.Duration) (bool, error) {
 	if !c.IsEnabled() {
 		return false, nil
 	}
@@ -130,7 +145,7 @@ func (c *Client) HGet(ctx context.Context, key, field string) (string, error) {
 	return c.rdb.HGet(ctx, key, field).Result()
 }
 
-func (c *Client) HSet(ctx context.Context, key string, values ...interface{}) error {
+func (c *Client) HSet(ctx context.Context, key string, values ...any) error {
 	if !c.IsEnabled() {
 		return nil
 	}
@@ -172,7 +187,7 @@ func (c *Client) TTL(ctx context.Context, key string) (time.Duration, error) {
 	return c.rdb.TTL(ctx, key).Result()
 }
 
-func (c *Client) Publish(ctx context.Context, channel string, message interface{}) error {
+func (c *Client) Publish(ctx context.Context, channel string, message any) error {
 	if !c.IsEnabled() {
 		return nil
 	}

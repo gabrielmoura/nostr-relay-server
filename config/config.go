@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+
 	"github.com/nbd-wtf/go-nostr"
 	"github.com/spf13/viper"
 	"gopkg.in/yaml.v3"
@@ -12,6 +13,7 @@ func setDefaults(export bool) {
 	viper.SetDefault("ws.burst", 5)
 	viper.SetDefault("ws.rate_limit", 1)
 	viper.SetDefault("port", 9090)
+	viper.SetDefault("admin_token", "")
 
 	viper.SetDefault("relay_information.name", "Nostr Relay Server")
 	viper.SetDefault("relay_information.description", "A Nostr Relay Server")
@@ -62,17 +64,28 @@ func setDefaults(export bool) {
 
 	viper.SetDefault("db.max_conns", 10)
 	viper.SetDefault("db.min_conns", 1)
+	viper.SetDefault("db.max_conn_lifetime_minutes", 30)
+	viper.SetDefault("db.max_conn_idle_minutes", 5)
+	viper.SetDefault("db.health_check_period_seconds", 30)
 
 	viper.SetDefault("redis.enabled", false)
-	viper.SetDefault("redis.addr", "localhost:6379")
+	viper.SetDefault("redis.addr", "127.0.0.1:6379")
 	viper.SetDefault("redis.password", "")
 	viper.SetDefault("redis.db", 0)
 	viper.SetDefault("redis.pool_size", 10)
+	viper.SetDefault("redis.subscription_cleanup_interval_seconds", 60)
+	viper.SetDefault("redis.subscription_stale_after_seconds", 120)
 	viper.SetDefault("redis.cache.ban_ttl", 3600)
 	viper.SetDefault("redis.cache.profile_ttl", 300)
 	viper.SetDefault("redis.cache.query_ttl", 30)
+	viper.SetDefault("redis.cache.query_meta_ttl", 30)
 	viper.SetDefault("redis.cache.event_ttl", 600)
 	viper.SetDefault("redis.cache.dedup_ttl", 3600)
+
+	viper.SetDefault("ingestion.batch_size", 1000)
+	viper.SetDefault("ingestion.batch_timeout_ms", 100)
+	viper.SetDefault("ingestion.workers", 4)
+	viper.SetDefault("ingestion.queue_size", 10000)
 
 	viper.SetDefault("stream_up.enabled", true)
 	viper.SetDefault("stream_down.enabled", false)

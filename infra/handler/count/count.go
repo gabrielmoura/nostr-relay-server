@@ -1,15 +1,14 @@
 package count
 
 import (
-	json "github.com/bytedance/sonic"
-	"github.com/gabrielmoura/nostr-relay-server/config"
 	"github.com/gabrielmoura/nostr-relay-server/infra/log"
 	"github.com/gabrielmoura/nostr-relay-server/infra/metrics"
 	"github.com/gabrielmoura/nostr-relay-server/internal/db"
 	"github.com/gabrielmoura/nostr-relay-server/internal/dto"
+	json "github.com/gabrielmoura/nostr-relay-server/internal/jsonx"
+	policies "github.com/gabrielmoura/nostr-relay-server/internal/policies"
 	"github.com/nbd-wtf/go-nostr"
 	"go.uber.org/zap"
-	"slices"
 	"time"
 )
 
@@ -32,31 +31,14 @@ func DoCOUNT(ws *dto.WsServer, data dto.Data) string {
 			return "failed to decode filter"
 		}
 
-		filter := filters[i]
+	}
 
-		// prevent kind-4 events from being returned to unauthed users,
-		//   only when authentication is a thing
-		if config.Cfg.Ws.Auth {
-			if slices.Contains(filter.Kinds, 4) {
-				senders := filter.Authors
-				receivers, _ := filter.Tags["p"]
-				switch {
-				case ws.Authed == "":
-					// not authenticated
-					return "restricted: this relay does not serve kind-4 to unauthenticated users, does your client implement NIP-42?"
-				case len(senders) == 1 && len(receivers) < 2 && (senders[0] == ws.Authed):
-					// allowed filter: ws.authed is sole sender (filter specifies one or all receivers)
-				case len(receivers) == 1 && len(senders) < 2 && (receivers[0] == ws.Authed):
-					// allowed filter: ws.authed is sole receiver (filter specifies one or all senders)
-				default:
-					// restricted filter: do not return any events,
-					//   even if other elements in filters array were not restricted).
-					//   client should know better.
-					return "restricted: authenticated user does not have authorization for requested filters."
-				}
-			}
-		}
+	normalized, reject, reason := policies.P.ValidateCount(ws.Ctx, ws, filters)
+	if reject {
+		return reason
+	}
 
+	for _, filter := range normalized {
 		count, err := db.DbQueries.CountEvents(ws.Ctx, filter)
 		if err != nil {
 			log.Logger.Error("store: %v", zap.Error(err))
@@ -65,7 +47,7 @@ func DoCOUNT(ws *dto.WsServer, data dto.Data) string {
 		total += count
 	}
 
-	ws.ChanSender <- []interface{}{"COUNT", id, map[string]int64{"count": total}}
+	ws.ChanSender <- []any{"COUNT", id, map[string]int64{"count": total}}
 	metrics.NostrRequestDuration.WithLabelValues("COUNT").Observe(time.Since(ws.StartTime).Seconds())
 
 	return ""

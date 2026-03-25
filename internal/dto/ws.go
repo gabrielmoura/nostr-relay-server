@@ -3,8 +3,8 @@ package dto
 import (
 	"context"
 	jtype "encoding/json"
-	json "github.com/bytedance/sonic"
 	"github.com/gabrielmoura/nostr-relay-server/config"
+	json "github.com/gabrielmoura/nostr-relay-server/internal/jsonx"
 	"github.com/gofiber/contrib/websocket"
 	"github.com/nbd-wtf/go-nostr"
 	"net/http"
@@ -50,11 +50,13 @@ type WsRequest struct {
 }
 type WsServer struct {
 	StartTime  time.Time
+	LastSeen   time.Time
+	UserAgent  string
 	Response   http.ResponseWriter //remove
 	Ctx        context.Context
 	Conn       *websocket.Conn
 	Request    *http.Request // remove
-	ChanSender chan interface{}
+	ChanSender chan any
 	ChanPing   chan bool
 	Challenge  string
 	Authed     string

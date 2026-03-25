@@ -6,9 +6,13 @@ import (
 	"errors"
 	"fmt"
 	"github.com/gabrielmoura/nostr-relay-server/config"
+	"github.com/gabrielmoura/nostr-relay-server/infra/cache"
 	"github.com/gabrielmoura/nostr-relay-server/infra/db/helper"
+	"github.com/gabrielmoura/nostr-relay-server/infra/metrics"
+	json "github.com/gabrielmoura/nostr-relay-server/internal/jsonx"
 	"github.com/jackc/pgx/v5"
 	"github.com/nbd-wtf/go-nostr"
+	"strconv"
 	"time"
 )
 
@@ -22,6 +26,7 @@ func (q *Queries) DeleteAllEventsByPubkey(ctx context.Context, pubkey string) er
 	if err != nil {
 		return fmt.Errorf("failed to delete events for pubkey %s: %w", pubkey, err)
 	}
+	_ = cache.InvalidateQueryCache()
 	return nil
 }
 
@@ -37,9 +42,15 @@ UPDATE event SET deleted_by = $2::text WHERE id = $1::text
 func (q *Queries) DeleteEvent(ctx context.Context, id, reasonId string) error {
 	if config.Cfg.Relay.FakeDeletion {
 		_, err := q.db.Exec(ctx, fakeDeletionEvent, id, reasonId)
+		if err == nil {
+			_ = cache.InvalidateQueryCache()
+		}
 		return err
 	} else {
 		_, err := q.db.Exec(ctx, deleteEvent, id)
+		if err == nil {
+			_ = cache.InvalidateQueryCache()
+		}
 		return err
 	}
 }
@@ -91,6 +102,9 @@ func (q *Queries) InsertEvent(ctx context.Context, arg *nostr.Event) error {
 	if res.RowsAffected() == 0 {
 		return ErrDupEvent
 	}
+	if err == nil {
+		_ = cache.InvalidateQueryCache()
+	}
 	return err
 }
 func (q *Queries) InsertEventBatch(ctx context.Context, arg []*nostr.Event) error {
@@ -111,11 +125,12 @@ func (q *Queries) InsertEventBatch(ctx context.Context, arg []*nostr.Event) erro
 	}
 	br := q.db.SendBatch(ctx, &b)
 	defer br.Close()
-	for i := 0; i < len(arg); i++ {
+	for i := range arg {
 		if _, err := br.Exec(); err != nil {
 			return fmt.Errorf("failed to insert event %d: %w", i, err)
 		}
 	}
+	_ = cache.InvalidateQueryCache()
 	return nil
 }
 func (q *Queries) QueryEventsChan(ctx context.Context, filter nostr.Filter) (ch chan *nostr.Event, err error) {
@@ -138,9 +153,24 @@ func (q *Queries) QueryEventsChan(ctx context.Context, filter nostr.Filter) (ch 
 	return ch, nil
 }
 func (q *Queries) QueryEvents(ctx context.Context, filter nostr.Filter) (events []*nostr.Event, err error) {
+	filter = helper.NormalizeFilter(&config.Cfg.Relay, filter)
+	cacheKey := helper.FilterHash(&config.Cfg.Relay, filter, false)
+	if raw, ok := cache.GetQueryResult(cacheKey); ok {
+		cache.QueryCacheHit(cacheKey)
+		metrics.NostrRedisQueryCacheResult.WithLabelValues("hit").Inc()
+		if err := json.Unmarshal([]byte(raw), &events); err == nil {
+			return events, nil
+		}
+	}
+	cache.QueryCacheMiss(cacheKey)
+	metrics.NostrRedisQueryCacheResult.WithLabelValues("miss").Inc()
+
 	query, params, err := helper.QueryEventsSql(&config.Cfg.Relay, filter, false)
 	if err != nil {
 		return nil, err
+	}
+	if stmt, stmtParams, ok := preparedQueryForFilter(filter); ok {
+		query, params = stmt, stmtParams
 	}
 
 	rows, err := q.db.Query(ctx, query, params...)
@@ -161,13 +191,33 @@ func (q *Queries) QueryEvents(ctx context.Context, filter nostr.Filter) (events 
 		events = append(events, &evt)
 	}
 
+	if payload, err := json.Marshal(events); err == nil {
+		_ = cache.SetQueryResult(cacheKey, string(payload))
+	}
+
 	return events, nil
 }
 
 func (q *Queries) CountEvents(ctx context.Context, filter nostr.Filter) (int64, error) {
+	filter = helper.NormalizeFilter(&config.Cfg.Relay, filter)
+	cacheKey := helper.FilterHash(&config.Cfg.Relay, filter, true)
+	if raw, ok := cache.GetQueryResult(cacheKey); ok {
+		cache.QueryCacheHit(cacheKey)
+		metrics.NostrRedisQueryCacheResult.WithLabelValues("hit").Inc()
+		count, err := strconv.ParseInt(raw, 10, 64)
+		if err == nil {
+			return count, nil
+		}
+	}
+	cache.QueryCacheMiss(cacheKey)
+	metrics.NostrRedisQueryCacheResult.WithLabelValues("miss").Inc()
+
 	query, params, err := helper.QueryEventsSql(&config.Cfg.Relay, filter, true)
 	if err != nil {
 		return 0, err
+	}
+	if stmt, stmtParams, ok := preparedCountForFilter(filter); ok {
+		query, params = stmt, stmtParams
 	}
 
 	var count int64
@@ -175,7 +225,34 @@ func (q *Queries) CountEvents(ctx context.Context, filter nostr.Filter) (int64, 
 	if err = q.db.QueryRow(ctx, query, params...).Scan(&count); err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return 0, fmt.Errorf("failed to fetch events using query %q: %w", query, err)
 	}
+	_ = cache.SetQueryResult(cacheKey, strconv.FormatInt(count, 10))
 	return count, nil
+}
+
+func preparedQueryForFilter(filter nostr.Filter) (string, []any, bool) {
+	if filter.Search != "" || len(filter.Tags) > 0 || len(filter.IDs) > 1 || len(filter.Authors) > 1 || len(filter.Kinds) > 1 {
+		return "", nil, false
+	}
+	if len(filter.IDs) == 1 {
+		return "ps_event_by_id", []any{filter.IDs[0]}, true
+	}
+	if len(filter.Authors) == 1 && len(filter.Kinds) == 1 {
+		return "ps_events_by_pubkey_kind", []any{filter.Authors[0], filter.Kinds[0], filter.Limit}, true
+	}
+	if len(filter.Authors) == 1 {
+		return "ps_events_by_pubkey", []any{filter.Authors[0], filter.Limit}, true
+	}
+	if len(filter.Kinds) == 1 && filter.Since != nil {
+		return "ps_events_by_kind", []any{filter.Kinds[0], *filter.Since, filter.Limit}, true
+	}
+	return "", nil, false
+}
+
+func preparedCountForFilter(filter nostr.Filter) (string, []any, bool) {
+	if filter.Search != "" || len(filter.Tags) > 0 || len(filter.IDs) > 0 || len(filter.Kinds) > 0 || len(filter.Authors) != 1 {
+		return "", nil, false
+	}
+	return "ps_count_by_filter", []any{filter.Authors[0]}, true
 }
 
 const getOldEvents = `-- name: GetOldEvents :many

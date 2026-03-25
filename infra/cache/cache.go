@@ -2,13 +2,14 @@ package cache
 
 import (
 	"context"
+	"fmt"
 	"strconv"
 	"time"
 
-	json "github.com/bytedance/sonic"
 	"github.com/gabrielmoura/nostr-relay-server/config"
 	"github.com/gabrielmoura/nostr-relay-server/infra/log"
 	"github.com/gabrielmoura/nostr-relay-server/infra/redis"
+	json "github.com/gabrielmoura/nostr-relay-server/internal/jsonx"
 	goredis "github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 )
@@ -17,6 +18,8 @@ var (
 	initialized bool
 	redisClient *redis.Client
 )
+
+const queryVersionKey = "query:version"
 
 type UserBanned struct {
 	Reason string `json:"r"`
@@ -256,7 +259,12 @@ func SetQueryResult(filterHash string, val string) error {
 		return nil
 	}
 
-	queryKey := "query:" + filterHash
+	version, err := GetQueryVersion()
+	if err != nil {
+		return err
+	}
+
+	queryKey := queryCacheKey(version, filterHash)
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
 
@@ -265,7 +273,10 @@ func SetQueryResult(filterHash string, val string) error {
 		ttl = 30 * time.Second
 	}
 
-	return redisClient.Set(ctx, queryKey, val, ttl)
+	if err := redisClient.Set(ctx, queryKey, val, ttl); err != nil {
+		return err
+	}
+	return setQueryMeta(ctx, version, filterHash, ttl, false)
 }
 
 func GetQueryResult(filterHash string) (string, bool) {
@@ -273,15 +284,22 @@ func GetQueryResult(filterHash string) (string, bool) {
 		return "", false
 	}
 
-	queryKey := "query:" + filterHash
+	version, err := GetQueryVersion()
+	if err != nil {
+		return "", false
+	}
+
+	queryKey := queryCacheKey(version, filterHash)
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
 
 	val, err := redisClient.Get(ctx, queryKey)
 	if err != nil {
+		_ = setQueryMeta(ctx, version, filterHash, queryMetaTTL(), false)
 		return "", false
 	}
 
+	_ = setQueryMeta(ctx, version, filterHash, queryMetaTTL(), true)
 	return val, true
 }
 
@@ -290,29 +308,88 @@ func InvalidateQueryCache() error {
 		return nil
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+	_, err := redisClient.Incr(ctx, queryVersionKey)
+	return err
+}
+
+func GetQueryVersion() (int64, error) {
+	if !IsEnabled() {
+		return 0, nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
 
-	var cursor uint64
-	for {
-		keys, nextCursor, err := redisClient.Scan(ctx, cursor, "query:*", 100)
-		if err != nil {
-			return err
-		}
-
-		if len(keys) > 0 {
-			if err := redisClient.Del(ctx, keys...); err != nil {
-				log.Logger.Warn("failed to delete query cache keys", zap.Error(err))
-			}
-		}
-
-		cursor = nextCursor
-		if cursor == 0 {
-			break
-		}
+	val, err := redisClient.Get(ctx, queryVersionKey)
+	if err == nil {
+		return strconv.ParseInt(val, 10, 64)
 	}
+	if err != goredis.Nil {
+		return 0, err
+	}
+	if err := redisClient.Set(ctx, queryVersionKey, "1", 0); err != nil {
+		return 0, err
+	}
+	return 1, nil
+}
 
-	return nil
+func QueryCacheHit(filterHash string) {
+	if !IsEnabled() {
+		return
+	}
+	version, err := GetQueryVersion()
+	if err != nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+	_ = setQueryMeta(ctx, version, filterHash, queryMetaTTL(), true)
+}
+
+func QueryCacheMiss(filterHash string) {
+	if !IsEnabled() {
+		return
+	}
+	version, err := GetQueryVersion()
+	if err != nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+	_ = setQueryMeta(ctx, version, filterHash, queryMetaTTL(), false)
+}
+
+func queryCacheKey(version int64, filterHash string) string {
+	return fmt.Sprintf("query:v%d:%s", version, filterHash)
+}
+
+func queryMetaKey(version int64, filterHash string) string {
+	return fmt.Sprintf("query:meta:v%d:%s", version, filterHash)
+}
+
+func queryMetaTTL() time.Duration {
+	ttl := time.Duration(config.Cfg.Redis.Cache.QueryMetaTTL) * time.Second
+	if ttl == 0 {
+		ttl = 30 * time.Second
+	}
+	return ttl
+}
+
+func setQueryMeta(ctx context.Context, version int64, filterHash string, ttl time.Duration, hit bool) error {
+	metaKey := queryMetaKey(version, filterHash)
+	result := "miss"
+	if hit {
+		result = "hit"
+	}
+	if err := redisClient.HSet(ctx, metaKey,
+		"last_result", result,
+		"last_access_unix", strconv.FormatInt(time.Now().Unix(), 10),
+		"filter_hash", filterHash,
+	); err != nil {
+		return err
+	}
+	return redisClient.Expire(ctx, metaKey, ttl)
 }
 
 type ProfileCache struct {

@@ -2,10 +2,13 @@ package db
 
 import (
 	"context"
+	"time"
+
 	"github.com/gabrielmoura/nostr-relay-server/config"
 	"github.com/gabrielmoura/nostr-relay-server/infra/cache"
 	"github.com/gabrielmoura/nostr-relay-server/infra/db"
 	"github.com/gabrielmoura/nostr-relay-server/infra/log"
+	"github.com/gabrielmoura/nostr-relay-server/infra/metrics"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/tracelog"
@@ -29,6 +32,9 @@ func Init(ctx context.Context) error {
 	}
 	poolConfig.MaxConns = config.Cfg.DB.MaxConns
 	poolConfig.MinConns = config.Cfg.DB.MinConns
+	poolConfig.MaxConnLifetime = time.Duration(config.Cfg.DB.MaxConnLifetimeMinutes) * time.Minute
+	poolConfig.MaxConnIdleTime = time.Duration(config.Cfg.DB.MaxConnIdleMinutes) * time.Minute
+	poolConfig.HealthCheckPeriod = time.Duration(config.Cfg.DB.HealthCheckPeriodSeconds) * time.Second
 
 	var logDbLevel tracelog.LogLevel
 	if config.Cfg.AppEnv != "production" {
@@ -51,8 +57,10 @@ func Init(ctx context.Context) error {
 	}
 
 	poolConfig.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
-		// ...
-		return nil
+		return PrepareConn(ctx, conn)
+	}
+	poolConfig.BeforeAcquire = func(ctx context.Context, conn *pgx.Conn) bool {
+		return conn.Ping(ctx) == nil
 	}
 
 	pool, err := pgxpool.NewWithConfig(ctx, poolConfig)
@@ -69,6 +77,7 @@ func Init(ctx context.Context) error {
 	DbQueries = db.New(pool)
 	Pool = pool
 	cache.Init()
+	go watchPoolStats(ctx, pool)
 	return nil
 }
 
@@ -83,4 +92,27 @@ func checkConnection(ctx context.Context, pool *pgxpool.Pool) error {
 	}
 	defer conn.Release()
 	return conn.Ping(ctx)
+}
+
+func watchPoolStats(ctx context.Context, pool *pgxpool.Pool) {
+	ticker := time.NewTicker(15 * time.Second)
+	defer ticker.Stop()
+	var lastAcquireCount int64
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			stats := pool.Stat()
+			metrics.NostrDBPoolAcquired.Set(float64(stats.AcquiredConns()))
+			metrics.NostrDBPoolIdle.Set(float64(stats.IdleConns()))
+			metrics.NostrDBPoolTotal.Set(float64(stats.TotalConns()))
+			acquireDelta := stats.AcquireCount() - lastAcquireCount
+			if acquireDelta > 0 {
+				metrics.NostrDBPoolAcquireCount.Add(float64(acquireDelta))
+				lastAcquireCount = stats.AcquireCount()
+			}
+		}
+	}
 }

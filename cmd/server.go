@@ -6,10 +6,13 @@ import (
 
 	"github.com/gabrielmoura/nostr-relay-server/config"
 	"github.com/gabrielmoura/nostr-relay-server/infra/cache"
+	"github.com/gabrielmoura/nostr-relay-server/infra/handler/listener"
+	"github.com/gabrielmoura/nostr-relay-server/infra/ingestion"
 	"github.com/gabrielmoura/nostr-relay-server/infra/metrics"
 	"github.com/gabrielmoura/nostr-relay-server/infra/net"
 	"github.com/gabrielmoura/nostr-relay-server/infra/pubsub"
 	"github.com/gabrielmoura/nostr-relay-server/infra/redis"
+	"github.com/gabrielmoura/nostr-relay-server/infra/stream"
 	"github.com/gabrielmoura/nostr-relay-server/internal/bootstrap"
 	"github.com/gabrielmoura/nostr-relay-server/internal/db"
 	policies2 "github.com/gabrielmoura/nostr-relay-server/internal/policies"
@@ -51,10 +54,18 @@ func runServer(cmd *cobra.Command, args []string) {
 		if err := pubsub.Init(); err != nil {
 			log.Logger.Warn("PubSub initialization failed, continuing without pub/sub", zap.Error(err))
 		}
+		listener.Init()
 
 		// Iniciar Conexão com o banco de dados
 		if err := db.Init(mainCtx); err != nil {
 			log.Logger.Fatal("Erro ao iniciar conexão com o banco de dados", zap.Error(err))
+		}
+
+		// Inicializar prepared statements (apenas em produção)
+		if config.Cfg.AppEnv == "production" {
+			if err := db.InitPreparedStatements(mainCtx, db.Pool); err != nil {
+				log.Logger.Warn("Prepared statements initialization failed, continuing without them", zap.Error(err))
+			}
 		}
 
 		// Canal para capturar sinais do sistema
@@ -63,6 +74,12 @@ func runServer(cmd *cobra.Command, args []string) {
 
 		metrics.RegisterMetrics()
 		policies2.Init()
+
+		// Initialize and start batch ingestion
+		ingestion.Init()
+		ingestion.Start(mainCtx)
+		stream.Start(mainCtx)
+
 		// Inicializa o handler dentro do contexto principal
 		in, ex := net.Router()
 
@@ -79,6 +96,9 @@ func runServer(cmd *cobra.Command, args []string) {
 			log.Logger.Info("Sinal de desligamento recebido. Finalizando...")
 
 			mainCancel()
+
+			// Shutdown ingestion
+			ingestion.Stop()
 
 			// Shutdown pubsub
 			if ps := pubsub.GetPubSub(); ps != nil {

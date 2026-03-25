@@ -1,7 +1,7 @@
 package negentropy
 
 import (
-	json "github.com/bytedance/sonic"
+	json "github.com/gabrielmoura/nostr-relay-server/internal/jsonx"
 	"github.com/nbd-wtf/go-nostr"
 	"github.com/tmthrgd/go-hex"
 )

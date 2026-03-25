@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/gabrielmoura/nostr-relay-server/config"
+	"github.com/gabrielmoura/nostr-relay-server/infra/cache"
 	"github.com/gabrielmoura/nostr-relay-server/infra/db/helper"
 	"github.com/nbd-wtf/go-nostr"
 )
@@ -88,6 +89,7 @@ SELECT b.reason
 FROM banned_users b
 JOIN profiles p ON b.user_id = p.id
 WHERE p.public_key = $1::text
+ORDER BY b.id DESC
 LIMIT 1;
 `
 
@@ -101,17 +103,39 @@ func (q *Queries) GetUserBannedByKey(ctx context.Context, key string) (reason st
 }
 
 const banUserByPubKey = `-- name: BanUserByPubKey :exec
-INSERT INTO banned_users (user_id, reason, related_ids)
-VALUES (
-    (SELECT id FROM profiles WHERE public_key = $1::text),
-    $2::text,
-    $3::VARCHAR(60)[]
-);
+WITH target AS (
+    SELECT id
+    FROM profiles
+    WHERE public_key = $1::text
+    LIMIT 1
+), purge AS (
+    DELETE FROM banned_users
+    WHERE user_id = (SELECT id FROM target)
+)
+INSERT INTO banned_users (user_id, reason, related_ids, created_at)
+SELECT id, $2::text, $3::VARCHAR(60)[], NOW()
+FROM target;
 `
 
 // BanUserByPubKey bans a user by their public key, providing a reason and related IDs.
 func (q *Queries) BanUserByPubKey(ctx context.Context, key, reason string, relatedIds []string) error {
 	_, err := q.db.Exec(ctx, banUserByPubKey, key, reason, relatedIds)
+	if err == nil {
+		_ = cache.Delete("ban:" + key)
+	}
+	return err
+}
+
+const unbanUserByPubKey = `-- name: UnbanUserByPubKey :exec
+DELETE FROM banned_users
+WHERE user_id = (SELECT id FROM profiles WHERE public_key = $1::text LIMIT 1);
+`
+
+func (q *Queries) UnbanUserByPubKey(ctx context.Context, key string) error {
+	_, err := q.db.Exec(ctx, unbanUserByPubKey, key)
+	if err == nil {
+		_ = cache.Delete("ban:" + key)
+	}
 	return err
 }
 

@@ -1,7 +1,7 @@
 package blossom
 
 import (
-	json "github.com/bytedance/sonic"
+	json "github.com/gabrielmoura/nostr-relay-server/internal/jsonx"
 	"github.com/emmansun/base64"
 	"github.com/gabrielmoura/nostr-relay-server/infra/log"
 	errors2 "github.com/gabrielmoura/nostr-relay-server/internal/errors"

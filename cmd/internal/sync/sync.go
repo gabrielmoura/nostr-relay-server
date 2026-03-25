@@ -11,7 +11,7 @@ import (
 	"syscall"
 	"time"
 
-	json "github.com/bytedance/sonic"
+	json "github.com/gabrielmoura/nostr-relay-server/internal/jsonx"
 	"github.com/gabrielmoura/nostr-relay-server/config"
 	"github.com/gabrielmoura/nostr-relay-server/infra/log"
 	"github.com/gabrielmoura/nostr-relay-server/infra/util"

@@ -4,20 +4,22 @@ import (
 	"net/url"
 	"strings"
 
-	json "github.com/bytedance/sonic"
 	errors2 "github.com/gabrielmoura/nostr-relay-server/internal/errors"
+	json "github.com/gabrielmoura/nostr-relay-server/internal/jsonx"
 	"golang.org/x/time/rate"
 )
 
 type Config struct {
 	Port             int                      `json:"port" yaml:"port" mapstructure:"port"`
 	AppEnv           string                   `json:"app_env" yaml:"app_env" mapstructure:"app_env"`
+	AdminToken       string                   `json:"admin_token" yaml:"admin_token" mapstructure:"admin_token"`
 	Ws               WsConfig                 `json:"ws" yaml:"ws" mapstructure:"ws"`
 	Anon             Anon                     `json:"anon" yaml:"anon" mapstructure:"anon"`
 	RelayInformation RelayInformationDocument `json:"relay_information" yaml:"relay_information" mapstructure:"relay_information"`
 	Relay            RelayConfig              `json:"relay" yaml:"relay" mapstructure:"relay"`
 	DB               DbConfig                 `json:"db" yaml:"db" mapstructure:"db"`
 	Redis            RedisConfig              `json:"redis" yaml:"redis" mapstructure:"redis"`
+	Ingestion        IngestionConfig          `json:"ingestion" yaml:"ingestion" mapstructure:"ingestion"`
 	Stream           WsStreamConfig           `json:"stream" yaml:"stream" mapstructure:"stream"`
 	EnableNegentropy bool                     `json:"enable_negentropy" yaml:"enable_negentropy" mapstructure:"enable_negentropy"`
 	Store            StoreConfig              `json:"store" yaml:"store" mapstructure:"store"`
@@ -38,9 +40,12 @@ type WsStreamConfig struct {
 	StreamDown bool     `json:"stream_down" yaml:"stream_down" mapstructure:"stream_down"`
 }
 type DbConfig struct {
-	MaxConns    int32  `json:"max_conns" yaml:"max_conns" mapstructure:"max_conns"`
-	MinConns    int32  `json:"min_conns" yaml:"min_conns" mapstructure:"min_conns"`
-	PostgresURI string `json:"postgres_uri" yaml:"postgres_uri" mapstructure:"postgres_uri"`
+	MaxConns                 int32  `json:"max_conns" yaml:"max_conns" mapstructure:"max_conns"`
+	MinConns                 int32  `json:"min_conns" yaml:"min_conns" mapstructure:"min_conns"`
+	PostgresURI              string `json:"postgres_uri" yaml:"postgres_uri" mapstructure:"postgres_uri"`
+	MaxConnLifetimeMinutes   int32  `json:"max_conn_lifetime_minutes" yaml:"max_conn_lifetime_minutes" mapstructure:"max_conn_lifetime_minutes"`
+	MaxConnIdleMinutes       int32  `json:"max_conn_idle_minutes" yaml:"max_conn_idle_minutes" mapstructure:"max_conn_idle_minutes"`
+	HealthCheckPeriodSeconds int32  `json:"health_check_period_seconds" yaml:"health_check_period_seconds" mapstructure:"health_check_period_seconds"`
 }
 type RelayConfig struct {
 	QueryLimit         int   `json:"query_limit" yaml:"query_limit" mapstructure:"query_limit"`
@@ -71,20 +76,30 @@ type Anon struct {
 }
 
 type RedisConfig struct {
-	Enabled  bool           `json:"enabled" yaml:"enabled" mapstructure:"enabled"`
-	Addr     string         `json:"addr" yaml:"addr" mapstructure:"addr"`
-	Password string         `json:"password" yaml:"password" mapstructure:"password"`
-	DB       int            `json:"db" yaml:"db" mapstructure:"db"`
-	PoolSize int            `json:"pool_size" yaml:"pool_size" mapstructure:"pool_size"`
-	Cache    CacheTTLConfig `json:"cache" yaml:"cache" mapstructure:"cache"`
+	Enabled                            bool           `json:"enabled" yaml:"enabled" mapstructure:"enabled"`
+	Addr                               string         `json:"addr" yaml:"addr" mapstructure:"addr"`
+	Password                           string         `json:"password" yaml:"password" mapstructure:"password"`
+	DB                                 int            `json:"db" yaml:"db" mapstructure:"db"`
+	PoolSize                           int            `json:"pool_size" yaml:"pool_size" mapstructure:"pool_size"`
+	SubscriptionCleanupIntervalSeconds int            `json:"subscription_cleanup_interval_seconds" yaml:"subscription_cleanup_interval_seconds" mapstructure:"subscription_cleanup_interval_seconds"`
+	SubscriptionStaleAfterSeconds      int            `json:"subscription_stale_after_seconds" yaml:"subscription_stale_after_seconds" mapstructure:"subscription_stale_after_seconds"`
+	Cache                              CacheTTLConfig `json:"cache" yaml:"cache" mapstructure:"cache"`
 }
 
 type CacheTTLConfig struct {
-	BanTTL     int `json:"ban_ttl" yaml:"ban_ttl" mapstructure:"ban_ttl"`
-	ProfileTTL int `json:"profile_ttl" yaml:"profile_ttl" mapstructure:"profile_ttl"`
-	QueryTTL   int `json:"query_ttl" yaml:"query_ttl" mapstructure:"query_ttl"`
-	EventTTL   int `json:"event_ttl" yaml:"event_ttl" mapstructure:"event_ttl"`
-	DedupTTL   int `json:"dedup_ttl" yaml:"dedup_ttl" mapstructure:"dedup_ttl"`
+	BanTTL       int `json:"ban_ttl" yaml:"ban_ttl" mapstructure:"ban_ttl"`
+	ProfileTTL   int `json:"profile_ttl" yaml:"profile_ttl" mapstructure:"profile_ttl"`
+	QueryTTL     int `json:"query_ttl" yaml:"query_ttl" mapstructure:"query_ttl"`
+	QueryMetaTTL int `json:"query_meta_ttl" yaml:"query_meta_ttl" mapstructure:"query_meta_ttl"`
+	EventTTL     int `json:"event_ttl" yaml:"event_ttl" mapstructure:"event_ttl"`
+	DedupTTL     int `json:"dedup_ttl" yaml:"dedup_ttl" mapstructure:"dedup_ttl"`
+}
+
+type IngestionConfig struct {
+	BatchSize      int `json:"batch_size" yaml:"batch_size" mapstructure:"batch_size"`
+	BatchTimeoutMs int `json:"batch_timeout_ms" yaml:"batch_timeout_ms" mapstructure:"batch_timeout_ms"`
+	Workers        int `json:"workers" yaml:"workers" mapstructure:"workers"`
+	QueueSize      int `json:"queue_size" yaml:"queue_size" mapstructure:"queue_size"`
 }
 
 func (cfg *RelayInformationDocument) ToJson() (data []byte, err error) {

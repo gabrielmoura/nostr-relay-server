@@ -202,6 +202,82 @@ var (
 			Help: "Total number of events notified to listeners.",
 		},
 	)
+
+	// Batch ingestion metrics
+	NostrRelayBatchProcessed = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "nostr_relay_batch_processed_total",
+			Help: "Total number of batches processed by ingestion workers.",
+		},
+	)
+	NostrRelayEventsInserted = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "nostr_relay_events_inserted_total",
+			Help: "Total number of events inserted via batch processing.",
+		},
+	)
+	NostrRelayIngestionDuration = prometheus.NewHistogram(
+		prometheus.HistogramOpts{
+			Name:    "nostr_relay_ingestion_duration_seconds",
+			Help:    "Duration of batch insertion in seconds.",
+			Buckets: prometheus.DefBuckets,
+		},
+	)
+	NostrRelayIngestionBackpressure = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "nostr_relay_ingestion_backpressure_total",
+			Help: "Total number of times the ingestion queue was full (backpressure).",
+		},
+	)
+	NostrRelayIngestionDuplicates = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "nostr_relay_ingestion_duplicates_total",
+			Help: "Total number of duplicate events rejected by deduplication.",
+		},
+	)
+	NostrRelayIngestionErrors = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "nostr_relay_ingestion_errors_total",
+			Help: "Total number of errors during batch insertion.",
+		},
+	)
+	NostrRedisQueryCacheResult = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "nostr_redis_query_cache_total",
+			Help: "Redis query cache results by outcome.",
+		},
+		[]string{"result"},
+	)
+	NostrDBPoolAcquired = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "nostr_db_pool_acquired",
+			Help: "Number of currently acquired database connections.",
+		},
+	)
+	NostrDBPoolIdle = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "nostr_db_pool_idle",
+			Help: "Number of currently idle database connections.",
+		},
+	)
+	NostrDBPoolTotal = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "nostr_db_pool_total",
+			Help: "Total number of database connections in the pool.",
+		},
+	)
+	NostrDBPoolAcquireCount = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "nostr_db_pool_acquire_total",
+			Help: "Total successful database pool acquires.",
+		},
+	)
+	NostrListenerOrphanCleanup = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "nostr_listener_orphan_cleanup_total",
+			Help: "Total orphan listener subscriptions removed from Redis.",
+		},
+	)
 )
 
 func RegisterMetrics() {
@@ -233,6 +309,19 @@ func RegisterMetrics() {
 		// Negentropy metrics
 		NostrNegentropyCounter,
 		NostrUserAgentCounter,
+		// Ingestion metrics
+		NostrRelayBatchProcessed,
+		NostrRelayEventsInserted,
+		NostrRelayIngestionDuration,
+		NostrRelayIngestionBackpressure,
+		NostrRelayIngestionDuplicates,
+		NostrRelayIngestionErrors,
+		NostrRedisQueryCacheResult,
+		NostrDBPoolAcquired,
+		NostrDBPoolIdle,
+		NostrDBPoolTotal,
+		NostrDBPoolAcquireCount,
+		NostrListenerOrphanCleanup,
 	)
 
 }

@@ -65,6 +65,10 @@ Nostr Relay Server is a high-performance Nostr relay implementation in Go, suppo
 │  │  │  Internal (Port+1)          External (Port)                   │  │ │
 │  │  │  ├─ /metrics               ├─ /.well-known/...                │  │ │
 │  │  │  ├─ /admin                 ├─ /upload (Blossom)               │  │ │
+│  │  │  ├─ /panel (Admin SPA)     │                                  │  │ │
+│  │  │  │  ├─ overview/users      │                                  │  │ │
+│  │  │  │  ├─ connections/events  │                                  │  │ │
+│  │  │  │  └─ moderation actions  │                                  │  │ │
 │  │  │  └─                         ├─ /blob/:id (Blossom)           │  │ │
 │  │  │                             ├─ / (WS - NIP-11)                │  │ │
 │  │  │                             └─ /nostr.png                     │  │ │
@@ -108,6 +112,8 @@ Nostr Relay Server is a high-performance Nostr relay implementation in Go, suppo
 | **Metrics** | Prometheus | Observability |
 | **WebSocket** | gorilla/websocket | WebSocket connections |
 | **Nostr SDK** | go-nostr | Nostr protocol implementation |
+| **Admin SPA** | React 19 + Vite + TanStack Router | Internal operations dashboard |
+| **Embedded Assets** | `embed.FS` | Ships `infra/dash/dist` inside the Go binary |
 
 ## Directory Structure
 
@@ -135,9 +141,11 @@ nostr-relay-server/
 │   ├── cache/             # Redis caching layer
 │   ├── cron/              # Scheduled tasks
 │   ├── db/                # Database implementation
-│   ├── handler/           # HTTP/WS handlers
-│   │   ├── event/         # Event handling
-│   │   ├── req/           # REQ handling
+│   ├── handler/           # Transport handlers only
+│   │   ├── http/          # HTTP-only handlers and endpoints
+│   │   ├── ws/            # WebSocket-only message routing
+│   │   ├── event/         # EVENT use-case orchestration
+│   │   ├── req/           # REQ use-case orchestration
 │   │   ├── auth/          # NIP-42 auth
 │   │   ├── listener/      # Subscription management (Redis Pub/Sub)
 │   │   ├── store/blossom/ # Blossom file storage
@@ -168,9 +176,10 @@ nostr-relay-server/
 - `nostrpool.RelayPool` - singleton for forwarding events
 - `SessionManager` - singleton for Negentropy sessions
 
-### 3. Policy Chain
-- Events pass through multiple policy checks
-- Each policy can accept or reject
+### 3. Policy Hub
+- A single policy hub validates EVENT and REQ flows
+- The same rules are reused by live handlers and batch ingestion
+- Handlers translate policy decisions into protocol envelopes
 
 ### 4. DTO Pattern
 - `WsServer` - WebSocket connection context
@@ -194,44 +203,102 @@ Client WebSocket
          │
          ▼
 ┌──────────────────┐
-│  DoEVENT         │
+│  Handler Router  │
 └────────┬─────────┘
          │
-     ┌───┴───┐
-     │ Policies │
-     ├─ ID check
-     ├─ Signature check
-     ├─ Expiration (NIP-40)
-     ├─ POW check
-     ├─ Ban check (Redis Cache)
-     ├─ Tag size/length
-     └─ Base64 media check
+      ┌───┴───┐
+     │ Policy Hub │
+     ├─ Event identity
+     ├─ Signature and ban checks
+     ├─ Expiration and POW
+     ├─ Tag/content constraints
+     └─ Event-kind semantics
      │
      ▼
 ┌──────────────────┐
-│  Ingestion Queue │ ─── Batch processing
+│  Ingestion Queue │ ─── Validated event handoff
 └────────┬─────────┘
          │
-     ┌───┴───┐
-     │ Batch   │
-     │ Worker  │
-     ├─ Dedupe (Redis)
-     ├─ Batch INSERT (COPY)
-     └─ Cache event
+      ┌───┴───┐
+     │ Batch Worker │
+     ├─ Dedupe
+     ├─ Storage-safe policies
+     ├─ Replaceable resolution
+     ├─ Batch INSERT
+     └─ Cache + notify
      │
      ▼
+┌──────────────────┐
+│ Stream Dispatcher│ ─── Async upstream / downstream forwarding
+└────────┬─────────┘
+         │
+         ▼
 ┌──────────────────┐
 │  Redis Pub/Sub   │ ─── Broadcast to all instances
 └────────┬─────────┘
          │
          ▼
 ┌──────────────────┐
-│  NotifyListeners │ ─── Match subscriptions (Redis)
-└────────┬─────────┘       and send events
+│  NotifyListeners │ ─── Match subscriptions and send envelopes
+└────────┬─────────┘
          │
          ▼
     Client receives EVENT envelope
 ```
+
+## Flow: Request Processing
+
+```text
+Client WebSocket
+       │
+       ▼
+┌──────────────────┐
+│  Handler Router  │
+└────────┬─────────┘
+         │
+         ▼
+┌──────────────────┐
+│  Policy Hub      │
+├─ subscription id │
+├─ filter decode   │
+├─ auth rules      │
+├─ empty filter    │
+└─ protected kinds │
+└────────┬─────────┘
+         │
+         ▼
+┌──────────────────┐
+│  Query Executor  │
+├─ local DB        │
+└─ optional stream │
+└────────┬─────────┘
+         │
+         ▼
+┌──────────────────┐
+│ Listener Registry│
+└──────────────────┘
+```
+
+## Policy Consolidation
+
+- `infra/handler` should only decode, route, and translate protocol responses
+- `internal/policies` becomes the single source of truth for EVENT and REQ validation
+- `infra/ingestion` reuses the same policy package before persistence
+- `infra/stream` uses dedicated forwarding rules instead of handler-driven checks
+
+## Transport Separation
+
+- HTTP handlers own route binding, request decoding, status codes, and HTTP payloads
+- admin HTTP endpoints expose operational actions and observability on the internal server
+- WebSocket handlers own frame decoding, message dispatch, and Nostr envelopes
+- Event and REQ packages act as use-case orchestrators and are reused by WebSocket routing only
+- Shared business logic should not live in HTTP or WebSocket transport packages
+
+## Helper Package Design
+
+- `infra/db/helper` is a query-construction package, not a persistence layer
+- it owns filter normalization, SQL rendering, and cache-key hashing
+- it does not know about Redis invalidation, pgx execution, or transport concerns
 
 ## Redis Architecture
 
@@ -360,14 +427,32 @@ Client WebSocket
 - Prepared statement reuse
 - Query result caching
 
+### Connection Pool Tuning
+- Dynamic pgx pool sizing based on configured limits
+- Connection lifetime and idle eviction
+- Health checks and pool metrics
+- Prepared statements on acquired connections
+
 ### Batch Insert Optimization
 - Worker pool for concurrent batch processing
-- PostgreSQL COPY protocol for bulk inserts
 - In-flight queue with backpressure
 - Deduplication via Redis
+- Policy validation before persistence
+- Replaceable/addressable partitioning before insert
 
 ### Cache Tuning
 - Multi-tier caching: Redis + local memory
 - Cache-aside pattern with TTL management
 - Cache warming on startup
 - Metrics for cache hit/miss rates
+
+### Subscription Hygiene
+- Redis-backed websocket registration heartbeat
+- Periodic orphan subscription cleanup
+- Local and distributed subscription eviction
+
+### Handler / Stream Refactor
+- Thin WebSocket handlers with explicit message router
+- Single policy hub shared across transport and ingestion
+- Async stream dispatcher with bounded workers
+- Reduced synchronous work on hot WebSocket paths

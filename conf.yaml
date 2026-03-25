@@ -1,5 +1,6 @@
 port: 4869
 app_env: production
+admin_token: ""
 ws:
     rate_limit: 1
     burst: 5
@@ -45,7 +46,24 @@ relay:
 db:
     max_conns: 50
     min_conns: 1
+    max_conn_lifetime_minutes: 30
+    max_conn_idle_minutes: 5
+    health_check_period_seconds: 30
     postgres_uri: postgres://postgres:Strong@P4ssword@127.0.0.1:5432/nostr
+redis:
+  enabled: true
+  addr: "127.0.0.1:6379"
+  pool_size: 10
+  subscription_cleanup_interval_seconds: 60
+  subscription_stale_after_seconds: 120
+  cache:
+    ban_ttl: 3600
+    profile_ttl: 300
+    query_ttl: 30
+    query_meta_ttl: 30
+    event_ttl: 600
+    dedup_ttl: 3600
+
 stream:
     relays:
         - ws://127.0.0.1:7777
@@ -76,4 +94,3 @@ store:
     allow_adult_content: false
     allow_violent_content: false
     names: [ ]
-

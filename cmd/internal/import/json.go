@@ -5,7 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	json "github.com/bytedance/sonic"
+	json "github.com/gabrielmoura/nostr-relay-server/internal/jsonx"
 	dbx "github.com/gabrielmoura/nostr-relay-server/infra/db"
 	"github.com/gabrielmoura/nostr-relay-server/infra/log"
 	"github.com/nbd-wtf/go-nostr"

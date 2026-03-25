@@ -7,6 +7,7 @@ import (
 	"github.com/gabrielmoura/nostr-relay-server/infra/log"
 	"go.uber.org/zap"
 	"net/http"
+	"sort"
 	"sync"
 	"time"
 
@@ -18,7 +19,22 @@ type RelayPool struct {
 	mu            sync.Mutex
 	initOnce      sync.Once
 	relayFailures map[string]int // URL -> failure count
+	relayErrors   map[string]string
 	context.Context
+}
+
+type RelayStatus struct {
+	URL          string `json:"url"`
+	Connected    bool   `json:"connected"`
+	FailureCount int    `json:"failure_count"`
+	LastError    string `json:"last_error,omitempty"`
+}
+
+type PoolStats struct {
+	Initialized     bool          `json:"initialized"`
+	ConnectedRelays int           `json:"connected_relays"`
+	TotalRelays     int           `json:"total_relays"`
+	Relays          []RelayStatus `json:"relays"`
 }
 
 const MaxFailures = 5 // Número máximo de falhas antes de penalizar um relay
@@ -41,6 +57,7 @@ func Init(ctx context.Context, relayURLs []string) error {
 		pool = &RelayPool{
 			relays:        make(map[string]*nostr.Relay),
 			relayFailures: make(map[string]int),
+			relayErrors:   make(map[string]string),
 			Context:       ctx,
 		}
 		err = pool.connectAll(relayURLs)
@@ -66,9 +83,11 @@ func (p *RelayPool) connectAll(urls []string) error {
 			}
 			// Se falhar, adiciona ao relayFailures
 			p.relayFailures[url]++
+			p.relayErrors[url] = err.Error()
 			continue
 		}
 		p.relays[url] = r
+		p.relayErrors[url] = ""
 	}
 	if len(p.relays) == 0 {
 		return ErrNotRelayConnectedAll
@@ -89,10 +108,62 @@ func (p *RelayPool) reconnectRelay(url string) error {
 	r, err := nostr.RelayConnect(p.Context, url)
 	if err != nil {
 		p.relayFailures[url]++
+		p.relayErrors[url] = err.Error()
 		return err
 	}
 	p.relays[url] = r
+	p.relayErrors[url] = ""
 	return nil
+}
+
+func Stats() PoolStats {
+	if pool == nil {
+		return PoolStats{Initialized: false, Relays: []RelayStatus{}}
+	}
+
+	pool.mu.Lock()
+	defer pool.mu.Unlock()
+
+	seen := make(map[string]struct{}, len(pool.relays)+len(pool.relayFailures))
+	statuses := make([]RelayStatus, 0, len(pool.relays)+len(pool.relayFailures))
+
+	for url, relay := range pool.relays {
+		seen[url] = struct{}{}
+		statuses = append(statuses, RelayStatus{
+			URL:          url,
+			Connected:    relay != nil && relay.IsConnected(),
+			FailureCount: pool.relayFailures[url],
+			LastError:    pool.relayErrors[url],
+		})
+	}
+
+	for url, failures := range pool.relayFailures {
+		if _, ok := seen[url]; ok {
+			continue
+		}
+		statuses = append(statuses, RelayStatus{
+			URL:          url,
+			Connected:    false,
+			FailureCount: failures,
+			LastError:    pool.relayErrors[url],
+		})
+	}
+
+	sort.Slice(statuses, func(i, j int) bool { return statuses[i].URL < statuses[j].URL })
+
+	connected := 0
+	for _, item := range statuses {
+		if item.Connected {
+			connected++
+		}
+	}
+
+	return PoolStats{
+		Initialized:     true,
+		ConnectedRelays: connected,
+		TotalRelays:     len(statuses),
+		Relays:          statuses,
+	}
 }
 
 // Subscribe cria inscrições em todos os relays com o filtro fornecido.

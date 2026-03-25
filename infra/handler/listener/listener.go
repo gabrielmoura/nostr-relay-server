@@ -4,10 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sort"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"github.com/gabrielmoura/nostr-relay-server/config"
 	"github.com/gabrielmoura/nostr-relay-server/infra/cache"
 	"github.com/gabrielmoura/nostr-relay-server/infra/log"
 	"github.com/gabrielmoura/nostr-relay-server/infra/metrics"
@@ -27,13 +30,26 @@ type ListenerData struct {
 	CreatedAt int64           `json:"created_at"`
 }
 
+type ConnectionInfo struct {
+	WSID              string `json:"ws_id"`
+	IP                string `json:"ip"`
+	Authed            string `json:"authed,omitempty"`
+	SubscriptionCount int    `json:"subscription_count"`
+	ConnectedAt       int64  `json:"connected_at"`
+	LastSeenAt        int64  `json:"last_seen_at"`
+	UserAgent         string `json:"user_agent,omitempty"`
+}
+
 var (
 	localListeners      = make(map[*dto.WsServer]map[string]*Listener)
 	localListenersMutex sync.RWMutex
 	listenerCount       atomic.Int32
 	wsToID              = make(map[*dto.WsServer]string)
 	wsToIDMutex         sync.RWMutex
+	cleanupOnce         sync.Once
 )
+
+const wsLastSeenPrefix = "ws:last_seen:"
 
 func getWsID(ws *dto.WsServer) string {
 	wsToIDMutex.RLock()
@@ -50,6 +66,9 @@ func setWsID(ws *dto.WsServer, id string) {
 func Init() {
 	if pubsub.GetPubSub() != nil && pubsub.GetPubSub().IsEnabled() {
 		registerPubSubHandlers()
+		cleanupOnce.Do(func() {
+			go cleanupOrphanSubscriptionsLoop()
+		})
 	}
 }
 
@@ -89,6 +108,15 @@ func registerPubSubHandlers() {
 			return err
 		}
 		handleRemoteDisconnect(disconnectMsg.WSID)
+		return nil
+	})
+
+	ps.RegisterHandler(pubsub.ChannelSubCleanup, func(msg *pubsub.Message) error {
+		var cleanupMsg pubsub.SubCleanupMessage
+		if err := json.Unmarshal([]byte(msg.Payload), &cleanupMsg); err != nil {
+			return err
+		}
+		handleRemoteDisconnect(cleanupMsg.WSID)
 		return nil
 	})
 }
@@ -208,13 +236,10 @@ func SetListener(id string, ws *dto.WsServer, filters nostr.Filters) {
 	defer localListenersMutex.Unlock()
 
 	if localListeners[ws] == nil {
+		localListeners[ws] = make(map[string]*Listener)
 		wsID := fmt.Sprintf("ws_%s_%d", ws.Conn.IP(), time.Now().UnixNano())
 		setWsID(ws, wsID)
-
-		wsCtx := ws.Ctx
-		if wsCtx == nil {
-			wsCtx = context.Background()
-		}
+		touchWSID(wsID)
 
 		if ps := pubsub.GetPubSub(); ps != nil && ps.IsEnabled() {
 			go func() {
@@ -244,6 +269,7 @@ func SetListener(id string, ws *dto.WsServer, filters nostr.Filters) {
 
 	wsID := getWsID(ws)
 	if wsID != "" {
+		touchWSID(wsID)
 		filterJSON, _ := json.Marshal(filters)
 		if ps := pubsub.GetPubSub(); ps != nil && ps.IsEnabled() {
 			go func() {
@@ -335,6 +361,95 @@ func RemoveListener(ws *dto.WsServer) {
 	}
 }
 
+func Touch(ws *dto.WsServer) {
+	wsID := getWsID(ws)
+	if wsID == "" {
+		return
+	}
+	ws.LastSeen = time.Now().UTC()
+	touchWSID(wsID)
+}
+
+func touchWSID(wsID string) {
+	if wsID == "" || !cache.IsEnabled() {
+		return
+	}
+	redisClient := cache.GetRedis()
+	if redisClient == nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+	ttl := time.Duration(configuredStaleAfterSeconds()) * time.Second
+	_ = redisClient.Set(ctx, wsLastSeenPrefix+wsID, fmt.Sprintf("%d", time.Now().Unix()), ttl)
+	_ = redisClient.Expire(ctx, fmt.Sprintf("subs:%s", wsID), ttl)
+}
+
+func cleanupOrphanSubscriptionsLoop() {
+	interval := time.Duration(configuredCleanupIntervalSeconds()) * time.Second
+	if interval <= 0 {
+		interval = time.Minute
+	}
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for range ticker.C {
+		cleanupOrphanSubscriptions()
+	}
+}
+
+func cleanupOrphanSubscriptions() {
+	if !cache.IsEnabled() {
+		return
+	}
+	redisClient := cache.GetRedis()
+	if redisClient == nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	var cursor uint64
+	for {
+		keys, nextCursor, err := redisClient.Scan(ctx, cursor, "subs:*", 100)
+		if err != nil {
+			log.Logger.Debug("failed scanning subscriptions for cleanup", zap.Error(err))
+			return
+		}
+		for _, key := range keys {
+			wsID := strings.TrimPrefix(key, "subs:")
+			exists, err := redisClient.Exists(ctx, wsLastSeenPrefix+wsID)
+			if err != nil {
+				continue
+			}
+			if exists == 0 {
+				_ = redisClient.Del(ctx, key)
+				metrics.NostrListenerOrphanCleanup.Inc()
+				if ps := pubsub.GetPubSub(); ps != nil && ps.IsEnabled() {
+					_ = ps.PublishSubCleanup(context.Background(), wsID)
+				}
+			}
+		}
+		cursor = nextCursor
+		if cursor == 0 {
+			return
+		}
+	}
+}
+
+func configuredCleanupIntervalSeconds() int {
+	if config.Cfg == nil || config.Cfg.Redis.SubscriptionCleanupIntervalSeconds <= 0 {
+		return 60
+	}
+	return config.Cfg.Redis.SubscriptionCleanupIntervalSeconds
+}
+
+func configuredStaleAfterSeconds() int {
+	if config.Cfg == nil || config.Cfg.Redis.SubscriptionStaleAfterSeconds <= 0 {
+		return 120
+	}
+	return config.Cfg.Redis.SubscriptionStaleAfterSeconds
+}
+
 func NotifyListeners(event *nostr.Event) {
 	if ps := pubsub.GetPubSub(); ps != nil && ps.IsEnabled() {
 		go func() {
@@ -349,6 +464,62 @@ func NotifyListeners(event *nostr.Event) {
 
 func GetCount() int {
 	return int(listenerCount.Load())
+}
+
+func ActiveConnections() []ConnectionInfo {
+	localListenersMutex.RLock()
+	defer localListenersMutex.RUnlock()
+
+	connections := make([]ConnectionInfo, 0, len(localListeners))
+	for ws, subs := range localListeners {
+		connections = append(connections, ConnectionInfo{
+			WSID:              getWsID(ws),
+			IP:                ws.Conn.IP(),
+			Authed:            ws.Authed,
+			SubscriptionCount: len(subs),
+			ConnectedAt:       ws.StartTime.Unix(),
+			LastSeenAt:        ws.LastSeen.Unix(),
+			UserAgent:         ws.UserAgent,
+		})
+	}
+	sort.Slice(connections, func(i, j int) bool {
+		if connections[i].LastSeenAt == connections[j].LastSeenAt {
+			return connections[i].WSID < connections[j].WSID
+		}
+		return connections[i].LastSeenAt > connections[j].LastSeenAt
+	})
+	return connections
+}
+
+func AuthedConnections() []ConnectionInfo {
+	active := ActiveConnections()
+	authed := make([]ConnectionInfo, 0, len(active))
+	for _, conn := range active {
+		if conn.Authed != "" {
+			authed = append(authed, conn)
+		}
+	}
+	return authed
+}
+
+func Disconnect(wsID string) bool {
+	wsToIDMutex.RLock()
+	var target *dto.WsServer
+	for ws, id := range wsToID {
+		if id == wsID {
+			target = ws
+			break
+		}
+	}
+	wsToIDMutex.RUnlock()
+
+	if target == nil || target.Conn == nil {
+		return false
+	}
+
+	RemoveListener(target)
+	_ = target.Conn.Close()
+	return true
 }
 
 func MatchEventAgainstSubscribers(event *nostr.Event, wsID string) bool {

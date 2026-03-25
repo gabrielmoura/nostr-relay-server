@@ -143,6 +143,9 @@ db:
   max_conns: 50      # Maximum connections in pool
   min_conns: 1       # Minimum connections
   postgres_uri: "postgres://user:pass@host:5432/dbname"
+  max_conn_lifetime_minutes: 30
+  max_conn_idle_minutes: 5
+  health_check_period_seconds: 30
 ```
 
 ## Queries
@@ -176,6 +179,8 @@ Same filters as event queries but returns `COUNT(*)`.
 | `event:{id}` | STRING | 10m | Event cache | `{json}` |
 | `dedup:{id}` | STRING | 1h | Event deduplication | `"1"` |
 | `sub:filter:{hash}` | STRING | 5m | Filter hash | `"hash"` |
+| `ws:last_seen:{ws_id}` | STRING | 2m | WebSocket heartbeat timestamp | `1710000000` |
+| `query:meta:{hash}` | HASH | 30s | Query cache metadata | `{hits,last_access}` |
 
 ### Pub/Sub Channels
 
@@ -187,6 +192,7 @@ Same filters as event queries but returns `COUNT(*)`.
 | `ws:disconnect` | WebSocket disconnect | `{"ws_id":"..."}` |
 | `sub:create` | New subscription | `{"ws_id":"...","sub_id":"...","filter":{}}` |
 | `sub:close` | Close subscription | `{"ws_id":"...","sub_id":"..."}` |
+| `sub:cleanup` | Orphan subscription cleanup | `{"ws_id":"..."}` |
 
 ### Subscription Storage
 
@@ -196,6 +202,14 @@ Type: HASH
 | Field | Value |
 |-------|-------|
 | `{sub_id}` | `{"filter":{...},"created_at":1234567890}` |
+| `info` | `{"ip":"...","authed":"..."}` |
+
+### Orphan Cleanup Strategy
+
+- every websocket updates `ws:last_seen:{ws_id}` with short TTL
+- `subs:{ws_id}` is removed on normal disconnect
+- a periodic cleanup job removes `subs:{ws_id}` when `ws:last_seen:{ws_id}` no longer exists
+- `sub:cleanup` pub/sub messages notify other instances to evict stale mirrors
 
 ### Configuration
 
@@ -204,16 +218,19 @@ Redis connection via `conf.yaml`:
 ```yaml
 redis:
   enabled: true
-  addr: "localhost:6379"
+  addr: "127.0.0.1:6379"
   password: ""
   db: 0
   pool_size: 10
+  subscription_cleanup_interval_seconds: 60
+  subscription_stale_after_seconds: 120
   cache:
     ban_ttl: 1h
     profile_ttl: 5m
     query_ttl: 30s
     event_ttl: 10m
     dedup_ttl: 1h
+    query_meta_ttl: 30s
 ```
 
 ### Prepared Statements
@@ -246,9 +263,9 @@ PREPARE recent_events_by_kind AS
 Additional indexes for performance:
 
 ```sql
--- Partial index for recent events (last 7 days)
-CREATE INDEX idx_event_recent ON event (created_at DESC, id) 
-WHERE created_at > extract(epoch from now()) - 604800;
+-- Partial index for recent events (use a fixed timestamp in migrations)
+CREATE INDEX idx_event_recent ON event (created_at DESC, id)
+WHERE created_at > 1710000000;
 
 -- Partial index for popular kinds
 CREATE INDEX idx_event_kinds_popular ON event (kind, created_at DESC) 
@@ -257,6 +274,9 @@ WHERE kind IN (0, 1, 3, 7);
 -- Covering index for author queries
 CREATE INDEX idx_event_author_covering ON event (pubkey, created_at DESC) 
 INCLUDE (id, kind, tags, content, sig);
+
+-- Composite index for author + kind filters
+CREATE INDEX idx_event_author_kind ON event (pubkey, kind, created_at DESC);
 
 -- Partial index for deletion events
 CREATE INDEX idx_event_deletions ON event (created_at DESC) 

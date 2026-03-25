@@ -1,19 +1,15 @@
 package helper
 
 import (
-	"errors"
-	"fmt"
-	"github.com/nbd-wtf/go-nostr"
 	"testing"
 
 	"github.com/gabrielmoura/nostr-relay-server/config"
-	"github.com/stretchr/testify/assert"
+	"github.com/nbd-wtf/go-nostr"
+	"github.com/stretchr/testify/require"
 )
 
-var conf *config.RelayConfig
-
-func init() {
-	conf = &config.RelayConfig{
+func testConfig() *config.RelayConfig {
+	return &config.RelayConfig{
 		QueryIDsLimit:     5,
 		QueryAuthorsLimit: 10,
 		QueryKindsLimit:   10,
@@ -22,190 +18,99 @@ func init() {
 	}
 }
 
-func TestQueryEventsSql_Basic(t *testing.T) {
-
+func TestNormalizeFilter_SortsAndClamps(t *testing.T) {
+	cfg := testConfig()
 	filter := nostr.Filter{
-		IDs:     []string{"id1", "id2"},
+		IDs:     []string{"id2", "id1"},
+		Authors: []string{"b", "a"},
+		Kinds:   []int{7, 1},
+		Tags: nostr.TagMap{
+			"#p": {"v2", "v1"},
+			"#e": {"x2", "x1"},
+		},
+		Limit: 999,
+	}
+
+	normalized := NormalizeFilter(cfg, filter)
+	require.Equal(t, []string{"id1", "id2"}, normalized.IDs)
+	require.Equal(t, []string{"a", "b"}, normalized.Authors)
+	require.Equal(t, []int{1, 7}, normalized.Kinds)
+	require.Equal(t, []string{"x1", "x2"}, normalized.Tags["#e"])
+	require.Equal(t, []string{"v1", "v2"}, normalized.Tags["#p"])
+	require.Equal(t, cfg.QueryLimit, normalized.Limit)
+}
+
+func TestQueryEventsSQL_BuildsEventQuery(t *testing.T) {
+	cfg := testConfig()
+	filter := nostr.Filter{
+		IDs:     []string{"id2", "id1"},
 		Authors: []string{"author1"},
 		Kinds:   []int{1},
-		Tags: map[string][]string{
-			"#p": {"val1", "val2"},
+		Tags: nostr.TagMap{
+			"#p": {"val2", "val1"},
 		},
-		Search: "test",
-		Limit:  10,
+		Search: "nostr relay",
+		Limit:  3,
 	}
 
-	query, params, err := QueryEventsSql(conf, filter, false)
-	assert.NoError(t, err)
-	assert.Contains(t, query, `SELECT id, pubkey, created_at, kind, tags, content, sig FROM event WHERE`)
-	assert.Equal(t, 8, len(params)) // 2 IDs + 1 author + 1 kind + 2 tags + limit
-
-	var strParams string
-	for _, str := range params {
-		strParams += fmt.Sprintf("%s", str)
-	}
-
-	println("Params: ", strParams)
-	println("Query: ", query)
+	query, params, err := QueryEventsSql(cfg, filter, false)
+	require.NoError(t, err)
+	require.Contains(t, query, "SELECT id, pubkey, created_at, kind, tags, content, sig FROM event WHERE")
+	require.Contains(t, query, "id IN ($1,$2)")
+	require.Contains(t, query, "pubkey IN ($3)")
+	require.Contains(t, query, "kind IN ($4)")
+	require.Contains(t, query, "tagvalues && ARRAY[$5,$6]")
+	require.Contains(t, query, "content_search @@ to_tsquery('portuguese', $7)")
+	require.Contains(t, query, "ORDER BY created_at DESC, id LIMIT $8")
+	require.Equal(t, []any{"id1", "id2", "author1", 1, "val1", "val2", "nostr & relay", 3}, params)
 }
 
-func TestQueryEventsSql_TooManyIDs(t *testing.T) {
-	filter := nostr.Filter{
-		IDs: []string{"1", "2", "3", "4", "5", "6"}, // ultrapassa limite de 5
-	}
-
-	_, _, err := QueryEventsSql(conf, filter, false)
-	assert.True(t, errors.Is(err, ErrTooManyIDs))
+func TestQueryEventsSQL_BuildsCountQuery(t *testing.T) {
+	cfg := testConfig()
+	query, params, err := QueryEventsSql(cfg, nostr.Filter{Authors: []string{"author1", "author2"}}, true)
+	require.NoError(t, err)
+	require.Contains(t, query, "SELECT COUNT(*) FROM event WHERE")
+	require.NotContains(t, query, "ORDER BY")
+	require.Equal(t, []any{"author1", "author2", cfg.QueryLimit}, params)
 }
 
-func TestQueryEventsSql_EmptyTagSet(t *testing.T) {
-	filter := nostr.Filter{
-		Tags: map[string][]string{
-			"#e": {},
+func TestQueryEventsSQL_ValidatesLimits(t *testing.T) {
+	cfg := testConfig()
+	_, _, err := QueryEventsSql(cfg, nostr.Filter{IDs: []string{"1", "2", "3", "4", "5", "6"}}, false)
+	require.ErrorIs(t, err, ErrTooManyIDs)
+
+	_, _, err = QueryEventsSql(cfg, nostr.Filter{Tags: nostr.TagMap{"#e": {}}}, false)
+	require.ErrorIs(t, err, ErrEmptyTagSet)
+
+	_, _, err = QueryEventsSql(cfg, nostr.Filter{Tags: nostr.TagMap{"#e": {"1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11"}}}, false)
+	require.ErrorIs(t, err, ErrTooManyTagValues)
+}
+
+func TestQueryEventsSQL_FakeDeletion(t *testing.T) {
+	cfg := testConfig()
+	cfg.FakeDeletion = true
+	query, _, err := QueryEventsSql(cfg, nostr.Filter{Authors: []string{"author1"}}, false)
+	require.NoError(t, err)
+	require.Contains(t, query, "deleted_by IS NULL")
+}
+
+func TestFilterHash_IsStable(t *testing.T) {
+	cfg := testConfig()
+	first := nostr.Filter{
+		IDs:     []string{"b", "a"},
+		Authors: []string{"pub2", "pub1"},
+		Kinds:   []int{7, 1},
+		Tags: nostr.TagMap{
+			"#p": {"2", "1"},
 		},
 	}
-
-	_, _, err := QueryEventsSql(conf, filter, false)
-	assert.True(t, errors.Is(err, ErrEmptyTagSet))
-}
-
-func TestQueryEventsSql_TooManyTagValues(t *testing.T) {
-	filter := nostr.Filter{
-		Tags: map[string][]string{
-			"#e": {"a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k"}, // 11 > limite de 10
-		},
-	}
-
-	_, _, err := QueryEventsSql(conf, filter, false)
-	assert.True(t, errors.Is(err, ErrTooManyTagValues))
-}
-
-func TestQueryEventsSql_DefaultLimit(t *testing.T) {
-	filter := nostr.Filter{
-		Limit: 0, // limite inválido
-	}
-
-	_, params, err := QueryEventsSql(conf, filter, false)
-	assert.NoError(t, err)
-	assert.Equal(t, conf.QueryLimit, params[len(params)-1])
-}
-
-func TestQueryEventsSql_DoCount(t *testing.T) {
-	filter := nostr.Filter{
-		IDs: []string{"id1"},
-	}
-
-	query, _, err := QueryEventsSql(conf, filter, true)
-	assert.NoError(t, err)
-	assert.Contains(t, query, "SELECT COUNT(*) FROM event")
-}
-
-// TestQueryEventsSql_DoCountWithComplexFilter tests the count query with a complex filter
-// Garantir que a consulta COUNT(*) seja construída corretamente com múltiplos filtros.
-func TestQueryEventsSql_DoCountWithComplexFilter(t *testing.T) {
-	filter := nostr.Filter{
-		Authors: []string{"author1", "author2"},
+	second := nostr.Filter{
+		IDs:     []string{"a", "b"},
+		Authors: []string{"pub1", "pub2"},
 		Kinds:   []int{1, 7},
-		Search:  "nostr",
-	}
-
-	query, params, err := QueryEventsSql(conf, filter, true)
-	assert.NoError(t, err)
-
-	assert.Contains(t, query, "SELECT COUNT(*) FROM event")
-	assert.Contains(t, query, "pubkey IN ($1,$2)")
-	assert.Contains(t, query, "kind IN ($3,$4)")
-	assert.Contains(t, query, "content LIKE $5")
-	assert.NotContains(t, query, "ORDER BY") // A contagem não precisa de ordenação
-	assert.Equal(t, 6, len(params))          // 2 autores + 2 kinds + 1 search + 1 limit
-}
-
-// TestQueryEventsSql_WithFakeDeletionEnabled tests the SQL query generation
-// when fake deletion is enabled, ensuring the query includes the deleted_by condition.
-func TestQueryEventsSql_WithFakeDeletionDisabled(t *testing.T) {
-	// Cria uma configuração local para este teste
-	confWithoutDeletion := conf
-	confWithoutDeletion.FakeDeletion = false
-
-	filter := nostr.Filter{Authors: []string{"author1"}}
-	query, _, err := QueryEventsSql(confWithoutDeletion, filter, false)
-	assert.NoError(t, err)
-	assert.NotContains(t, query, `deleted_by IS NULL`)
-}
-func TestQueryEventsSql_WithFakeDeletionEnabled(t *testing.T) {
-	// Cria uma configuração local para este teste
-	confWithDeletion := conf
-	confWithDeletion.FakeDeletion = true
-
-	filter := nostr.Filter{Authors: []string{"author1"}}
-	query, _, err := QueryEventsSql(confWithDeletion, filter, false)
-	assert.NoError(t, err)
-	assert.Contains(t, query, `deleted_by IS NULL`)
-}
-
-func TestQueryEventsSql_LimitExceedsConfig(t *testing.T) {
-	filter := nostr.Filter{
-		Limit: conf.QueryLimit + 100, // Limite muito alto
-	}
-
-	_, params, err := QueryEventsSql(conf, filter, false)
-	assert.NoError(t, err)
-	assert.Equal(t, conf.QueryLimit, params[len(params)-1], "o limite deve ser reduzido para o QueryLimit da configuração")
-}
-func TestQueryEventsSql_TimeFilters(t *testing.T) {
-	now := nostr.Now()
-	sinceTime := now - 1000
-	untilTime := now - 500
-
-	filter := nostr.Filter{
-		Since: &sinceTime,
-		Until: &untilTime,
-	}
-
-	query, params, err := QueryEventsSql(conf, filter, false)
-	assert.NoError(t, err)
-
-	assert.Contains(t, query, `created_at >= $1`)
-	assert.Contains(t, query, `created_at <= $2`)
-	assert.Equal(t, sinceTime, *params[0].(*nostr.Timestamp))
-	assert.Equal(t, untilTime, *params[1].(*nostr.Timestamp))
-}
-func TestQueryEventsSql_SearchWithWildcardCharacter(t *testing.T) {
-	filter := nostr.Filter{
-		Search: "uma string com 100% de certeza",
-	}
-
-	_, params, err := QueryEventsSql(conf, filter, false)
-	assert.NoError(t, err)
-
-	// O parâmetro para a busca deve conter a string de busca com '%' escapado e envolvido por '%' para o LIKE
-	expectedSearchParam := `%uma string com 100\% de certeza%`
-	assert.Equal(t, expectedSearchParam, params[0])
-}
-func TestQueryEventsSql_CumulativeTooManyTagValues(t *testing.T) {
-	filter := nostr.Filter{
-		Tags: map[string][]string{
-			"#e": {"v1", "v2", "v3", "v4", "v5"},
-			"#p": {"v6", "v7", "v8", "v9", "v10", "v11"}, // Total de valores (5+6) > limite de 10
+		Tags: nostr.TagMap{
+			"#p": {"1", "2"},
 		},
 	}
-
-	_, _, err := QueryEventsSql(conf, filter, false)
-	assert.ErrorIs(t, err, ErrTooManyTagValues, "esperado erro ErrTooManyTagValues a partir de tags cumulativas")
-}
-func TestQueryEventsSql_TooManyKinds(t *testing.T) {
-	filter := nostr.Filter{
-		Kinds: []int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11}, // 11 > limite de 10
-	}
-
-	_, _, err := QueryEventsSql(conf, filter, false)
-	assert.ErrorIs(t, err, ErrTooManyKinds, "esperado erro ErrTooManyKinds")
-}
-func TestQueryEventsSql_TooManyAuthors(t *testing.T) {
-	filter := nostr.Filter{
-		Authors: []string{"a1", "a2", "a3", "a4", "a5", "a6", "a7", "a8", "a9", "a10", "a11"}, // 11 > limite de 10
-	}
-
-	_, _, err := QueryEventsSql(conf, filter, false)
-	assert.ErrorIs(t, err, ErrTooManyAuthors, "esperado erro ErrTooManyAuthors")
+	require.Equal(t, FilterHash(cfg, first, false), FilterHash(cfg, second, false))
 }

@@ -512,3 +512,188 @@ PREPARE events_by_author_kind AS
 - ✅ Reduced index size
 - ✅ Better cache hit rates
 - ⚠️ Index maintenance overhead
+
+---
+
+## ADR-015: Consolidate Policies Into a Single Hub
+
+**Status:** Proposed  
+**Date:** 2026-03-23
+
+### Context
+
+Policy logic is currently split across WebSocket handlers and multiple files in `internal/policies`, with some event checks still embedded directly in handlers and batch ingestion not reusing the same validation flow.
+
+### Decision
+
+Refactor policy handling into a single policy hub that exposes clear entrypoints for:
+
+1. Incoming EVENT validation
+2. Incoming REQ validation
+3. Storage-safe batch ingestion validation
+4. Stream forwarding decisions
+
+### Reasons
+
+1. **Consistency**: The same rules should apply to live ingest and batch ingest
+2. **Maintainability**: Handlers should not own business rules
+3. **Performance**: Centralized normalization avoids repeated work
+4. **Safety**: Batch ingestion must not bypass runtime rules
+
+### Consequences
+
+- ✅ One place to understand relay policy behavior
+- ✅ Thinner handlers
+- ✅ Easier testing of event and request rules
+- ⚠️ Requires careful migration to avoid protocol regressions
+
+---
+
+## ADR-016: Async Stream Dispatcher
+
+**Status:** Proposed  
+**Date:** 2026-03-23
+
+### Context
+
+`infra/stream` currently forwards requests and events directly from handler paths, which adds avoidable latency and mixes relay federation with local response handling.
+
+### Decision
+
+Refactor stream forwarding into a bounded asynchronous dispatcher with dedicated workers for:
+
+1. Event upstream forwarding
+2. REQ downstream backfill
+
+### Reasons
+
+1. **Hot-path protection**: WebSocket handlers should stay focused on local protocol work
+2. **Backpressure**: Bounded queues protect relay stability
+3. **Observability**: Worker metrics clarify forwarding health
+4. **Isolation**: Federation failures should not slow down local clients
+
+### Consequences
+
+- ✅ Lower tail latency on EVENT / REQ handlers
+- ✅ Better control over retries and queue pressure
+- ✅ Simpler performance tuning
+- ⚠️ Requires explicit queue/drop policy
+
+---
+
+## ADR-017: Tune Query, Pool and Cache Hot Paths
+
+**Status:** Proposed  
+**Date:** 2026-03-24
+
+### Context
+
+The relay now has batch ingestion, Redis-backed subscriptions and prepared statements, but query construction, database pool lifecycle, cache metadata and subscription cleanup still need production-oriented tuning.
+
+### Decision
+
+Implement focused performance tuning in four areas:
+
+1. **Query optimization**: canonical query normalization, prepared-plan reuse and targeted cache invalidation
+2. **Connection pool tuning**: lifetime, idle timeout, health checks and pool observability
+3. **Redis cache tuning**: metadata-aware query cache, bounded TTLs and explicit invalidation paths
+4. **Subscription hygiene**: heartbeat-based cleanup of orphaned Redis subscription keys
+
+### Reasons
+
+1. **Latency**: hot REQ paths should avoid repeated avoidable work
+2. **Stability**: long-lived stale DB or Redis resources hurt tail latency
+3. **Observability**: tuning without metrics is guesswork
+4. **Distributed correctness**: stale subscriptions create noisy fan-out and memory leaks
+
+### Consequences
+
+- ✅ Better query/cache hit rates
+- ✅ More predictable pgx pool behavior under load
+- ✅ Lower Redis key churn and stale subscription buildup
+- ✅ Safer horizontal scaling behavior
+- ⚠️ Adds a few operational knobs that must be documented clearly
+
+---
+
+## ADR-018: Separate HTTP and WebSocket Transports
+
+**Status:** Proposed  
+**Date:** 2026-03-24
+
+### Context
+
+`infra/handler` currently mixes transport concerns with business orchestration. HTTP route concerns and WebSocket message concerns should not share the same structural entrypoints.
+
+### Decision
+
+Split handler responsibilities into transport-specific packages:
+
+1. `infra/handler/http` for HTTP-only flows
+2. `infra/handler/ws` for WebSocket-only flows
+3. keep event/req/count/auth packages as use-case orchestration layers
+
+### Reasons
+
+1. **Clarity**: transport concerns become easier to trace
+2. **Testing**: HTTP and WebSocket paths can be exercised independently
+3. **Maintainability**: less incidental coupling between envelope handling and HTTP responses
+
+### Consequences
+
+- ✅ clearer package boundaries
+- ✅ better readability for future features
+- ⚠️ requires moving some files and imports
+
+---
+
+## ADR-019: Refactor Query Helper Package for Deterministic SQL Generation
+
+**Status:** Proposed  
+**Date:** 2026-03-24
+
+### Context
+
+`infra/db/helper` became more important after query normalization, prepared-plan routing, and Redis query cache versioning. It now needs clearer internal boundaries and stronger tests.
+
+### Decision
+
+Refactor the helper package into explicit responsibilities:
+
+1. normalization
+2. validation
+3. SQL rendering
+4. stable filter hashing
+
+### Reasons
+
+1. **Readability**: each concern stays small and obvious
+2. **Determinism**: query ordering and hashing must stay stable
+3. **Testing**: smaller helpers are easier to verify precisely
+
+### Consequences
+
+- ✅ easier maintenance of query behavior
+- ✅ better tests with less incidental setup
+- ⚠️ small increase in file count inside the helper package
+
+---
+
+## ADR-020: Internal Admin API With Optional Token Enforcement
+
+**Status:** Proposed  
+**Date:** 2026-03-24
+
+### Context
+
+The relay needs operational endpoints for ban management, connection inspection, and event search. These endpoints live on the internal server, but some deployments still require explicit application-level protection.
+
+### Decision
+
+Expose admin endpoints on the internal server and support `X-Admin-Token` as an optional configuration. When `admin_token` is non-empty, the header becomes mandatory for all `/admin/*` routes.
+
+### Consequences
+
+- ✅ keeps admin surface on the internal server
+- ✅ allows secure deployments without forcing local-only setups
+- ⚠️ token rotation remains an operational concern

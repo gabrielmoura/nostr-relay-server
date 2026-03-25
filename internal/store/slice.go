@@ -2,10 +2,11 @@ package store
 
 import (
 	"context"
-	"github.com/fiatjaf/eventstore"
-	"github.com/nbd-wtf/go-nostr"
 	"slices"
 	"strings"
+
+	"github.com/fiatjaf/eventstore"
+	"github.com/nbd-wtf/go-nostr"
 )
 
 var _ eventstore.Store = (*SliceStore)(nil)
@@ -14,6 +15,11 @@ type SliceStore struct {
 	Events []*nostr.Event
 
 	MaxLimit int
+}
+
+func (b *SliceStore) ReplaceEvent(ctx context.Context, event *nostr.Event) error {
+	//TODO implement me
+	panic("implement me")
 }
 
 func (b *SliceStore) Init() error {
