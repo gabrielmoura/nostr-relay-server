@@ -9,6 +9,7 @@ import type {
   EventAggregates,
   EventDetail,
   FetchEventFromRelaysResponse,
+  ImportEventsResponse,
   LoggedUser,
   EventReportsResponse,
   EventTimeline,
@@ -41,7 +42,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     headers.set("X-Admin-Token", env.adminToken)
   }
 
-  if (init?.body && !headers.has("Content-Type")) {
+  if (init?.body && !(init.body instanceof FormData) && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json")
   }
 
@@ -396,6 +397,17 @@ export async function fetchEventFromRelays(eventID: string, relays: string[]) {
   return request<FetchEventFromRelaysResponse>(`/events/${eventID}/fetch`, {
     method: "POST",
     body: JSON.stringify({ relays }),
+  })
+}
+
+export async function importEventsFiles(files: File[]) {
+  const formData = new FormData()
+  for (const file of files) {
+    formData.append("files", file)
+  }
+  return request<ImportEventsResponse>("/events/import", {
+    method: "POST",
+    body: formData,
   })
 }
 

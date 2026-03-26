@@ -1,7 +1,7 @@
 import React, { Suspense, useState } from "react"
 import { QueryErrorResetBoundary } from "@tanstack/react-query"
 import { Link, useParams } from "@tanstack/react-router"
-import { Copy, ExternalLink, Plus, RefreshCcw, X } from "lucide-react"
+import { Copy, ExternalLink, Plus, RefreshCcw, StepForward, X } from "lucide-react"
 import { toast } from "sonner"
 
 import { BanUserDialog } from "@/components/features/ban-user-dialog"
@@ -13,7 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { useEventDetailSuspense, useFetchEventFromRelaysMutation } from "@/hooks/use-admin-data"
+import { useEventDetail, useEventDetailSuspense, useFetchEventFromRelaysMutation } from "@/hooks/use-admin-data"
 import { ApiError } from "@/services/admin"
 import { formatDateTime, shortenId } from "@/lib/utils"
 
@@ -134,6 +134,16 @@ function parseImetaResources(tags: TagTuple[]) {
     mimeTypes: unique(mimeTypes),
     altTexts: unique(altTexts),
   }
+}
+
+function parseMediaURLsFromTags(tags: TagTuple[]) {
+  const urls = unique([...tagValues(tags, "url"), ...tagValues(tags, "r")])
+  return urls.filter((url) => /^https?:\/\//.test(url))
+}
+
+function pickVideoURL(urls: string[]) {
+  const preferred = urls.find((url) => /\.(mp4|webm|ogg|mov)(\?|$)/i.test(url) || /video/i.test(url))
+  return preferred ?? urls[0] ?? ""
 }
 
 function parseEmbeddedRepost(content: string, kind: number) {
@@ -355,10 +365,14 @@ function EventDetailPageContent({ eventID }: { eventID: string }) {
   const embeddedRepost = parseEmbeddedRepost(event.content, event.kind)
 
   const imageURLs = unique([...detail.image_urls, ...imeta.imageURLs])
-  const videoOrMediaURLs = imeta.mediaURLs
+  const mediaURLs = unique([...imeta.mediaURLs, ...parseMediaURLsFromTags(tags)])
+  const videoURL = pickVideoURL(mediaURLs)
+  const videoPoster = imageURLs[0] ?? ""
 
   const rootRef = tags.find((tag) => tag[0] === "e" && tag[3] === "root")?.[1] || ""
   const replyRef = tags.find((tag) => tag[0] === "e" && tag[3] === "reply")?.[1] || ""
+  const targetEventID = eRefs[0] ?? ""
+  const targetEventQuery = useEventDetail(targetEventID)
   const kindLabel = kindLabels[event.kind] ?? "kind especializado"
 
   return (
@@ -379,6 +393,14 @@ function EventDetailPageContent({ eventID }: { eventID: string }) {
             <Button asChild variant="outline">
               <Link params={{ pubkey: event.pubkey }} to="/users/$pubkey">Ver Usuario</Link>
             </Button>
+            {(event.kind === 7 || event.kind === 6 || event.kind === 16) && targetEventID ? (
+              <Button asChild variant="outline">
+                <Link params={{ eventId: targetEventID }} to="/events/$eventId">
+                  <StepForward className="size-4" />
+                  {event.kind === 7 ? "Seguir evento alvo" : "Evento original"}
+                </Link>
+              </Button>
+            ) : null}
             <BanUserDialog contextEventId={event.id} defaultPubkey={event.pubkey} defaultReason={`acao originada do evento ${shortenId(event.id, 10, 4)}`} triggerLabel="Banir usuario" triggerVariant="warning" />
           </>
         }
@@ -450,11 +472,18 @@ function EventDetailPageContent({ eventID }: { eventID: string }) {
               </div>
             ) : null}
 
-            {videoOrMediaURLs.length > 0 ? (
+            {(event.kind === 21 || event.kind === 22 || event.kind === 34235) && videoURL ? (
+              <div className="space-y-2 rounded-[calc(var(--radius)-0.2rem)] border border-border bg-muted/20 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Player de video</p>
+                <video className="max-h-[420px] w-full rounded-md border border-border bg-black" controls poster={videoPoster || undefined} preload="metadata" src={videoURL} />
+              </div>
+            ) : null}
+
+            {mediaURLs.length > 0 ? (
               <div className="space-y-2 rounded-[calc(var(--radius)-0.2rem)] border border-border bg-muted/20 p-4">
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Media URLs (imeta)</p>
                 <div className="space-y-2">
-                  {videoOrMediaURLs.map((url) => (
+                  {mediaURLs.map((url) => (
                     <a className="flex items-center gap-1 break-all text-sm text-primary underline decoration-dotted underline-offset-2" href={url} key={url} rel="noreferrer" target="_blank">
                       <ExternalLink className="size-3.5" />
                       {url}
@@ -472,6 +501,26 @@ function EventDetailPageContent({ eventID }: { eventID: string }) {
                   <p className="text-xs text-muted-foreground">Autor: {shortenId(embeddedRepost.pubkey, 12, 4)}</p>
                 ) : null}
                 {embeddedRepost.content ? <p className="line-clamp-4 text-sm text-foreground">{embeddedRepost.content}</p> : null}
+                <Button asChild size="sm" variant="outline">
+                  <Link params={{ eventId: embeddedRepost.id }} to="/events/$eventId">Ir para evento original</Link>
+                </Button>
+              </div>
+            ) : null}
+
+            {event.kind === 7 && targetEventID ? (
+              <div className="space-y-2 rounded-[calc(var(--radius)-0.2rem)] border border-border bg-muted/20 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Evento alvo da reacao</p>
+                {targetEventQuery.isLoading ? <p className="text-sm text-muted-foreground">Carregando evento alvo...</p> : null}
+                {targetEventQuery.data ? (
+                  <>
+                    <p className="text-sm text-foreground">kind {targetEventQuery.data.event.kind} · {shortenId(targetEventQuery.data.event.id, 12, 4)}</p>
+                    <p className="line-clamp-3 text-sm text-muted-foreground">{targetEventQuery.data.event.content || "(sem conteudo textual)"}</p>
+                    <Button asChild size="sm" variant="outline">
+                      <Link params={{ eventId: targetEventID }} to="/events/$eventId">Ver evento alvo completo</Link>
+                    </Button>
+                  </>
+                ) : null}
+                {targetEventQuery.isError ? <p className="text-xs text-muted-foreground">Nao foi possivel carregar o evento alvo localmente.</p> : null}
               </div>
             ) : null}
           </CardContent>

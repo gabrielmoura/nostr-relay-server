@@ -20,6 +20,7 @@ type Config struct {
 	DB               DbConfig                 `json:"db" yaml:"db" mapstructure:"db"`
 	Redis            RedisConfig              `json:"redis" yaml:"redis" mapstructure:"redis"`
 	Ingestion        IngestionConfig          `json:"ingestion" yaml:"ingestion" mapstructure:"ingestion"`
+	Cron             CronConfig               `json:"cron" yaml:"cron" mapstructure:"cron"`
 	Stream           WsStreamConfig           `json:"stream" yaml:"stream" mapstructure:"stream"`
 	EnableNegentropy bool                     `json:"enable_negentropy" yaml:"enable_negentropy" mapstructure:"enable_negentropy"`
 	Store            StoreConfig              `json:"store" yaml:"store" mapstructure:"store"`
@@ -69,7 +70,33 @@ type WsConfig struct {
 	ReteLimit rate.Limit `json:"rate_limit" yaml:"rate_limit" mapstructure:"rate_limit"`
 	Burst     int        `json:"burst" yaml:"burst" mapstructure:"burst"`
 	Auth      bool       `json:"auth" yaml:"auth" mapstructure:"auth"`
+	AuthMode  string     `json:"auth_mode" yaml:"auth_mode" mapstructure:"auth_mode"`
 }
+
+func (cfg WsConfig) NormalizedAuthMode() string {
+	switch strings.ToLower(strings.TrimSpace(cfg.AuthMode)) {
+	case "strict", "flexible", "optional", "none":
+		return strings.ToLower(strings.TrimSpace(cfg.AuthMode))
+	}
+	if cfg.Auth {
+		return "strict"
+	}
+	return "none"
+}
+
+func (cfg WsConfig) AuthEnabled() bool {
+	return cfg.NormalizedAuthMode() != "none"
+}
+
+func (cfg WsConfig) RequireAuthForReq() bool {
+	return cfg.NormalizedAuthMode() == "strict"
+}
+
+func (cfg WsConfig) RequireAuthForEvent() bool {
+	mode := cfg.NormalizedAuthMode()
+	return mode == "strict" || mode == "flexible"
+}
+
 type Anon struct {
 	I2p       string `json:"i2p" yaml:"i2p" mapstructure:"i2p"`
 	EnableI2p bool   `json:"enable_i2p" yaml:"enable_i2p" mapstructure:"enable_i2p"`
@@ -100,6 +127,36 @@ type IngestionConfig struct {
 	BatchTimeoutMs int `json:"batch_timeout_ms" yaml:"batch_timeout_ms" mapstructure:"batch_timeout_ms"`
 	Workers        int `json:"workers" yaml:"workers" mapstructure:"workers"`
 	QueueSize      int `json:"queue_size" yaml:"queue_size" mapstructure:"queue_size"`
+}
+
+type CronConfig struct {
+	Enabled             bool                      `json:"enabled" yaml:"enabled" mapstructure:"enabled"`
+	DBOptimization      CronDBOptimizationConfig  `json:"db_optimization" yaml:"db_optimization" mapstructure:"db_optimization"`
+	ReportedEventsFetch CronReportedEventsConfig  `json:"reported_events_fetch" yaml:"reported_events_fetch" mapstructure:"reported_events_fetch"`
+	DeleteOldEvents     CronDeleteOldEventsConfig `json:"delete_old_events" yaml:"delete_old_events" mapstructure:"delete_old_events"`
+}
+
+type CronDBOptimizationConfig struct {
+	Enabled       bool   `json:"enabled" yaml:"enabled" mapstructure:"enabled"`
+	Schedule      string `json:"schedule" yaml:"schedule" mapstructure:"schedule"`
+	Analyze       bool   `json:"analyze" yaml:"analyze" mapstructure:"analyze"`
+	VacuumAnalyze bool   `json:"vacuum_analyze" yaml:"vacuum_analyze" mapstructure:"vacuum_analyze"`
+	ReindexEvent  bool   `json:"reindex_event" yaml:"reindex_event" mapstructure:"reindex_event"`
+}
+
+type CronReportedEventsConfig struct {
+	Enabled       bool     `json:"enabled" yaml:"enabled" mapstructure:"enabled"`
+	Schedule      string   `json:"schedule" yaml:"schedule" mapstructure:"schedule"`
+	Relays        []string `json:"relays" yaml:"relays" mapstructure:"relays"`
+	LookbackHours int      `json:"lookback_hours" yaml:"lookback_hours" mapstructure:"lookback_hours"`
+	LimitPerRelay int      `json:"limit_per_relay" yaml:"limit_per_relay" mapstructure:"limit_per_relay"`
+}
+
+type CronDeleteOldEventsConfig struct {
+	Enabled       bool   `json:"enabled" yaml:"enabled" mapstructure:"enabled"`
+	Schedule      string `json:"schedule" yaml:"schedule" mapstructure:"schedule"`
+	OlderThanDays int    `json:"older_than_days" yaml:"older_than_days" mapstructure:"older_than_days"`
+	BatchSize     int    `json:"batch_size" yaml:"batch_size" mapstructure:"batch_size"`
 }
 
 func (cfg *RelayInformationDocument) ToJson() (data []byte, err error) {

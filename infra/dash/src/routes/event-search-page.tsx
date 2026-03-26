@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react"
 import { Link, useSearch } from "@tanstack/react-router"
-import { Copy, Eye, Search } from "lucide-react"
+import { Copy, Eye, Search, Upload } from "lucide-react"
 import { toast } from "sonner"
 
 import { PageHeader } from "@/components/shared/page-header"
@@ -12,7 +12,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { useEventSearchAggregates, useEventSearchTimeline, useInfiniteEventSearch } from "@/hooks/use-admin-data"
+import { useEventSearchAggregates, useEventSearchTimeline, useImportEventsMutation, useInfiniteEventSearch } from "@/hooks/use-admin-data"
 import { getEventTags } from "@/services/admin"
 import { formatDateTime, shortenId } from "@/lib/utils"
 import type { EventRecord, EventSearchFilters } from "@/types/admin"
@@ -38,7 +38,11 @@ export function EventSearchPage() {
     tags: routeSearch.tags ? routeSearch.tags.split(",").map((tag) => `t:${tag.trim()}`).filter(Boolean) : [],
   })
   const [jsonEvent, setJsonEvent] = useState<EventRecord | null>(null)
+  const [importOpen, setImportOpen] = useState(false)
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([])
+  const [importResult, setImportResult] = useState<Array<{ filename: string; total: number; inserted: number; duplicates: number; invalid: number; error?: string }>>([])
   const [bucket, setBucket] = useState<"hour" | "day">("hour")
+  const importMutation = useImportEventsMutation()
 
   const query = useInfiniteEventSearch(filters)
   const aggregates = useEventSearchAggregates(filters)
@@ -56,7 +60,16 @@ export function EventSearchPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader description="Busca por texto completo, autores, kinds e tags com exploracao por lista, agregados e timeline." title="Busca de eventos" />
+      <PageHeader
+        actions={(
+          <Button onClick={() => setImportOpen(true)} type="button" variant="outline">
+            <Upload className="size-4" />
+            Importar
+          </Button>
+        )}
+        description="Busca por texto completo, autores, kinds e tags com exploracao por lista, agregados e timeline."
+        title="Busca de eventos"
+      />
 
       <Card>
         <CardContent className="space-y-4 p-4">
@@ -247,6 +260,68 @@ export function EventSearchPage() {
           <pre className="max-h-[70vh] overflow-auto rounded-md border border-border bg-muted p-4 text-xs leading-relaxed text-foreground">
             {jsonEvent ? JSON.stringify(jsonEvent, null, 2) : ""}
           </pre>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog onOpenChange={setImportOpen} open={importOpen}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Importar eventos JSONL</DialogTitle>
+            <DialogDescription>Envie um ou mais arquivos JSONL para importacao temporaria e persistencia no relay.</DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            <Input
+              multiple
+              onChange={(event) => setSelectedFiles(Array.from(event.target.files ?? []))}
+              type="file"
+            />
+
+            {selectedFiles.length > 0 ? (
+              <div className="rounded-md border border-border p-3">
+                <p className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Arquivos selecionados</p>
+                <div className="space-y-1 text-sm">
+                  {selectedFiles.map((file) => <p key={file.name}>{file.name}</p>)}
+                </div>
+              </div>
+            ) : null}
+
+            <div className="flex justify-end">
+              <Button
+                disabled={importMutation.isPending || selectedFiles.length === 0}
+                onClick={async () => {
+                  try {
+                    const response = await importMutation.mutateAsync(selectedFiles)
+                    setImportResult(response.files)
+                    toast.success("Importacao concluida.")
+                    void query.refetch()
+                  } catch (error) {
+                    if (error instanceof Error) {
+                      toast.error(error.message)
+                    }
+                  }
+                }}
+                type="button"
+              >
+                {importMutation.isPending ? "Importando..." : "Importar arquivos"}
+              </Button>
+            </div>
+
+            {importResult.length > 0 ? (
+              <div className="rounded-md border border-border p-3">
+                <p className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Resultado por arquivo</p>
+                <div className="space-y-2 text-sm">
+                  {importResult.map((file) => (
+                    <div className="rounded border border-border px-3 py-2" key={file.filename}>
+                      <p className="font-medium text-foreground">{file.filename}</p>
+                      <p className="text-xs text-muted-foreground">total {file.total} · inseridos {file.inserted} · duplicados {file.duplicates} · invalidos {file.invalid}</p>
+                      {file.error ? <p className="mt-1 text-xs text-destructive">erro: {file.error}</p> : null}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+          </div>
         </DialogContent>
       </Dialog>
     </div>

@@ -75,7 +75,7 @@ var publicKinds = []int{
 
 // SkipEventFunc é uma função que verifica se o evento solicitado deve ser ignorado
 func (req *WsServer) SkipEventFunc(event *nostr.Event) bool {
-	if config.Cfg.Ws.Auth {
+	if config.Cfg.Ws.RequireAuthForReq() {
 
 		if req.Authed == "" {
 			// caso o usuário não esteja autenticado, ele só pode acessar os kinds [0,3,10002]

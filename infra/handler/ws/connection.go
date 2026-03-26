@@ -3,6 +3,7 @@ package ws
 import (
 	"time"
 
+	"github.com/gabrielmoura/nostr-relay-server/infra/handler/auth"
 	"github.com/gabrielmoura/nostr-relay-server/infra/handler/listener"
 	"github.com/gabrielmoura/nostr-relay-server/infra/log"
 	"github.com/gabrielmoura/nostr-relay-server/infra/metrics"
@@ -27,6 +28,7 @@ func HandleConnection(wss *dto.WsServer) {
 	metrics.NostrUserAgentCounter.WithLabelValues(wss.Conn.Locals("ua").(string)).Inc()
 
 	go writeLoop(wss, ticker)
+	auth.SendAuthChallenge(wss)
 	readLoop(wss)
 }
 

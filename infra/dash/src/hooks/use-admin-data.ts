@@ -5,6 +5,7 @@ import {
   banUser,
   disconnectConnection,
   fetchEventFromRelays,
+  importEventsFiles,
   getEventDetail,
   getEventReports,
   getEventSearchAggregates,
@@ -134,6 +135,20 @@ export function useFetchEventFromRelaysMutation() {
     onSuccess: async (_, payload) => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["event-detail", payload.eventID] }),
+        queryClient.invalidateQueries({ queryKey: ["events-search"] }),
+        queryClient.invalidateQueries({ queryKey: ["reported-events"] }),
+      ])
+    },
+  })
+}
+
+export function useImportEventsMutation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (files: File[]) => importEventsFiles(files),
+    onSuccess: async () => {
+      await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["events-search"] }),
         queryClient.invalidateQueries({ queryKey: ["reported-events"] }),
       ])

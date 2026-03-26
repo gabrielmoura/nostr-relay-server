@@ -261,6 +261,30 @@ FROM event
 WHERE created_at < $1::timestamptz
 `
 
+const deleteEventsOlderThan = `
+WITH doomed AS (
+    SELECT id
+    FROM event
+    WHERE created_at < $1::int
+    ORDER BY created_at ASC
+    LIMIT $2::int
+)
+DELETE FROM event e
+USING doomed d
+WHERE e.id = d.id
+`
+
+func (q *Queries) DeleteEventsOlderThan(ctx context.Context, beforeUnix int64, batchSize int) (int64, error) {
+	res, err := q.db.Exec(ctx, deleteEventsOlderThan, beforeUnix, batchSize)
+	if err != nil {
+		return 0, err
+	}
+	if res.RowsAffected() > 0 {
+		_ = cache.InvalidateQueryCache()
+	}
+	return res.RowsAffected(), nil
+}
+
 func (q *Queries) GetOldEvents(ctx context.Context, before time.Time) ([]*nostr.Event, error) {
 	rows, err := q.db.Query(ctx, getOldEvents, before)
 	if err != nil {

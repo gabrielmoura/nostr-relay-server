@@ -397,6 +397,40 @@ Use **Redis** for:
 2. **Low Latency**: Sub-millisecond cache access
 3. **Pub/Sub**: Real-time event distribution
 4. **Persistence**: Optional persistence for durability
+
+---
+
+## ADR-013: Cron Data Consolidation Routines
+
+**Status:** Accepted  
+**Date:** 2026-03-25
+
+### Context
+
+Operational data quality required scheduled backend routines for:
+
+1. database optimization,
+2. automatic ingestion of NIP-56 reported events from external relays,
+3. retention cleanup of old events.
+
+The previous cron implementation was static and not configurable enough for production tuning.
+
+### Decision
+
+Refactor `cron` command into a configuration-driven scheduler with independent jobs:
+
+- `cron.db_optimization`: analyze/vacuum/index maintenance,
+- `cron.reported_events_fetch`: fetch kind `1984` events from explicit relay list,
+- `cron.delete_old_events`: remove events older than configured day threshold.
+
+Each job is enabled/disabled independently and has its own cron expression.
+
+### Consequences
+
+- ✅ safer operations through explicit feature flags
+- ✅ better observability with per-job logging
+- ✅ predictable retention policy management
+- ⚠️ more configuration surface to maintain
 5. **Clustering**: Redis Cluster for high availability
 
 ### Consequences

@@ -102,6 +102,7 @@ func (r *RouterFactory) setupInternalRoutes(app *fiber.App) {
 	admin.Post("/users/:pubkey/ban", httphandler.BanUser())
 	admin.Delete("/users/:pubkey/ban", httphandler.UnbanUser())
 	admin.Get("/events/search", httphandler.SearchEvents())
+	admin.Post("/events/import", httphandler.ImportEventsJSONL())
 	admin.Get("/events/search/aggregates", httphandler.SearchEventsAggregates())
 	admin.Get("/events/search/timeline", httphandler.SearchEventsTimeline())
 	admin.Get("/events/reported", httphandler.ReportedEvents())

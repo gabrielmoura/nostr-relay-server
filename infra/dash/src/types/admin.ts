@@ -239,4 +239,17 @@ export type FetchEventFromRelaysResponse = {
   relay_results: RelayFetchStatus[]
 }
 
+export type ImportEventsFileResult = {
+  filename: string
+  total: number
+  inserted: number
+  duplicates: number
+  invalid: number
+  error?: string
+}
+
+export type ImportEventsResponse = {
+  files: ImportEventsFileResult[]
+}
+
 export type EventSearchResponse = AdminPage<EventRecord>

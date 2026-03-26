@@ -6,3 +6,5 @@ nrserver.exe
 files
 badger_data
 export*
+*.jsonl
+*.yaml

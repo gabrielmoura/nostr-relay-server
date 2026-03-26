@@ -401,6 +401,29 @@ Searches stored events by tags and/or full-text search.
 }
 ```
 
+### `POST /admin/events/import`
+
+Imports one or many JSONL files with Nostr events using multipart form-data.
+
+**Multipart fields:**
+- `files` (repeatable) or `file`
+
+**Response:**
+```json
+{
+  "files": [
+    {
+      "filename": "events-2026-03-26.jsonl",
+      "total": 240,
+      "inserted": 230,
+      "duplicates": 9,
+      "invalid": 1,
+      "error": ""
+    }
+  ]
+}
+```
+
 ### `GET /admin/stream/status`
 
 Returns the current stream forwarding runtime state for admin observability.

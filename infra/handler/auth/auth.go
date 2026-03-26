@@ -2,11 +2,11 @@ package auth
 
 import (
 	"context"
-	json "github.com/gabrielmoura/nostr-relay-server/internal/jsonx"
 	"github.com/gabrielmoura/nostr-relay-server/config"
 	"github.com/gabrielmoura/nostr-relay-server/infra/log"
 	"github.com/gabrielmoura/nostr-relay-server/infra/metrics"
 	"github.com/gabrielmoura/nostr-relay-server/internal/dto"
+	json "github.com/gabrielmoura/nostr-relay-server/internal/jsonx"
 	"github.com/nbd-wtf/go-nostr"
 	"github.com/nbd-wtf/go-nostr/nip42"
 	"go.uber.org/zap"
@@ -16,7 +16,7 @@ import (
 const AuthContextKey = "authed"
 
 func DoAUTH(ws *dto.WsServer, data dto.Data) string {
-	if config.Cfg.Ws.Auth {
+	if config.Cfg.Ws.AuthEnabled() {
 		var evt nostr.Event
 		if err := json.Unmarshal(data[1], &evt); err != nil {
 			return "failed to decode auth event: " + err.Error()
@@ -33,4 +33,14 @@ func DoAUTH(ws *dto.WsServer, data dto.Data) string {
 	}
 	metrics.NostrRequestDuration.WithLabelValues("AUTH").Observe(time.Since(ws.StartTime).Seconds())
 	return ""
+}
+
+func SendAuthChallenge(ws *dto.WsServer) {
+	if !config.Cfg.Ws.AuthEnabled() {
+		return
+	}
+	if ws.Challenge == "" {
+		return
+	}
+	ws.ChanSender <- []any{"AUTH", ws.Challenge}
 }

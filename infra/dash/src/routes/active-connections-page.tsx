@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react"
+import { Link } from "@tanstack/react-router"
 import { toast } from "sonner"
 
 import { PageHeader } from "@/components/shared/page-header"
@@ -8,6 +9,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useDisconnectConnectionMutation, useInfiniteConnections } from "@/hooks/use-admin-data"
+import { shortenId } from "@/lib/utils"
 
 export function ActiveConnectionsPage() {
   const query = useInfiniteConnections("active")
@@ -65,6 +67,14 @@ export function ActiveConnectionsPage() {
                   <div className="space-y-1">
                     <p className="font-mono text-xs text-foreground">{connection.ws_id}</p>
                     <p className="text-sm text-foreground">{connection.ip}</p>
+                    {connection.authed ? (
+                      <p className="text-xs text-muted-foreground">
+                        Usuario: {" "}
+                        <Link className="font-medium text-foreground underline decoration-dotted underline-offset-2" params={{ pubkey: connection.authed }} to="/users/$pubkey">
+                          {shortenId(connection.authed, 14, 4)}
+                        </Link>
+                      </p>
+                    ) : null}
                     <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
                       <Badge variant={connection.authed ? "success" : "muted"}>{connection.authed ? "autenticada" : "anonima"}</Badge>
                       <Badge variant="muted">{connection.subscription_count} subscricoes</Badge>

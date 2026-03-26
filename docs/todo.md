@@ -152,6 +152,13 @@
 - [ ] Deployment guide
 - [ ] Troubleshooting guide
 
+## Phase 34: Cron Consolidation
+
+- [x] Refactor `cron` command to configuration-driven scheduler
+- [x] Add DB optimization routine with enable/schedule controls
+- [x] Add automatic NIP-56 reported events fetch with explicit relay list
+- [x] Add retention cleanup by `older_than_days` with batched deletion
+
 ## Phase 18: Testing 🔄 IN PROGRESS
 
 - [ ] Unit tests for policies

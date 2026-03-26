@@ -3,6 +3,8 @@ package req
 import (
 	"time"
 
+	"github.com/gabrielmoura/nostr-relay-server/config"
+	"github.com/gabrielmoura/nostr-relay-server/infra/handler/auth"
 	"github.com/gabrielmoura/nostr-relay-server/infra/handler/listener"
 	"github.com/gabrielmoura/nostr-relay-server/infra/log"
 	"github.com/gabrielmoura/nostr-relay-server/infra/metrics"
@@ -38,6 +40,9 @@ func DoREQ(ws *dto.WsServer, data dto.Data) string {
 
 	normalizedFilters, reject, reason := policies2.P.ValidateReq(ws.Ctx, ws, filters)
 	if reject {
+		if config.Cfg.Ws.RequireAuthForReq() && ws.Authed == "" {
+			auth.SendAuthChallenge(ws)
+		}
 		ws.ChanSender <- nostr.ClosedEnvelope{
 			Reason:         reason,
 			SubscriptionID: id,

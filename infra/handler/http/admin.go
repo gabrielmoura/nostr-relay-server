@@ -1,11 +1,15 @@
 package http
 
 import (
+	"bufio"
 	"context"
 	"database/sql"
 	"errors"
 	"fmt"
+	"mime/multipart"
 	"net/url"
+	"os"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"strconv"
@@ -220,6 +224,19 @@ type adminFetchEventResponse struct {
 	Persisted    bool                    `json:"persisted"`
 	RelaysTried  int                     `json:"relays_tried"`
 	RelayResults []adminFetchRelayResult `json:"relay_results"`
+}
+
+type adminImportFileResult struct {
+	Filename   string `json:"filename"`
+	Total      int    `json:"total"`
+	Inserted   int    `json:"inserted"`
+	Duplicates int    `json:"duplicates"`
+	Invalid    int    `json:"invalid"`
+	Error      string `json:"error,omitempty"`
+}
+
+type adminImportEventsResponse struct {
+	Files []adminImportFileResult `json:"files"`
 }
 
 var errAdminEventNotFoundOnRelays = errors.New("event not found on provided relays")
@@ -750,6 +767,97 @@ func FetchEventFromRelays() fiber.Handler {
 			RelayResults: relayResults,
 		})
 	}
+}
+
+func ImportEventsJSONL() fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		form, err := c.MultipartForm()
+		if err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid multipart form"})
+		}
+
+		files := form.File["files"]
+		if len(files) == 0 {
+			files = form.File["file"]
+		}
+		if len(files) == 0 {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "no files provided"})
+		}
+
+		results := make([]adminImportFileResult, 0, len(files))
+		for _, fileHeader := range files {
+			result := processImportFile(c, fileHeader)
+			results = append(results, result)
+		}
+
+		return c.JSON(adminImportEventsResponse{Files: results})
+	}
+}
+
+func processImportFile(c *fiber.Ctx, fileHeader *multipart.FileHeader) adminImportFileResult {
+	tmpFile, err := os.CreateTemp("", "nostr-admin-import-*.jsonl")
+	if err != nil {
+		return adminImportFileResult{Filename: fileHeader.Filename, Error: err.Error()}
+	}
+	tmpPath := tmpFile.Name()
+	_ = tmpFile.Close()
+	defer os.Remove(tmpPath)
+
+	if err := c.SaveFile(fileHeader, tmpPath); err != nil {
+		return adminImportFileResult{Filename: fileHeader.Filename, Error: err.Error()}
+	}
+
+	file, err := os.Open(filepath.Clean(tmpPath))
+	if err != nil {
+		return adminImportFileResult{Filename: fileHeader.Filename, Error: err.Error()}
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	buffer := make([]byte, 0, 1024*1024)
+	scanner.Buffer(buffer, 16*1024*1024)
+
+	result := adminImportFileResult{Filename: fileHeader.Filename}
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" {
+			continue
+		}
+		result.Total++
+
+		var event nostr.Event
+		if err := event.UnmarshalJSON([]byte(line)); err != nil {
+			result.Invalid++
+			continue
+		}
+		if !event.CheckID() {
+			result.Invalid++
+			continue
+		}
+		ok, sigErr := event.CheckSignature()
+		if sigErr != nil || !ok {
+			result.Invalid++
+			continue
+		}
+
+		err := db.DbQueries.InsertEvent(c.UserContext(), &event)
+		if err == nil {
+			result.Inserted++
+			continue
+		}
+		if errors.Is(err, dbmodel.ErrDupEvent) {
+			result.Duplicates++
+			continue
+		}
+		result.Error = err.Error()
+		break
+	}
+
+	if scanErr := scanner.Err(); scanErr != nil && result.Error == "" {
+		result.Error = scanErr.Error()
+	}
+
+	return result
 }
 
 func ReportedEvents() fiber.Handler {

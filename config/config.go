@@ -12,6 +12,8 @@ import (
 func setDefaults(export bool) {
 	viper.SetDefault("ws.burst", 5)
 	viper.SetDefault("ws.rate_limit", 1)
+	viper.SetDefault("ws.auth", false)
+	viper.SetDefault("ws.auth_mode", "none")
 	viper.SetDefault("port", 9090)
 	viper.SetDefault("admin_token", "")
 
@@ -87,8 +89,26 @@ func setDefaults(export bool) {
 	viper.SetDefault("ingestion.workers", 4)
 	viper.SetDefault("ingestion.queue_size", 10000)
 
-	viper.SetDefault("stream_up.enabled", true)
-	viper.SetDefault("stream_down.enabled", false)
+	viper.SetDefault("cron.enabled", true)
+	viper.SetDefault("cron.db_optimization.enabled", false)
+	viper.SetDefault("cron.db_optimization.schedule", "0 30 3 * * *")
+	viper.SetDefault("cron.db_optimization.analyze", true)
+	viper.SetDefault("cron.db_optimization.vacuum_analyze", false)
+	viper.SetDefault("cron.db_optimization.reindex_event", false)
+
+	viper.SetDefault("cron.reported_events_fetch.enabled", false)
+	viper.SetDefault("cron.reported_events_fetch.schedule", "0 */30 * * * *")
+	viper.SetDefault("cron.reported_events_fetch.relays", []string{})
+	viper.SetDefault("cron.reported_events_fetch.lookback_hours", 24)
+	viper.SetDefault("cron.reported_events_fetch.limit_per_relay", 200)
+
+	viper.SetDefault("cron.delete_old_events.enabled", false)
+	viper.SetDefault("cron.delete_old_events.schedule", "0 0 4 * * *")
+	viper.SetDefault("cron.delete_old_events.older_than_days", 365)
+	viper.SetDefault("cron.delete_old_events.batch_size", 2000)
+
+	viper.SetDefault("stream.stream_up", true)
+	viper.SetDefault("stream.stream_down", false)
 	viper.SetDefault("enable_negentropy", false)
 	viper.SetDefault("relay.protected_kinds", []int{nostr.KindApplicationSpecificData, nostr.KindEncryptedDirectMessage})
 	viper.SetDefault("relay.minimum_pow_limit", 0)

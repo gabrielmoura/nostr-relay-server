@@ -5,6 +5,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gabrielmoura/nostr-relay-server/config"
+	"github.com/gabrielmoura/nostr-relay-server/infra/handler/auth"
 	"github.com/gabrielmoura/nostr-relay-server/infra/ingestion"
 	"github.com/gabrielmoura/nostr-relay-server/infra/log"
 	"github.com/gabrielmoura/nostr-relay-server/infra/metrics"
@@ -26,6 +28,12 @@ func (e *DecodeError) Error() string {
 func processEvent(ws *dto.WsServer, evt *nostr.Event) string {
 	if evt == nil {
 		return "failed to decode event: missing payload"
+	}
+
+	if config.Cfg.Ws.RequireAuthForEvent() && ws.Authed == "" {
+		auth.SendAuthChallenge(ws)
+		rejectEvent(ws, evt, "auth-required: this relay requires NIP-42 authentication before EVENT")
+		return ""
 	}
 
 	if handled := handleSpecialEvent(ws, evt); handled {

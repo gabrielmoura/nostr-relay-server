@@ -456,3 +456,31 @@ Client WebSocket
 - Single policy hub shared across transport and ingestion
 - Async stream dispatcher with bounded workers
 - Reduced synchronous work on hot WebSocket paths
+
+## Cron Consolidation Pipeline
+
+The `cron` command is responsible for backend data consolidation and maintenance routines.
+
+### Scheduled Jobs
+
+1. **Database Optimization**
+   - Optional `ANALYZE` and `VACUUM (ANALYZE)` routines.
+   - Optional index maintenance (`REINDEX TABLE CONCURRENTLY event`).
+   - Controlled by configuration flags and explicit cron schedule.
+
+2. **Reported Events Auto-Fetch (NIP-56)**
+   - Optional background fetch for kind `1984` report events from explicit relay list.
+   - Requires `enabled=true` and at least one configured relay URL.
+   - Uses lookback window and per-relay result logging.
+   - Persists events into local DB through existing deduplicated insert path.
+
+3. **Old Event Retention Cleanup**
+   - Optional deletion of events older than configured period in days.
+   - Uses batched deletion loops to avoid long-running table locks.
+   - Example policy: delete events older than 365 days.
+
+### Operational Notes
+
+- All cron jobs are opt-in by configuration.
+- Each routine has independent schedule and enable flags.
+- Jobs are executed with bounded context timeouts and structured logs.

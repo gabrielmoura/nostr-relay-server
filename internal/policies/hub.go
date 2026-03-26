@@ -25,12 +25,6 @@ type Policies struct {
 
 var P *Policies
 
-var publicKinds = []int{
-	nostr.KindProfileMetadata,
-	nostr.KindFollowList,
-	nostr.KindRelayListMetadata,
-}
-
 func Init() {
 	P = &Policies{Config: config.Cfg}
 }
@@ -227,17 +221,11 @@ func (p Policies) rejectEventsWithBase64Media(evt *nostr.Event) (bool, string) {
 }
 
 func (p Policies) rejectReqWithoutAuth(filters nostr.Filters, ws *dto.WsServer) (bool, string) {
-	if !p.Config.Ws.Auth || ws.Authed != "" {
+	if !p.Config.Ws.RequireAuthForReq() || ws.Authed != "" {
 		return false, ""
 	}
-	for _, filter := range filters {
-		for _, kind := range publicKinds {
-			if slices.Contains(filter.Kinds, kind) {
-				return false, ""
-			}
-		}
-	}
-	return true, "auth-required: REQ filters are not accepted"
+	_ = filters
+	return true, "auth-required: this relay requires NIP-42 authentication before REQ"
 }
 
 func (p Policies) noEmptyFilters(filter nostr.Filter) (bool, string) {
@@ -255,7 +243,7 @@ func (p Policies) noEmptyFilters(filter nostr.Filter) (bool, string) {
 }
 
 func (p Policies) antiSyncBots(filter nostr.Filter) (bool, string) {
-	if p.Config.Ws.Auth && (len(filter.Kinds) == 0 || slices.Contains(filter.Kinds, nostr.KindTextNote)) && len(filter.Authors) == 0 {
+	if p.Config.Ws.RequireAuthForReq() && (len(filter.Kinds) == 0 || slices.Contains(filter.Kinds, nostr.KindTextNote)) && len(filter.Authors) == 0 {
 		return true, "auth-required: an author must be specified to get their kind:1 notes"
 	}
 	return false, ""
@@ -278,7 +266,7 @@ func (p Policies) checkKindsAuth(filter nostr.Filter, ws *dto.WsServer) (bool, s
 }
 
 func (p Policies) checkDirectMessageAccess(filter nostr.Filter, ws *dto.WsServer) (bool, string) {
-	if !p.Config.Ws.Auth || !slices.Contains(filter.Kinds, nostr.KindEncryptedDirectMessage) {
+	if !p.Config.Ws.RequireAuthForReq() || !slices.Contains(filter.Kinds, nostr.KindEncryptedDirectMessage) {
 		return false, ""
 	}
 
