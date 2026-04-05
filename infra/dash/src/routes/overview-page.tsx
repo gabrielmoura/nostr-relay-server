@@ -156,6 +156,19 @@ export function OverviewPage() {
               ) : null}
             </CardContent>
           </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Topologia de Cluster</CardTitle>
+              <CardDescription>Representacao para operacao com balanceador de carga.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-2 text-sm text-muted-foreground">
+              <p><strong>LB</strong> (Nginx/HAProxy) {"->"} <strong>Relay Node A</strong> + <strong>Relay Node B</strong></p>
+              <p><strong>Redis</strong> para pub/sub e caches compartilhados</p>
+              <p><strong>PostgreSQL</strong> compartilhado para consistencia de eventos</p>
+              <p>Estado atual stream: {stream.data?.pool.connected_relays ?? 0} relays conectados</p>
+            </CardContent>
+          </Card>
         </div>
       </section>
     </div>

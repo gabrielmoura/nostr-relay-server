@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react"
-import { Link, useSearch } from "@tanstack/react-router"
+import { useEffect, useMemo, useState } from "react"
+import { Link, useNavigate, useSearch } from "@tanstack/react-router"
 import { Copy, Eye, Search, Upload } from "lucide-react"
 import { toast } from "sonner"
 
@@ -25,18 +25,106 @@ const defaultFilters: EventSearchFilters = {
   limit: 100,
 }
 
+type EventSearchRouteSearch = {
+  q?: string
+  authors?: string
+  kinds?: string
+  tags?: string
+  limit?: number
+}
+
+function parseCSV(value?: string) {
+  if (!value) {
+    return []
+  }
+  return value
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean)
+}
+
+function parseSearchToFilters(search: EventSearchRouteSearch): EventSearchFilters {
+  const parsedKinds = parseCSV(search.kinds)
+    .map((value) => Number(value))
+    .filter((value) => !Number.isNaN(value))
+
+  const parsedTags = parseCSV(search.tags).map((value) => {
+    if (value.includes(":")) {
+      return value
+    }
+    return `t:${value}`
+  })
+
+  return {
+    ...defaultFilters,
+    query: search.q ?? "",
+    authors: parseCSV(search.authors),
+    kinds: parsedKinds,
+    tags: parsedTags,
+    limit: typeof search.limit === "number" && search.limit > 0 ? search.limit : defaultFilters.limit,
+  }
+}
+
+function filtersToSearch(filters: EventSearchFilters): EventSearchRouteSearch {
+  return {
+    q: filters.query || undefined,
+    authors: filters.authors.length > 0 ? filters.authors.join(",") : undefined,
+    kinds: filters.kinds.length > 0 ? filters.kinds.join(",") : undefined,
+    tags: filters.tags.length > 0 ? filters.tags.join(",") : undefined,
+    limit: filters.limit !== defaultFilters.limit ? filters.limit : undefined,
+  }
+}
+
+type EventRef = { id: string; relay?: string }
+
+function parseEventRefs(eventItem: EventRecord): EventRef[] {
+  const refs: EventRef[] = []
+  for (const tag of eventItem.tags) {
+    if (tag[0] === "e" && tag[1]) {
+      refs.push({ id: tag[1], relay: tag[2] })
+    }
+  }
+  return refs
+}
+
+function parseServers(eventItem: EventRecord): string[] {
+  const servers: string[] = []
+  for (const tag of eventItem.tags) {
+    if (tag[0] === "server" && tag[1]) {
+      servers.push(tag[1])
+    }
+  }
+  return servers
+}
+
+function parseProfileContent(content: string) {
+  try {
+    const parsed = JSON.parse(content) as { name?: string; display_name?: string; about?: string; picture?: string; nip05?: string }
+    return parsed
+  } catch {
+    return null
+  }
+}
+
+function tagValue(eventItem: EventRecord, key: string): string {
+  const tag = eventItem.tags.find((entry) => entry[0] === key && entry[1])
+  return tag?.[1] ?? ""
+}
+
+function eventHeadline(eventItem: EventRecord): string {
+  if (eventItem.kind === 30003) {
+    const title = tagValue(eventItem, "title")
+    const dTag = tagValue(eventItem, "d")
+    return title || dTag || "(lista sem titulo)"
+  }
+  return eventItem.content || "(sem conteudo textual)"
+}
+
 export function EventSearchPage() {
-  const routeSearch = useSearch({ from: "/events/search" }) as { q?: string; tags?: string }
-  const [draft, setDraft] = useState<EventSearchFilters>({
-    ...defaultFilters,
-    query: routeSearch.q ?? "",
-    tags: routeSearch.tags ? routeSearch.tags.split(",").map((tag) => `t:${tag.trim()}`).filter(Boolean) : [],
-  })
-  const [filters, setFilters] = useState<EventSearchFilters>({
-    ...defaultFilters,
-    query: routeSearch.q ?? "",
-    tags: routeSearch.tags ? routeSearch.tags.split(",").map((tag) => `t:${tag.trim()}`).filter(Boolean) : [],
-  })
+  const routeSearch = useSearch({ from: "/events/search" }) as EventSearchRouteSearch
+  const navigate = useNavigate({ from: "/events/search" })
+  const filters = useMemo(() => parseSearchToFilters(routeSearch), [routeSearch])
+  const [draft, setDraft] = useState<EventSearchFilters>(filters)
   const [jsonEvent, setJsonEvent] = useState<EventRecord | null>(null)
   const [importOpen, setImportOpen] = useState(false)
   const [selectedFiles, setSelectedFiles] = useState<File[]>([])
@@ -53,8 +141,12 @@ export function EventSearchPage() {
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    setFilters(draft)
+    void navigate({ search: filtersToSearch(draft) })
   }
+
+  useEffect(() => {
+    setDraft(filters)
+  }, [filters])
 
   const summary = useMemo(() => `${results.length} de ${total} eventos carregados`, [results.length, total])
 
@@ -86,7 +178,14 @@ export function EventSearchPage() {
             <div className="grid gap-3 lg:grid-cols-[2fr_1fr_auto]">
               <Input placeholder="Autores (pubkeys separados por virgula)" value={draft.authors.join(",")} onChange={(event) => setDraft((current) => ({ ...current, authors: event.target.value.split(",").map((value) => value.trim()).filter(Boolean) }))} />
               <Input placeholder="Limite" type="number" value={draft.limit} onChange={(event) => setDraft((current) => ({ ...current, limit: Number(event.target.value) || 100 }))} />
-              <Button type="button" variant="outline" onClick={() => setDraft(defaultFilters)}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setDraft(defaultFilters)
+                  void navigate({ search: {} })
+                }}
+              >
                 Limpar
               </Button>
             </div>
@@ -121,56 +220,7 @@ export function EventSearchPage() {
                   isFetchingMore={query.isFetchingNextPage}
                   items={results}
                   renderItem={(eventItem, index) => (
-                    <div className="rounded-[calc(var(--radius)-0.15rem)] border border-border bg-card p-4">
-                      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                        <div className="flex min-w-0 flex-1 gap-3">
-                          <div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-destructive text-sm font-heading font-semibold text-white">{index + 1}</div>
-                          <div className="min-w-0 space-y-3">
-                            <div>
-                              <p className="text-sm font-semibold text-foreground">[kind:{eventItem.kind}] {eventItem.content || "(sem conteudo textual)"}</p>
-                              <p className="mt-1 text-xs text-muted-foreground">
-                                <Link className="font-medium text-foreground underline decoration-dotted underline-offset-2 hover:text-primary" params={{ pubkey: eventItem.pubkey }} to="/users/$pubkey">
-                                  Autor: {shortenId(eventItem.pubkey, 12, 4)}
-                                </Link>
-                                {" · "}
-                                {formatDateTime(eventItem.created_at)}
-                                {" · event_id: "}
-                                {shortenId(eventItem.id, 10, 4)}
-                              </p>
-                            </div>
-                            <div className="flex flex-wrap gap-2">
-                              {getEventTags(eventItem).map((tag) => (
-                                <Link key={`${eventItem.id}-${tag}`} search={{ tags: tag }} to="/events/search">
-                                  <Badge variant="muted">#{tag}</Badge>
-                                </Link>
-                              ))}
-                            </div>
-                          </div>
-                        </div>
-                        <div className="flex shrink-0 flex-wrap gap-2">
-                          <Button onClick={() => setJsonEvent(eventItem)} size="sm" variant="outline">
-                            <Eye className="size-4" />
-                            Ver JSON
-                          </Button>
-                          <Button asChild size="sm" variant="outline">
-                            <Link params={{ eventId: eventItem.id }} to="/events/$eventId">
-                              Ver Evento
-                            </Link>
-                          </Button>
-                          <Button
-                            onClick={async () => {
-                              await navigator.clipboard.writeText(eventItem.id)
-                              toast.success("Event ID copiado.")
-                            }}
-                            size="sm"
-                            variant="outline"
-                          >
-                            <Copy className="size-4" />
-                            Copiar ID
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
+                    <EventSearchItem eventItem={eventItem} index={index} onOpenJSON={() => setJsonEvent(eventItem)} />
                   )}
                   total={total}
                 />
@@ -324,6 +374,99 @@ export function EventSearchPage() {
           </div>
         </DialogContent>
       </Dialog>
+    </div>
+  )
+}
+
+function EventSearchItem({ eventItem, index, onOpenJSON }: { eventItem: EventRecord; index: number; onOpenJSON: () => void }) {
+  const refs = parseEventRefs(eventItem)
+  const servers = parseServers(eventItem)
+  const profile = eventItem.kind === 0 ? parseProfileContent(eventItem.content) : null
+
+  return (
+    <div className="rounded-[calc(var(--radius)-0.15rem)] border border-border bg-card p-4">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div className="flex min-w-0 flex-1 gap-3">
+          <div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-destructive text-sm font-heading font-semibold text-white">{index + 1}</div>
+          <div className="min-w-0 space-y-3">
+            <div>
+              <p className="text-sm font-semibold text-foreground">[kind:{eventItem.kind}] {eventHeadline(eventItem)}</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                <Link className="font-medium text-foreground underline decoration-dotted underline-offset-2 hover:text-primary" params={{ pubkey: eventItem.pubkey }} to="/users/$pubkey">
+                  Autor: {shortenId(eventItem.pubkey, 12, 4)}
+                </Link>
+                {" · "}
+                {formatDateTime(eventItem.created_at)}
+                {" · event_id: "}
+                {shortenId(eventItem.id, 10, 4)}
+              </p>
+            </div>
+
+            {eventItem.kind === 30003 ? <Badge variant="muted">Evento de lista (kind 30003)</Badge> : null}
+
+            {eventItem.kind === 1010 && refs.length > 0 ? (
+              <div className="space-y-1 rounded-md border border-warning/40 bg-warning/5 p-3 text-xs">
+                <p className="font-semibold text-foreground">Content Change Event</p>
+                <p className="text-muted-foreground">Este evento altera o conteudo de:</p>
+                {refs.map((ref) => (
+                  <Link className="block font-mono underline decoration-dotted underline-offset-2" key={`cc-${ref.id}`} params={{ eventId: ref.id }} to="/events/$eventId">{ref.id}</Link>
+                ))}
+              </div>
+            ) : null}
+
+            {eventItem.kind === 10063 && servers.length > 0 ? (
+              <div className="space-y-2 rounded-md border border-border bg-muted/20 p-3">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Servidores Blossom</p>
+                <div className="space-y-1">
+                  {servers.map((server) => (
+                    <a className="block break-all text-xs text-primary underline decoration-dotted underline-offset-2" href={server} key={server} rel="noreferrer" target="_blank">{server}</a>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
+            {eventItem.kind === 0 && profile ? (
+              <div className="rounded-md border border-border bg-muted/20 p-3 text-xs">
+                <p className="font-semibold text-foreground">Evento de perfil</p>
+                <p className="text-muted-foreground">Nome: {profile.display_name || profile.name || "-"}</p>
+                {profile.nip05 ? <p className="text-muted-foreground">NIP-05: {profile.nip05}</p> : null}
+                {profile.about ? <p className="mt-1 line-clamp-2 text-muted-foreground">{profile.about}</p> : null}
+              </div>
+            ) : null}
+
+            <div className="flex flex-wrap gap-2">
+              {getEventTags(eventItem).map((tag) => (
+                <Link key={`${eventItem.id}-${tag}`} search={{ tags: tag }} to="/events/search">
+                  <Badge variant="muted">#{tag}</Badge>
+                </Link>
+              ))}
+            </div>
+          </div>
+        </div>
+        <div className="flex shrink-0 flex-wrap gap-2">
+          <Button onClick={onOpenJSON} size="sm" variant="outline">
+            <Eye className="size-4" />
+            Ver JSON
+          </Button>
+          <Button asChild size="sm" variant="outline">
+            <Link params={{ eventId: eventItem.id }} to="/events/$eventId">
+              Ver Evento
+            </Link>
+          </Button>
+          <Button
+            onClick={async () => {
+              await navigator.clipboard.writeText(eventItem.id)
+              toast.success("Event ID copiado.")
+            }}
+            size="sm"
+            variant="outline"
+          >
+            <Copy className="size-4" />
+            Copiar ID
+          </Button>
+        </div>
+      </div>
+
     </div>
   )
 }

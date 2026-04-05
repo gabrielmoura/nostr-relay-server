@@ -16,8 +16,10 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { useEventDetail, useEventDetailSuspense, useFetchEventFromRelaysMutation } from "@/hooks/use-admin-data"
 import { ApiError } from "@/services/admin"
 import { formatDateTime, shortenId } from "@/lib/utils"
+import type { EventRecord } from "@/types/admin"
 
 type TagTuple = string[]
+type EventRefTag = { id: string; relay?: string }
 
 type EventDetailBoundaryProps = {
   children: React.ReactNode
@@ -141,6 +143,64 @@ function parseMediaURLsFromTags(tags: TagTuple[]) {
   return urls.filter((url) => /^https?:\/\//.test(url))
 }
 
+function parseEventRefTags(tags: TagTuple[]): EventRefTag[] {
+  const refs: EventRefTag[] = []
+  for (const tag of tags) {
+    if (tag[0] === "e" && tag[1]) {
+      refs.push({ id: tag[1], relay: tag[2] })
+    }
+  }
+  return refs
+}
+
+function extractURLsFromText(content: string): string[] {
+  const matches = content.match(/https?:\/\/[^\s"'<>()]+/g)
+  return matches ?? []
+}
+
+function isImageURL(url: string): boolean {
+  return /\.(png|jpe?g|gif|webp|avif)(\?|$)/i.test(url)
+}
+
+function isVideoURL(url: string): boolean {
+  return /\.(mp4|webm|ogg|mov|m3u8)(\?|$)/i.test(url)
+}
+
+function collectMediaForEvent(event: EventRecord, fallbackImages: string[]) {
+  const images = new Set<string>()
+  const videos = new Set<string>()
+
+  for (const img of fallbackImages) {
+    images.add(img)
+  }
+
+  const imeta = parseImetaResources(event.tags as TagTuple[])
+  for (const img of imeta.imageURLs) {
+    images.add(img)
+  }
+
+  const candidateURLs = [
+    ...imeta.mediaURLs,
+    ...parseMediaURLsFromTags(event.tags as TagTuple[]),
+    ...extractURLsFromText(event.content || ""),
+  ]
+
+  for (const url of candidateURLs) {
+    if (isVideoURL(url)) {
+      videos.add(url)
+      continue
+    }
+    if (isImageURL(url)) {
+      images.add(url)
+    }
+  }
+
+  return {
+    images: Array.from(images),
+    videos: Array.from(videos),
+  }
+}
+
 function pickVideoURL(urls: string[]) {
   const preferred = urls.find((url) => /\.(mp4|webm|ogg|mov)(\?|$)/i.test(url) || /video/i.test(url))
   return preferred ?? urls[0] ?? ""
@@ -233,7 +293,7 @@ function EventDetailErrorState({ eventID, error, onRetry }: { eventID: string; e
     <>
       <EmptyPanel
         action={(
-          <Button onClick={() => setOpen(true)} type="button">
+          <Button onClick={() => setOpen(true)} title="Abrir modal para buscar este evento em relays externos" type="button">
             <RefreshCcw className="size-4" />
             Buscar em outros Relays
           </Button>
@@ -254,7 +314,7 @@ function EventDetailErrorState({ eventID, error, onRetry }: { eventID: string; e
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Relays comuns</p>
               <div className="flex flex-wrap gap-2">
                 {commonRelays.map((relay) => (
-                  <Button key={relay} onClick={() => toggleRelay(relay)} size="sm" type="button" variant={selectedRelays.includes(relay) ? "default" : "outline"}>
+                  <Button key={relay} onClick={() => toggleRelay(relay)} size="sm" title="Adicionar ou remover relay da busca" type="button" variant={selectedRelays.includes(relay) ? "default" : "outline"}>
                     {relay}
                   </Button>
                 ))}
@@ -269,7 +329,7 @@ function EventDetailErrorState({ eventID, error, onRetry }: { eventID: string; e
                   placeholder="wss://relay.exemplo.com"
                   value={relayInput}
                 />
-                <Button onClick={addRelay} type="button" variant="outline">
+                <Button onClick={addRelay} title="Adicionar relay digitado na lista" type="button" variant="outline">
                   <Plus className="size-4" />
                   Incluir
                 </Button>
@@ -282,7 +342,7 @@ function EventDetailErrorState({ eventID, error, onRetry }: { eventID: string; e
                 {selectedRelays.map((relay) => (
                   <Badge className="flex items-center gap-1" key={relay} variant="muted">
                     <span className="max-w-[220px] truncate">{relay}</span>
-                    <button className="cursor-pointer" onClick={() => setSelectedRelays((current) => current.filter((item) => item !== relay))} type="button">
+                    <button className="cursor-pointer" onClick={() => setSelectedRelays((current) => current.filter((item) => item !== relay))} title="Remover relay da lista" type="button">
                       <X className="size-3" />
                     </button>
                   </Badge>
@@ -293,9 +353,10 @@ function EventDetailErrorState({ eventID, error, onRetry }: { eventID: string; e
           </div>
 
           <DialogFooter>
-            <Button onClick={() => setOpen(false)} type="button" variant="outline">Cancelar</Button>
+            <Button onClick={() => setOpen(false)} title="Fechar modal sem executar busca" type="button" variant="outline">Cancelar</Button>
             <Button
               disabled={mutation.isPending || selectedRelays.length === 0}
+              title="Buscar e importar evento a partir dos relays selecionados"
               onClick={async () => {
                 try {
                   const response = await mutation.mutateAsync({ eventID, relays: selectedRelays })
@@ -373,6 +434,8 @@ function EventDetailPageContent({ eventID }: { eventID: string }) {
   const replyRef = tags.find((tag) => tag[0] === "e" && tag[3] === "reply")?.[1] || ""
   const targetEventID = eRefs[0] ?? ""
   const targetEventQuery = useEventDetail(targetEventID)
+  const listRefs = event.kind === 30003 ? parseEventRefTags(tags) : []
+  const syncAllMutation = useFetchEventFromRelaysMutation()
   const kindLabel = kindLabels[event.kind] ?? "kind especializado"
 
   return (
@@ -385,20 +448,52 @@ function EventDetailPageContent({ eventID }: { eventID: string }) {
                 await navigator.clipboard.writeText(event.id)
                 toast.success("Event ID copiado.")
               }}
+              title="Copiar o ID hexadecimal do evento"
               variant="outline"
             >
               <Copy className="size-4" />
               Copiar ID
             </Button>
-            <Button asChild variant="outline">
+            <Button asChild title="Abrir a pagina do autor deste evento" variant="outline">
               <Link params={{ pubkey: event.pubkey }} to="/users/$pubkey">Ver Usuario</Link>
             </Button>
             {(event.kind === 7 || event.kind === 6 || event.kind === 16) && targetEventID ? (
-              <Button asChild variant="outline">
+              <Button asChild title="Abrir o evento alvo/original referenciado" variant="outline">
                 <Link params={{ eventId: targetEventID }} to="/events/$eventId">
                   <StepForward className="size-4" />
                   {event.kind === 7 ? "Seguir evento alvo" : "Evento original"}
                 </Link>
+              </Button>
+            ) : null}
+            {event.kind === 30003 && listRefs.length > 0 ? (
+              <Button
+                disabled={syncAllMutation.isPending}
+                title="Sincronizar todos os itens da lista deste evento"
+                onClick={async () => {
+                  let imported = 0
+                  let existing = 0
+                  let failed = 0
+
+                  for (const ref of listRefs) {
+                    try {
+                      const response = await syncAllMutation.mutateAsync({ eventID: ref.id, relays: ref.relay ? [ref.relay] : [] })
+                      if (response.persisted) {
+                        imported++
+                      } else {
+                        existing++
+                      }
+                    } catch {
+                      failed++
+                    }
+                  }
+
+                  toast.success(`Sincronizacao concluida: ${imported} importados, ${existing} ja existentes, ${failed} falhas.`)
+                  void query.refetch()
+                }}
+                variant="outline"
+              >
+                <RefreshCcw className="size-4" />
+                {syncAllMutation.isPending ? "Sincronizando..." : "Sincronizar"}
               </Button>
             ) : null}
             <BanUserDialog contextEventId={event.id} defaultPubkey={event.pubkey} defaultReason={`acao originada do evento ${shortenId(event.id, 10, 4)}`} triggerLabel="Banir usuario" triggerVariant="warning" />
@@ -448,7 +543,7 @@ function EventDetailPageContent({ eventID }: { eventID: string }) {
               </div>
             ) : null}
 
-            <p className="whitespace-pre-wrap break-words rounded-[calc(var(--radius)-0.2rem)] border border-border bg-muted/50 p-4 text-sm leading-relaxed text-foreground">
+            <p className="max-w-full overflow-hidden whitespace-pre-wrap break-all rounded-[calc(var(--radius)-0.2rem)] border border-border bg-muted/50 p-4 text-sm leading-relaxed text-foreground">
               {event.content || "(evento sem conteudo textual)"}
             </p>
 
@@ -501,7 +596,7 @@ function EventDetailPageContent({ eventID }: { eventID: string }) {
                   <p className="text-xs text-muted-foreground">Autor: {shortenId(embeddedRepost.pubkey, 12, 4)}</p>
                 ) : null}
                 {embeddedRepost.content ? <p className="line-clamp-4 text-sm text-foreground">{embeddedRepost.content}</p> : null}
-                <Button asChild size="sm" variant="outline">
+                <Button asChild size="sm" title="Abrir o evento original em tela completa" variant="outline">
                   <Link params={{ eventId: embeddedRepost.id }} to="/events/$eventId">Ir para evento original</Link>
                 </Button>
               </div>
@@ -515,12 +610,23 @@ function EventDetailPageContent({ eventID }: { eventID: string }) {
                   <>
                     <p className="text-sm text-foreground">kind {targetEventQuery.data.event.kind} · {shortenId(targetEventQuery.data.event.id, 12, 4)}</p>
                     <p className="line-clamp-3 text-sm text-muted-foreground">{targetEventQuery.data.event.content || "(sem conteudo textual)"}</p>
-                    <Button asChild size="sm" variant="outline">
+                    <Button asChild size="sm" title="Abrir o evento alvo completo" variant="outline">
                       <Link params={{ eventId: targetEventID }} to="/events/$eventId">Ver evento alvo completo</Link>
                     </Button>
                   </>
                 ) : null}
                 {targetEventQuery.isError ? <p className="text-xs text-muted-foreground">Nao foi possivel carregar o evento alvo localmente.</p> : null}
+              </div>
+            ) : null}
+
+            {event.kind === 30003 && listRefs.length > 0 ? (
+              <div className="space-y-2 rounded-[calc(var(--radius)-0.2rem)] border border-border bg-muted/20 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Itens da lista (tags e)</p>
+                <div className="space-y-2">
+                  {listRefs.map((ref, idx) => (
+                    <ListRefSyncCard eventID={ref.id} key={`${ref.id}-${idx}`} preferredRelay={ref.relay} />
+                  ))}
+                </div>
               </div>
             ) : null}
           </CardContent>
@@ -628,6 +734,211 @@ function EventDetailPageContent({ eventID }: { eventID: string }) {
           </CardContent>
         </Card>
       </div>
+    </div>
+  )
+}
+
+function ListRefSyncCard({ eventID, preferredRelay }: { eventID: string; preferredRelay?: string }) {
+  const detailQuery = useEventDetail(eventID)
+  const syncMutation = useFetchEventFromRelaysMutation()
+  const [open, setOpen] = useState(false)
+  const [status, setStatus] = useState("")
+  const [relayInput, setRelayInput] = useState("")
+  const [selectedRelays, setSelectedRelays] = useState<string[]>(() => {
+    if (preferredRelay && /^wss?:\/\//.test(preferredRelay)) {
+      return [preferredRelay, ...commonRelays.filter((relay) => relay !== preferredRelay)]
+    }
+    return [...commonRelays]
+  })
+  const [relayFeedback, setRelayFeedback] = useState<Array<{ relay: string; status: string; error?: string }>>([])
+
+  const referencedEvent = detailQuery.data?.event
+  const referencedImages = detailQuery.data?.image_urls ?? []
+  const referencedMedia = referencedEvent ? collectMediaForEvent(referencedEvent, referencedImages) : { images: [], videos: [] }
+  const imageEvent = referencedEvent?.kind === 20
+  const videoEvent = referencedEvent ? [21, 22, 34235].includes(referencedEvent.kind) : false
+
+  const addRelay = () => {
+    const value = relayInput.trim()
+    if (!value) {
+      return
+    }
+    if (!/^wss?:\/\//.test(value)) {
+      toast.error("Use URL com ws:// ou wss://")
+      return
+    }
+    setSelectedRelays((current) => (current.includes(value) ? current : [...current, value]))
+    setRelayInput("")
+  }
+
+  return (
+    <div className="rounded-md border border-border bg-card px-3 py-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="min-w-0">
+          <Link className="break-all font-mono text-xs text-primary underline decoration-dotted underline-offset-2" params={{ eventId: eventID }} to="/events/$eventId">
+            {eventID}
+          </Link>
+          <p className="text-xs text-muted-foreground">relay preferencial: {preferredRelay || "padrao"}</p>
+          <p className="text-xs text-muted-foreground">
+            estado local: {detailQuery.data ? "presente" : detailQuery.isError ? "ausente" : "verificando"}
+          </p>
+          {referencedEvent ? (
+            <div className="mt-1 rounded border border-border bg-muted/20 px-2 py-1">
+              <p className="text-xs text-foreground">kind {referencedEvent.kind} · {formatDateTime(referencedEvent.created_at)}</p>
+
+              {imageEvent ? (
+                <div className="mt-2 space-y-2">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Evento de imagem</p>
+                  {referencedMedia.images.length > 0 ? (
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      {referencedMedia.images.slice(0, 4).map((url) => (
+                        <a href={url} key={url} rel="noreferrer" target="_blank">
+                          <img alt="Imagem do evento referenciado" className="h-28 w-full rounded border border-border object-cover" src={url} />
+                        </a>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">Nenhuma imagem detectada neste evento.</p>
+                  )}
+                </div>
+              ) : null}
+
+              {videoEvent ? (
+                <div className="mt-2 space-y-2">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Evento de video</p>
+                  {referencedMedia.videos[0] ? (
+                    <video className="max-h-56 w-full rounded border border-border bg-black" controls poster={referencedMedia.images[0] || undefined} preload="metadata" src={referencedMedia.videos[0]} />
+                  ) : (
+                    <p className="text-xs text-muted-foreground">Nenhum video detectado neste evento.</p>
+                  )}
+                </div>
+              ) : null}
+
+              {!imageEvent && !videoEvent ? (
+                <div className="mt-2 space-y-2">
+                  <p className="line-clamp-4 max-w-full whitespace-pre-wrap break-all text-xs text-muted-foreground">{referencedEvent.content || "(sem conteudo textual)"}</p>
+
+                  {referencedMedia.images.length > 0 ? (
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      {referencedMedia.images.slice(0, 2).map((url) => (
+                        <a href={url} key={url} rel="noreferrer" target="_blank">
+                          <img alt="Midia de nota referenciada" className="h-24 w-full rounded border border-border object-cover" src={url} />
+                        </a>
+                      ))}
+                    </div>
+                  ) : null}
+
+                  {referencedMedia.videos[0] ? (
+                    <video className="max-h-56 w-full rounded border border-border bg-black" controls poster={referencedMedia.images[0] || undefined} preload="metadata" src={referencedMedia.videos[0]} />
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+          {status ? <p className="text-xs text-muted-foreground">{status}</p> : null}
+        </div>
+        <div className="flex gap-2">
+          <Button asChild size="sm" title="Abrir este evento referenciado" variant="outline">
+            <Link params={{ eventId: eventID }} to="/events/$eventId">Abrir</Link>
+          </Button>
+          <Button
+            onClick={() => setOpen(true)}
+            size="sm"
+            title="Abrir modal de busca personalizada para este evento"
+            variant="outline"
+          >
+            Retry
+          </Button>
+        </div>
+      </div>
+
+      <Dialog onOpenChange={setOpen} open={open}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Buscar em outros Relays</DialogTitle>
+            <DialogDescription>Evento nao existe no relay? Ajuste relays e sincronize este item da lista.</DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Relays comuns</p>
+              <div className="flex flex-wrap gap-2">
+                {commonRelays.map((relay) => (
+                  <Button key={`${eventID}-${relay}`} onClick={() => setSelectedRelays((current) => (current.includes(relay) ? current.filter((item) => item !== relay) : [...current, relay]))} size="sm" title="Adicionar ou remover relay da busca" type="button" variant={selectedRelays.includes(relay) ? "default" : "outline"}>
+                    {relay}
+                  </Button>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Adicionar relay</p>
+              <div className="flex gap-2">
+                <Input onChange={(event) => setRelayInput(event.target.value)} placeholder="wss://relay.exemplo.com" value={relayInput} />
+                <Button onClick={addRelay} title="Adicionar relay digitado na lista" type="button" variant="outline">
+                  <Plus className="size-4" />
+                  Incluir
+                </Button>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Lista de busca</p>
+              <div className="flex max-h-40 flex-wrap gap-2 overflow-auto rounded-md border border-border p-2">
+                {selectedRelays.map((relay) => (
+                  <Badge className="flex items-center gap-1" key={`${eventID}-selected-${relay}`} variant="muted">
+                    <span className="max-w-[220px] truncate">{relay}</span>
+                    <button className="cursor-pointer" onClick={() => setSelectedRelays((current) => current.filter((item) => item !== relay))} title="Remover relay da lista" type="button">
+                      <X className="size-3" />
+                    </button>
+                  </Badge>
+                ))}
+                {selectedRelays.length === 0 ? <p className="text-xs text-muted-foreground">Nenhum relay selecionado.</p> : null}
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button onClick={() => setOpen(false)} title="Fechar modal sem buscar" type="button" variant="outline">Cancelar</Button>
+            <Button
+              disabled={syncMutation.isPending || selectedRelays.length === 0}
+              title="Buscar e importar este evento usando os relays selecionados"
+              onClick={async () => {
+                try {
+                  const response = await syncMutation.mutateAsync({ eventID, relays: selectedRelays })
+                  setRelayFeedback(response.relay_results ?? [])
+                  setStatus(`ok: ${response.persisted ? "importado" : "ja existia"} via ${response.source_relay || preferredRelay || "relay padrao"}`)
+                  await detailQuery.refetch()
+                  setOpen(false)
+                } catch (error) {
+                  if (error instanceof ApiError && error.details && typeof error.details === "object") {
+                    const details = error.details as { relay_results?: Array<{ relay: string; status: string; error?: string }> }
+                    setRelayFeedback(details.relay_results ?? [])
+                  }
+                  setStatus(`erro: ${error instanceof Error ? error.message : "falha ao sincronizar"}`)
+                }
+              }}
+              type="button"
+            >
+              {syncMutation.isPending ? "Buscando..." : "Buscar evento"}
+            </Button>
+          </DialogFooter>
+
+          {relayFeedback.length > 0 ? (
+            <div className="space-y-2 rounded-md border border-border bg-muted/30 p-3">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Resultado por relay</p>
+              <div className="max-h-40 space-y-2 overflow-auto">
+                {relayFeedback.map((entry) => (
+                  <div className="flex items-center justify-between gap-2 text-xs" key={`${eventID}-${entry.relay}-${entry.status}`}>
+                    <span className="truncate text-muted-foreground">{entry.relay}</span>
+                    <Badge variant={entry.status === "found" ? "success" : "muted"}>{entry.status}</Badge>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

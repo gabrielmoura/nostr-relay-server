@@ -420,7 +420,7 @@ func BannedUsers() fiber.Handler {
 
 		response := make([]adminProfileResponse, 0, len(items))
 		for _, item := range items {
-			response = append(response, profileToAdminProfile(item.Profile, "banned", item.Reason, item.RelatedIDs, item.CreatedAt))
+			response = append(response, profileToAdminProfile(item.Profile, "banned", item.Reason, item.RelatedIDs, item.CreatedAt.Time))
 		}
 
 		return c.JSON(newAdminPage(response, int(total), limit, offset))
@@ -493,7 +493,9 @@ func UserProfile() fiber.Handler {
 			status = "banned"
 			reason = record.Reason
 			relatedIDs = record.RelatedIDs
-			createdAt = record.CreatedAt
+			if record.CreatedAt.Valid {
+				createdAt = record.CreatedAt.Time
+			}
 		}
 
 		return c.JSON(profileToAdminProfile(profile, status, reason, relatedIDs, createdAt))
@@ -512,12 +514,17 @@ func BanStatus() fiber.Handler {
 			return internalServerError(c, err)
 		}
 
+		createdAt := ""
+		if record.CreatedAt.Valid {
+			createdAt = formatTime(record.CreatedAt.Time)
+		}
+
 		return c.JSON(fiber.Map{
 			"pubkey":      pubkey,
 			"banned":      exists,
 			"reason":      record.Reason,
 			"related_ids": record.RelatedIDs,
-			"created_at":  record.CreatedAt,
+			"created_at":  createdAt,
 		})
 	}
 }

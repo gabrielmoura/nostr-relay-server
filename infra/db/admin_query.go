@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
-	"time"
 
 	"github.com/gabrielmoura/nostr-relay-server/config"
 	"github.com/gabrielmoura/nostr-relay-server/infra/cache"
@@ -17,9 +16,9 @@ import (
 
 type BannedUserRecord struct {
 	Profile
-	Reason     string    `json:"reason"`
-	RelatedIDs []string  `json:"related_ids,omitempty"`
-	CreatedAt  time.Time `json:"created_at"`
+	Reason     string       `json:"reason"`
+	RelatedIDs []string     `json:"related_ids,omitempty"`
+	CreatedAt  sql.NullTime `json:"created_at"`
 }
 
 type ReportedEventSummary struct {

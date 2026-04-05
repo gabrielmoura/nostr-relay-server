@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"fmt"
 	"github.com/gabrielmoura/nostr-relay-server/config"
 	"github.com/gabrielmoura/nostr-relay-server/infra/log"
 	"github.com/gabrielmoura/nostr-relay-server/infra/metrics"
@@ -43,4 +44,18 @@ func SendAuthChallenge(ws *dto.WsServer) {
 		return
 	}
 	ws.ChanSender <- []any{"AUTH", ws.Challenge}
+}
+
+func SendAuthChallengeNow(ws *dto.WsServer) error {
+	if !config.Cfg.Ws.AuthEnabled() {
+		return nil
+	}
+	if ws.Challenge == "" {
+		return nil
+	}
+	if err := ws.Conn.WriteJSON([]any{"AUTH", ws.Challenge}); err != nil {
+		return fmt.Errorf("failed to send AUTH challenge: %w", err)
+	}
+	metrics.NostrRelayWsMessagesSend.Inc()
+	return nil
 }

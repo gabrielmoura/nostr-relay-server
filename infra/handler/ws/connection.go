@@ -3,6 +3,7 @@ package ws
 import (
 	"time"
 
+	"github.com/gabrielmoura/nostr-relay-server/config"
 	"github.com/gabrielmoura/nostr-relay-server/infra/handler/auth"
 	"github.com/gabrielmoura/nostr-relay-server/infra/handler/listener"
 	"github.com/gabrielmoura/nostr-relay-server/infra/log"
@@ -27,8 +28,17 @@ func HandleConnection(wss *dto.WsServer) {
 	listener.Touch(wss)
 	metrics.NostrUserAgentCounter.WithLabelValues(wss.Conn.Locals("ua").(string)).Inc()
 
+	if config.Cfg.Ws.NormalizedAuthMode() == "optional" {
+		if err := auth.SendAuthChallengeNow(wss); err != nil {
+			log.Logger.Warn("failed to send initial AUTH challenge", zap.Error(err))
+			return
+		}
+	}
+
 	go writeLoop(wss, ticker)
-	auth.SendAuthChallenge(wss)
+	if config.Cfg.Ws.NormalizedAuthMode() != "optional" {
+		auth.SendAuthChallenge(wss)
+	}
 	readLoop(wss)
 }
 

@@ -5,9 +5,9 @@ ws:
     rate_limit: 1
     burst: 5
     auth: true
-    auth_mode: strict
+    auth_mode: optional
 relay_information:
-    url: http://localhost:4869
+    url: http://192.168.1.157:4869
     name: Nostr Relay Server
     description: A Nostr Relay Server
     pub_key: "7ef721e77149c737014971b141b0b590a5ebe82b79130228cdbe56e9be2d8e50"
@@ -29,7 +29,7 @@ relay_information:
         - 13 # Proof of Work
     software: https://github.com/gabrielmoura/nostr-relay-server
     version: 0.1.0
-    canonical_url: ws://moura:4869
+    canonical_url: ws://192.168.1.157:4869
     icon: http://localhost:4869/nostr.png
 relay:
     query_limit: 100
@@ -67,10 +67,10 @@ redis:
 
 stream:
     relays:
-        - ws://127.0.0.1:7777
-        - ws://node-ior.webhop.me:6000
+        - wss://cobrafuma.com/relay
+        - wss://nexus.libernet.app
     stream_down: false
-    stream_up: false
+    stream_up: true
 cron:
     enabled: false
     db_optimization:
