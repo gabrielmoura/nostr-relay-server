@@ -107,6 +107,10 @@ func setDefaults(export bool) {
 	viper.SetDefault("cron.delete_old_events.older_than_days", 365)
 	viper.SetDefault("cron.delete_old_events.batch_size", 2000)
 
+	viper.SetDefault("cron.nip40.enabled", false)
+	viper.SetDefault("cron.nip40.schedule", "0 */15 * * * *")
+	viper.SetDefault("cron.nip40.batch_size", 2000)
+
 	viper.SetDefault("stream.stream_up", true)
 	viper.SetDefault("stream.stream_down", false)
 	viper.SetDefault("enable_negentropy", false)

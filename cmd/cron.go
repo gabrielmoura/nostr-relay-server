@@ -107,4 +107,8 @@ func registerCronJobs(c *cron.Cron, baseCtx context.Context) {
 	if config.Cfg.Cron.DeleteOldEvents.Enabled {
 		register("delete_old_events", config.Cfg.Cron.DeleteOldEvents.Schedule, cronjob.DeleteOldEvent)
 	}
+
+	if config.Cfg.Cron.NIP40.Enabled {
+		register("nip40_expiration_cleanup", config.Cfg.Cron.NIP40.Schedule, cronjob.RunNIP40ExpirationCleanup)
+	}
 }

@@ -278,6 +278,26 @@ var (
 			Help: "Total orphan listener subscriptions removed from Redis.",
 		},
 	)
+	NostrCronNIP40RunsTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "nostr_cron_nip40_runs_total",
+			Help: "Total NIP-40 cron runs by result.",
+		},
+		[]string{"result"},
+	)
+	NostrCronNIP40DeletedEventsTotal = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "nostr_cron_nip40_deleted_events_total",
+			Help: "Total events deleted by NIP-40 expiration cron.",
+		},
+	)
+	NostrCronNIP40DurationSeconds = prometheus.NewHistogram(
+		prometheus.HistogramOpts{
+			Name:    "nostr_cron_nip40_duration_seconds",
+			Help:    "Duration of NIP-40 expiration cron runs in seconds.",
+			Buckets: prometheus.DefBuckets,
+		},
+	)
 )
 
 func RegisterMetrics() {
@@ -322,6 +342,9 @@ func RegisterMetrics() {
 		NostrDBPoolTotal,
 		NostrDBPoolAcquireCount,
 		NostrListenerOrphanCleanup,
+		NostrCronNIP40RunsTotal,
+		NostrCronNIP40DeletedEventsTotal,
+		NostrCronNIP40DurationSeconds,
 	)
 
 }

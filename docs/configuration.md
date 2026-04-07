@@ -110,6 +110,10 @@ cron:
     schedule: "0 0 4 * * *"
     older_than_days: 365
     batch_size: 2000
+  nip40:
+    enabled: false
+    schedule: "0 */15 * * * *"
+    batch_size: 2000
 
 stream:
   relays: []
@@ -279,6 +283,14 @@ Global switch:
 | `older_than_days` | int | `365` | Delete events older than N days. |
 | `batch_size` | int | `2000` | Batch deletion chunk size. |
 
+`cron.nip40`:
+
+| Key | Type | Default | Description |
+|---|---|---:|---|
+| `enabled` | bool | `false` | Enable NIP-40 expiration cleanup (`expiration` tag). |
+| `schedule` | string | `0 */15 * * * *` | Cron expression for expiration cleanup. |
+| `batch_size` | int | `2000` | Batch deletion chunk size per run. |
+
 ### `stream`
 
 | Key | Type | Default | Description |
@@ -324,12 +336,17 @@ cron:
     schedule: "0 0 4 * * *"
     older_than_days: 365
     batch_size: 2000
+  nip40:
+    enabled: true
+    schedule: "0 */15 * * * *"
+    batch_size: 2000
 ```
 
 ## Validation Checklist
 
 - `db.postgres_uri` is set and reachable.
 - If `cron.reported_events_fetch.enabled=true`, `relays` is non-empty.
+- If `cron.nip40.enabled=true`, review the schedule to avoid oversized cleanup windows.
 - `stream.relays` contains only valid `ws://`/`wss://` URLs.
 - `admin_token` is set in production internal networks.
 - Retention (`older_than_days`) matches compliance requirements.

@@ -7,6 +7,7 @@ import (
 	"github.com/gabrielmoura/nostr-relay-server/config"
 	infraDb "github.com/gabrielmoura/nostr-relay-server/infra/db"
 	"github.com/gabrielmoura/nostr-relay-server/infra/log"
+	"github.com/gabrielmoura/nostr-relay-server/infra/metrics"
 	"github.com/gabrielmoura/nostr-relay-server/internal/db"
 	"github.com/nbd-wtf/go-nostr"
 	"go.uber.org/zap"
@@ -159,6 +160,50 @@ func DeleteOldEvent(ctx context.Context) error {
 	log.Logger.Info(
 		"cron old events cleanup completed",
 		zap.Int("older_than_days", olderThanDays),
+		zap.Int("batch_size", batchSize),
+		zap.Int64("deleted", totalDeleted),
+	)
+
+	return nil
+}
+
+func RunNIP40ExpirationCleanup(ctx context.Context) error {
+	cfg := config.Cfg.Cron.NIP40
+	if !cfg.Enabled {
+		return nil
+	}
+
+	start := time.Now()
+	defer func() {
+		metrics.NostrCronNIP40DurationSeconds.Observe(time.Since(start).Seconds())
+	}()
+
+	batchSize := cfg.BatchSize
+	if batchSize <= 0 {
+		batchSize = 2000
+	}
+
+	nowUnix := time.Now().UTC().Unix()
+	var totalDeleted int64
+
+	for {
+		deleted, err := db.DbQueries.DeleteExpiredNIP40Events(ctx, nowUnix, batchSize)
+		if err != nil {
+			metrics.NostrCronNIP40RunsTotal.WithLabelValues("error").Inc()
+			return err
+		}
+		totalDeleted += deleted
+		if deleted < int64(batchSize) {
+			break
+		}
+	}
+
+	metrics.NostrCronNIP40DeletedEventsTotal.Add(float64(totalDeleted))
+	metrics.NostrCronNIP40RunsTotal.WithLabelValues("success").Inc()
+
+	log.Logger.Info(
+		"cron nip40 cleanup completed",
+		zap.Int64("now_unix", nowUnix),
 		zap.Int("batch_size", batchSize),
 		zap.Int64("deleted", totalDeleted),
 	)

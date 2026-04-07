@@ -134,6 +134,7 @@ type CronConfig struct {
 	DBOptimization      CronDBOptimizationConfig  `json:"db_optimization" yaml:"db_optimization" mapstructure:"db_optimization"`
 	ReportedEventsFetch CronReportedEventsConfig  `json:"reported_events_fetch" yaml:"reported_events_fetch" mapstructure:"reported_events_fetch"`
 	DeleteOldEvents     CronDeleteOldEventsConfig `json:"delete_old_events" yaml:"delete_old_events" mapstructure:"delete_old_events"`
+	NIP40               CronNIP40Config           `json:"nip40" yaml:"nip40" mapstructure:"nip40"`
 }
 
 type CronDBOptimizationConfig struct {
@@ -157,6 +158,12 @@ type CronDeleteOldEventsConfig struct {
 	Schedule      string `json:"schedule" yaml:"schedule" mapstructure:"schedule"`
 	OlderThanDays int    `json:"older_than_days" yaml:"older_than_days" mapstructure:"older_than_days"`
 	BatchSize     int    `json:"batch_size" yaml:"batch_size" mapstructure:"batch_size"`
+}
+
+type CronNIP40Config struct {
+	Enabled   bool   `json:"enabled" yaml:"enabled" mapstructure:"enabled"`
+	Schedule  string `json:"schedule" yaml:"schedule" mapstructure:"schedule"`
+	BatchSize int    `json:"batch_size" yaml:"batch_size" mapstructure:"batch_size"`
 }
 
 func (cfg *RelayInformationDocument) ToJson() (data []byte, err error) {
