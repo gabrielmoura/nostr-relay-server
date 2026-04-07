@@ -1,153 +1,177 @@
-#  Nostr Relay Server ⚡
+# Nostr Relay Server ⚡
 
 ![GitHub issues](https://img.shields.io/github/issues/gabrielmoura/nostr-relay-server?style=for-the-badge)
 ![GitHub forks](https://img.shields.io/github/forks/gabrielmoura/nostr-relay-server?style=for-the-badge)
 ![GitHub stars](https://img.shields.io/github/stars/gabrielmoura/nostr-relay-server?style=for-the-badge)
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/gabrielmoura/nostr-relay-server)
 
-
-Seu próprio servidor Nostr, simples, poderoso e pronto para rodar. Este projeto oferece um relay Nostr de alta performance com tudo que você precisa para entrar na rede descentralizada.
-
-## ✨ Funcionalidades
-
-- **Suporte aos NIPs Essenciais:** Compatível com os principais NIPs para uma experiência completa na rede Nostr.
-- **Armazenamento de Mídia (NIP-96):** Servidor de armazenamento integrado para blobs (imagens, vídeos), seguindo o padrão Blossom.
-- **Sincronização Negentropy:** Mantenha seu relay sincronizado com outros peers de forma eficiente.
-- **Ferramentas de Gerenciamento:** Importe, exporte e gerencie eventos com facilidade via linha de comando.
-- **Monitoramento com Prometheus:** Exponha métricas detalhadas para acompanhar a saúde e o desempenho do seu relay.
-- **Configuração Flexível:** Ajuste todos os aspectos do relay através de um arquivo `config.yml` simples e bem documentado.
+High-performance Nostr relay written in Go, with PostgreSQL storage, optional Redis integration, embedded admin panel, Blossom-compatible media storage, Negentropy sync, Prometheus metrics, and configurable cron jobs.
 
 ---
 
-## 📚 Tabela de Conteúdos
+## Overview
 
-1.  [🚀 Início Rápido](#-início-rápido)
-2.  [🧰 Comandos Disponíveis](#-comandos-disponíveis)
-    -   [Iniciar o Servidor](#-iniciar-o-servidor)
-    -   [Gerenciar Configuração](#-gerenciar-configuração)
-    -   [Importar Eventos](#-importar-eventos)
-    -   [Exportar Eventos](#-exportar-eventos)
-    -   [Sincronizar com Outro Relay](#-sincronizar-com-outro-relay)
-    -   [Executar Tarefas Agendadas (Cron)](#-executar-tarefas-agendadas-cron)
-    -   [Migrar Banco de Dados](#-migrar-banco-de-dados)
-3.  [⚙️ Configuração Padrão](#️-configuração-padrão)
-4.  [📊 Monitoramento com Prometheus & Grafana](#-monitoramento-com-prometheus--grafana)
-5.  [❓ Perguntas Frequentes (FAQ)](#-perguntas-frequentes-faq)
-6.  [🤝 Como Contribuir](#-como-contribuir)
-7.  [📜 Licença](#-licença)
+Nostr Relay Server is a production-oriented relay implementation focused on performance, observability, and operational simplicity.
 
----
+It provides:
 
-## 🚀 Início Rápido
-
-Começar a rodar seu próprio relay é muito simples.
-
-1.  **Gere o arquivo de configuração:**
-    ```bash
-    nrserver conf write
-    ```
-2.  **Ajuste o arquivo `config.yml`** com as suas preferências (como porta, chaves e conexão com o banco de dados).
-
-3.  **Inicie o servidor:**
-    ```bash
-    nrserver server
-    ```
-    > 💡 **Dica:** Para popular o servidor com dados iniciais (perfil, informações do relay, etc.), use a flag `--bootstrap`.
-    > ```bash
-    > nrserver server --bootstrap
-    > ```
-
-Pronto! Seu relay estará acessível em:
-- **WebSocket (para clientes Nostr):** `ws://localhost:9090`
-- **Métricas (para Prometheus):** `http://localhost:9091/metrics`
+- WebSocket relay core for the Nostr protocol
+- PostgreSQL as the primary storage backend
+- Optional Redis cache/pubsub integration
+- Embedded admin API and admin panel at `/panel`
+- Blossom-compatible media storage
+- Negentropy-based relay synchronization
+- Prometheus metrics
+- Import/export and operational CLI tools
+- Cron jobs for maintenance and background routines
 
 ---
 
-## 🧰 Comandos Disponíveis
+## Features
 
-Aqui estão todos os comandos que você pode usar para gerenciar seu relay.
+- **High performance relay core** for Nostr workloads
+- **Admin API + Admin Panel** exposed on the internal server
+- **PostgreSQL storage** with support for operational tooling
+- **Optional Redis support** for cache and pub/sub scenarios
+- **Blossom media storage support** for blobs and uploads
+- **Negentropy sync** with compatible relays
+- **Prometheus metrics** for monitoring and observability
+- **Configurable cron jobs** for cleanup and maintenance
+- **JSONL import/export** for migration and backup workflows
+- **Flexible configuration** through `conf.yaml`
 
-### 🛰️ Iniciar o Servidor
+---
 
-Inicia o relay Nostr, pronto para receber conexões de clientes.
+## Table of Contents
+
+1. [Quick Start](#quick-start)
+2. [Default Endpoints](#default-endpoints)
+3. [Requirements](#requirements)
+4. [CLI Commands](#cli-commands)
+5. [Admin API and Panel](#admin-api-and-panel)
+6. [Configuration](#configuration)
+7. [Monitoring with Prometheus and Grafana](#monitoring-with-prometheus-and-grafana)
+8. [Supported Protocols](#supported-protocols)
+9. [Documentation](#documentation)
+10. [Frontend Development](#frontend-development)
+11. [Build](#build)
+12. [FAQ](#faq)
+13. [Contributing](#contributing)
+14. [License](#license)
+
+---
+
+## Quick Start
+
+### Requirements
+
+- Go `1.24+`
+- PostgreSQL
+- Redis *(optional)*
+
+### 1. Generate the configuration file
+
+```bash
+go run ./cmd/nrserver conf write
+````
+
+This creates the default runtime configuration file:
+
+```text
+conf.yaml
+```
+
+### 2. Edit `conf.yaml`
+
+At minimum, review and adjust:
+
+* `db.postgres_uri`
+* relay ports
+* relay information
+* storage settings
+* `admin_token` if you want to protect the admin API
+
+### 3. Run database migrations
+
+```bash
+go run ./cmd/nrserver seed
+```
+
+### 4. Start the relay
+
+```bash
+go run ./cmd/nrserver server
+```
+
+Optional bootstrap events:
+
+```bash
+go run ./cmd/nrserver server --bootstrap
+```
+
+You can also use the built binary instead of `go run`:
+
+```bash
+nrserver server
+```
+
+---
+
+## Default Endpoints
+
+By default, the project starts two HTTP servers:
+
+### External relay server
+
+Used by Nostr clients.
+
+* **Relay / NIP-11:** `http://localhost:9090`
+
+### Internal server
+
+Used for administration, metrics, and the embedded panel.
+
+* **Admin API:** `http://localhost:9091/admin`
+* **Admin Panel:** `http://localhost:9091/panel`
+* **Metrics:** `http://localhost:9091/metrics`
+
+> The internal server usually runs on `port + 1`.
+
+---
+
+## CLI Commands
+
+Run commands with:
+
+```bash
+go run ./cmd/nrserver <command>
+```
+
+Or, if you already built the binary:
+
+```bash
+nrserver <command>
+```
+
+### `server`
+
+Starts the external and internal servers.
 
 ```bash
 nrserver server [flags]
 ```
-**Flags:**
-| Flag | Descrição | Padrão |
-| :--- | :--- | :--- |
-| `-b`, `--bootstrap` | Habilita o bootstrap, criando eventos iniciais (Kind 0, 411, 10002, 10063). | `false` |
-| `-c`, `--config` | Habilita o uso de um arquivo de configuração. | `true` |
-| `-h`, `--help` | Mostra a ajuda para este comando. | |
 
-### 📝 Gerenciar Configuração
+| Flag                | Description                               | Default |
+| :------------------ | :---------------------------------------- | :------ |
+| `-b`, `--bootstrap` | Creates initial events and bootstrap data | `false` |
+| `-c`, `--config`    | Enables loading configuration from file   | `true`  |
+| `-h`, `--help`      | Shows command help                        | -       |
 
-Crie ou imprima o arquivo de configuração.
+---
 
-```bash
-nrserver conf [command]
-```
-**Comandos:**
-- `print`: Imprime a configuração atual no console.
-- `write`: Escreve o arquivo de configuração padrão (`config.yml`) no diretório atual.
+### `seed`
 
-### 📥 Importar Eventos
-
-Popule seu relay com eventos a partir de um arquivo `.jsonl`.
-
-```bash
-nrserver import [flags]
-```
-**Flags:**
-| Flag | Descrição | Padrão |
-| :--- | :--- | :--- |
-| `-f`, `--file` | Arquivo JSONL para importar. | `events.jsonl` |
-| `-b`, `--batch-size` | Quantidade de eventos por lote de importação. | `100` |
-| `-w`, `--num-workers`| Número de workers para importação paralela. | `2` |
-
-### 📤 Exportar Eventos
-
-Exporte todos os eventos do seu banco de dados para um arquivo `.jsonl`.
-
-```bash
-nrserver export [flags]
-```
-**Flags:**
-| Flag | Descrição | Padrão |
-| :--- | :--- | :--- |
-| `-f`, `--file` | Arquivo de destino para a exportação. | `export-TIMESTAMP.jsonl`|
-| `-b`, `--batch-size` | Quantidade de eventos por lote de exportação. | `100` |
-| `-w`, `--writer-workers` | Número de workers para escrita paralela. | `2` |
-
-### 🔄 Sincronizar com Outro Relay
-
-Sincronize eventos com um relay remoto usando o protocolo **Negentropy**.
-
-> ⚠️ **Atenção:** Este método só funciona se o relay remoto também tiver Negentropy implementado.
-
-```bash
-nrserver sync [flags]
-```
-**Flags:**
-| Flag | Descrição | Padrão |
-| :--- | :--- | :--- |
-| `-r`, `--remote` | Endereço do servidor Nostr remoto (ex: `wss://relay.damus.io`). | |
-| `-p`, `--pk` | Sua chave pública (opcional). | |
-| `-d`, `--direction`| Direção da sincronização (`up`, `down`, `both`). | `both` |
-
-### ⏰ Executar Tarefas Agendadas (Cron)
-
-Execute tarefas de manutenção.
-
-```bash
-nrserver cron
-```
-> **O que ele faz?** Este comando é responsável por deletar eventos antigos (se habilitado na configuração) e atualizar estatísticas de uso do pool de conexões com o banco de dados.
-
-### 🌱 Migrar Banco de Dados
-
-Prepara o banco de dados com os dados iniciais necessários para o funcionamento.
+Runs database migrations / initial database preparation.
 
 ```bash
 nrserver seed
@@ -155,171 +179,446 @@ nrserver seed
 
 ---
 
-## ⚙️ Configuração Padrão
+### `conf print`
 
-Abaixo está um exemplo do arquivo `config.yml` com todas as opções disponíveis.
+Prints the full configuration with defaults.
+
+```bash
+nrserver conf print
+```
+
+### `conf write`
+
+Writes the default `conf.yaml` file.
+
+```bash
+nrserver conf write
+```
+
+---
+
+### `import`
+
+Imports events from a `.jsonl` file.
+
+```bash
+nrserver import [flags]
+```
+
+| Flag                  | Description                | Default        |
+| :-------------------- | :------------------------- | :------------- |
+| `-f`, `--file`        | JSONL file to import       | `events.jsonl` |
+| `-b`, `--batch-size`  | Number of events per batch | `100`          |
+| `-w`, `--num-workers` | Parallel import workers    | `2`            |
+
+---
+
+### `export`
+
+Exports events to a `.jsonl` file.
+
+```bash
+nrserver export [flags]
+```
+
+| Flag                     | Description                | Default                  |
+| :----------------------- | :------------------------- | :----------------------- |
+| `-f`, `--file`           | Destination file           | `export-TIMESTAMP.jsonl` |
+| `-b`, `--batch-size`     | Number of events per batch | `100`                    |
+| `-w`, `--writer-workers` | Parallel writer workers    | `2`                      |
+
+---
+
+### `sync`
+
+Synchronizes events with a remote relay using Negentropy.
+
+```bash
+nrserver sync [flags]
+```
+
+| Flag                | Description                          | Default |
+| :------------------ | :----------------------------------- | :------ |
+| `-r`, `--remote`    | Remote relay URL                     | -       |
+| `-p`, `--pk`        | Public key (optional)                | -       |
+| `-d`, `--direction` | Sync direction: `up`, `down`, `both` | `both`  |
+
+> This requires the remote relay to support Negentropy.
+
+---
+
+### `download`
+
+Downloads events from relays into the local database.
+
+```bash
+nrserver download [flags]
+```
+
+Common flags include:
+
+* `--relay-url`
+* `--public-key`
+* `--kinds`
+* `--tags`
+* `--mentioned`
+* `--timeout`
+
+---
+
+### `cron`
+
+Runs the configured cron scheduler / maintenance jobs.
+
+```bash
+nrserver cron
+```
+
+Typical responsibilities may include:
+
+* expiration cleanup
+* scheduled maintenance routines
+* usage/statistics refresh jobs
+
+---
+
+## Admin API and Panel
+
+The internal server exposes:
+
+* `/admin/*` → Admin API
+* `/panel` → Embedded admin SPA
+* `/metrics` → Prometheus metrics endpoint
+
+If `admin_token` is set in `conf.yaml`, requests to `/admin/*` must include:
+
+```text
+X-Admin-Token: <your_token>
+```
+
+This is useful to protect administrative operations without exposing them publicly.
+
+---
+
+## Configuration
+
+The runtime configuration file is:
+
+```text
+conf.yaml
+```
+
+Below is a representative example with the main sections:
 
 ```yaml
-# Porta em que o servidor irá rodar
 port: 9090
 app_env: development
 
-# Configurações do WebSocket
 ws:
-    rate_limit: 1  # Limite de requisições por segundo
-    burst: 5       # Pico de requisições permitidas
-    auth: true     # Exigir autenticação (NIP-42)
+  rate_limit: 1
+  burst: 5
+  auth_mode: flexible
 
-# Informações públicas do seu relay (NIP-11)
 relay_information:
-    url: http://localhost:9090
-    name: Nostr Relay Server
-    description: A Nostr Relay Server
-    pub_key: "7ef721e77149c73701497141b0b590a5ebe82b79130228cdbe56e9be2d8e50"
-    priv_key: "e4d347b85fe3429ac1995d3eab801a3858990f66fb0"
-    supported_nips: [1, 2, 4, 9, 11, 17, 25, 45]
-    software: https://github.com/gabrielmoura/nostr-relay-server
-    version: 0.1.0
-    canonical_url: ws://localhost:9090/relay
-    icon: http://localhost:9090/nostr.png
+  url: http://localhost:9090
+  name: Nostr Relay Server
+  description: High-performance Nostr relay in Go
+  pub_key: ""
+  priv_key: ""
+  supported_nips: [1, 2, 4, 9, 11, 17, 18, 25, 40, 42, 45, 50, 62, 77, 96, 98]
+  software: https://github.com/gabrielmoura/nostr-relay-server
+  version: 0.1.0
+  canonical_url: ws://localhost:9090
+  icon: http://localhost:9090/nostr.png
 
-# Limites e regras do relay
 relay:
-    query_limit: 100
-    query_ids_limit: 500
-    query_authors_limit: 500
-    query_kinds_limit: 10
-    query_tags_limit: 100
-    keep_recent_events: true
-    max_size_event_in_bytes: 100000
-    filter_limit: 9999999999
-    reporting_limit: 5
-    enable_anonymous_req: true
-    max_tag_value_length: 150
+  query_limit: 100
+  query_ids_limit: 500
+  query_authors_limit: 500
+  query_kinds_limit: 10
+  query_tags_limit: 100
+  keep_recent_events: true
+  max_size_event_in_bytes: 100000
+  filter_limit: 9999999999
+  reporting_limit: 5
+  enable_anonymous_req: true
+  max_tag_value_length: 150
 
-# Configurações do Banco de Dados (PostgreSQL)
 db:
-    max_conns: 10
-    min_conns: 1
-    postgres_uri: postgres://postgres:Strong@P4ssword@127.0.0.1:5432/nostr
+  max_conns: 10
+  min_conns: 1
+  postgres_uri: postgres://postgres:Strong@P4ssword@127.0.0.1:5432/nostr
 
-# Sincronização de eventos com outros relays
 stream:
   relays:
     - wss://nostr.azzamo.net
     - wss://relay.damus.io
   stream_up: false
   stream_down: false
-# Configurações de armazenamento de mídia (Blossom - NIP-96)
+
 store:
-    enabled: true
-    api_path: http://localhost:9090/upload
-    media_path: http://localhost:9090/blob
-    accepted_mimetypes:
-        - image/jpeg
-        - image/png
-        - video/mp4
-    allow_adult_content: false
-    allow_violent_content: false
-    names: []
+  enabled: true
+  api_path: http://localhost:9090/upload
+  media_path: http://localhost:9090/blob
+  accepted_mimetypes:
+    - image/jpeg
+    - image/png
+    - video/mp4
+  allow_adult_content: false
+  allow_violent_content: false
+  names: []
+
+cron:
+  enabled: true
+
+admin_token: ""
 ```
+
+### Important configuration notes
+
+Some especially relevant settings:
+
+* `ws.auth_mode`: `strict` | `flexible` | `optional` | `none`
+* `cron.*`: cron job toggles and schedules
+* `cron.nip40.*`: expiration cleanup configuration
+* `stream.*`: upstream/downstream relay streaming
+* `store.*`: Blossom media server settings
+* `admin_token`: enables token protection for admin API
+
+For the complete schema and production-oriented examples, see:
+
+* `docs/configuration.md`
 
 ---
 
-## 📊 Monitoramento com Prometheus & Grafana
+## Monitoring with Prometheus and Grafana
 
-Acompanhe o desempenho do seu relay com ferramentas de monitoramento padrão de mercado.
+The internal server exposes Prometheus metrics at:
 
-### 1. Configurando o Prometheus
+```text
+http://localhost:9091/metrics
+```
 
-Crie um arquivo `prometheus.yml` para que o Prometheus possa encontrar as métricas do seu relay.
+### Prometheus example
+
+Create a `prometheus.yml` file:
 
 ```yaml
 global:
   scrape_interval: 15s
 
 scrape_configs:
-  - job_name: 'nostr-relay'
+  - job_name: "nostr-relay"
     scrape_interval: 5s
     static_configs:
-      - targets: ['host.docker.internal:9090'] # Use 'localhost:9090' se não estiver usando Docker
+      - targets: ["host.docker.internal:9091"]
 ```
 
-Execute o Prometheus (exemplo com Docker):
+If you are not using Docker, replace `host.docker.internal:9091` with:
+
+```text
+localhost:9091
+```
+
+Run Prometheus:
 
 ```bash
 docker run -d \
-  -p 9090:9090 \
   --name prometheus \
+  -p 9092:9090 \
   -v ./prometheus.yml:/etc/prometheus/prometheus.yml \
   --add-host=host.docker.internal:host-gateway \
   prom/prometheus
 ```
 
-### 2. Visualizando com Grafana
+> `9092` is used above to avoid conflicting with the relay’s default port `9090`.
 
-Use o Grafana para criar dashboards visuais com as métricas coletadas.
+### Grafana example
 
-1.  **Execute o Grafana** (exemplo com Docker):
-    ```bash
-    docker run -d \
-      --name=grafana \
-      -p 3000:3000 \
-      --add-host=host.docker.internal:host-gateway \
-      grafana/grafana-enterprise
-    ```
+Run Grafana:
 
-2.  Acesse `http://localhost:3000` (login padrão: `admin`/`admin`).
-3.  Adicione o Prometheus como uma fonte de dados (`DataSource`).
-4.  **Importe um dashboard!** Você pode usar o arquivo `grafana.json` deste repositório como ponto de partida.
+```bash
+docker run -d \
+  --name grafana \
+  -p 3000:3000 \
+  --add-host=host.docker.internal:host-gateway \
+  grafana/grafana-enterprise
+```
 
-> 🎨 **Observação:** O dashboard fornecido é básico. Sinta-se à vontade para melhorá-lo e enviar um Pull Request! Sua contribuição é muito bem-vinda.
+Then:
 
----
-
-## ❓ Perguntas Frequentes (FAQ)
-
-**Como hospedar este relay em um Raspberry Pi?**
-
-É totalmente possível! A maneira mais fácil é usando Docker:
-1.  Instale o Docker e o Docker Compose no seu Raspberry Pi.
-2.  Crie um arquivo `docker-compose.yml` para orquestrar o relay e o banco de dados PostgreSQL.
-3.  Use uma imagem Docker compatível com a arquitetura ARM (como as imagens oficiais do PostgreSQL e uma imagem Go compilada para ARM).
-4.  Configure as variáveis de ambiente e volumes no `docker-compose.yml` e inicie com `docker-compose up -d`.
-
-**Como hospedar na Deep Web (via Tor)?**
-
-Para expor seu relay como um serviço oculto do Tor, siga estes passos:
-1.  Instale e configure o Tor em seu servidor.
-2.  Edite o arquivo de configuração do Tor (`torrc`) para criar um novo `HiddenService`. Aponte a porta do serviço oculto para a porta local onde seu relay está rodando (ex: `127.0.0.1:9090`).
-3.  Após reiniciar o Tor, ele criará um hostname `.onion` para o seu serviço.
-4.  **Importante:** Atualize o `canonical_url` no seu `config.yml` para o endereço `ws://SEU_HOSTNAME.onion`. Isso garantirá que seu relay anuncie o endereço correto na rede Nostr.
-5. Use `HTTP_PROXY` para direcionar o tráfego do relay através do Tor, se necessário conforme https://pkg.go.dev/net/http#ProxyFromEnvironment.
+1. Open `http://localhost:3000`
+2. Login with the default credentials: `admin` / `admin`
+3. Add Prometheus as a data source
+4. Import the project dashboard if available
 
 ---
 
-## 📚 Protocolos Imlpementado
-- [BUD 01](https://github.com/hzrd149/blossom/blob/master/buds/01.md)
-- [BUD 02](https://github.com/hzrd149/blossom/blob/master/buds/02.md)
-- [NIP 40](https://github.com/nostr-protocol/nips/blob/master/40.md)
-- [NIP 98](https://github.com/nostr-protocol/nips/blob/master/98.md)
-- [NIP 01](https://github.com/nostr-protocol/nips/blob/master/01.md)
-- [NIP 77](https://github.com/nostr-protocol/nips/blob/master/77.md)
-- [NIP 42 - Authentication of clients to relays](https://github.com/nostr-protocol/nips/blob/master/42.md)
-- [NIP 09 - Event Deletion Request](https://github.com/nostr-protocol/nips/blob/master/09.md)
-- [NIP-50 - Search Capability](https://github.com/nostr-protocol/nips/blob/master/50.md)
-- [NIP-62 - Request to Vanish](https://github.com/nostr-protocol/nips/blob/master/62.md)
+## Supported Protocols
 
-## 🤝 Como Contribuir
+### NIPs
 
-Sua ajuda é muito bem-vinda para tornar este projeto ainda melhor!
+The project currently documents support for:
 
--   **Reporte Bugs:** Encontrou um problema? Abra uma [Issue](https://github.com/gabrielmoura/nostr-relay-server/issues).
--   **Sugira Melhorias:** Tem uma ideia para uma nova funcionalidade? Abra uma [Issue](https://github.com/gabrielmoura/nostr-relay-server/issues) para discutirmos.
--   **Envie Pull Requests:** Faça um fork do projeto, crie uma branch para sua alteração e envie um PR.
+* NIP-01 — Basic protocol
+* NIP-02 — Follow list
+* NIP-04 — Encrypted direct messages
+* NIP-09 — Event deletion
+* NIP-11 — Relay information document
+* NIP-17 — Relay list metadata
+* NIP-18 — Public chat
+* NIP-25 — Reactions
+* NIP-40 — Expiration timestamp
+* NIP-42 — Authentication of clients to relays
+* NIP-45 — Event counts
+* NIP-50 — Search capability
+* NIP-62 — Request to vanish
+* NIP-77
+* NIP-96 — File storage / Blossom
+* NIP-98 — HTTP auth
+
+### Blossom / BUDs
+
+* BUD-01
+* BUD-02
 
 ---
 
-## 📜 Licença
+## Documentation
 
-Este projeto ainda não possui uma licença definida. Sinta-se à vontade para contribuir, mas lembre-se de que o código é fornecido "como está" sem garantias de qualquer tipo.
+Project documentation is organized under `docs/`:
+
+* `docs/api-spec.md` — WebSocket protocol, HTTP routes, admin endpoints, payloads, and error envelopes
+* `docs/configuration.md` — Complete `conf.yaml` schema, defaults, and production examples
+* `docs/architecture.md` — C4 architecture, stack, flow, and module layout
+* `docs/policies.md` — Event and REQ policy rules
+* `docs/data-schema.md` — PostgreSQL and Redis schema, indexes, and cache/pubsub keys
+* `docs/decisions.md` — ADR history and architecture decisions
+* `docs/todo.md` — Roadmap and implementation checklist
+
+---
+
+## Frontend Development
+
+The admin SPA source code lives in:
+
+```text
+infra/dash
+```
+
+### Run locally
+
+```bash
+cd infra/dash
+pnpm install
+pnpm dev
+```
+
+By default, Vite proxies `/admin` and `/metrics` to:
+
+```text
+http://localhost:4870
+```
+
+Adjust with `ADMIN_PROXY_TARGET` if needed.
+
+### Rebuild embedded assets
+
+To rebuild the frontend assets embedded into the Go application:
+
+```bash
+cd infra/dash
+pnpm build
+```
+
+---
+
+## Build
+
+Build the binary:
+
+```bash
+go build -o nrserver ./cmd/nrserver
+```
+
+Or use the `Makefile` targets:
+
+* `make linux-pc`
+* `make linux-rpi`
+* `make windows`
+* `make windows32`
+
+---
+
+## FAQ
+
+### Can I run this on a Raspberry Pi?
+
+Yes. A typical setup is:
+
+1. Install Go or Docker on the Raspberry Pi
+2. Run PostgreSQL in a compatible ARM image or natively
+3. Adjust `conf.yaml`
+4. Build for ARM or use an ARM-compatible deployment flow
+
+If you already use containerized infrastructure, Docker is usually the easiest operational path.
+
+---
+
+### Can I expose the relay through Tor?
+
+Yes. A common approach is:
+
+1. Install and configure Tor on the server
+2. Create a `HiddenService` in `torrc`
+3. Point the hidden service to the local relay port
+4. Update `canonical_url` in `conf.yaml` to the `.onion` address
+5. Optionally use `HTTP_PROXY` / environment-based proxy routing if required by your deployment model
+
+---
+
+### Is Redis required?
+
+No. PostgreSQL is required. Redis is optional.
+
+---
+
+### Does the project provide an admin UI?
+
+Yes. The embedded admin panel is exposed at:
+
+```text
+http://localhost:9091/panel
+```
+
+---
+
+## Contributing
+
+Contributions are welcome.
+
+You can help by:
+
+* reporting bugs
+* suggesting improvements
+* submitting pull requests
+* improving documentation
+* enhancing dashboards and operational tooling
+
+### Suggested workflow
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Open a Pull Request with a clear description
+
+If you found a bug or want to discuss an idea first, open an issue.
+
+---
+
+## License
+
+This project does not currently define a license.
+
+Until a license is added, review the repository terms carefully before redistributing or using the code in ways that depend on explicit licensing permissions.
+

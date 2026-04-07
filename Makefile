@@ -13,7 +13,7 @@ all:
 # Target to build for Linux PC (x86-64)
 linux-pc:
 	@echo "Building for Linux PC (x86-64)..."
-	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -a -installsuffix cgo -ldflags="-w -s" -o nrserver cmd/nrserver/main.go
+	GOOS=linux GOARCH=amd64 GOAMD64=v2 CGO_ENABLED=0 go build -a -installsuffix cgo -ldflags="-w -s" -o nrserver cmd/nrserver/main.go
 
 # Target to build for Linux Raspberry Pi (ARM64)
 linux-rpi:
