@@ -141,7 +141,26 @@ store:
 | `port` | int | `9090` | External server port. Internal server uses `port+1`. |
 | `app_env` | string | `production` (runtime fallback) | Environment mode. |
 | `admin_token` | string | `""` | If set, `/admin` requires `X-Admin-Token`. |
-| `enable_negentropy` | bool | `false` | Enables Negentropy flow. |
+| `enable_negentropy` | bool | `false` | Enables Negentropy flow (`NEG-OPEN`, `NEG-MSG`, `NEG-CLOSE`) and related sync handlers. |
+
+### Negentropy and Sync Operational Notes
+
+When `enable_negentropy=true`:
+
+- The WebSocket router accepts Negentropy messages and opens reconciliation sessions.
+- The relay can interoperate with peers using legacy `NEG-HAVE` / `NEG-NEED` as well as Strfry-style data transfer (`EVENT` + `REQ`).
+- The sync CLI (`nrserver sync`) performs reconciliation and event transfer with batched REQ ids to reduce rejection risk on strict relays.
+
+Recommended production posture:
+
+- Keep `relay.query_ids_limit` consistent with your expected sync profile.
+- Monitor Negentropy-specific metrics on `/metrics`:
+  - `nostr_negentropy_v2_requests_total{operation,result}`
+  - `nostr_negentropy_v2_cache_total{backend,result}`
+  - `nostr_negentropy_v2_sessions_active`
+  - `nostr_negentropy_v2_protocol_errors_total`
+  - `nostr_negentropy_v2_events_imported_total`
+- If Redis is enabled, Negentropy V2 cache paths can leverage Redis TTL-backed storage; otherwise memory cache is used.
 
 ### `ws`
 

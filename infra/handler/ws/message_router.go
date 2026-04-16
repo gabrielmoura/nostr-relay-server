@@ -131,6 +131,12 @@ func handleNegErr(_ *dto.WsServer, data dto.Data) string {
 
 func handleNegClose(_ *dto.WsServer, data dto.Data) string {
 	metrics.NostrNegentropyCounter.WithLabelValues(dto.TypeNegClose).Inc()
+	if !config.Cfg.EnableNegentropy {
+		return "Negentropy is not enabled"
+	}
+	if err := negentropy.HandleNegClose(data); err != nil {
+		return err.Error()
+	}
 	if len(data) > 1 {
 		log.Logger.Debug("Negentropy close", zap.Any("data", data[1]))
 	}

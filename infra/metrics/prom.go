@@ -95,6 +95,38 @@ var (
 		},
 		[]string{"type"},
 	)
+	NostrNegentropyV2RequestsTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "nostr_negentropy_v2_requests_total",
+			Help: "Total Negentropy V2 requests handled by operation and result.",
+		},
+		[]string{"operation", "result"},
+	)
+	NostrNegentropyV2CacheTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "nostr_negentropy_v2_cache_total",
+			Help: "Negentropy V2 cache operations by backend and result.",
+		},
+		[]string{"backend", "result"},
+	)
+	NostrNegentropyV2SessionsActive = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "nostr_negentropy_v2_sessions_active",
+			Help: "Current number of active Negentropy V2 sessions.",
+		},
+	)
+	NostrNegentropyV2ProtocolErrorsTotal = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "nostr_negentropy_v2_protocol_errors_total",
+			Help: "Total Negentropy V2 protocol errors returned to clients.",
+		},
+	)
+	NostrNegentropyV2EventsImportedTotal = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "nostr_negentropy_v2_events_imported_total",
+			Help: "Total events imported through NEG-HAVE during Negentropy synchronization.",
+		},
+	)
 	// NostrUserAgentCounter - Contador de User-Agent
 	NostrUserAgentCounter = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
@@ -328,6 +360,11 @@ func RegisterMetrics() {
 		NostrEventsNotifiedCounter,
 		// Negentropy metrics
 		NostrNegentropyCounter,
+		NostrNegentropyV2RequestsTotal,
+		NostrNegentropyV2CacheTotal,
+		NostrNegentropyV2SessionsActive,
+		NostrNegentropyV2ProtocolErrorsTotal,
+		NostrNegentropyV2EventsImportedTotal,
 		NostrUserAgentCounter,
 		// Ingestion metrics
 		NostrRelayBatchProcessed,
