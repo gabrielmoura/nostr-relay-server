@@ -234,16 +234,53 @@ nrserver export [flags]
 Synchronizes events with a remote relay using Negentropy.
 
 ```bash
-nrserver sync [flags]
+nrserver sync <url> [flags]
 ```
 
-| Flag                | Description                          | Default |
-| :------------------ | :----------------------------------- | :------ |
-| `-r`, `--remote`    | Remote relay URL                     | -       |
-| `-p`, `--pk`        | Public key (optional)                | -       |
-| `-d`, `--direction` | Sync direction: `up`, `down`, `both` | `both`  |
+| Flag             | Description                                                                    | Default |
+| :--------------- | :----------------------------------------------------------------------------- | :------ |
+| `-r`, `--remote` | Remote relay URL (`ws://` or `wss://`). Optional when using positional `<url>` | -       |
+| `-p`, `--pk`     | Public key (hex or npub) used as author constraint                            | -       |
+| `-d`, `--dir`    | Sync direction: `both`, `down`, `up`, `none`                                   | `both`  |
+| `--direction`    | Deprecated alias for `--dir`                                                    | `both`  |
+| `--filter`       | Nostr filter JSON (single object or array of filters)                           | `{}`    |
+| `--timeout`      | Abort sync after N seconds without activity (`0` disables timeout)              | `0`     |
 
 > This requires the remote relay to support Negentropy.
+
+#### Sync behavior in practice
+
+The sync command performs four stages:
+
+1. Load local events and build local Negentropy vector
+2. Open WebSocket session and start reconciliation (`NEG-OPEN`/`NEG-MSG`)
+3. Upload events the remote side is missing (`EVENT`)
+4. Download missing remote events using batched `REQ` filters + `EOSE`
+
+Direction semantics:
+
+- `both`: upload and download
+- `up`: upload only
+- `down`: download only
+- `none`: reconcile sets only (no event transfer)
+
+Filter semantics:
+
+- A single filter object runs one sync pass.
+- A filter array runs one pass per filter segment to preserve compatibility with relays that require object filters in `NEG-OPEN`.
+
+Compatibility notes:
+
+- Works with relays that support standard Negentropy session messages.
+- Includes compatibility logic for Strfry-style sync transfer (`EVENT` + `REQ`), not only legacy `NEG-HAVE`/`NEG-NEED` data exchange.
+- Handles relay-side request limits by batching IDs, reducing `CLOSED` responses for oversized filters.
+
+Operational recommendations:
+
+- Enable Negentropy on your local relay: `enable_negentropy: true`.
+- Prefer `wss://` remotes in production.
+- Start with a smaller synchronization scope (e.g., `--pk`) for first-time tests.
+- Watch runtime logs for `NEG-ERR`, `NOTICE`, and `CLOSED` responses from the remote relay.
 
 ---
 
@@ -452,6 +489,26 @@ Then:
 3. Add Prometheus as a data source
 4. Import the project dashboard if available
 
+### Negentropy metrics to watch
+
+When Negentropy is enabled, these metrics are especially useful:
+
+- `nostr_negentropy_v2_requests_total{operation,result}`: protocol operations by outcome
+- `nostr_negentropy_v2_cache_total{backend,result}`: cache hit/miss/error by backend (memory/redis)
+- `nostr_negentropy_v2_sessions_active`: currently active reconciliation sessions
+- `nostr_negentropy_v2_protocol_errors_total`: protocol-level errors returned to clients
+- `nostr_negentropy_v2_events_imported_total`: events imported during synchronization
+
+Quick PromQL examples:
+
+```promql
+sum by (operation, result) (rate(nostr_negentropy_v2_requests_total[5m]))
+```
+
+```promql
+sum by (backend, result) (rate(nostr_negentropy_v2_cache_total[5m]))
+```
+
 ---
 
 ## Supported Protocols
@@ -621,4 +678,3 @@ If you found a bug or want to discuss an idea first, open an issue.
 This project does not currently define a license.
 
 Until a license is added, review the repository terms carefully before redistributing or using the code in ways that depend on explicit licensing permissions.
-

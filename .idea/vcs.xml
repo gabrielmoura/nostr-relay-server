@@ -4,5 +4,7 @@
     <mapping directory="" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/pkg/webc/nostrudel" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/ref/blossom" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/ref/nips" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/ref/strfry" vcs="Git" />
   </component>
 </project>

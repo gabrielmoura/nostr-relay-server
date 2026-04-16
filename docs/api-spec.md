@@ -610,18 +610,58 @@ Lists reported target events (NIP-56 kind `1984`) with moderation-friendly metad
 
 ## Negentropy Protocol (NIP-47)
 
-Efficient relay synchronization.
+Negentropy is used for efficient set reconciliation between relays, minimizing bandwidth when comparing large event sets.
 
-### Messages
+This relay supports Negentropy sessions over WebSocket and keeps backward compatibility with peers that still use legacy `NEG-HAVE` / `NEG-NEED` payload exchanges.
 
-```
-["NEG-OPEN", "<subscription_id>", <filter>, <scheme>]
-["NEG-MSG", "<subscription_id>", <message>]
-["NEG-HAVE", "<subscription_id>", <id>, <timestamp>, <size>]
-["NEG-NEED", "<subscription_id>", <id>]
-["NEG-ERROR", "<subscription_id>", <error>]
+### Session Messages
+
+```json
+["NEG-OPEN", "<subscription_id>", <filter>, "<initial_message_hex>"]
+["NEG-MSG", "<subscription_id>", "<message_hex>"]
+["NEG-ERR", "<subscription_id>", "<reason>"]
 ["NEG-CLOSE", "<subscription_id>"]
 ```
+
+Notes:
+
+- `subscription_id` follows the normal Nostr subscription semantics.
+- `<filter>` uses the same filter semantics as `REQ`.
+- `NEG-OPEN` and `NEG-MSG` message payloads are hex-encoded protocol frames.
+
+### Data Transfer During Reconciliation
+
+Depending on the peer implementation, missing events can be transferred in two compatible ways:
+
+1. **Legacy relay-to-relay extension**
+
+```json
+["NEG-HAVE", "<subscription_id>", [<event>, ...]]
+["NEG-NEED", "<subscription_id>", ["<event_id>", ...]]
+```
+
+2. **Strfry-compatible path (recommended for broad interoperability)**
+
+- Upload side sends `EVENT` for ids the remote relay needs.
+- Download side requests ids via batched `REQ` filters and waits for `EOSE`.
+
+Example request batch:
+
+```json
+["REQ", "<request_sub_id>", {"ids": ["<id1>", "<id2>"]}]
+```
+
+The relay may answer with:
+
+- `EVENT` envelopes (download payload)
+- `EOSE` (batch completed)
+- `CLOSED` (request rejected, often due to relay-side limits)
+
+### Operational Behavior
+
+- Negentropy handling is gated by `enable_negentropy` in `conf.yaml`.
+- The server keeps per-session state and exposes dedicated Negentropy V2 Prometheus metrics.
+- The sync CLI uses adaptive REQ batching to handle relays with strict `ids` limits.
 
 ## Supported NIPs
 

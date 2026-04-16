@@ -159,6 +159,7 @@ nostr-relay-server/
 │   └── stream/            # Event streaming
 ├── pkg/                    # Public packages
 │   ├── negentropy/         # Negentropy sync
+│   ├── negentropyV2/       # Negentropy V2 engine/cache/service
 │   ├── nostrpool/         # Relay pool
 │   ├── magic/             # File type detection
 │   └── webc/              # Web content fetcher
@@ -185,6 +186,40 @@ nostr-relay-server/
 - `WsServer` - WebSocket connection context
 - `Data` - Raw message payload
 - Filter objects for queries
+
+### 5. Negentropy Layering
+- `pkg/negentropy` provides relay-facing message handlers and protocol wiring.
+- `pkg/negentropyV2` provides reconciliation engine, cache abstraction, and session management.
+- Handler layer delegates `NEG-OPEN` / `NEG-MSG` / `NEG-CLOSE` orchestration to V2 services.
+- Cache backend is selected by runtime capabilities (Redis when enabled, memory fallback otherwise).
+
+## Flow: Negentropy Synchronization
+
+```text
+Remote Relay / Sync Client
+       │
+       ▼
+┌──────────────────┐
+│ WS Message Router │ ─── NEG-OPEN / NEG-MSG / NEG-CLOSE
+└────────┬─────────┘
+         │
+         ▼
+┌──────────────────┐
+│ pkg/negentropy    │ ─── protocol validation + envelope mapping
+└────────┬─────────┘
+         │
+         ▼
+┌──────────────────┐
+│ negentropyV2      │ ─── session manager + reconcile service
+├──────────────────┤
+│ Cache             │ ─── memory or Redis TTL cache
+│ EventStore        │ ─── query bridge to db.DbQueries
+└────────┬─────────┘
+         │
+         ├─► NEG-MSG response frames
+         ├─► optional EVENT/REQ transfer path (sync client compatibility)
+         └─► metrics emission (`nostr_negentropy_v2_*`)
+```
 
 ## Flow: Event Processing
 

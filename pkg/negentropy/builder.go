@@ -2,7 +2,6 @@ package negentropy
 
 import (
 	json "github.com/gabrielmoura/nostr-relay-server/internal/jsonx"
-	"github.com/nbd-wtf/go-nostr"
 	"github.com/tmthrgd/go-hex"
 )
 
@@ -15,7 +14,7 @@ func NewMessageBuilder() *MessageBuilder {
 // Open constrói a mensagem de abertura.
 // CORREÇÃO: Removemos o campo 'IDSize'. O Strfry espera ["NEG-OPEN", sub, filter, payload].
 // O IDSize de 32 bytes é o padrão do protocolo Nostr.
-func (b *MessageBuilder) Open(subID string, filter nostr.Filter, msg []byte) ([]any, error) {
+func (b *MessageBuilder) Open(subID string, filter any, msg []byte) ([]any, error) {
 	return []any{
 		MsgOpen,
 		subID,
