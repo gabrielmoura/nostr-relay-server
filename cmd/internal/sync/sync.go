@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -42,9 +43,15 @@ type SyncSession struct {
 
 	Conn *websocket.Conn
 
-	Filter nostr.Filter
-	SubID  string
-	ReqSub string
+	Direction         Direction
+	DoUp              bool
+	DoDown            bool
+	InactivityTimeout time.Duration
+
+	LocalFilters []nostr.Filter
+	OpenFilter   any
+	SubID        string
+	ReqSub       string
 
 	Negentropy  *negentropy.Negentropy
 	LocalEvents []*nostr.Event
@@ -64,45 +71,92 @@ func Sync(cf *ConfSync) {
 		return
 	}
 
+	if err := runSync(cf); err != nil {
+		log.Logger.Error("Sync process finished with error", zap.Error(err))
+		return
+	}
+
+	log.Logger.Info("Sync completed successfully")
+}
+
+func runSync(cf *ConfSync) error {
 	if err := validateRemote(cf.Remote); err != nil {
-		log.Logger.Fatal("Configuração inválida", zap.Error(err))
+		return err
 	}
 
 	pubKey, err := decodePublicKey(cf.Pk)
 	if err != nil {
-		log.Logger.Fatal("Chave pública inválida", zap.Error(err))
+		return err
 	}
 
+	filters := cf.LocalFilter
+	if len(filters) == 0 {
+		filters = []nostr.Filter{{}}
+	}
+
+	for i, filter := range filters {
+		runCfg := *cf
+		runCfg.Pk = pubKey
+		runCfg.LocalFilter = []nostr.Filter{filter}
+		runCfg.OpenFilter = filter
+
+		if len(filters) > 1 {
+			log.Logger.Info("Starting sync for filter segment",
+				zap.Int("segment", i+1),
+				zap.Int("total_segments", len(filters)),
+			)
+		}
+
+		if err := runSingleSync(&runCfg); err != nil {
+			if len(filters) > 1 {
+				return fmt.Errorf("filter segment %d failed: %w", i+1, err)
+			}
+			return err
+		}
+	}
+
+	return nil
+}
+
+func runSingleSync(cf *ConfSync) error {
 	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	go handleGracefulShutdown(cancel)
 
-	session := &SyncSession{
-		Context:   ctx,
-		Cancel:    cancel,
-		RemoteURL: cf.Remote,
-		SubID:     util.GenChallenge(),
-		ReqSub:    newReqSubID(),
-		Filter: nostr.Filter{
-			Authors: []string{pubKey},
-			Limit:   10000,
-		},
+	if len(cf.LocalFilter) == 0 {
+		cf.LocalFilter = []nostr.Filter{{}}
+	}
+	if cf.OpenFilter == nil {
+		cf.OpenFilter = cf.LocalFilter[0]
 	}
 
-	if pubKey == "" {
-		session.Filter.Authors = nil
+	session := &SyncSession{
+		Context:           ctx,
+		Cancel:            cancel,
+		RemoteURL:         cf.Remote,
+		Direction:         cf.Direction,
+		DoUp:              cf.Direction.DoUp(),
+		DoDown:            cf.Direction.DoDown(),
+		InactivityTimeout: cf.Timeout,
+		OpenFilter:        cf.OpenFilter,
+		LocalFilters:      cf.LocalFilter,
+		SubID:             util.GenChallenge(),
+		ReqSub:            newReqSubID(),
 	}
 
 	log.Logger.Info("Initializing Sync Process",
 		zap.String("remote", cf.Remote),
-		zap.String("pubKey", pubKey),
+		zap.String("pubKey", cf.Pk),
+		zap.String("direction", string(cf.Direction)),
+		zap.Duration("inactivity_timeout", cf.Timeout),
 		zap.String("subID", session.SubID),
 	)
 
 	if err := session.Run(); err != nil {
-		log.Logger.Error("Sync process finished with error", zap.Error(err))
-	} else {
-		log.Logger.Info("Sync completed successfully")
+		return err
 	}
+
+	return nil
 }
 
 func (s *SyncSession) Run() error {
@@ -110,7 +164,7 @@ func (s *SyncSession) Run() error {
 	log.Logger.Info("Step 1: Calculating local vector state...")
 
 	var err error
-	s.LocalEvents, err = vectorSvc.FetchEvents(s.Context, s.Filter)
+	s.LocalEvents, err = s.fetchLocalEvents()
 	if err != nil {
 		return fmt.Errorf("database fetch error: %w", err)
 	}
@@ -157,7 +211,7 @@ func (s *SyncSession) Run() error {
 
 	// Nota: Verifique se msgBuilder.Open inclui o IdSize (32) no array JSON.
 	// Strfry EXIGE isso: ["NEG-OPEN", subID, filter, 32, initialMsg]
-	openMsg, err := msgBuilder.Open(s.SubID, s.Filter, initialMsgBytes)
+	openMsg, err := msgBuilder.Open(s.SubID, s.OpenFilter, initialMsgBytes)
 	if err != nil {
 		return fmt.Errorf("failed to build OPEN message: %w", err)
 	}
@@ -188,8 +242,7 @@ func (s *SyncSession) listenLoop() error {
 		case <-s.Context.Done():
 			return s.Context.Err()
 		default:
-			// Timeout de 60s. Se strfry não responder em 60s, a conexão cai.
-			s.Conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+			s.applyReadDeadline()
 
 			// Leitura bloqueante
 			mt, message, err := s.Conn.ReadMessage()
@@ -197,6 +250,10 @@ func (s *SyncSession) listenLoop() error {
 				if websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
 					log.Logger.Info("Connection closed normally by server")
 					return nil
+				}
+				var netErr net.Error
+				if s.InactivityTimeout > 0 && errors.As(err, &netErr) && netErr.Timeout() {
+					return fmt.Errorf("sync timed out: no activity for %d seconds", int64(s.InactivityTimeout.Seconds()))
 				}
 				// Loga erro detalhado
 				return fmt.Errorf("read error (type %d): %w", mt, err)
@@ -324,7 +381,7 @@ func (s *SyncSession) handleNegMsg(data []json.NoCopyRawMessage) error {
 	}
 
 	// 1. Enviar EVENTS (Upload)
-	if len(haveIDs) > 0 {
+	if s.DoUp && len(haveIDs) > 0 {
 		uploaded, err := s.sendEvents(haveIDs)
 		if err != nil {
 			return err
@@ -333,7 +390,7 @@ func (s *SyncSession) handleNegMsg(data []json.NoCopyRawMessage) error {
 	}
 
 	// 2. Enviar REQ (Download request)
-	if len(needIDs) > 0 {
+	if s.DoDown && len(needIDs) > 0 {
 		log.Logger.Info("Requesting missing events", zap.Int("count", len(needIDs)))
 		if err := s.requestEvents(needIDs); err != nil {
 			return err
@@ -753,6 +810,40 @@ func (s *SyncSession) sendMessage(msgArr []any) error {
 	log.Logger.Info("TX Message", zap.Any("payload", logPayload))
 
 	return s.Conn.WriteJSON(msgArr)
+}
+
+func (s *SyncSession) fetchLocalEvents() ([]*nostr.Event, error) {
+	if len(s.LocalFilters) == 1 {
+		return vectorSvc.FetchEvents(s.Context, s.LocalFilters[0])
+	}
+
+	result := make([]*nostr.Event, 0)
+	seen := make(map[string]struct{})
+
+	for _, filter := range s.LocalFilters {
+		events, err := vectorSvc.FetchEvents(s.Context, filter)
+		if err != nil {
+			return nil, err
+		}
+		for _, evt := range events {
+			if _, exists := seen[evt.ID]; exists {
+				continue
+			}
+			seen[evt.ID] = struct{}{}
+			result = append(result, evt)
+		}
+	}
+
+	return result, nil
+}
+
+func (s *SyncSession) applyReadDeadline() {
+	if s.InactivityTimeout <= 0 {
+		_ = s.Conn.SetReadDeadline(time.Time{})
+		return
+	}
+
+	_ = s.Conn.SetReadDeadline(time.Now().Add(s.InactivityTimeout))
 }
 
 // --- Helpers e Boilerplate ---

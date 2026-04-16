@@ -234,14 +234,17 @@ nrserver export [flags]
 Synchronizes events with a remote relay using Negentropy.
 
 ```bash
-nrserver sync [flags]
+nrserver sync <url> [flags]
 ```
 
-| Flag                | Description                          | Default |
-| :------------------ | :----------------------------------- | :------ |
-| `-r`, `--remote`    | Remote relay URL                     | -       |
-| `-p`, `--pk`        | Public key (optional)                | -       |
-| `-d`, `--direction` | Sync direction: `up`, `down`, `both` | `both`  |
+| Flag             | Description                                                                    | Default |
+| :--------------- | :----------------------------------------------------------------------------- | :------ |
+| `-r`, `--remote` | Remote relay URL (`ws://` or `wss://`). Optional when using positional `<url>` | -       |
+| `-p`, `--pk`     | Public key (hex or npub) used as author constraint                            | -       |
+| `-d`, `--dir`    | Sync direction: `both`, `down`, `up`, `none`                                   | `both`  |
+| `--direction`    | Deprecated alias for `--dir`                                                    | `both`  |
+| `--filter`       | Nostr filter JSON (single object or array of filters)                           | `{}`    |
+| `--timeout`      | Abort sync after N seconds without activity (`0` disables timeout)              | `0`     |
 
 > This requires the remote relay to support Negentropy.
 
@@ -253,6 +256,18 @@ The sync command performs four stages:
 2. Open WebSocket session and start reconciliation (`NEG-OPEN`/`NEG-MSG`)
 3. Upload events the remote side is missing (`EVENT`)
 4. Download missing remote events using batched `REQ` filters + `EOSE`
+
+Direction semantics:
+
+- `both`: upload and download
+- `up`: upload only
+- `down`: download only
+- `none`: reconcile sets only (no event transfer)
+
+Filter semantics:
+
+- A single filter object runs one sync pass.
+- A filter array runs one pass per filter segment to preserve compatibility with relays that require object filters in `NEG-OPEN`.
 
 Compatibility notes:
 
