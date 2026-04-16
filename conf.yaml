@@ -7,7 +7,7 @@ ws:
     auth: true
     auth_mode: optional
 relay_information:
-    url: http://192.168.240.1:4869
+    url: http://8.tcp.ngrok.io:11237
     name: Nostr Relay Server
     description: A Nostr Relay Server
     pub_key: "7ef721e77149c737014971b141b0b590a5ebe82b79130228cdbe56e9be2d8e50"
@@ -29,8 +29,8 @@ relay_information:
         - 13 # Proof of Work
     software: https://github.com/gabrielmoura/nostr-relay-server
     version: 0.1.0
-    canonical_url: ws://192.168.240.1:4869
-    icon: http://192.168.240.1:4869/nostr.png
+    canonical_url: ws://8.tcp.ngrok.io:11237
+    icon: http://8.tcp.ngrok.io:11237/nostr.png
 relay:
     query_limit: 100
     query_ids_limit: 500
@@ -72,6 +72,7 @@ stream:
         - wss://relay.chorus.community
     stream_down: false
     stream_up: true
+enable_negentropy: true
 cron:
     enabled: false
     db_optimization:

@@ -8,3 +8,5 @@ badger_data
 export*
 *.jsonl
 *.yaml
+ref
+conf.yaml
