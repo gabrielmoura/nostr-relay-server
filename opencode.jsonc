@@ -7,14 +7,44 @@
         "npx",
         "-y",
         "@modelcontextprotocol/server-postgres",
-        "postgres://postgres:Strong@P4ssword@localhost:5432/nostr"
+        "postgres://postgres:Strong%40P4ssword@localhost:5432/nostr"
       ],
       "enabled": true,
       "timeout": 30000
     },
+
+    "redis": {
+      "type": "local",
+      "command": [
+        "uvx",
+        "--from",
+        "redis-mcp-server@latest",
+        "redis-mcp-server",
+        "--url",
+        "redis://localhost:6379/0"
+      ],
+      "enabled": true,
+      "timeout": 30000
+    },
+
+    "nostr": {
+      "type": "local",
+      "command": [
+        "npx",
+        "-y",
+        "@nostrbook/mcp@latest"
+      ],
+      "enabled": true,
+      "timeout": 30000
+    },
+
     "pencil_desktop": {
       "type": "local",
-      "command": ["/opt/pencil-dev-bin/resources/app.asar.unpacked/out/mcp-server-linux-x64","--app","desktop"],
+      "command": [
+        "/opt/pencil-dev-bin/resources/app.asar.unpacked/out/mcp-server-linux-x64",
+        "--app",
+        "desktop"
+      ],
       "enabled": true
     }
   }
