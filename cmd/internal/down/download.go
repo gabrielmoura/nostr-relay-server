@@ -2,156 +2,110 @@ package down
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	db2 "github.com/gabrielmoura/nostr-relay-server/infra/db"
-	"strings"
 	"sync"
-	"time"
 
 	"github.com/gabrielmoura/nostr-relay-server/config"
 	"github.com/gabrielmoura/nostr-relay-server/infra/log"
+	"github.com/gabrielmoura/nostr-relay-server/infra/metrics"
 	"github.com/gabrielmoura/nostr-relay-server/internal/db"
 	"github.com/nbd-wtf/go-nostr"
-	"github.com/nbd-wtf/go-nostr/nip19"
 	"go.uber.org/zap"
 )
 
-type DownloadOptions struct {
-	PublicKey string
-	RelayURL  []string
-	Kinds     []int
-	Tags      []string
-	Mentioned bool
-	Timeout   int
-}
-
-const pageSize = 500
-
-func Download(cf *DownloadOptions) {
-	if err := config.LoadConfig(); err != nil {
-		fmt.Printf("Erro ao carregar a configuração: %v", err)
+func Download(options *DownloadOptions) error {
+	if options == nil {
+		return fmt.Errorf("download options cannot be nil")
 	}
 
-	log.Init()
+	if err := setupEnvironment(); err != nil {
+		return err
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	if err := db.Init(ctx); err != nil {
-		log.Logger.Fatal("Erro ao iniciar conexão com o banco de dados", zap.Error(err))
-	}
+	errs := make(chan error, len(options.RelayURLs))
+	var wg sync.WaitGroup
 
-	if cf.PublicKey != "" {
-		var err error
-		cf.PublicKey, err = normalizePublicKey(cf.PublicKey)
-		if err != nil {
-			log.Logger.Fatal("Chave pública inválida", zap.Error(err))
-			return
-		}
-	}
-
-	wg := sync.WaitGroup{}
-
-	for _, url := range cf.RelayURL {
+	for _, relayURL := range options.RelayURLs {
+		relayURL := relayURL
 		wg.Add(1)
-		go func() {
-			log.Logger.Info("Conectando ao relay", zap.String("url", url))
-			client, err := nostr.RelayConnect(ctx, url)
-			if err != nil {
-				log.Logger.Error("Erro ao conectar ao relay", zap.Error(err), zap.String("url", url))
-				wg.Done()
-			}
-			defer client.Close()
 
-			until := nostr.Now()
-			fetchAndStoreEvents(ctx, client, cf.PublicKey, &until, cf.Mentioned, cf.Kinds, cf.Tags, cf.Timeout)
-			log.Logger.Debug("Download concluído", zap.String("url", url), zap.String("publicKey", cf.PublicKey))
-			wg.Done()
+		go func() {
+			defer wg.Done()
+
+			if err := downloadRelay(ctx, relayURL, options); err != nil {
+				errs <- err
+				return
+			}
+
+			errs <- nil
 		}()
 	}
 
 	wg.Wait()
+	close(errs)
+
+	errorCount := 0
+	for err := range errs {
+		if err == nil {
+			continue
+		}
+
+		errorCount++
+		log.Logger.Error("Relay download failed", zap.Error(err))
+	}
+
+	if errorCount == len(options.RelayURLs) {
+		return fmt.Errorf("download failed for all configured relays")
+	}
+
+	return nil
 }
 
-func normalizePublicKey(pk string) (string, error) {
-	if strings.HasPrefix(pk, "npub") {
-		_, raw, err := nip19.Decode(pk)
-		if err != nil {
-			return "", err
-		}
-		return raw.(string), nil
+func setupEnvironment() error {
+	if err := config.LoadConfig(); err != nil {
+		return fmt.Errorf("load config: %w", err)
 	}
-	return pk, nil
+
+	log.Init()
+
+	if err := db.Init(context.Background()); err != nil {
+		return fmt.Errorf("init database: %w", err)
+	}
+
+	return nil
 }
 
-func fetchAndStoreEvents(ctx context.Context, client *nostr.Relay, pubKey string, until *nostr.Timestamp, mentioned bool, kinds []int, tags []string, timeout int) {
-	nUntil := until.Time().Unix()
-	eCount := 0
-	for {
-		// Define novo filtro para paginação
-		filter := nostr.Filter{
-			Until: until,
-			Limit: pageSize,
-			Kinds: kinds,
-		}
-		if pubKey != "" && !mentioned {
-			filter.Authors = []string{pubKey}
-		}
-		if mentioned {
-			filter.Tags = nostr.TagMap{
-				"p": []string{pubKey},
-			}
-		}
-		if len(tags) > 0 {
-			for _, tag := range tags {
-				filter.Tags = nostr.TagMap{
-					"t": []string{tag},
-				}
-			}
-		}
+func downloadRelay(ctx context.Context, relayURL string, options *DownloadOptions) error {
+	log.Logger.Info("Connecting to relay", zap.String("url", relayURL))
 
-		pageCtx, cancel := context.WithTimeout(ctx, time.Duration(timeout)*time.Second)
-		defer cancel()
-		sub, err := client.Subscribe(pageCtx, []nostr.Filter{filter})
-		if err != nil {
-			log.Logger.Error("Erro ao assinar o filtro", zap.Error(err), zap.String("url", client.URL))
-			cancel()
-			return
-		}
-
-		var count int
-		var lastTimestamp int64 = nUntil
-		for evt := range sub.Events {
-			if evt.CreatedAt.Time().Unix() < lastTimestamp {
-				lastTimestamp = evt.CreatedAt.Time().Unix()
-			}
-			count++
-			if err := db.DbQueries.InsertEvent(ctx, evt); err != nil {
-				if !errors.Is(err, db2.ErrDupEvent) {
-					log.Logger.Error("Erro ao salvar evento", zap.Error(err), zap.String("id", evt.ID))
-				}
-			}
-		}
-
-		eCount += count
-
-		if count < pageSize {
-			log.Logger.Info(
-				"Nenhum evento encontrado ou fim da paginação",
-				zap.String("url", client.URL),
-				zap.Int("total", eCount),
-			)
-			break
-		}
-
-		nUntil = lastTimestamp - 1 // paginação manual (busca eventos mais antigos)
-
-		log.Logger.Info(
-			"Paginação: buscando próxima página",
-			zap.Int("eventos", count),
-			zap.Int64("until", nUntil),
-			zap.String("url", client.URL),
-			zap.Int("total", eCount),
-		)
+	client, err := nostr.RelayConnect(ctx, relayURL)
+	if err != nil {
+		metrics.NostrDownloadFailuresTotal.WithLabelValues(relayURL).Inc()
+		return fmt.Errorf("connect relay %q: %w", relayURL, err)
 	}
+	defer client.Close()
+
+	stats, err := fetchAndStoreEvents(ctx, client, options.Filter, options.Timeout, db.DbQueries)
+	if err != nil {
+		metrics.NostrDownloadFailuresTotal.WithLabelValues(relayURL).Inc()
+		return fmt.Errorf("download relay %q: %w", relayURL, err)
+	}
+
+	metrics.NostrDownloadEventsReceivedTotal.WithLabelValues(relayURL).Add(float64(stats.Received))
+	metrics.NostrDownloadEventsPersistedTotal.WithLabelValues(relayURL).Add(float64(stats.Persisted))
+	metrics.NostrDownloadDuplicatesTotal.WithLabelValues(relayURL).Add(float64(stats.Duplicates))
+
+	log.Logger.Info(
+		"Download completed",
+		zap.String("url", relayURL),
+		zap.Int("events_received", stats.Received),
+		zap.Int("inserted_events", stats.Persisted),
+		zap.Int("duplicate_events", stats.Duplicates),
+		zap.Int("pages", stats.Pages),
+	)
+
+	return nil
 }

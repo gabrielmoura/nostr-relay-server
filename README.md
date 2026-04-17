@@ -292,14 +292,29 @@ Downloads events from relays into the local database.
 nrserver download [flags]
 ```
 
-Common flags include:
+| Flag               | Description                                                                                                      | Default |
+| :----------------- | :--------------------------------------------------------------------------------------------------------------- | :------ |
+| `-r`, `--relay-url` | Relay URL list to connect to                                                                                    | `wss://relay.damus.io` |
+| `-p`, `--public-key` | Public key (hex or `npub`) used as author filter                                                               | - |
+| `-k`, `--kinds` | Event kinds to download                                                                                           | `[1,30023,6,30003,30007,30008,30009,2003,2004,1063,42,41,40,0,1984,14]` |
+| `-t`, `--tags` | Values applied to `#t` tag filter                                                                                  | `[]` |
+| `-m`, `--mentioned` | Uses `#p=<public-key>` filter instead of author filter (requires `--public-key`)                               | `false` |
+| `-o`, `--timeout` | Per-page timeout (seconds)                                                                                        | `30` |
+| `--filter` | Optional Nostr filter JSON object for additional constraints (e.g. `ids`, `since`, `until`, `search`, extra tags) | - |
+| `--filter-file` | Path to JSON file containing the same object accepted by `--filter`                                                  | - |
+| `--filter-merge` | Merge strategy between JSON filter and explicit flags: `override` or `strict-conflict`                              | `override` |
 
-* `--relay-url`
-* `--public-key`
-* `--kinds`
-* `--tags`
-* `--mentioned`
-* `--timeout`
+Filter precedence rule (explicit):
+
+- Base filter comes from `--filter` JSON when provided.
+- Specific CLI flags override overlapping fields to preserve existing command behavior:
+  - `--kinds` overrides `kinds`
+  - `--tags` overrides `#t`
+  - `--public-key` sets `authors=[pk]`
+  - `--mentioned --public-key` sets `#p=[pk]` and clears `authors`
+- With `--filter-merge strict-conflict`, conflicting values fail fast with a clear CLI error.
+
+More examples and advanced behavior: `docs/download-command.md`.
 
 ---
 
@@ -551,6 +566,7 @@ Project documentation is organized under `docs/`:
 * `docs/policies.md` — Event and REQ policy rules
 * `docs/data-schema.md` — PostgreSQL and Redis schema, indexes, and cache/pubsub keys
 * `docs/decisions.md` — ADR history and architecture decisions
+* `docs/download-command.md` — Download command flow, `--filter` semantics, precedence, and troubleshooting
 * `docs/todo.md` — Roadmap and implementation checklist
 
 ---

@@ -731,3 +731,48 @@ Expose admin endpoints on the internal server and support `X-Admin-Token` as an 
 - ✅ keeps admin surface on the internal server
 - ✅ allows secure deployments without forcing local-only setups
 - ⚠️ token rotation remains an operational concern
+
+---
+
+## ADR-021: Refactor `download` Command and Add JSON `--filter`
+
+**Status:** Accepted  
+**Date:** 2026-04-16
+
+### Context
+
+The `download` command had parsing, relay orchestration and persistence concerns concentrated in one file, with limited validation and no flexible JSON filter input.
+
+### Decision
+
+Refactor `download` into cohesive layers and add optional JSON filter input via `--filter` or `--filter-file`.
+
+The command now separates:
+
+1. CLI argument parsing (`cmd/down.go`)
+2. option validation + filter merge (`cmd/internal/down/options.go`)
+3. runtime setup + concurrent relay execution (`cmd/internal/down/download.go`)
+4. paginated fetch and persistence (`cmd/internal/down/fetch.go`)
+
+### Precedence Rule
+
+To preserve existing behavior, specific flags override overlapping fields from `--filter`:
+
+- `--kinds` overrides `kinds`
+- `--tags` overrides `#t`
+- `--public-key` sets `authors=[pk]`
+- `--mentioned --public-key` sets `#p=[pk]` and clears `authors`
+
+The merge behavior is configurable:
+
+- `override` (default): explicit flags overwrite overlapping JSON fields
+- `strict-conflict`: command fails when overlapping values conflict
+
+### Consequences
+
+- ✅ clearer separation of responsibilities
+- ✅ explicit and testable filter parsing/validation
+- ✅ improved CLI error messages for invalid input
+- ✅ adds per-relay download observability metrics (received/persisted/duplicates/failures/page latency)
+- ✅ better maintainability for future pagination and batching changes
+- ⚠️ stricter validation (`--timeout > 0`, `--mentioned` requires `--public-key`) may reject previously ambiguous invocations

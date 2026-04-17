@@ -39,7 +39,7 @@ Nostr Relay Server is a high-performance Nostr relay implementation in Go, suppo
 │                                                                             │
 │  ┌─────────────────────────────────────────────────────────────────────┐   │
 │  │                         CLI (Cobra)                                  │   │
-│  │  server │ cron │ import │ export │ sync │ seed │ conf              │   │
+│  │  server │ cron │ import │ export │ sync │ download │ seed │ conf   │   │
 │  └─────────────────────────────────────────────────────────────────────┘   │
 │                                     │                                       │
 │  ┌─────────────────────────────────┼───────────────────────────────────┐ │
@@ -125,6 +125,7 @@ nostr-relay-server/
 │   ├── import.go          # Import events from JSONL
 │   ├── export.go          # Export events to JSONL
 │   ├── sync.go            # Negentropy sync
+│   ├── down.go            # Relay event download command
 │   ├── seed.go            # Database seeding
 │   ├── conf.go            # Configuration management
 │   └── root.go            # Root command

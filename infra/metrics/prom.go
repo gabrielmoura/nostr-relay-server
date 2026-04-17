@@ -13,6 +13,42 @@ var (
 		Name: "nostr_downloads",
 		Help: "The total number of files fetched",
 	})
+	NostrDownloadEventsReceivedTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "nostr_download_events_received_total",
+			Help: "Total number of events received by the download command per relay.",
+		},
+		[]string{"relay"},
+	)
+	NostrDownloadEventsPersistedTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "nostr_download_events_persisted_total",
+			Help: "Total number of events persisted by the download command per relay.",
+		},
+		[]string{"relay"},
+	)
+	NostrDownloadDuplicatesTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "nostr_download_duplicates_total",
+			Help: "Total number of duplicate events detected by the download command per relay.",
+		},
+		[]string{"relay"},
+	)
+	NostrDownloadFailuresTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "nostr_download_failures_total",
+			Help: "Total number of download command failures per relay.",
+		},
+		[]string{"relay"},
+	)
+	NostrDownloadPageLatencySeconds = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "nostr_download_page_latency_seconds",
+			Help:    "Latency per paginated download request by relay.",
+			Buckets: prometheus.DefBuckets,
+		},
+		[]string{"relay"},
+	)
 
 	HttpDuration = prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Name: "http_response_duration_seconds",
@@ -344,6 +380,11 @@ func RegisterMetrics() {
 		NostrUserEventCounter,
 		UploadCounter,
 		DownloadCounter,
+		NostrDownloadEventsReceivedTotal,
+		NostrDownloadEventsPersistedTotal,
+		NostrDownloadDuplicatesTotal,
+		NostrDownloadFailuresTotal,
+		NostrDownloadPageLatencySeconds,
 		HttpDuration,
 		NostrRelayAuthFailuresTotal,
 		NostrRelayEventSignatureFailures,
