@@ -5,7 +5,7 @@ nrserver-arm64
 nrserver.exe
 files
 badger_data
-export*
+/export*
 *.jsonl
 *.yaml
 ref

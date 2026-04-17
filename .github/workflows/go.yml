@@ -10,16 +10,31 @@ on:
     branches: [ "main" ]
 
 jobs:
-
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Go
-        uses: actions/setup-go@v4
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
         with:
-          go-version: '1.23.3'
+          version: 10
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+          cache-dependency-path: infra/dash/pnpm-lock.yaml
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.0'
+
+      - name: Build frontend
+        run: pnpm install --frozen-lockfile && pnpm build
+        working-directory: infra/dash
 
       - name: Build
         run: CGO_ENABLED=0 go build -v -a -installsuffix cgo -ldflags="-w -s" -o nrserver cmd/nrserver/main.go
