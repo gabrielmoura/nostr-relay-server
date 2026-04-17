@@ -15,11 +15,22 @@ import (
 )
 
 var (
-	initialized bool
-	redisClient *redis.Client
+	initialized     bool
+	redisClient     *redis.Client
+	checkSpamScript *goredis.Script
 )
 
 const queryVersionKey = "query:version"
+
+// CheckSpamScript defines atomic counter increment with TTL
+// This prevents the race condition where INCR succeeds but EXPIRE fails
+const checkSpamScriptSrc = `
+local count = redis.call('INCR', KEYS[1])
+if count == 1 then
+    redis.call('EXPIRE', KEYS[1], ARGV[1])
+end
+return count
+`
 
 type UserBanned struct {
 	Reason string `json:"r"`
@@ -32,7 +43,9 @@ func Init() error {
 	redisClient = redis.GetClient()
 	if redisClient != nil && redisClient.IsEnabled() {
 		initialized = true
-		log.Logger.Info("Redis cache initialized")
+		// Pre-load the Lua script for atomic check spam
+		checkSpamScript = goredis.NewScript(checkSpamScriptSrc)
+		log.Logger.Info("Redis cache initialized with Lua scripts")
 	} else {
 		log.Logger.Info("Redis cache disabled, using no-cache mode")
 	}
@@ -102,13 +115,26 @@ func CheckSpam(key string, threshold int) (bool, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
 
-	count, err := redisClient.Incr(ctx, spamKey)
-	if err != nil {
-		return false, err
-	}
+	// Use atomic Lua script to prevent race condition between INCR and EXPIRE
+	// This ensures the counter is atomically incremented AND has TTL set
+	var count int64
+	var err error
 
-	if count == 1 {
-		redisClient.Expire(ctx, spamKey, 5*time.Minute)
+	if checkSpamScript != nil {
+		result, err := checkSpamScript.Run(ctx, redisClient.Raw(), []string{spamKey}, 300).Int64()
+		if err != nil {
+			return false, err
+		}
+		count = result
+	} else {
+		// Fallback to legacy behavior (for compatibility)
+		count, err = redisClient.Incr(ctx, spamKey)
+		if err != nil {
+			return false, err
+		}
+		if count == 1 {
+			redisClient.Expire(ctx, spamKey, 5*time.Minute)
+		}
 	}
 
 	return count >= int64(threshold), nil
