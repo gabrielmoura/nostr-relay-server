@@ -2,14 +2,12 @@ package util
 
 import (
 	"crypto/rand"
-	"errors"
 	"fmt"
+	"time"
+
 	"github.com/gabrielmoura/nostr-relay-server/infra/log"
-	"github.com/liamg/magic"
 	"github.com/tmthrgd/go-hex"
 	"go.uber.org/zap"
-	"slices"
-	"time"
 )
 
 func AuthTimeCheck(eventCreatedAt int64) (bool, string) {
@@ -35,19 +33,4 @@ func GenChallenge() string {
 		return ""
 	}
 	return hex.EncodeToString(challenge)
-}
-
-func AcceptFile(data []byte) bool {
-
-	acceptableMime := []string{"text"}
-
-	fileType, err := magic.Lookup(data)
-	if err != nil {
-		if errors.Is(err, magic.ErrUnknown) {
-			log.Logger.Warn("unknown file type")
-		}
-		return false
-	}
-
-	return slices.Contains(acceptableMime, fileType.MIME)
 }

@@ -2,11 +2,11 @@ package cache
 
 import (
 	"crypto/sha256"
-	"encoding/json"
 	"fmt"
 	"slices"
 	"sort"
 
+	json "github.com/gabrielmoura/nostr-relay-server/internal/jsonx"
 	"github.com/gabrielmoura/nostr-relay-server/pkg/negentropyV2/model"
 )
 

@@ -2,9 +2,9 @@ package cache
 
 import (
 	"context"
-	"encoding/json"
 	"time"
 
+	json "github.com/gabrielmoura/nostr-relay-server/internal/jsonx"
 	"github.com/gabrielmoura/nostr-relay-server/pkg/negentropyV2/model"
 )
 
