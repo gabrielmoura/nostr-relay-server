@@ -387,6 +387,7 @@ Use **Redis** for:
 | `profile:{pubkey}` | HASH | 5m | Profile cache |
 | `query:{hash}` | STRING | 30s | Query result cache |
 | `event:{id}` | STRING | 10m | Event cache |
+| `nip05:doc` | STRING | 24h | NIP-05 document cache |
 | `channel:events` | CHANNEL | - | Event pub/sub |
 | `channel:sub:{id}` | CHANNEL | - | Subscription notifications |
 | `subs:{ws_id}` | HASH | - | Active subscriptions per WS |
@@ -432,6 +433,15 @@ Each job is enabled/disabled independently and has its own cron expression.
 - ✅ predictable retention policy management
 - ⚠️ more configuration surface to maintain
 5. **Clustering**: Redis Cluster for high availability
+
+### NIP-05 cache TTL decision
+
+The NIP-05 document cache (`nip05:doc`) uses a default TTL of **24h**.
+
+Rationale:
+- long enough to reduce repeated assembly and NIP-65 hint parsing cost,
+- short enough to keep eventual consistency bounded,
+- every manual mutation (`create/update/delete`) invalidates the cache immediately.
 
 ### Consequences
 
@@ -854,3 +864,117 @@ The `tags` field is serialized as JSON string inside TSV to preserve nested tag 
 - ✅ improved compatibility for spreadsheet/ETL workflows with TSV
 - ✅ safer automation behavior through explicit overwrite policy
 - ⚠️ segmented writes introduce additional file open/close overhead for very small segment sizes
+
+---
+
+## ADR-F001: React 19 + TanStack Router for Admin SPA
+
+**Status:** Accepted  
+**Date:** 2026-04-17
+
+### Context
+
+The admin dashboard needed a modern frontend stack that provides good developer experience, type safety, and performance.
+
+### Decision
+
+Use **React 19** with **TanStack Router** and **i18next** for the admin SPA.
+
+### Technology Choices
+
+| Component | Technology | Rationale |
+|-----------|------------|-----------|
+| UI Framework | React 19 | New hooks (useActionState, useOptimistic), compiler benefits |
+| Routing | TanStack Router | File-based routing, type-safe navigation, lightweight |
+| i18n | i18next | Mature, React bindings, good tooling |
+| Build | Vite | Fast HMR, optimized production builds |
+| UI Primitives | Radix UI | Accessible, headless, composable |
+| Styling | Tailwind CSS | Utility-first, consistent design system |
+
+### Consequences
+
+- ✅ Type-safe routing with TanStack Router
+- ✅ React 19 hooks for modern form handling
+- ✅ i18n support (English/Portuguese)
+- ✅ Fast development with Vite
+- ⚠️ Need to stay current with React 19 evolution
+
+---
+
+## ADR-F002: Component Separation (Smart vs. Dumb)
+
+**Status:** Accepted  
+**Date:** 2026-04-17
+
+### Context
+
+Route components grew too large (944 lines for event-detail-page) with mixed UI logic and business logic.
+
+### Decision
+
+Enforce strict separation:
+
+1. **Dumb Components** (`components/ui/`, `components/shared/`):
+   - Pure presentational
+   - Receive data via props
+   - Emit events via callbacks
+   - No API calls
+
+2. **Smart Components** (`routes/`, `components/features/`):
+   - Fetch data
+   - Manage state
+   - Orchestrate dumb components
+
+### Implementation
+
+- Extract parsing logic to `lib/*.ts`
+- Create feature-specific components in `components/features/[feature]/`
+- Route components orchestrate, don't render
+
+### Consequences
+
+- ✅ More testable components
+- ✅ Better reusability
+- ✅ Clearer code ownership
+- ⚠️ More files to manage
+
+---
+
+## ADR-F003: Parser Extraction Pattern
+
+**Status:** Accepted  
+**Date:** 2026-04-17
+
+### Context
+
+Event parsing logic (imeta tags, media extraction, reference tracking) was duplicated across route components.
+
+### Decision
+
+Extract all parsing logic to dedicated files in `lib/`:
+
+- `lib/event-parser.ts` - Event tag parsing for detail page
+- `lib/event-search.ts` - Search result transformation
+- `lib/router.ts` - Navigation utilities
+
+### Pattern
+
+```typescript
+// lib/event-parser.ts
+export interface ParsedEvent {
+  images: MediaItem[];
+  videos: MediaItem[];
+  references: NostrReference[];
+}
+
+export function parseEventTags(event: RawEvent): ParsedEvent {
+  // parsing logic
+}
+```
+
+### Consequences
+
+- ✅ No duplicated parsing logic
+- ✅ Single source of truth for transformations
+- ✅ Easier to test parsing in isolation
+- ⚠️ Need to keep parsers in sync with backend changes

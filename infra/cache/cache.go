@@ -474,3 +474,48 @@ func GetCounter(key string) (int64, error) {
 
 	return strconv.ParseInt(val, 10, 64)
 }
+
+const nip05DocKey = "nip05:doc"
+
+func SetNIP05Doc(val string) error {
+	if !IsEnabled() {
+		return nil
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+
+	ttl := time.Duration(config.Cfg.Redis.Cache.NIP05DocTTL) * time.Second
+	if ttl <= 0 {
+		ttl = 24 * time.Hour
+	}
+
+	return redisClient.Set(ctx, nip05DocKey, val, ttl)
+}
+
+func GetNIP05Doc() (string, bool) {
+	if !IsEnabled() {
+		return "", false
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+
+	val, err := redisClient.Get(ctx, nip05DocKey)
+	if err != nil {
+		return "", false
+	}
+
+	return val, true
+}
+
+func DeleteNIP05Doc() error {
+	if !IsEnabled() {
+		return nil
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+
+	return redisClient.Del(ctx, nip05DocKey)
+}

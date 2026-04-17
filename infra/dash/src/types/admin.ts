@@ -217,6 +217,33 @@ export type UserSearchFilters = {
   mode: "cards" | "list" | "suspects"
 }
 
+export type NIP05Identity = {
+  name: string
+  pubkey: string
+  npub?: string
+  display_name?: string
+  picture?: string
+  relay_hints?: string[]
+  created_at?: string
+  updated_at?: string
+}
+
+export type NIP05IdentityPayload = {
+  name: string
+  pubkey: string
+}
+
+export type UserNIP05Association = {
+  pubkey: string
+  exists: boolean
+  name?: string
+  display_name?: string
+  picture?: string
+  relay_hints?: string[]
+  created_at?: string
+  updated_at?: string
+}
+
 export type BanPayload = {
   pubkey: string
   reason: string

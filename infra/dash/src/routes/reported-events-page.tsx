@@ -1,5 +1,6 @@
 import { useState } from "react"
 import { Link } from "@tanstack/react-router"
+import { useTranslation } from "react-i18next"
 
 import { BanUserDialog } from "@/components/features/ban-user-dialog"
 import { PageHeader } from "@/components/shared/page-header"
@@ -17,6 +18,7 @@ import { formatDateTime, shortenId } from "@/lib/utils"
 const reportTypeOptions = ["all", "spam", "nudity", "malware", "profanity", "illegal", "impersonation", "other"] as const
 
 export function ReportedEventsPage() {
+  const { t } = useTranslation()
   const [query, setQuery] = useState("")
   const [reportType, setReportType] = useState<(typeof reportTypeOptions)[number]>("all")
   const [selectedEventID, setSelectedEventID] = useState<string | null>(null)
@@ -32,27 +34,27 @@ export function ReportedEventsPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        description="Moderacao de eventos reportados (NIP-56) com acesso rapido a reports, evento alvo e acao de banimento contextualizada."
-        title="Eventos reportados"
+        description={t("reported.description")}
+        title={t("reported.title")}
       />
 
       <div className="grid gap-3 lg:grid-cols-[2fr_1fr]">
-        <Input onChange={(event) => setQuery(event.target.value)} placeholder="Buscar por event id, npub/pubkey alvo ou texto do report" value={query} />
+        <Input onChange={(event) => setQuery(event.target.value)} placeholder={t("reported.searchPlaceholder")} value={query} />
         <Select onValueChange={(value) => setReportType((reportTypeOptions as readonly string[]).includes(value) ? (value as (typeof reportTypeOptions)[number]) : "all")} value={reportType}>
           <SelectTrigger>
-            <SelectValue placeholder="Tipo de report" />
+            <SelectValue placeholder={t("reported.typePlaceholder")} />
           </SelectTrigger>
           <SelectContent>
             {reportTypeOptions.map((option) => (
-              <SelectItem key={option} value={option}>{option === "all" ? "todos" : option}</SelectItem>
+              <SelectItem key={option} value={option}>{option === "all" ? t("reported.all") : option}</SelectItem>
             ))}
           </SelectContent>
         </Select>
       </div>
 
-      {reportedQuery.isLoading && items.length === 0 ? <LoadingPanel label="Buscando eventos reportados..." /> : null}
-      {reportedQuery.isError ? <ErrorPanel description="Nao foi possivel carregar eventos reportados." onRetry={() => void reportedQuery.refetch()} title="Falha ao carregar reports" /> : null}
-      {!reportedQuery.isLoading && !reportedQuery.isError && items.length === 0 ? <EmptyPanel description="Nenhum evento reportado encontrado para os filtros atuais." title="Sem reports" /> : null}
+      {reportedQuery.isLoading && items.length === 0 ? <LoadingPanel label={t("reported.loading")} /> : null}
+      {reportedQuery.isError ? <ErrorPanel description={t("reported.errorDescription")} onRetry={() => void reportedQuery.refetch()} title={t("reported.errorTitle")} /> : null}
+      {!reportedQuery.isLoading && !reportedQuery.isError && items.length === 0 ? <EmptyPanel description={t("reported.emptyDescription")} title={t("reported.emptyTitle")} /> : null}
 
       {items.length > 0 ? (
         <VirtualizedList
@@ -65,22 +67,22 @@ export function ReportedEventsPage() {
             <div className="rounded-[calc(var(--radius)-0.2rem)] border border-border bg-card p-4">
               <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                 <div className="space-y-2">
-                  <p className="text-sm font-semibold text-foreground">Evento alvo: {shortenId(item.target_event_id, 12, 4)}</p>
+                  <p className="text-sm font-semibold text-foreground">{t("reported.targetEvent")}: {shortenId(item.target_event_id, 12, 4)}</p>
                   <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                     {item.target_author?.pubkey ? (
                       <Link className="font-medium text-foreground underline decoration-dotted underline-offset-2" params={{ pubkey: item.target_author.pubkey }} to="/users/$pubkey">
-                        Autor: {item.target_author.display_name || shortenId(item.target_author.pubkey, 12, 4)}
+                        {t("reported.author")}: {item.target_author.display_name || shortenId(item.target_author.pubkey, 12, 4)}
                       </Link>
                     ) : (
-                      <span>Autor: desconhecido</span>
+                      <span>{t("reported.author")}: {t("reported.unknown")}</span>
                     )}
                     {item.target_author?.nip05 ? <Badge variant="muted">{item.target_author.nip05}</Badge> : null}
                   </div>
                   <p className="break-all text-xs text-muted-foreground">
-                    nevent: {item.target_nevent || "nao disponivel"}
+                    nevent: {item.target_nevent || t("reported.notAvailable")}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    Criado em: {item.target_created_at ? formatDateTime(item.target_created_at) : "nao indexado"} · ultimo report: {formatDateTime(item.last_reported)}
+                    {t("reported.createdAt")}: {item.target_created_at ? formatDateTime(item.target_created_at) : t("reported.notIndexed")} · {t("reported.lastReport")}: {formatDateTime(item.last_reported)}
                   </p>
                   <div className="flex flex-wrap gap-2">
                     <Badge variant="danger">{item.report_count} reports</Badge>
@@ -91,15 +93,15 @@ export function ReportedEventsPage() {
                 </div>
 
                 <div className="flex flex-wrap gap-2">
-                  <Button onClick={() => setSelectedEventID(item.target_event_id)} size="sm" variant="outline">Ver Reports</Button>
+                  <Button onClick={() => setSelectedEventID(item.target_event_id)} size="sm" variant="outline">{t("reported.viewReports")}</Button>
                   <Button asChild size="sm" variant="outline">
-                    <Link params={{ eventId: item.target_event_id }} to="/events/$eventId">Ver Evento</Link>
+                    <Link params={{ eventId: item.target_event_id }} to="/events/$eventId">{t("reported.viewEvent")}</Link>
                   </Button>
                   <BanUserDialog
                     contextEventId={item.target_event_id}
                     defaultPubkey={item.target_pubkey ?? ""}
                     defaultReason={`report associado ao evento ${shortenId(item.target_event_id, 10, 4)}`}
-                    triggerLabel="Banir usuario"
+                    triggerLabel={t("moderation.ban.trigger")}
                     triggerVariant="warning"
                   />
                 </div>
@@ -113,11 +115,11 @@ export function ReportedEventsPage() {
       <Dialog onOpenChange={(open) => !open && setSelectedEventID(null)} open={Boolean(selectedEventID)}>
         <DialogContent className="max-w-3xl">
           <DialogHeader>
-            <DialogTitle>Reports do evento</DialogTitle>
-            <DialogDescription>Lista de reports associados ao evento selecionado, com contexto de autor e tipo.</DialogDescription>
+            <DialogTitle>{t("reported.modalTitle")}</DialogTitle>
+            <DialogDescription>{t("reported.modalDescription")}</DialogDescription>
           </DialogHeader>
-          {reportsQuery.isLoading && reports.length === 0 ? <LoadingPanel label="Carregando reports..." /> : null}
-          {reportsQuery.isError ? <ErrorPanel description="Nao foi possivel carregar reports do evento." onRetry={() => void reportsQuery.refetch()} title="Falha nos reports" /> : null}
+          {reportsQuery.isLoading && reports.length === 0 ? <LoadingPanel label={t("reported.modalLoading")} /> : null}
+          {reportsQuery.isError ? <ErrorPanel description={t("reported.modalErrorDescription")} onRetry={() => void reportsQuery.refetch()} title={t("reported.modalErrorTitle")} /> : null}
           <div className="max-h-[60vh] space-y-3 overflow-auto pr-1">
             {reports.map((report) => (
               <div className="rounded-md border border-border p-3" key={report.report_event_id}>
@@ -125,7 +127,7 @@ export function ReportedEventsPage() {
                   <div className="flex min-w-0 items-center gap-2">
                     <Avatar className="size-8" name={report.reporter_display_name || report.reporter_pubkey} src={report.reporter_picture} />
                     <div className="min-w-0">
-                      <p className="truncate text-sm font-medium text-foreground">{report.reporter_display_name || "usuario sem nome"}</p>
+                      <p className="truncate text-sm font-medium text-foreground">{report.reporter_display_name || t("reported.userNoName")}</p>
                       <p className="truncate text-xs text-muted-foreground">
                         {shortenId(report.reporter_npub || report.reporter_pubkey, 14, 4)}
                       </p>
@@ -136,14 +138,14 @@ export function ReportedEventsPage() {
                     <span>{formatDateTime(report.created_at)}</span>
                   </div>
                 </div>
-                <p className="mt-2 text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">Motivo</p>
-                <p className="mt-1 text-sm text-foreground">{report.content || "(sem comentario adicional)"}</p>
+                <p className="mt-2 text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">{t("reported.reason")}</p>
+                <p className="mt-1 text-sm text-foreground">{report.content || t("reported.noComment")}</p>
                 <p className="mt-2 text-xs text-muted-foreground">
                   Report event: {shortenId(report.report_event_id, 12, 4)}
                 </p>
               </div>
             ))}
-            {!reportsQuery.isLoading && reports.length === 0 ? <EmptyPanel description="Este evento ainda nao possui reports carregados." title="Sem reports" /> : null}
+            {!reportsQuery.isLoading && reports.length === 0 ? <EmptyPanel description={t("reported.modalEmptyDescription")} title={t("reported.emptyTitle")} /> : null}
           </div>
         </DialogContent>
       </Dialog>

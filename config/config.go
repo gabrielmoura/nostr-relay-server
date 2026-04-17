@@ -83,6 +83,7 @@ func setDefaults(export bool) {
 	viper.SetDefault("redis.cache.query_meta_ttl", 30)
 	viper.SetDefault("redis.cache.event_ttl", 600)
 	viper.SetDefault("redis.cache.dedup_ttl", 3600)
+	viper.SetDefault("redis.cache.nip05_doc_ttl", 86400)
 
 	viper.SetDefault("ingestion.batch_size", 1000)
 	viper.SetDefault("ingestion.batch_timeout_ms", 100)

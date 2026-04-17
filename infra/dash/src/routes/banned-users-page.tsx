@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { useTranslation } from "react-i18next"
 
 import { PageHeader } from "@/components/shared/page-header"
 import { EmptyPanel, ErrorPanel, LoadingPanel } from "@/components/shared/state-panels"
@@ -11,6 +12,7 @@ import { formatDateTime } from "@/lib/utils"
 import { UnbanUserAlert } from "@/components/features/unban-user-alert"
 
 export function BannedUsersPage() {
+  const { t } = useTranslation()
   const [search, setSearch] = useState("")
   const query = useInfiniteBannedUsers(search)
   const pages = query.data?.pages ?? []
@@ -18,20 +20,20 @@ export function BannedUsersPage() {
   const total = pages[0]?.total ?? 0
 
   if (query.isLoading && users.length === 0) {
-    return <LoadingPanel label="Carregando lista consolidada de banimentos..." />
+    return <LoadingPanel label={t("bannedUsers.loading")} />
   }
 
   if (query.isError) {
-    return <ErrorPanel description="A UI esta usando uma camada local isolada enquanto a API nao expõe listagem de banidos." onRetry={() => void query.refetch()} title="Falha ao carregar usuarios banidos" />
+    return <ErrorPanel description={t("bannedUsers.errorDescription")} onRetry={() => void query.refetch()} title={t("bannedUsers.errorTitle")} />
   }
   return (
     <div className="space-y-6">
-      <PageHeader description="Painel de moderacao com estado persistido na interface enquanto a API nao fornece listagem nativa de banidos." title="Usuarios banidos" />
+      <PageHeader description={t("bannedUsers.description")} title={t("bannedUsers.title")} />
 
-      <Input onChange={(event) => setSearch(event.target.value)} placeholder="Buscar display, pubkey, npub ou motivo" value={search} />
+      <Input onChange={(event) => setSearch(event.target.value)} placeholder={t("bannedUsers.searchPlaceholder")} value={search} />
 
       {users.length === 0 ? (
-        <EmptyPanel description="Nenhum banimento foi registrado localmente nesta sessao." title="Sem banimentos" />
+        <EmptyPanel description={t("bannedUsers.emptyDescription")} title={t("bannedUsers.emptyTitle")} />
       ) : (
         <VirtualizedList
           estimateSize={122}

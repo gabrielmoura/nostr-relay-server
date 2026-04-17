@@ -54,9 +54,21 @@ CREATE TABLE profiles (
                           pronouns TEXT,
                           nip05 TEXT,
                           enable_store_files BOOLEAN default false,
-                          enable_nip05 BOOLEAN DEFAULT FALSE
+                           enable_nip05 BOOLEAN DEFAULT FALSE
 
 );
+
+CREATE TABLE IF NOT EXISTS nip05_identities (
+    id BIGSERIAL PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE,
+    public_key VARCHAR(64) NOT NULL UNIQUE REFERENCES profiles(public_key) ON DELETE CASCADE,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_nip05_identities_public_key ON nip05_identities (public_key);
+CREATE INDEX IF NOT EXISTS idx_nip05_identities_name ON nip05_identities (name);
+
 -- Índices para a tabela profiles
 CREATE INDEX idx_profiles_name ON profiles ( NAME );
 CREATE INDEX idx_profiles_nip05 ON profiles ( nip05 );

@@ -5,6 +5,7 @@ import { RouterProvider } from "@tanstack/react-router"
 import { Toaster } from "sonner"
 
 import { router } from "@/router"
+import "@/i18n"
 import "@/index.css"
 
 const queryClient = new QueryClient({

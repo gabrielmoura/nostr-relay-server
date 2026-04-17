@@ -11,11 +11,14 @@ import type {
   FetchEventFromRelaysResponse,
   ImportEventsResponse,
   LoggedUser,
+  NIP05Identity,
+  NIP05IdentityPayload,
   EventReportsResponse,
   EventTimeline,
   ReportedEventItem,
   RelayOverview,
   StreamStatus,
+  UserNIP05Association,
   UserProfile,
 } from "@/types/admin"
 import { env } from "@/lib/env"
@@ -470,6 +473,31 @@ export async function getUser(pubkey: string) {
     }
     return fallback
   }
+}
+
+export async function getNIP05Page(query: string, params: PageParams) {
+  const search = new URLSearchParams({ limit: String(params.limit), offset: String(params.offset) })
+  if (query) {
+    search.set("q", query)
+  }
+  return request<AdminPage<NIP05Identity>>(`/nip05?${search.toString()}`)
+}
+
+export async function upsertNIP05Identity(payload: NIP05IdentityPayload) {
+  return request<NIP05Identity>("/nip05", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function deleteNIP05Identity(name: string) {
+  return request<{ name: string; deleted: boolean }>(`/nip05/${encodeURIComponent(name)}`, {
+    method: "DELETE",
+  })
+}
+
+export async function getUserNIP05(pubkey: string) {
+  return request<UserNIP05Association>(`/users/${pubkey}/nip05`)
 }
 
 export function getEventTags(event: EventRecord) {

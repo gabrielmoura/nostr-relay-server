@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next"
 import { PageHeader } from "@/components/shared/page-header"
 import { EmptyPanel, ErrorPanel, LoadingPanel } from "@/components/shared/state-panels"
 import { VirtualizedList } from "@/components/shared/virtualized-list"
@@ -6,25 +7,26 @@ import { useInfiniteConnections } from "@/hooks/use-admin-data"
 import { shortenId } from "@/lib/utils"
 
 export function LoggedConnectionsPage() {
+  const { t } = useTranslation()
   const query = useInfiniteConnections("authed")
   const pages = query.data?.pages ?? []
   const rows = pages.flatMap((page) => page.items)
   const total = pages[0]?.total ?? 0
 
   if (query.isLoading && rows.length === 0) {
-    return <LoadingPanel label="Carregando conexoes autenticadas..." />
+    return <LoadingPanel label={t("loggedConnections.loading")} />
   }
 
   if (query.isError) {
-    return <ErrorPanel description="Nao foi possivel ler `/admin/connections/authed`." onRetry={() => void query.refetch()} title="Falha ao listar conexoes logadas" />
+    return <ErrorPanel description={t("loggedConnections.errorDescription")} onRetry={() => void query.refetch()} title={t("loggedConnections.errorTitle")} />
   }
 
   return (
     <div className="space-y-6">
-      <PageHeader description="Vista dedicada para conexoes autenticadas, util para rastrear pubkeys conectadas e densidade de subscricoes." title="Conexoes logadas" />
+      <PageHeader description={t("loggedConnections.description")} title={t("loggedConnections.title")} />
 
       {rows.length === 0 ? (
-        <EmptyPanel description="Nenhuma conexao autenticada esta ativa neste momento." title="Sem conexoes logadas" />
+        <EmptyPanel description={t("loggedConnections.emptyDescription")} title={t("loggedConnections.emptyTitle")} />
       ) : (
         <VirtualizedList
           estimateSize={82}
@@ -40,8 +42,8 @@ export function LoggedConnectionsPage() {
                   <p className="text-sm text-foreground">{shortenId(connection.authed ?? "", 14, 4)} · {connection.ip}</p>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  <Badge variant="success">autenticada</Badge>
-                  <Badge variant="muted">{connection.subscription_count} subscricoes</Badge>
+                  <Badge variant="success">{t("activeConnections.authenticatedShort")}</Badge>
+                  <Badge variant="muted">{t("activeConnections.subscriptionsCount", { count: connection.subscription_count })}</Badge>
                 </div>
               </div>
             </div>

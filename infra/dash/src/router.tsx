@@ -11,6 +11,7 @@ import { OverviewPage } from "@/routes/overview-page"
 import { ReportedEventsPage } from "@/routes/reported-events-page"
 import { StreamStatusPage } from "@/routes/stream-status-page"
 import { UserDetailPage } from "@/routes/user-detail-page"
+import { NIP05Page } from "@/routes/nip05-page"
 import { UserSearchPage } from "@/routes/user-search-page"
 
 const rootRoute = createRootRoute({
@@ -39,6 +40,12 @@ const userSearchRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/users/search",
   component: UserSearchPage,
+})
+
+const nip05Route = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/nip05",
+  component: NIP05Page,
 })
 
 const userDetailRoute = createRoute({
@@ -88,6 +95,7 @@ const routeTree = rootRoute.addChildren([
   loggedUsersRoute,
   bannedUsersRoute,
   userSearchRoute,
+  nip05Route,
   userDetailRoute,
   activeConnectionsRoute,
   loggedConnectionsRoute,

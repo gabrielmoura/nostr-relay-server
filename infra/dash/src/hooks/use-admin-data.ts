@@ -3,8 +3,10 @@ import { useInfiniteQuery, useMutation, useQuery, useQueryClient, useSuspenseQue
 import type { BanPayload, EventSearchFilters } from "@/types/admin"
 import {
   banUser,
+  deleteNIP05Identity,
   disconnectConnection,
   fetchEventFromRelays,
+  getNIP05Page,
   importEventsFiles,
   getEventDetail,
   getEventReports,
@@ -18,8 +20,10 @@ import {
   getRelayOverview,
   getStreamStatus,
   getUser,
+  getUserNIP05,
   searchEventsPage,
   searchUsersPage,
+  upsertNIP05Identity,
   unbanUser,
 } from "@/services/admin"
 
@@ -66,6 +70,10 @@ export function useBanStatus(pubkey: string) {
 
 export function useUser(pubkey: string) {
   return useQuery({ queryKey: ["user", pubkey], queryFn: () => getUser(pubkey), enabled: Boolean(pubkey) })
+}
+
+export function useUserNIP05(pubkey: string) {
+  return useQuery({ queryKey: ["user-nip05", pubkey], queryFn: () => getUserNIP05(pubkey), enabled: Boolean(pubkey) })
 }
 
 export function useInfiniteEventSearch(filters: EventSearchFilters) {
@@ -118,12 +126,55 @@ export function useInfiniteReportedEvents(query: string, type: string) {
   })
 }
 
-export function useInfiniteUserSearch(query: string) {
+export function useInfiniteUserSearch(query: string, options?: { enabled?: boolean }) {
+  const enabled = options?.enabled ?? true
   return useInfiniteQuery({
     initialPageParam: 0,
     queryKey: ["users-search", query],
     queryFn: ({ pageParam }) => searchUsersPage(query, { limit: defaultPageSize, offset: pageParam }),
     getNextPageParam: (lastPage) => (lastPage.has_more ? lastPage.offset + lastPage.items.length : undefined),
+    enabled,
+  })
+}
+
+export function useInfiniteNIP05(query: string) {
+  return useInfiniteQuery({
+    initialPageParam: 0,
+    queryKey: ["nip05", query],
+    queryFn: ({ pageParam }) => getNIP05Page(query, { limit: defaultPageSize, offset: pageParam }),
+    getNextPageParam: (lastPage) => (lastPage.has_more ? lastPage.offset + lastPage.items.length : undefined),
+  })
+}
+
+export function useUpsertNIP05Mutation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: upsertNIP05Identity,
+    onSuccess: async (result) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["nip05"] }),
+        queryClient.invalidateQueries({ queryKey: ["users-search"] }),
+        queryClient.invalidateQueries({ queryKey: ["user", result.pubkey] }),
+        queryClient.invalidateQueries({ queryKey: ["user-nip05", result.pubkey] }),
+      ])
+    },
+  })
+}
+
+export function useDeleteNIP05Mutation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: deleteNIP05Identity,
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["nip05"] }),
+        queryClient.invalidateQueries({ queryKey: ["users-search"] }),
+        queryClient.invalidateQueries({ queryKey: ["user"] }),
+        queryClient.invalidateQueries({ queryKey: ["user-nip05"] }),
+      ])
+    },
   })
 }
 

@@ -178,6 +178,7 @@ Same filters as event queries but returns `COUNT(*)`.
 | `query:{hash}` | STRING | 30s | Query results | `[event1, event2]` |
 | `event:{id}` | STRING | 10m | Event cache | `{json}` |
 | `dedup:{id}` | STRING | 1h | Event deduplication | `"1"` |
+| `nip05:doc` | STRING | 24h | Cached NIP-05 document (`names` + optional `relays`) | `{\"names\":{...}}` |
 | `sub:filter:{hash}` | STRING | 5m | Filter hash | `"hash"` |
 | `ws:last_seen:{ws_id}` | STRING | 2m | WebSocket heartbeat timestamp | `1710000000` |
 | `query:meta:{hash}` | HASH | 30s | Query cache metadata | `{hits,last_access}` |
@@ -231,6 +232,7 @@ redis:
     event_ttl: 10m
     dedup_ttl: 1h
     query_meta_ttl: 30s
+    nip05_doc_ttl: 24h
 ```
 
 ### Prepared Statements

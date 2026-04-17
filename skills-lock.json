@@ -175,6 +175,11 @@
       "source": "samber/cc-skills-golang",
       "sourceType": "github",
       "computedHash": "96c62d0b38bf78b5d7aac1aba146073aaacd07824c2fb792774949525e39a5f9"
+    },
+    "redis-development": {
+      "source": "redis/agent-skills",
+      "sourceType": "github",
+      "computedHash": "d27174128aebe583d5ca15747389c84e286daed589bfa2b99847392a012719b5"
     }
   }
 }

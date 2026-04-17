@@ -123,7 +123,13 @@ NIP-05 and media configuration.
 ```json
 {
   "names": {
-    "user": "npub1..."
+    "user": "b0635d6a9851d3aed0cd6c495b282167acf761729078d975fc341b22650b07b9"
+  },
+  "relays": {
+    "b0635d6a9851d3aed0cd6c495b282167acf761729078d975fc341b22650b07b9": [
+      "wss://relay.example.com",
+      "wss://relay2.example.com"
+    ]
   },
   "media": {
     "api_path": "http://localhost:9090/upload",
@@ -223,6 +229,12 @@ The production binary embeds the generated `infra/dash/dist` assets using Go `em
 ### `GET /panel/*`
 
 SPA fallback route for client-side navigation. Static assets are served from `/panel/assets/*`.
+
+Admin panel localization requirements:
+
+- UI language can be detected from browser settings and persisted in local storage.
+- Querystring override is supported for troubleshooting and direct linking (`?lang=en` or `?lang=pt-BR`).
+- Current target locales are English and Portuguese (Brazil).
 
 ### `GET /admin/connections/active`
 
@@ -347,6 +359,56 @@ Searches relay profiles for the admin panel.
 ### `GET /admin/users/:pubkey/profile`
 
 Returns the best-known relay profile plus moderation metadata for a single user.
+
+### `GET /admin/users/:pubkey/nip05`
+
+Returns manual NIP-05 association for a specific user.
+
+**Response (when found):**
+```json
+{
+  "pubkey": "<hex_pubkey>",
+  "exists": true,
+  "name": "alice",
+  "display_name": "Alice",
+  "relay_hints": ["wss://relay.damus.io"],
+  "created_at": "2026-04-17T12:00:00Z",
+  "updated_at": "2026-04-17T12:15:00Z"
+}
+```
+
+**Response (when missing):**
+```json
+{
+  "pubkey": "<hex_pubkey>",
+  "exists": false
+}
+```
+
+### `GET /admin/nip05`
+
+Lists manual NIP-05 associations used by `/.well-known/nostr.json`.
+
+**Query Parameters:**
+- `q=<text>` - optional search by name/pubkey/profile
+- `limit=<n>`
+- `offset=<n>`
+
+### `POST /admin/nip05`
+
+Creates or updates a manual NIP-05 association.
+
+**Body:**
+```json
+{
+  "name": "alice",
+  "pubkey": "<hex_pubkey_or_npub>"
+}
+```
+
+### `DELETE /admin/nip05/:name`
+
+Deletes a manual NIP-05 association by `name`.
 
 ### `GET /admin/users/:pubkey/ban`
 

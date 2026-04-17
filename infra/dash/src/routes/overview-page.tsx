@@ -1,5 +1,6 @@
 import { useMemo } from "react"
 import { Link } from "@tanstack/react-router"
+import { useTranslation } from "react-i18next"
 import { ArrowRight, Search } from "lucide-react"
 
 import { BanUserDialog } from "@/components/features/ban-user-dialog"
@@ -12,6 +13,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useInfiniteBannedUsers, useInfiniteConnections, useInfiniteLoggedUsers, useRelayOverview, useStreamStatus } from "@/hooks/use-admin-data"
 
 export function OverviewPage() {
+  const { t } = useTranslation()
   const overview = useRelayOverview()
   const loggedUsers = useInfiniteLoggedUsers()
   const bannedUsers = useInfiniteBannedUsers("")
@@ -23,15 +25,15 @@ export function OverviewPage() {
   const activeConnectionItems = activeConnections.data?.pages.flatMap((page) => page.items).slice(0, 4) ?? []
 
   if (overview.isLoading) {
-    return <LoadingPanel label="Montando resumo operacional do relay..." />
+    return <LoadingPanel label={t("overview.loading")} />
   }
 
   if (overview.isError || !overview.data) {
     return (
       <ErrorPanel
-        description="Nao foi possivel consolidar os indicadores de overview com os endpoints atuais."
+        description={t("overview.errorDescription")}
         onRetry={() => void overview.refetch()}
-        title="Falha ao montar overview"
+        title={t("overview.errorTitle")}
       />
     )
   }
@@ -44,14 +46,14 @@ export function OverviewPage() {
             <Button asChild variant="outline">
               <Link to="/events/search">
                 <Search className="size-4" />
-                Buscar eventos
+                {t("overview.searchEvents")}
               </Link>
             </Button>
-            <BanUserDialog triggerLabel="Banir usuario" />
+            <BanUserDialog triggerLabel={t("moderation.ban.trigger")} />
           </>
         }
-        description="Visao geral do relay com KPIs, moderacao imediata e contexto para navegacao operacional."
-        title="Resumo do Relay"
+        description={t("overview.description")}
+        title={t("overview.title")}
       />
 
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
@@ -64,34 +66,34 @@ export function OverviewPage() {
         <Card>
           <CardHeader className="gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <CardTitle>Usuarios logados</CardTitle>
-              <CardDescription>Snapshot de usuarios autenticados com maior atividade no relay.</CardDescription>
+              <CardTitle>{t("overview.loggedUsersTitle")}</CardTitle>
+              <CardDescription>{t("overview.loggedUsersDescription")}</CardDescription>
             </div>
             <Button asChild size="sm" variant="ghost">
               <Link to="/users/logged">
-                Ver detalhes
+                {t("overview.viewDetails")}
                 <ArrowRight className="size-4" />
               </Link>
             </Button>
           </CardHeader>
           <CardContent className="space-y-4">
-            {loggedUsers.isLoading ? <LoadingPanel label="Buscando usuarios autenticados..." /> : null}
+            {loggedUsers.isLoading ? <LoadingPanel label={t("overview.loadingLoggedUsers")} /> : null}
             {loggedUsers.isError ? (
               <ErrorPanel
                 description="A listagem consolidada usa `/admin/connections/authed` e um enriquecimento local de perfis."
                 onRetry={() => void loggedUsers.refetch()}
-                title="Falha ao buscar usuarios logados"
+                title={t("overview.loggedUsersErrorTitle")}
               />
             ) : null}
             {!loggedUsers.isLoading && !loggedUsers.isError && topLoggedUsers.length === 0 ? (
-              <EmptyPanel description="Nenhum usuario autenticado foi encontrado neste momento." title="Sem usuarios logados" />
+              <EmptyPanel description={t("overview.loggedUsersEmptyDescription")} title={t("overview.loggedUsersEmptyTitle")} />
             ) : null}
             {!loggedUsers.isLoading && !loggedUsers.isError && topLoggedUsers.length > 0 ? (
               <div className="space-y-3">
                 {topLoggedUsers.map((user) => (
                   <div className="flex items-center justify-between rounded-[calc(var(--radius)-0.2rem)] border border-border px-3 py-3" key={user.pubkey}>
-                    <UserAvatarChip subtitle={`${user.connectionCount} conexoes`} user={user} />
-                    <BanUserDialog defaultPubkey={user.pubkey} defaultReason="atividade suspeita" triggerLabel="Banir" triggerVariant="warning" />
+                    <UserAvatarChip subtitle={t("overview.connectionsCount", { count: user.connectionCount })} user={user} />
+                    <BanUserDialog defaultPubkey={user.pubkey} defaultReason="atividade suspeita" triggerLabel={t("moderation.ban.shortTrigger")} triggerVariant="warning" />
                   </div>
                 ))}
               </div>
@@ -102,8 +104,8 @@ export function OverviewPage() {
         <div className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Usuarios banidos</CardTitle>
-              <CardDescription>Lista temporariamente sustentada por estado local da interface ate existir endpoint de listagem.</CardDescription>
+              <CardTitle>{t("overview.bannedUsersTitle")}</CardTitle>
+              <CardDescription>{t("overview.bannedUsersDescription")}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
               {topBannedUsers.map((user) => (
@@ -111,13 +113,13 @@ export function OverviewPage() {
                   <UserAvatarChip subtitle={`${user.reason} · ${user.source}`} user={user} />
                 </div>
               ))}
-              {topBannedUsers.length === 0 ? <EmptyPanel description="Nenhum usuario banido foi registrado na camada de interface." title="Lista vazia" /> : null}
+              {topBannedUsers.length === 0 ? <EmptyPanel description={t("overview.bannedUsersEmptyDescription")} title={t("overview.emptyList")} /> : null}
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader>
-              <CardTitle>Conexoes ativas</CardTitle>
+              <CardTitle>{t("overview.activeConnectionsTitle")}</CardTitle>
               <CardDescription>Origem: `/admin/connections/active`.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-2 text-sm text-muted-foreground">
@@ -125,7 +127,7 @@ export function OverviewPage() {
                 <div className="rounded-[calc(var(--radius)-0.2rem)] border border-border px-3 py-2" key={connection.ws_id}>
                   <p className="font-mono text-xs text-foreground">{connection.ws_id}</p>
                   <p>{connection.ip}</p>
-                  <p>{connection.authed ? "autenticada" : "anonima"} · {connection.subscription_count} subscricoes</p>
+                  <p>{connection.authed ? t("overview.authenticated") : t("overview.anonymous")} · {t("overview.subscriptionsCount", { count: connection.subscription_count })}</p>
                 </div>
               ))}
             </CardContent>
@@ -135,23 +137,23 @@ export function OverviewPage() {
             <CardHeader className="gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <CardTitle>Streams</CardTitle>
-                <CardDescription>Estado do dispatcher e relay pool.</CardDescription>
+                <CardDescription>{t("overview.streamDescription")}</CardDescription>
               </div>
               <Button asChild size="sm" variant="ghost">
                 <Link to="/stream">
-                  Ver stream
+                  {t("overview.viewStream")}
                   <ArrowRight className="size-4" />
                 </Link>
               </Button>
             </CardHeader>
             <CardContent className="space-y-2 text-sm text-muted-foreground">
-              {stream.isLoading ? <LoadingPanel label="Lendo status de stream..." /> : null}
-              {stream.isError ? <ErrorPanel title="Falha ao ler stream" description="Endpoint `/admin/stream/status` indisponivel." onRetry={() => void stream.refetch()} /> : null}
+              {stream.isLoading ? <LoadingPanel label={t("overview.loadingStream")} /> : null}
+              {stream.isError ? <ErrorPanel title={t("overview.streamErrorTitle")} description={t("overview.streamErrorDescription")} onRetry={() => void stream.refetch()} /> : null}
               {stream.data ? (
                 <>
-                  <p>upstream: {stream.data.config.stream_up ? "ativo" : "desligado"} · downstream: {stream.data.config.stream_down ? "ativo" : "desligado"}</p>
-                  <p>pool: {stream.data.pool.connected_relays}/{stream.data.pool.total_relays} relays conectados</p>
-                  <p>fila eventos: {stream.data.dispatcher.event_queue_len}/{stream.data.dispatcher.event_queue_cap}</p>
+                  <p>{t("overview.upstream")}: {stream.data.config.stream_up ? t("overview.active") : t("overview.off")} · {t("overview.downstream")}: {stream.data.config.stream_down ? t("overview.active") : t("overview.off")}</p>
+                  <p>{t("overview.pool")}: {stream.data.pool.connected_relays}/{stream.data.pool.total_relays} {t("overview.connectedRelays")}</p>
+                  <p>{t("overview.eventQueue")}: {stream.data.dispatcher.event_queue_len}/{stream.data.dispatcher.event_queue_cap}</p>
                 </>
               ) : null}
             </CardContent>
@@ -159,14 +161,14 @@ export function OverviewPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Topologia de Cluster</CardTitle>
-              <CardDescription>Representacao para operacao com balanceador de carga.</CardDescription>
+              <CardTitle>{t("overview.clusterTopologyTitle")}</CardTitle>
+              <CardDescription>{t("overview.clusterTopologyDescription")}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-2 text-sm text-muted-foreground">
               <p><strong>LB</strong> (Nginx/HAProxy) {"->"} <strong>Relay Node A</strong> + <strong>Relay Node B</strong></p>
-              <p><strong>Redis</strong> para pub/sub e caches compartilhados</p>
-              <p><strong>PostgreSQL</strong> compartilhado para consistencia de eventos</p>
-              <p>Estado atual stream: {stream.data?.pool.connected_relays ?? 0} relays conectados</p>
+              <p><strong>Redis</strong> {t("overview.redisRole")}</p>
+              <p><strong>PostgreSQL</strong> {t("overview.postgresRole")}</p>
+              <p>{t("overview.currentStreamState")}: {stream.data?.pool.connected_relays ?? 0} {t("overview.connectedRelays")}</p>
             </CardContent>
           </Card>
         </div>

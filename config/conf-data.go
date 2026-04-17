@@ -120,6 +120,7 @@ type CacheTTLConfig struct {
 	QueryMetaTTL int `json:"query_meta_ttl" yaml:"query_meta_ttl" mapstructure:"query_meta_ttl"`
 	EventTTL     int `json:"event_ttl" yaml:"event_ttl" mapstructure:"event_ttl"`
 	DedupTTL     int `json:"dedup_ttl" yaml:"dedup_ttl" mapstructure:"dedup_ttl"`
+	NIP05DocTTL  int `json:"nip05_doc_ttl" yaml:"nip05_doc_ttl" mapstructure:"nip05_doc_ttl"`
 }
 
 type IngestionConfig struct {

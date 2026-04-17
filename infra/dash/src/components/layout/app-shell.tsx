@@ -1,7 +1,8 @@
 import type { ComponentType, FormEvent } from "react"
 import { useMemo, useState } from "react"
 import { Link, Outlet, useLocation, useNavigate } from "@tanstack/react-router"
-import { Bell, Cable, LayoutDashboard, Menu, Radio, Search, ShieldAlert, TriangleAlert, UserRound, Users } from "lucide-react"
+import { useTranslation } from "react-i18next"
+import { AtSign, Bell, Cable, LayoutDashboard, Menu, Radio, Search, ShieldAlert, TriangleAlert, UserRound, Users } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -10,29 +11,31 @@ import { cn } from "@/lib/utils"
 
 type NavItem = {
   to: string
-  label: string
+  labelKey: string
   icon: ComponentType<{ className?: string }>
 }
 
 const primaryNav: NavItem[] = [
-  { to: "/", label: "Overview", icon: LayoutDashboard },
-  { to: "/users/logged", label: "Usuarios logados", icon: Users },
-  { to: "/users/banned", label: "Usuarios banidos", icon: ShieldAlert },
-  { to: "/connections/active", label: "Conexoes ativas", icon: Cable },
-  { to: "/connections/logged", label: "Conexoes logadas", icon: UserRound },
-  { to: "/events/search", label: "Busca de eventos", icon: Search },
-  { to: "/events/reported", label: "Eventos reportados", icon: TriangleAlert },
-  { to: "/stream", label: "Streams", icon: Radio },
+  { to: "/", labelKey: "layout.nav.overview", icon: LayoutDashboard },
+  { to: "/users/logged", labelKey: "layout.nav.usersLogged", icon: Users },
+  { to: "/users/banned", labelKey: "layout.nav.usersBanned", icon: ShieldAlert },
+  { to: "/connections/active", labelKey: "layout.nav.connectionsActive", icon: Cable },
+  { to: "/connections/logged", labelKey: "layout.nav.connectionsLogged", icon: UserRound },
+  { to: "/events/search", labelKey: "layout.nav.eventsSearch", icon: Search },
+  { to: "/nip05", labelKey: "layout.nav.nip05", icon: AtSign },
+  { to: "/events/reported", labelKey: "layout.nav.eventsReported", icon: TriangleAlert },
+  { to: "/stream", labelKey: "layout.nav.streams", icon: Radio },
 ]
 
 function SideNav({ onNavigate }: { onNavigate?: () => void }) {
   const location = useLocation()
+  const { t } = useTranslation()
 
   return (
     <div className="flex h-full flex-col gap-6">
       <div className="space-y-1 rounded-[var(--radius)] border border-border bg-card p-5 panel-shadow">
-        <p className="font-heading text-lg font-semibold text-foreground">Relay Nostr Admin</p>
-        <p className="text-sm text-muted-foreground">Observabilidade, moderacao e operacao em tempo real</p>
+        <p className="font-heading text-lg font-semibold text-foreground">{t("layout.brandTitle")}</p>
+        <p className="text-sm text-muted-foreground">{t("layout.brandDescription")}</p>
       </div>
 
       <nav className="space-y-2 rounded-[var(--radius)] border border-border bg-card p-3 panel-shadow">
@@ -54,7 +57,7 @@ function SideNav({ onNavigate }: { onNavigate?: () => void }) {
               to={item.to}
             >
               <Icon className="size-4" />
-              <span>{item.label}</span>
+              <span>{t(item.labelKey)}</span>
             </Link>
           )
         })}
@@ -69,22 +72,23 @@ function SideNav({ onNavigate }: { onNavigate?: () => void }) {
           to="/users/search"
         >
           <Search className="size-4" />
-          <span>Busca de usuarios</span>
+          <span>{t("layout.nav.usersSearch")}</span>
         </Link>
       </nav>
 
       <div className="rounded-[var(--radius)] border border-orange-200 bg-orange-50 p-4 text-sm text-orange-800 panel-shadow">
         <div className="mb-1 flex items-center gap-2 font-heading font-semibold">
           <Bell className="size-4" />
-          Alerta de operacao
+          {t("layout.operationAlert")}
         </div>
-        <p>Erro ao atualizar presenca. Reconectando stream de sessao em segundo plano.</p>
+        <p>{t("layout.operationAlertMessage")}</p>
       </div>
     </div>
   )
 }
 
 export function AppShell() {
+  const { t, i18n } = useTranslation()
   const navigate = useNavigate()
   const [globalSearch, setGlobalSearch] = useState("")
   const [mobileOpen, setMobileOpen] = useState(false)
@@ -92,11 +96,11 @@ export function AppShell() {
   const searchHint = useMemo(() => {
     const value = globalSearch.trim().toLowerCase()
     if (!value) {
-      return "npub, evento, IP"
+      return t("layout.hintNpubEventIp")
     }
 
-    return value.startsWith("npub") || value.startsWith("@") ? "perfil" : "eventos"
-  }, [globalSearch])
+    return value.startsWith("npub") || value.startsWith("@") ? t("layout.hintProfile") : t("layout.hintEvents")
+  }, [globalSearch, t])
 
   const handleGlobalSearch = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -126,7 +130,7 @@ export function AppShell() {
                   <SheetTrigger asChild>
                     <Button className="lg:hidden" size="icon" variant="outline">
                       <Menu className="size-4" />
-                      <span className="sr-only">Abrir navegacao</span>
+                      <span className="sr-only">{t("layout.openNavigation")}</span>
                     </Button>
                   </SheetTrigger>
                   <SheetContent className="p-4" side="left">
@@ -135,23 +139,32 @@ export function AppShell() {
                 </Sheet>
 
                 <div>
-                  <p className="font-heading text-xl font-semibold text-foreground">Painel administrativo</p>
-                  <p className="text-sm text-muted-foreground">Controle operacional do relay com rotas modulares e estados reais.</p>
+                  <p className="font-heading text-xl font-semibold text-foreground">{t("layout.adminPanel")}</p>
+                  <p className="text-sm text-muted-foreground">{t("layout.adminPanelDescription")}</p>
                 </div>
               </div>
 
-              <form className="flex w-full max-w-xl items-center gap-2" onSubmit={handleGlobalSearch}>
+              <form className="flex w-full max-w-xl flex-wrap items-center gap-2" onSubmit={handleGlobalSearch}>
                 <div className="relative flex-1">
                   <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
                   <Input
-                    aria-label="Busca global"
+                    aria-label={t("layout.globalSearchAria")}
                     className="pl-9"
                     onChange={(event) => setGlobalSearch(event.target.value)}
-                    placeholder={`Buscar global: ${searchHint}`}
+                    placeholder={t("layout.globalSearchPlaceholder", { hint: searchHint })}
                     value={globalSearch}
                   />
                 </div>
-                <Button type="submit">Buscar</Button>
+                <Button type="submit">{t("common.search")}</Button>
+                <div className="ml-auto flex items-center gap-1">
+                  <span className="text-xs text-muted-foreground">{t("common.language")}</span>
+                  <Button onClick={() => void i18n.changeLanguage("en")} size="sm" type="button" variant={i18n.resolvedLanguage?.startsWith("en") ? "default" : "outline"}>
+                    EN
+                  </Button>
+                  <Button onClick={() => void i18n.changeLanguage("pt-BR")} size="sm" type="button" variant={i18n.resolvedLanguage?.startsWith("pt") ? "default" : "outline"}>
+                    PT
+                  </Button>
+                </div>
               </form>
             </div>
           </header>

@@ -4,7 +4,9 @@ import (
 	"time"
 
 	"github.com/gabrielmoura/nostr-relay-server/config"
+	"github.com/gabrielmoura/nostr-relay-server/infra/nip05"
 	"github.com/gabrielmoura/nostr-relay-server/infra/util"
+	"github.com/gabrielmoura/nostr-relay-server/internal/db"
 	"github.com/gabrielmoura/nostr-relay-server/internal/dto"
 	"github.com/gofiber/contrib/websocket"
 	"github.com/gofiber/fiber/v2"
@@ -30,10 +32,17 @@ func NIP96(cfg *config.Config) fiber.Handler {
 
 func NostrJSON(cfg *config.Config) fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		if name := c.Query("name"); name != "" {
-			return c.JSON(fiber.Map{"names": fiber.Map{name: ""}})
+		svc := nip05.NewService(db.DbQueries)
+		doc, err := svc.BuildDocument(c.UserContext(), c.Query("name"))
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 		}
-		return c.JSON(fiber.Map{
+
+		if c.Query("name") != "" {
+			return c.JSON(doc)
+		}
+
+		response := fiber.Map{
 			"media": fiber.Map{
 				"apiPath":           cfg.Store.APIPath,
 				"mediaPath":         cfg.Store.MediaPath,
@@ -43,8 +52,14 @@ func NostrJSON(cfg *config.Config) fiber.Handler {
 					"allowViolentContent": cfg.Store.AllowViolentContent,
 				},
 			},
-			"names": cfg.Store.Names,
-		})
+			"names": doc.Names,
+		}
+
+		if len(doc.Relays) > 0 {
+			response["relays"] = doc.Relays
+		}
+
+		return c.JSON(response)
 	}
 }
 

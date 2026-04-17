@@ -112,7 +112,7 @@ Nostr Relay Server is a high-performance Nostr relay implementation in Go, suppo
 | **Metrics** | Prometheus | Observability |
 | **WebSocket** | gorilla/websocket | WebSocket connections |
 | **Nostr SDK** | go-nostr | Nostr protocol implementation |
-| **Admin SPA** | React 19 + Vite + TanStack Router | Internal operations dashboard |
+| **Admin SPA** | React 19 + Vite + TanStack Router + i18next | Internal operations dashboard (English/Portuguese localization) |
 | **Embedded Assets** | `embed.FS` | Ships `infra/dash/dist` inside the Go binary |
 
 ## Directory Structure

@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react"
 import { Link } from "@tanstack/react-router"
+import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 
 import { PageHeader } from "@/components/shared/page-header"
@@ -12,6 +13,7 @@ import { useDisconnectConnectionMutation, useInfiniteConnections } from "@/hooks
 import { shortenId } from "@/lib/utils"
 
 export function ActiveConnectionsPage() {
+  const { t } = useTranslation()
   const query = useInfiniteConnections("active")
   const disconnectMutation = useDisconnectConnectionMutation()
   const [mode, setMode] = useState<"all" | "authed" | "anonymous">("all")
@@ -32,28 +34,28 @@ export function ActiveConnectionsPage() {
   }, [allConnections, mode])
 
   if (query.isLoading && allConnections.length === 0) {
-    return <LoadingPanel label="Lendo conexoes ativas do relay..." />
+    return <LoadingPanel label={t("activeConnections.loading")} />
   }
 
   if (query.isError) {
-    return <ErrorPanel description="O endpoint `/admin/connections/active` nao respondeu como esperado." onRetry={() => void query.refetch()} title="Falha ao listar conexoes ativas" />
+    return <ErrorPanel description={t("activeConnections.errorDescription")} onRetry={() => void query.refetch()} title={t("activeConnections.errorTitle")} />
   }
 
   return (
     <div className="space-y-6">
-      <PageHeader description="Leitura direta das conexoes WebSocket em tempo real, com filtros por autenticacao." title="Conexoes ativas" />
+      <PageHeader description={t("activeConnections.description")} title={t("activeConnections.title")} />
 
       <div className="space-y-4">
         <Tabs onValueChange={(value) => setMode(value as typeof mode)} value={mode}>
           <TabsList>
-            <TabsTrigger value="all">Todas</TabsTrigger>
-            <TabsTrigger value="authed">Autenticadas</TabsTrigger>
-            <TabsTrigger value="anonymous">Anonimas</TabsTrigger>
+            <TabsTrigger value="all">{t("activeConnections.all")}</TabsTrigger>
+            <TabsTrigger value="authed">{t("activeConnections.authenticated")}</TabsTrigger>
+            <TabsTrigger value="anonymous">{t("activeConnections.anonymous")}</TabsTrigger>
           </TabsList>
         </Tabs>
 
         {rows.length === 0 ? (
-          <EmptyPanel description="Nenhuma conexao encontrada para o filtro selecionado." title="Sem conexoes" />
+          <EmptyPanel description={t("activeConnections.emptyDescription")} title={t("activeConnections.emptyTitle")} />
         ) : (
           <VirtualizedList
             estimateSize={88}
@@ -69,15 +71,15 @@ export function ActiveConnectionsPage() {
                     <p className="text-sm text-foreground">{connection.ip}</p>
                     {connection.authed ? (
                       <p className="text-xs text-muted-foreground">
-                        Usuario: {" "}
+                        {t("activeConnections.user")}: {" "}
                         <Link className="font-medium text-foreground underline decoration-dotted underline-offset-2" params={{ pubkey: connection.authed }} to="/users/$pubkey">
                           {shortenId(connection.authed, 14, 4)}
                         </Link>
                       </p>
                     ) : null}
                     <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-                      <Badge variant={connection.authed ? "success" : "muted"}>{connection.authed ? "autenticada" : "anonima"}</Badge>
-                      <Badge variant="muted">{connection.subscription_count} subscricoes</Badge>
+                      <Badge variant={connection.authed ? "success" : "muted"}>{connection.authed ? t("activeConnections.authenticatedShort") : t("activeConnections.anonymousShort")}</Badge>
+                      <Badge variant="muted">{t("activeConnections.subscriptionsCount", { count: connection.subscription_count })}</Badge>
                       {connection.user_agent ? <Badge variant="muted">{connection.user_agent}</Badge> : null}
                     </div>
                   </div>
@@ -85,12 +87,12 @@ export function ActiveConnectionsPage() {
                     disabled={disconnectMutation.isPending}
                     onClick={async () => {
                       await disconnectMutation.mutateAsync(connection.ws_id)
-                      toast.success("Conexao encerrada.")
+                      toast.success(t("activeConnections.connectionClosed"))
                     }}
                     size="sm"
                     variant="warning"
                   >
-                    Encerrar conexao
+                    {t("activeConnections.closeConnection")}
                   </Button>
                 </div>
               </div>
