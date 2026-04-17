@@ -12,11 +12,12 @@ import (
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
 	Use:   "nrserver",
-	Short: "A Nostr Relay Server",
-	Long:  `A Nostr Relay Server is a server that receives messages from a Nostr Client and forwards them to a Nostr Server.`,
-	// Uncomment the following line if your bare application
-	// has an action associated with it:
-	// Run: func(cmd *cobra.Command, args []string) { },
+	Short: "Nostr relay server and operations CLI",
+	Long: "nrserver provides runtime and operational commands for the Nostr Relay Server.\n\n" +
+		"Use it to start relay services, manage configuration, run maintenance jobs,\n" +
+		"seed database schema, and execute import/export/sync workflows.",
+	SilenceUsage:  true,
+	SilenceErrors: true,
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
@@ -28,14 +29,4 @@ func Execute() {
 	}
 }
 
-func init() {
-	// Here you will define your flags and configuration settings.
-	// Cobra supports persistent flags, which, if defined here,
-	// will be global for your application.
-
-	// rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.nostr-relay-server.yaml)")
-
-	// Cobra also supports local flags, which will only run
-	// when this action is called directly.
-	rootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
-}
+func init() {}

@@ -128,7 +128,15 @@ nostr-relay-server/
 │   ├── down.go            # Relay event download command
 │   ├── seed.go            # Database seeding
 │   ├── conf.go            # Configuration management
-│   └── root.go            # Root command
+│   ├── root.go            # Root command
+│   └── internal/          # Command-specific runtime logic
+│       ├── down/          # Download parsing + execution
+│       ├── import/        # Import parsing + execution
+│       ├── export/        # Export parsing + execution
+│       ├── seed/          # Seed parsing + execution
+│       ├── cron/          # Cron options, job map and runner
+│       ├── conf/          # Config print/write/validate flows
+│       └── sync/          # Sync parsing + execution
 ├── config/                # Configuration
 │   ├── config.go         # Config loading (Viper)
 │   └── conf-data.go      # Config structures

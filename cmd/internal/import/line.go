@@ -25,7 +25,7 @@ func lineWorker(cf *ConfImport, jobs <-chan Job, errors chan<- ErrorInfo, wg *sy
 	}
 }
 
-func processLineByLine(cf *ConfImport) {
+func processLineByLine(cf *ConfImport) (int, error) {
 	fmt.Println("Modo: linha a linha (paralelo)")
 	if cf.numWorkers <= 0 {
 		cf.numWorkers = runtime.NumCPU()
@@ -44,7 +44,7 @@ func processLineByLine(cf *ConfImport) {
 	go func() {
 		file, err := os.Open(cf.filename)
 		if err != nil {
-			fmt.Printf("Erro ao abrir arquivo: %v\n", err)
+			errors <- ErrorInfo{LineNumber: 0, Err: fmt.Errorf("abrir arquivo: %w", err)}
 			close(jobs)
 			return
 		}
@@ -67,7 +67,7 @@ func processLineByLine(cf *ConfImport) {
 		close(jobs)
 
 		if err := scanner.Err(); err != nil {
-			fmt.Printf("Erro ao ler arquivo: %v\n", err)
+			errors <- ErrorInfo{LineNumber: 0, Err: fmt.Errorf("ler arquivo: %w", err)}
 		}
 	}()
 
@@ -76,5 +76,10 @@ func processLineByLine(cf *ConfImport) {
 		close(errors)
 	}()
 
-	reportErrors(errors)
+	count := reportErrors(errors)
+	if count > 0 && cf.failOnErr {
+		return count, fmt.Errorf("line import finished with %d errors", count)
+	}
+
+	return count, nil
 }

@@ -1,39 +1,52 @@
 package cmd
 
 import (
-	"context"
-	"github.com/gabrielmoura/nostr-relay-server/config"
-	"github.com/gabrielmoura/nostr-relay-server/internal/db"
+	"time"
+
+	seedcmd "github.com/gabrielmoura/nostr-relay-server/cmd/internal/seed"
 	"github.com/spf13/cobra"
-	"log"
 )
 
 var seedCmd = &cobra.Command{
 	Use:   "seed",
-	Short: "Seed the database with initial data",
-	Run:   runSeed,
+	Short: "Prepare database schema and optional bootstrap events",
+	Long: "Prepare the relay database for operation by running schema migration and, optionally,\n" +
+		"creating bootstrap relay events.\n\n" +
+		"This command requires a valid configuration and database connectivity.",
+	Example: "  nrserver seed\n" +
+		"  nrserver seed --bootstrap\n" +
+		"  nrserver seed --bootstrap --bootstrap-idempotent\n" +
+		"  nrserver seed --bootstrap --skip-migrate\n" +
+		"  nrserver seed --dry-run",
+	Run: runSeed,
 }
 
-func runSeed(cmd *cobra.Command, args []string) {
-	if err := config.LoadConfig(); err != nil {
-		log.Fatalf("Erro ao carregar a configuração: %v", err)
+func runSeed(cmd *cobra.Command, _ []string) {
+	bootstrap, _ := cmd.Flags().GetBool("bootstrap")
+	bootstrapIdempotent, _ := cmd.Flags().GetBool("bootstrap-idempotent")
+	skipMigrate, _ := cmd.Flags().GetBool("skip-migrate")
+	dryRun, _ := cmd.Flags().GetBool("dry-run")
+	timeout, _ := cmd.Flags().GetDuration("timeout")
+
+	options, err := seedcmd.BuildOptions(seedcmd.CLIOptions{
+		Bootstrap:           bootstrap,
+		BootstrapIdempotent: bootstrapIdempotent,
+		SkipMigrate:         skipMigrate,
+		DryRun:              dryRun,
+		Timeout:             timeout,
+	})
+	if err != nil {
+		cobra.CheckErr(err)
 	}
 
-	mainCtx, mainCancel := context.WithCancel(context.Background())
-	defer mainCancel()
-
-	// Iniciar Conexão com o banco de dados
-	if err := db.Init(mainCtx); err != nil {
-		log.Fatalf("Erro ao iniciar conexão com o banco de dados: %v", err)
-	}
-
-	if err := db.DbQueries.Migrate(mainCtx); err != nil {
-		log.Fatalf("Erro ao migrar o banco de dados: %v", err)
-	} else {
-		log.Println("Banco de dados migrado com sucesso")
-	}
+	cobra.CheckErr(seedcmd.Run(options))
 }
 
 func init() {
+	seedCmd.Flags().Bool("bootstrap", false, "Create bootstrap relay events after migration")
+	seedCmd.Flags().Bool("bootstrap-idempotent", false, "Skip bootstrap if marker events already exist (requires --bootstrap)")
+	seedCmd.Flags().Bool("skip-migrate", false, "Skip schema migration (requires --bootstrap)")
+	seedCmd.Flags().Bool("dry-run", false, "Print planned actions without writing to database")
+	seedCmd.Flags().Duration("timeout", 30*time.Second, "Migration timeout (e.g. 30s, 2m)")
 	rootCmd.AddCommand(seedCmd)
 }

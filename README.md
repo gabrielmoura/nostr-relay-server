@@ -171,28 +171,88 @@ nrserver server [flags]
 
 ### `seed`
 
-Runs database migrations / initial database preparation.
+Prepares database schema and optional bootstrap relay events.
+
+```bash
+nrserver seed [flags]
+```
+
+| Flag | Description | Default |
+| :--- | :--- | :--- |
+| `--bootstrap` | Creates relay bootstrap events (kind `0`, `411`, `10002`, `10063`) after migration | `false` |
+| `--bootstrap-idempotent` | Skips bootstrap insertion when marker events already exist (requires `--bootstrap`) | `false` |
+| `--skip-migrate` | Skips migration step (requires `--bootstrap`) | `false` |
+| `--dry-run` | Prints planned actions without writing to DB | `false` |
+| `--timeout` | Migration timeout duration | `30s` |
+
+Examples:
 
 ```bash
 nrserver seed
+nrserver seed --bootstrap
+nrserver seed --bootstrap --bootstrap-idempotent
+nrserver seed --bootstrap --skip-migrate
+nrserver seed --dry-run
 ```
+
+Operational notes:
+
+- Requires valid config and DB connectivity (except `--dry-run`).
+- `--bootstrap` generates a new keypair and inserts bootstrap events.
+- `--bootstrap-idempotent` checks marker tag `nrserver-bootstrap:<canonical_url>` before insertion.
+- Re-running `--bootstrap` creates additional events; use with operational intent.
 
 ---
 
-### `conf print`
+### `conf`
+
+Inspects, validates and generates configuration files.
+
+```bash
+nrserver conf <subcommand>
+```
+
+Available subcommands:
+
+- `print` (`show` alias): print default configuration template
+- `effective`: load and print effective runtime configuration
+- `validate`: validate config and enabled cron schedules
+- `write`: write default config template to file
+
+#### `conf print`
 
 Prints the full configuration with defaults.
 
 ```bash
 nrserver conf print
+nrserver conf print --format json
 ```
 
-### `conf write`
+#### `conf effective`
+
+Prints configuration as loaded by runtime (defaults + file values).
+
+```bash
+nrserver conf effective
+nrserver conf effective --file ./conf.yaml --format json
+```
+
+#### `conf validate`
+
+Validates required fields and semantic checks.
+
+```bash
+nrserver conf validate
+nrserver conf validate --file ./conf.yaml
+```
+
+#### `conf write`
 
 Writes the default `conf.yaml` file.
 
 ```bash
 nrserver conf write
+nrserver conf write --file /etc/nrs/conf.yaml --force
 ```
 
 ---
@@ -208,8 +268,18 @@ nrserver import [flags]
 | Flag                  | Description                | Default        |
 | :-------------------- | :------------------------- | :------------- |
 | `-f`, `--file`        | JSONL file to import       | `events.jsonl` |
-| `-b`, `--batch-size`  | Number of events per batch | `100`          |
+| `-b`, `--batch-size`  | Number of events per batch (`0` = line mode) | `100`          |
 | `-w`, `--num-workers` | Parallel import workers    | `2`            |
+| `--stats-interval`    | Import stats log interval (`0` disables) | `5s` |
+| `--fail-on-error`     | Return non-zero when row-level errors occur | `false` |
+
+Examples:
+
+```bash
+nrserver import --file events.jsonl
+nrserver import --file events.jsonl --batch-size 500 --num-workers 4
+nrserver import --batch-size 0 --num-workers 8 --fail-on-error
+```
 
 ---
 
@@ -224,8 +294,34 @@ nrserver export [flags]
 | Flag                     | Description                | Default                  |
 | :----------------------- | :------------------------- | :----------------------- |
 | `-f`, `--file`           | Destination file           | `export-TIMESTAMP.jsonl` |
+| `--format`               | Export format: `jsonl` or `tsv` | `jsonl` |
+| `--filter`               | Optional Nostr filter JSON object | - |
+| `--filter-file`          | Optional path to JSON file with filter object | - |
+| `--limit`                | Maximum number of exported events (`0` = unlimited) | `0` |
+| `--segment-size`         | Events per output segment file (`0` = disabled) | `0` |
+| `--no-header`            | Do not write TSV header line | `false` |
+| `--overwrite`            | Allow overwriting existing output files | `false` |
 | `-b`, `--batch-size`     | Number of events per batch | `100`                    |
-| `-w`, `--writer-workers` | Parallel writer workers    | `2`                      |
+| `-w`, `--writer-workers` | Parallel encoder workers   | `2`                      |
+
+Examples:
+
+```bash
+nrserver export
+nrserver export --filter '{"authors":["<hex-pubkey>"]}'
+nrserver export --filter-file ./filter.json
+nrserver export --limit 1000 --segment-size 500
+nrserver export --format tsv --file events.tsv
+nrserver export --format tsv --segment-size 500 --no-header --overwrite
+```
+
+Segmentation behavior:
+
+- With `--segment-size 500`, files are rotated every 500 events.
+- Output naming uses indexed suffixes, e.g.:
+  - `export-1776391752-001.jsonl`
+  - `export-1776391752-002.jsonl`
+  - `export-1776391752-001.tsv`
 
 ---
 
@@ -320,17 +416,37 @@ More examples and advanced behavior: `docs/download-command.md`.
 
 ### `cron`
 
-Runs the configured cron scheduler / maintenance jobs.
+Runs configured maintenance jobs from `cron.*` settings.
+
+```bash
+nrserver cron [flags]
+```
+
+| Flag | Description | Default |
+| :--- | :--- | :--- |
+| `--list` | List jobs and current enable/schedule state | `false` |
+| `--run-once` | Execute selected enabled jobs once and exit | `false` |
+| `--job` | Filter by job name (`db_optimization`, `reported_events_fetch`, `delete_old_events`, `nip40`) | all |
+| `--timeout` | Per-job execution timeout | `30m` |
+
+Examples:
 
 ```bash
 nrserver cron
+nrserver cron --list
+nrserver cron --run-once
+nrserver cron --run-once --job db_optimization
+nrserver cron --job nip40 --timeout 5m
 ```
 
-Typical responsibilities may include:
+Jobs currently available:
 
-* expiration cleanup
-* scheduled maintenance routines
-* usage/statistics refresh jobs
+- `db_optimization`
+- `reported_events_fetch`
+- `delete_old_events`
+- `nip40`
+
+Only enabled jobs run (from `conf.yaml`).
 
 ---
 
@@ -566,6 +682,7 @@ Project documentation is organized under `docs/`:
 * `docs/policies.md` — Event and REQ policy rules
 * `docs/data-schema.md` — PostgreSQL and Redis schema, indexes, and cache/pubsub keys
 * `docs/decisions.md` — ADR history and architecture decisions
+* `docs/cli.md` — CLI behavior, command UX, flags, and operational guidance
 * `docs/download-command.md` — Download command flow, `--filter` semantics, precedence, and troubleshooting
 * `docs/todo.md` — Roadmap and implementation checklist
 

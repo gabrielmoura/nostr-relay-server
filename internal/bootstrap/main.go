@@ -3,16 +3,19 @@ package bootstrap
 import (
 	"context"
 	"fmt"
-	json "github.com/gabrielmoura/nostr-relay-server/internal/jsonx"
 	"github.com/gabrielmoura/nostr-relay-server/config"
 	"github.com/gabrielmoura/nostr-relay-server/infra/log"
 	nostrcustom "github.com/gabrielmoura/nostr-relay-server/infra/nostr-custom"
 	"github.com/gabrielmoura/nostr-relay-server/internal/db"
+	json "github.com/gabrielmoura/nostr-relay-server/internal/jsonx"
 	"github.com/google/uuid"
 	"github.com/nbd-wtf/go-nostr"
 	"github.com/nbd-wtf/go-nostr/nip19"
 	"go.uber.org/zap"
+	"strings"
 )
+
+const bootstrapTag = "nrserver-bootstrap"
 
 func CreateInitialEvents() {
 	privKey := nostr.GeneratePrivateKey()
@@ -39,6 +42,9 @@ func CreateInitialEvents() {
 		Content:   string(pmeta),
 		Kind:      nostr.KindProfileMetadata,
 		CreatedAt: nostr.Now(),
+		Tags: nostr.Tags{
+			nostr.Tag{"t", bootstrapTag},
+		},
 	}
 	pev.Sign(privKey)
 	events = append(events, pev)
@@ -59,6 +65,10 @@ func CreateInitialEvents() {
 		Kind:      nostrcustom.KindRelay,
 		CreatedAt: nostr.Now(),
 		Content:   string(rdata),
+		Tags: nostr.Tags{
+			nostr.Tag{"t", bootstrapTag},
+			nostr.Tag{"d", BootstrapMarkerValue()},
+		},
 	}
 	rev.Sign(privKey)
 	events = append(events, rev)
@@ -71,6 +81,7 @@ func CreateInitialEvents() {
 		Content:   "",
 		Tags: nostr.Tags{
 			nostr.Tag{"r", config.Cfg.RelayInformation.CanonicalURL},
+			nostr.Tag{"t", bootstrapTag},
 		},
 	}
 	rlev.Sign(privKey)
@@ -86,6 +97,7 @@ func CreateInitialEvents() {
 		Content:   "",
 		Tags: nostr.Tags{
 			nostr.Tag{"server", config.Cfg.RelayInformation.URL},
+			nostr.Tag{"t", bootstrapTag},
 		},
 	}
 	rsev.Sign(privKey)
@@ -105,6 +117,15 @@ func CreateInitialEvents() {
 		zap.String("npriv", npriv),
 	)
 
+}
+
+func BootstrapMarkerValue() string {
+	canonicalURL := strings.TrimSpace(config.Cfg.RelayInformation.CanonicalURL)
+	if canonicalURL == "" {
+		canonicalURL = "default"
+	}
+
+	return bootstrapTag + ":" + canonicalURL
 }
 
 type RelayInfo struct {

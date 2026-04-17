@@ -136,6 +136,22 @@ func LoadConfig() error {
 		return err
 	}
 
+	return applyLoadedConfig()
+}
+
+func LoadConfigFromFile(path string) error {
+	setDefaults(false)
+
+	viper.SetConfigFile(path)
+	if err := viper.ReadInConfig(); err != nil {
+		return err
+	}
+
+	return applyLoadedConfig()
+}
+
+func applyLoadedConfig() error {
+
 	cfg := &Config{}
 	if err := viper.Unmarshal(cfg); err != nil {
 		return err
@@ -155,15 +171,9 @@ func LoadConfig() error {
 
 // PrintYamlConfig exibe a configuração atual no formato YAML.
 func PrintYamlConfig() {
-	setDefaults(true)
-
-	cfg := &Config{}
-	if err := viper.Unmarshal(cfg); err != nil {
+	cfg, err := DefaultConfig()
+	if err != nil {
 		panic(err)
-	}
-
-	if cfg.AppEnv == "" {
-		cfg.AppEnv = "production"
 	}
 
 	data, err := yaml.Marshal(cfg)
@@ -171,6 +181,21 @@ func PrintYamlConfig() {
 		panic(err)
 	}
 	println(string(data))
+}
+
+func DefaultConfig() (*Config, error) {
+	setDefaults(true)
+
+	cfg := &Config{}
+	if err := viper.Unmarshal(cfg); err != nil {
+		return nil, err
+	}
+
+	if cfg.AppEnv == "" {
+		cfg.AppEnv = "production"
+	}
+
+	return cfg, nil
 }
 
 // WriteYamlConfig escreve a configuração atual em um arquivo YAML.

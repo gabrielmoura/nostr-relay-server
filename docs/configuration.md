@@ -13,6 +13,13 @@ This document describes the `conf.yaml` structure supported by the relay.
 - Cron expressions use **6 fields** (`sec min hour day month weekday`) because scheduler uses `cron.WithSeconds()`.
 - `stream.stream_up` / `stream.stream_down` are the active keys.
 
+Operational CLI helpers:
+
+- `nrserver conf print` prints default template.
+- `nrserver conf effective` prints loaded effective runtime configuration.
+- `nrserver conf validate` validates required fields and enabled cron schedules.
+- `nrserver conf write --file <path>` writes template config file.
+
 ## Full YAML Skeleton
 
 ```yaml

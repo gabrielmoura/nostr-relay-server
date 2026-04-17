@@ -30,4 +30,5 @@ type ConfImport struct {
 	batchSize  int
 	numWorkers int
 	timeout    int
+	failOnErr  bool
 }

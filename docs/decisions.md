@@ -776,3 +776,81 @@ The merge behavior is configurable:
 - ✅ adds per-relay download observability metrics (received/persisted/duplicates/failures/page latency)
 - ✅ better maintainability for future pagination and batching changes
 - ⚠️ stricter validation (`--timeout > 0`, `--mentioned` requires `--public-key`) may reject previously ambiguous invocations
+
+---
+
+## ADR-022: CLI Operational Refactor for `seed`, `cron` and `conf`
+
+**Status:** Accepted  
+**Date:** 2026-04-16
+
+### Context
+
+Operational commands had limited terminal UX, sparse help text, low discoverability and mixed responsibilities between Cobra wiring and runtime logic.
+
+### Decision
+
+Refactor command surfaces and split runtime logic into command-focused internal packages:
+
+- `cmd/internal/seed`
+- `cmd/internal/cron`
+- `cmd/internal/conf`
+
+Also improve root command UX by removing placeholder root flags and standardizing error behavior.
+
+### Key Command Decisions
+
+1. **`seed`**
+   - Add explicit operational controls: `--bootstrap`, `--skip-migrate`, `--dry-run`, `--timeout`.
+   - Add optional idempotent bootstrap mode (`--bootstrap-idempotent`) using marker tags to avoid duplicated bootstrap insertion.
+   - Keep default behavior backward-compatible: migration still runs by default.
+
+2. **`cron`**
+   - Add operational modes: `--list`, `--run-once`, `--job`, `--timeout`.
+   - Keep default mode as long-running scheduler.
+
+3. **`conf`**
+   - Expand command set: `print/show`, `effective`, `validate`, `write`.
+   - Add output controls (`--format`) and file target controls (`--file`, `--force`).
+
+### Consequences
+
+- ✅ clearer operator workflows and better discoverability
+- ✅ more predictable command execution and error handling
+- ✅ lower coupling between Cobra adapters and execution logic
+- ✅ improved maintainability and extension paths for future commands
+- ⚠️ slightly larger internal command package surface
+
+---
+
+## ADR-023: Refactor `import`/`export` Commands and Add TSV Export
+
+**Status:** Accepted  
+**Date:** 2026-04-16
+
+### Context
+
+`import` and `export` command surfaces had limited operational controls, sparse validation and weak format extensibility.
+
+### Decision
+
+Refactor both commands with structured option parsing and clearer runtime flow:
+
+- `import`: explicit CLI options, validation, configurable stats interval, and optional fail-on-error behavior
+- `export`: structured options with format abstraction, optional filter source (`--filter` or `--filter-file`), export `--limit`, segmented files (`--segment-size`), and safer write controls (`--overwrite`, `--no-header` for TSV)
+
+### TSV Decision
+
+TSV export format uses stable columns:
+
+`id`, `pubkey`, `created_at`, `kind`, `tags`, `content`, `sig`
+
+The `tags` field is serialized as JSON string inside TSV to preserve nested tag structure.
+
+### Consequences
+
+- ✅ better operational UX and safer validations
+- ✅ extensible export format layer for future formats
+- ✅ improved compatibility for spreadsheet/ETL workflows with TSV
+- ✅ safer automation behavior through explicit overwrite policy
+- ⚠️ segmented writes introduce additional file open/close overhead for very small segment sizes

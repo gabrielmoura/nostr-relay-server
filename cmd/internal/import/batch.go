@@ -23,7 +23,7 @@ func batchWorker(cf *ConfImport, batchChan <-chan Batch, errorChan chan<- ErrorI
 	}
 }
 
-func processInBatches(cf *ConfImport) {
+func processInBatches(cf *ConfImport) (int, error) {
 	fmt.Printf("Modo: batch (tamanho do lote = %d)\n", cf.batchSize)
 	if cf.numWorkers <= 0 {
 		cf.numWorkers = runtime.NumCPU()
@@ -42,7 +42,7 @@ func processInBatches(cf *ConfImport) {
 	go func() {
 		file, err := os.Open(cf.filename)
 		if err != nil {
-			fmt.Printf("Erro ao abrir o arquivo: %v\n", err)
+			errorChan <- ErrorInfo{LineNumber: 0, Err: fmt.Errorf("abrir arquivo: %w", err)}
 			close(batchChan)
 			return
 		}
@@ -91,5 +91,10 @@ func processInBatches(cf *ConfImport) {
 		close(errorChan)
 	}()
 
-	reportErrors(errorChan)
+	count := reportErrors(errorChan)
+	if count > 0 && cf.failOnErr {
+		return count, fmt.Errorf("batch import finished with %d errors", count)
+	}
+
+	return count, nil
 }

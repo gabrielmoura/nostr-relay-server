@@ -2,9 +2,9 @@ package _import
 
 import (
 	"fmt"
-	json "github.com/gabrielmoura/nostr-relay-server/internal/jsonx"
 	"github.com/gabrielmoura/nostr-relay-server/config"
 	"github.com/gabrielmoura/nostr-relay-server/infra/log"
+	json "github.com/gabrielmoura/nostr-relay-server/internal/jsonx"
 	"path/filepath"
 	"strings"
 
@@ -12,7 +12,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func reportErrors(errors <-chan ErrorInfo) {
+func reportErrors(errors <-chan ErrorInfo) int {
 	var allErrors []ErrorInfo
 	for e := range errors {
 		allErrors = append(allErrors, e)
@@ -26,6 +26,8 @@ func reportErrors(errors <-chan ErrorInfo) {
 	} else {
 		fmt.Println("Todos os dados processados com sucesso.")
 	}
+
+	return len(allErrors)
 }
 
 func isValidEvent(event *nostr.Event) bool {
@@ -56,11 +58,11 @@ func validateFileType(filename string) (TypeFile, error) {
 	case ".jsonl":
 		return TYPE_JSONL, nil
 	case ".json":
-		return TYPE_JSON, fmt.Errorf("invalid file type: %s", ext)
+		return TYPE_JSON, fmt.Errorf("unsupported file extension %q: use .jsonl", ext)
 	case ".csv":
-		return TYPE_CSV, fmt.Errorf("invalid file type: %s", ext)
+		return TYPE_CSV, fmt.Errorf("unsupported file extension %q: use .jsonl", ext)
 	default:
-		return TYPE_UNKNOWN, fmt.Errorf("invalid file type: %s", filename)
+		return TYPE_UNKNOWN, fmt.Errorf("unsupported file %q: use a .jsonl file", filename)
 	}
 }
 
