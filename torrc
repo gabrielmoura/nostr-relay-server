@@ -1,0 +1,8 @@
+# Expose a SOCKS proxy for outbound traffic from nrserver
+SOCKSPort 0.0.0.0:9050
+
+# Hidden service identity and onion hostname location
+HiddenServiceDir /var/lib/tor/nostr-relay
+
+# Expose the relay externally on onion port 80 -> nrserver:9090
+HiddenServicePort 80 nrserver:9090

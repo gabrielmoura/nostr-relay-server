@@ -455,7 +455,7 @@ Riscos operacionais a observar:
 
 == 13. Operacao e manutencao
 
-=== 13.1 Setup minimo
+=== 13.1 Setup minimo (local)
 
 [source,bash]
 ----
@@ -465,14 +465,85 @@ go run ./cmd/nrserver seed
 go run ./cmd/nrserver server
 ----
 
-=== 13.2 Rotina de manutencao
+=== 13.2 Setup com Dockerfile (standalone)
+
+O projeto possui `Dockerfile` multi-stage com:
+
+* build frontend (`infra/dash`) via Node/pnpm
+* build backend Go (`cmd/nrserver`)
+* imagem final `scratch` com binario estatico + CA certs + usuario nao-root
+
+Build local da imagem:
+
+[source,bash]
+----
+docker buildx build --load -t nostr-relay-server:local .
+----
+
+Execucao com arquivo de configuracao local:
+
+[source,bash]
+----
+docker run --rm \
+  -p 9090:9090 \
+  -p 127.0.0.1:9091:9091 \
+  -v $(pwd)/conf.yaml:/app/conf.yaml:ro \
+  nostr-relay-server:local
+----
+
+Notas operacionais:
+
+* o entrypoint da imagem ja executa `nrserver server`
+* o processo espera `conf.yaml` montado em `/app/conf.yaml`
+* a porta interna admin/metrics/panel continua sendo `port+1`
+
+=== 13.3 Setup com Docker Compose + Tor
+
+Para ambiente com PostgreSQL e onion service, use os arquivos:
+
+* `docker-compose.yml`
+* `torrc`
+* `Docker_Tor.md`
+
+Fluxo recomendado:
+
+1. criar segredo local:
++
+[source,bash]
+----
+cp postgres_password.txt.example postgres_password.txt
+----
+
+2. ajustar `conf.yaml` para usar `postgres` no `db.postgres_uri`
+3. subir stack completa:
++
+[source,bash]
+----
+docker compose up -d --build
+----
+
+4. obter hostname onion:
++
+[source,bash]
+----
+docker compose exec tor cat /var/lib/tor/nostr-relay/hostname
+----
+
+5. atualizar URLs publicas em `conf.yaml` e reiniciar `nrserver`:
++
+[source,bash]
+----
+docker compose restart nrserver
+----
+
+=== 13.4 Rotina de manutencao
 
 * validar config antes de deploy (`conf validate`)
 * executar migracao em janela controlada (`seed`)
 * monitorar `/metrics` + logs
 * usar `cron --list` e `cron --run-once` para validacao de jobs
 
-=== 13.3 Troubleshooting tecnico
+=== 13.5 Troubleshooting tecnico
 
 Sintoma: `missing DB URI`
 
@@ -539,6 +610,9 @@ Este arquivo e principal, mas os detalhes exaustivos por tema permanecem em:
 * `docs/download-command.md`
 * `docs/policies.md`
 * `docs/decisions.md`
+* `Dockerfile`
+* `docker-compose.yml`
+* `Docker_Tor.md`
 
 == 17. Estado da documentacao
 

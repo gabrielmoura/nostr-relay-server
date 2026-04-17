@@ -1,0 +1,70 @@
+services:
+  nrserver:
+    image: nostr-relay-server:local
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: nrserver
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "9090:9090"
+      - "127.0.0.1:9091:9091"
+    volumes:
+      - ./conf.yaml:/app/conf.yaml:ro
+    environment:
+      HTTP_PROXY: socks5://tor:9050
+      HTTPS_PROXY: socks5://tor:9050
+      ALL_PROXY: socks5://tor:9050
+    networks:
+      - relay
+      - tor
+
+  postgres:
+    image: postgres:17-alpine
+    container_name: nrserver-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: nostr
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+    secrets:
+      - postgres_password
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d nostr"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    networks:
+      - relay
+
+  tor:
+    image: osminogin/tor-simple:latest
+    container_name: nrserver-tor
+    restart: unless-stopped
+    depends_on:
+      - nrserver
+    volumes:
+      - tor_data:/var/lib/tor
+      - ./torrc:/etc/tor/torrc:ro
+    networks:
+      - tor
+
+secrets:
+  postgres_password:
+    file: ./postgres_password.txt
+
+volumes:
+  pg_data:
+  tor_data:
+
+networks:
+  relay:
+    driver: bridge
+  tor:
+    driver: bridge

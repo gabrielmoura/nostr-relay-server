@@ -1,0 +1,43 @@
+.git
+.github
+.gitignore
+.gitmodules
+
+.agents
+.claude
+.idea
+
+**/.DS_Store
+**/.env
+**/.env.*
+postgres_password.txt
+**/*.log
+
+# Binaries and local build output
+nrserver
+nrserver_*
+nrserver.exe
+nrserver32.exe
+*.exe
+*.out
+*.test
+bin/
+dist/
+tmp/
+
+# Go test and tooling caches
+**/.cache
+coverage/
+*.coverprofile
+
+# Node dependencies and local artifacts
+**/node_modules
+**/.pnpm-store
+**/.npm
+**/.yarn
+**/.next
+**/.nuxt
+**/.svelte-kit
+**/dist
+**/build
+**/coverage

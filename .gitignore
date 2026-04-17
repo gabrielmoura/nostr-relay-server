@@ -10,3 +10,5 @@ badger_data
 *.yaml
 ref
 conf.yaml
+nrserver32.exe
+nrserver_x86_64
