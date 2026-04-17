@@ -22,6 +22,7 @@ import (
 	"github.com/gabrielmoura/nostr-relay-server/infra/metrics"
 	"github.com/gabrielmoura/nostr-relay-server/infra/stream"
 	"github.com/gabrielmoura/nostr-relay-server/internal/db"
+	json "github.com/gabrielmoura/nostr-relay-server/internal/jsonx"
 	"github.com/gabrielmoura/nostr-relay-server/pkg/nostrpool"
 	"github.com/gofiber/fiber/v2"
 	"github.com/nbd-wtf/go-nostr"
@@ -33,6 +34,7 @@ import (
 const (
 	defaultAdminLimit = 100
 	maxAdminLimit     = 250
+	adminMaxJSONBody  = 4 << 20
 )
 
 type BanRequest struct {
@@ -359,7 +361,7 @@ func DisconnectConnection() fiber.Handler {
 
 		var req DisconnectRequest
 		if len(c.Body()) > 0 {
-			if err := c.BodyParser(&req); err != nil {
+			if err := parseAdminJSONBody(c, &req); err != nil {
 				return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request body"})
 			}
 		}
@@ -537,7 +539,7 @@ func BanUser() fiber.Handler {
 		}
 
 		var req BanRequest
-		if err := c.BodyParser(&req); err != nil {
+		if err := parseAdminJSONBody(c, &req); err != nil {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request body"})
 		}
 		if req.Reason == "" {
@@ -743,7 +745,7 @@ func FetchEventFromRelays() fiber.Handler {
 
 		var req adminFetchEventRequest
 		if len(c.Body()) > 0 {
-			if err := c.BodyParser(&req); err != nil {
+			if err := parseAdminJSONBody(c, &req); err != nil {
 				return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request body"})
 			}
 		}
@@ -1116,6 +1118,18 @@ func adminOffset(c *fiber.Ctx) int {
 		return 0
 	}
 	return offset
+}
+
+func parseAdminJSONBody(c *fiber.Ctx, out any) error {
+	body := c.Body()
+	if len(body) == 0 {
+		return nil
+	}
+	if len(body) > adminMaxJSONBody {
+		return fmt.Errorf("request body too large")
+	}
+
+	return json.Unmarshal(body, out)
 }
 
 func normalizePublicKey(value string) (string, error) {

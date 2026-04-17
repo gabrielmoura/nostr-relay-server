@@ -2,7 +2,6 @@ package listener
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
@@ -16,6 +15,7 @@ import (
 	"github.com/gabrielmoura/nostr-relay-server/infra/metrics"
 	"github.com/gabrielmoura/nostr-relay-server/infra/pubsub"
 	"github.com/gabrielmoura/nostr-relay-server/internal/dto"
+	json "github.com/gabrielmoura/nostr-relay-server/internal/jsonx"
 	"github.com/nbd-wtf/go-nostr"
 	"go.uber.org/zap"
 )

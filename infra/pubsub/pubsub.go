@@ -2,11 +2,11 @@ package pubsub
 
 import (
 	"context"
-	"encoding/json"
 	"sync"
 
 	"github.com/gabrielmoura/nostr-relay-server/infra/log"
 	"github.com/gabrielmoura/nostr-relay-server/infra/redis"
+	json "github.com/gabrielmoura/nostr-relay-server/internal/jsonx"
 	"github.com/nbd-wtf/go-nostr"
 	goredis "github.com/redis/go-redis/v9"
 	"go.uber.org/zap"

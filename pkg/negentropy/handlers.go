@@ -23,7 +23,6 @@ import (
 
 var (
 	builder = NewMessageBuilder()
-	svc     = &VectorService{}
 
 	negManagerOnce sync.Once
 	negManager     *negentropyv2.Manager

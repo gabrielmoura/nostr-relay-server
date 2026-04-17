@@ -21,8 +21,9 @@ import (
 	// Seu pacote compartilhado
 	ng "github.com/gabrielmoura/nostr-relay-server/pkg/negentropy"
 
-	"github.com/gorilla/websocket"
-	"github.com/illuzen/go-negentropy"
+	"github.com/fasthttp/websocket"
+	negentropyv2 "github.com/gabrielmoura/nostr-relay-server/pkg/negentropyV2"
+	negmodel "github.com/gabrielmoura/nostr-relay-server/pkg/negentropyV2/model"
 	"github.com/nbd-wtf/go-nostr"
 	"github.com/nbd-wtf/go-nostr/nip19"
 	"github.com/tmthrgd/go-hex"
@@ -30,7 +31,6 @@ import (
 )
 
 var (
-	vectorSvc  = &ng.VectorService{}
 	msgBuilder = ng.NewMessageBuilder()
 )
 
@@ -53,7 +53,7 @@ type SyncSession struct {
 	SubID        string
 	ReqSub       string
 
-	Negentropy  *negentropy.Negentropy
+	Reconciler  *negentropyv2.Reconciler
 	LocalEvents []*nostr.Event
 
 	syncDone       bool
@@ -170,18 +170,18 @@ func (s *SyncSession) Run() error {
 	}
 	log.Logger.Info("Local events loaded", zap.Int("count", len(s.LocalEvents)))
 
-	vector, err := vectorSvc.LoadFromEvents(s.LocalEvents)
+	refs, err := buildEventRefs(s.LocalEvents)
 	if err != nil {
 		return fmt.Errorf("vector calculation error: %w", err)
 	}
 
 	// Atenção: Strfry geralmente usa Frame Size limit padrão de 1MB
-	s.Negentropy, err = negentropy.NewNegentropy(vector, ng.FrameSizeLimit)
+	s.Reconciler, err = negentropyv2.NewReconciler(refs, negentropyv2.EngineOptions{FrameSizeLimit: ng.FrameSizeLimit})
 	if err != nil {
 		return fmt.Errorf("negentropy init error: %w", err)
 	}
 
-	initialMsgBytes, err := s.Negentropy.Initiate()
+	initialMsgBytes, err := s.Reconciler.Initiate()
 	if err != nil {
 		return fmt.Errorf("negentropy initiate failed: %w", err)
 	}
@@ -358,11 +358,12 @@ func (s *SyncSession) handleNegMsg(data []json.NoCopyRawMessage) error {
 		return fmt.Errorf("hex decode error: %w", err)
 	}
 
-	var haveIDs, needIDs []string
-	nextMsg, err := s.Negentropy.ReconcileWithIDs(payloadBytes, &haveIDs, &needIDs)
+	nextMsg, diff, done, err := s.Reconciler.ReconcileAsInitiator(payloadBytes)
 	if err != nil {
 		return fmt.Errorf("reconcile logic failed: %w", err)
 	}
+	haveIDs := eventIDsToHex(diff.Have)
+	needIDs := eventIDsToHex(diff.Need)
 
 	log.Logger.Info("Reconciliation Report",
 		zap.Int("we_have_remote_needs", len(haveIDs)),
@@ -376,7 +377,7 @@ func (s *SyncSession) handleNegMsg(data []json.NoCopyRawMessage) error {
 		if err := s.sendMessage(msgBuilder.Msg(s.SubID, nextMsg)); err != nil {
 			return err
 		}
-	} else {
+	} else if done {
 		s.syncDone = true
 	}
 
@@ -408,7 +409,7 @@ func (s *SyncSession) sendEvents(ids []string) (int, error) {
 	log.Logger.Info("Uploading EVENT messages", zap.Int("count", len(ids)))
 
 	filter := nostr.Filter{IDs: ids}
-	events, err := vectorSvc.FetchEvents(s.Context, filter)
+	events, err := db.DbQueries.QueryEvents(s.Context, filter)
 	if err != nil {
 		return 0, err
 	}
@@ -814,14 +815,14 @@ func (s *SyncSession) sendMessage(msgArr []any) error {
 
 func (s *SyncSession) fetchLocalEvents() ([]*nostr.Event, error) {
 	if len(s.LocalFilters) == 1 {
-		return vectorSvc.FetchEvents(s.Context, s.LocalFilters[0])
+		return db.DbQueries.QueryEvents(s.Context, s.LocalFilters[0])
 	}
 
 	result := make([]*nostr.Event, 0)
 	seen := make(map[string]struct{})
 
 	for _, filter := range s.LocalFilters {
-		events, err := vectorSvc.FetchEvents(s.Context, filter)
+		events, err := db.DbQueries.QueryEvents(s.Context, filter)
 		if err != nil {
 			return nil, err
 		}
@@ -893,4 +894,34 @@ func newReqSubID() string {
 	}
 
 	return "r" + base
+}
+
+func buildEventRefs(events []*nostr.Event) ([]negentropyv2.EventRef, error) {
+	refs := make([]negentropyv2.EventRef, 0, len(events))
+	for _, event := range events {
+		id, err := negentropyv2.ParseEventIDHex(event.ID)
+		if err != nil {
+			return nil, fmt.Errorf("invalid event ID: %w", err)
+		}
+
+		refs = append(refs, negentropyv2.EventRef{
+			CreatedAt: uint64(event.CreatedAt),
+			ID:        id,
+		})
+	}
+
+	return refs, nil
+}
+
+func eventIDsToHex(ids []negmodel.EventID) []string {
+	if len(ids) == 0 {
+		return nil
+	}
+
+	out := make([]string, 0, len(ids))
+	for _, id := range ids {
+		out = append(out, id.Hex())
+	}
+
+	return out
 }
