@@ -1,375 +1,553 @@
-== Nostr Relay Server ⚡
+= NRServer - Documentacao Tecnica Principal
+:toc:
+:toclevels: 4
 
-image:https://img.shields.io/github/issues/gabrielmoura/nostr-relay-server?style=for-the-badge[GitHub
-issues]
-image:https://img.shields.io/github/forks/gabrielmoura/nostr-relay-server?style=for-the-badge[GitHub
-forks]
-image:https://img.shields.io/github/stars/gabrielmoura/nostr-relay-server?style=for-the-badge[GitHub
-stars]
-https://deepwiki.com/gabrielmoura/nostr-relay-server[image:https://deepwiki.com/badge.svg[Ask
-DeepWiki]]
+Este documento e a referencia tecnica principal do projeto `nostr-relay-server`.
+Ele cobre arquitetura, funcionamento interno, contratos, configuracao, operacao e manutencao.
 
-Seu próprio servidor Nostr, simples, poderoso e pronto para rodar. Este
-projeto oferece um relay Nostr de alta performance com tudo que você
-precisa para entrar na rede descentralizada.
+== 1. Escopo e publico alvo
 
-=== ✨ Funcionalidades
+Publico alvo:
 
-* *Suporte aos NIPs Essenciais:* Compatível com os principais NIPs para
-uma experiência completa na rede Nostr.
-* *Armazenamento de Mídia (NIP-96):* Servidor de armazenamento integrado
-para blobs (imagens, vídeos), seguindo o padrão Blossom.
-* *Sincronização Negentropy:* Mantenha seu relay sincronizado com outros
-peers de forma eficiente.
-* *Ferramentas de Gerenciamento:* Importe, exporte e gerencie eventos
-com facilidade via linha de comando.
-* *Monitoramento com Prometheus:* Exponha métricas detalhadas para
-acompanhar a saúde e o desempenho do seu relay.
-* *Configuração Flexível:* Ajuste todos os aspectos do relay através de
-um arquivo `+config.yml+` simples e bem documentado.
+* maintainers
+* desenvolvedores backend (Go)
+* operadores de ambiente
+* contribuidores que precisam entender fluxos internos
 
-'''''
+Objetivos:
 
-=== 📚 Tabela de Conteúdos
+* onboarding tecnico rapido
+* entendimento de arquitetura e fluxo de execucao
+* guia operacional para desenvolvimento e producao
+* base para evolucao da documentacao viva
 
-[arabic]
-. link:#-início-rápido[🚀 Início Rápido]
-. link:#-comandos-disponíveis[🧰 Comandos Disponíveis]
-* link:#-iniciar-o-servidor[Iniciar o Servidor]
-* link:#-gerenciar-configuração[Gerenciar Configuração]
-* link:#-importar-eventos[Importar Eventos]
-* link:#-exportar-eventos[Exportar Eventos]
-* link:#-sincronizar-com-outro-relay[Sincronizar com Outro Relay]
-* link:#-executar-tarefas-agendadas-cron[Executar Tarefas Agendadas
-(Cron)]
-* link:#-migrar-banco-de-dados[Migrar Banco de Dados]
-. link:#️-configuração-padrão[⚙️ Configuração Padrão]
-. link:++#-monitoramento-com-prometheus--grafana++[📊 Monitoramento com
-Prometheus & Grafana]
-. link:#-perguntas-frequentes-faq[❓ Perguntas Frequentes (FAQ)]
-. link:#-como-contribuir[🤝 Como Contribuir]
-. link:#-licença[📜 Licença]
+== 2. Visao tecnica do sistema
 
-'''''
+=== 2.1 Proposito
 
-=== 🚀 Início Rápido
+`nrserver` e um relay Nostr orientado a operacao, com:
 
-Começar a rodar seu próprio relay é muito simples.
+* transporte WebSocket para protocolo Nostr
+* persistencia em PostgreSQL
+* cache/pubsub opcional via Redis
+* pipeline de ingestao em lote com backpressure
+* APIs administrativas internas
+* metricas Prometheus
+* sincronizacao Negentropy
 
-[arabic]
-. *Gere o arquivo de configuração:* `+bash     nrserver conf write+`
-. *Ajuste o arquivo `+config.yml+`* com as suas preferências (como
-porta, chaves e conexão com o banco de dados).
-. *Inicie o servidor:* `+bash     nrserver server+` > 💡 *Dica:* Para
-popular o servidor com dados iniciais (perfil, informações do relay,
-etc.), use a flag `+--bootstrap+`. >
-`+bash     > nrserver server --bootstrap     >+`
+=== 2.2 Responsabilidades principais
 
-Pronto! Seu relay estará acessível em: - *WebSocket (para clientes
-Nostr):* `+ws://localhost:9090+` - *Métricas (para Prometheus):*
-`+http://localhost:9091/metrics+`
+Responsabilidades core:
 
-'''''
+* receber mensagens Nostr (`EVENT`, `REQ`, `COUNT`, `AUTH`, `CLOSE`, `NEG-*`)
+* validar politicas de evento e request
+* persistir eventos de forma segura e eficiente
+* notificar subscribers locais e distribuidos
+* opcionalmente federar eventos/requests para relays externos
 
-=== 🧰 Comandos Disponíveis
+Responsabilidades auxiliares:
 
-Aqui estão todos os comandos que você pode usar para gerenciar seu
-relay.
+* import/export/download/sync via CLI
+* jobs de manutencao (`cron`)
+* bootstrap de dados iniciais (`seed --bootstrap`)
 
-==== 🛰️ Iniciar o Servidor
+Responsabilidades administrativas:
 
-Inicia o relay Nostr, pronto para receber conexões de clientes.
+* endpoints `/admin/*` para observabilidade e moderacao
+* painel web embedado em `/panel`
+
+=== 2.3 Topologia de runtime
+
+O processo sobe dois servidores Fiber:
+
+* externo: `port` (relay publico)
+* interno: `port+1` (admin + metrics + panel)
+
+Endpoints principais:
+
+* externo: `/` (NIP-11 + upgrade WS), `/.well-known/*`, `/upload`, `/blob/:id`, `/list/:id`
+* interno: `/metrics`, `/admin/*`, `/panel/*`
+
+== 3. Arquitetura e modulos
+
+=== 3.1 Estrutura de alto nivel
+
+* `cmd/`: superficie CLI (Cobra)
+* `cmd/internal/`: logica de execucao por comando
+* `config/`: modelo, defaults e loader de configuracao
+* `infra/net/`: construcao de servidores e rotas Fiber
+* `infra/handler/`: handlers HTTP/WS e use-cases de transporte
+* `infra/ingestion/`: pipeline batch de ingestao
+* `infra/stream/`: dispatcher async de federacao
+* `infra/db/`: queries e migracao SQL
+* `internal/policies/`: hub unico de politicas
+* `pkg/negentropy*`: reconciliacao de sincronizacao
+* `pkg/nostrpool/`: relay pool para stream up/down
+
+=== 3.2 Dependencias tecnicas centrais
+
+* CLI: `spf13/cobra`
+* HTTP: `gofiber/fiber/v2` + `gofiber/contrib/websocket`
+* DB: `pgx/v5` + `pgxpool`
+* Config: `spf13/viper`
+* Nostr: `nbd-wtf/go-nostr`
+* Logging: `uber-go/zap`
+* Metrics: `prometheus/client_golang`
+* Redis: `go-redis/v9` (encapsulado em `infra/redis`, `infra/cache`, `infra/pubsub`)
+
+== 4. Ciclo de inicializacao e shutdown
+
+=== 4.1 Entry point
+
+Fluxo de boot do binario:
+
+1. `cmd/nrserver/main.go` chama `cmd.Execute()`
+2. `cmd/root.go` executa o comando Cobra selecionado
+3. `cmd/server.go` (comando `server`) inicia runtime completo
+
+=== 4.2 Sequencia de boot do comando `server`
+
+Sequencia observada em `cmd/server.go`:
+
+1. carrega `conf.yaml` via `config.LoadConfig()`
+2. inicializa logger (`infra/log`)
+3. cria `mainCtx` com cancelamento
+4. inicializa Redis (falha nao e fatal)
+5. inicializa cache/pubsub/listener
+6. inicializa conexao DB (falha e fatal)
+7. tenta prepared statements em `production` (falha nao e fatal)
+8. registra metricas
+9. inicializa hub de politicas
+10. inicia ingestion workers e stream dispatcher
+11. constroi apps Fiber interno/externo (`infra/net.Router()`)
+12. inicializa relay pool se stream up/down habilitado
+13. opcionalmente executa bootstrap de eventos
+14. abre listeners TCP em `port+1` e `port`
+15. bloqueia aguardando `mainCtx.Done()`
+
+=== 4.3 Shutdown
+
+Sinais tratados: `SIGINT` e `SIGTERM`.
+
+Quando sinal recebido:
+
+* cancela contexto principal
+* para ingestion
+* fecha pubsub
+* executa shutdown dos dois apps Fiber
+* fecha cliente Redis
+
+Observacao tecnica: o fechamento do pool PostgreSQL e indireto pelo ciclo de vida do processo e componentes DB.
+
+== 5. Funcionamento interno
+
+=== 5.1 Conexao WebSocket
+
+`RootUpgrade` (`infra/handler/http/root.go`) faz:
+
+* resposta NIP-11 quando `Accept: application/nostr+json`
+* upgrade WS quando aplicavel
+* injeta `dto.WsServer` em `Locals("wss")`
+
+`HandleConnection` (`infra/handler/ws/connection.go`) faz:
+
+* ticker de ping/pong
+* atualizacao de presenca em listener
+* envio de AUTH challenge conforme modo de auth
+* loop de escrita (`ChanSender`, `ChanPing`, ping periodico)
+* loop de leitura com limite de mensagem (`1 MiB`)
+
+=== 5.2 Roteamento de mensagens WS
+
+Router em `infra/handler/ws/message_router.go`:
+
+* decode defensivo + `recover` para evitar panic derrubar conexao
+* metricas por tipo (`NostrRequestCounter`)
+* dispatch por tipo:
+  - `EVENT` -> `infra/handler/event`
+  - `REQ` -> `infra/handler/req`
+  - `COUNT` -> `infra/handler/count`
+  - `AUTH` -> `infra/handler/auth`
+  - `CLOSE` -> remove subscription
+  - `NEG-*` -> `pkg/negentropy` (se habilitado)
+
+=== 5.3 Pipeline de ingestao
+
+`infra/ingestion/ingestion.go` implementa pipeline batch:
+
+* fila bufferizada (`queue_size`)
+* workers concorrentes (`workers`)
+* flush por tamanho (`batch_size`) ou timeout (`batch_timeout_ms`)
+* deduplicacao (`cache.SetDedup`)
+* validacao storage-safe via `policies.ValidateBatchEvent`
+* semantica replaceable/addressable antes de persistir
+* persistencia em lote (`InsertEventBatch`)
+* fan-out: notify listeners, stream forward, pubsub publish, cache de evento
+
+Backpressure:
+
+* se fila cheia, `Push` retorna `false`
+* incrementa metrica de backpressure
+
+=== 5.4 Forwarding assincromo (stream)
+
+`infra/stream/stream.go`:
+
+* dispatcher com duas filas:
+  - `eventQueue` (upstream)
+  - `reqQueue` (downstream backfill)
+* workers dedicados para evento e request
+* filas bounded e contadores de drop
+* allowlist de kinds para upstream
+
+Comportamento:
+
+* `stream_up=true`: publica eventos no relay pool
+* `stream_down=true`: consulta pool para REQ sem depender do caminho sincrono do handler
+
+=== 5.5 Hub de politicas
+
+`internal/policies/hub.go` concentra validacoes:
+
+Para EVENT/BATCH:
+
+* id hash valido
+* assinatura valida
+* ban check
+* tamanho maximo
+* expiracao (`expiration`)
+* POW minimo
+* limites de tags
+* bloqueio de base64 inline
+
+Para REQ/COUNT:
+
+* normalizacao de limit
+* ban check para requisitante autenticado
+* regras de auth por modo
+* bloqueio de filtro vazio (se configurado)
+* anti-sync-bot
+* regras para kinds protegidos e DM
+
+== 6. Especificacoes tecnicas e contratos
+
+=== 6.1 Protocolos suportados
+
+NIPs/BUDs suportados estao documentados em `README.md` e `docs/api-spec.md`.
+No runtime, os contratos principais incluem:
+
+* NIP-01 envelopes WS (`REQ`, `EVENT`, `EOSE`, `OK`, `NOTICE`, `CLOSED`)
+* NIP-11 relay information no endpoint raiz HTTP
+* NIP-42 auth challenge/response
+* NIP-45 (`COUNT`)
+* NIP-96 upload/download de blobs
+* Negentropy (`NEG-OPEN`, `NEG-MSG`, `NEG-CLOSE` e compatibilidade legada)
+
+=== 6.2 Contrato WS (entrada)
+
+Entrada esperada (JSON array):
+
+[source,json]
+----
+["REQ", "<subscription_id>", {"kinds":[1],"authors":["<pubkey>"]}]
+["EVENT", {"id":"...","pubkey":"...","kind":1,"tags":[],"content":"...","sig":"..."}]
+["COUNT", "<subscription_id>", {"kinds":[1]}]
+["AUTH", {"kind":22242, ... }]
+----
+
+=== 6.3 Contrato WS (saida)
+
+[source,json]
+----
+["EVENT", "<subscription_id>", { ...event... }]
+["EOSE", "<subscription_id>"]
+["OK", "<event_id>", true, "saved"]
+["NOTICE", "<reason>"]
+["CLOSED", "<subscription_id>", "<reason>"]
+----
+
+=== 6.4 Contrato HTTP interno/admin
+
+Auth:
+
+* se `admin_token` vazio -> endpoints admin sem token
+* se `admin_token` definido -> exigir `X-Admin-Token`
+
+Conjuntos de endpoint:
+
+* overview/status: `/admin/overview`, `/admin/stream/status`
+* conexoes: `/admin/connections/*`
+* usuarios/moderacao: `/admin/users/*`
+* eventos/search/import/fetch/reports: `/admin/events/*`
+* painel: `/panel` e `/panel/*`
+
+=== 6.5 Contrato HTTP externo
+
+* `/` com `Accept: application/nostr+json` -> relay info
+* `/` com upgrade WS -> sessao Nostr
+* `/.well-known/nostr/nip96.json`
+* `/.well-known/nostr.json`
+* `/upload`, `/blob/:id`, `/list/:id` (Blossom)
+
+=== 6.6 Limitacoes conhecidas
+
+* limite hard de mensagem WS: `1 MiB`
+* cron usa expressoes com 6 campos (segundos incluidos)
+* `db.postgres_uri` e obrigatorio
+* stream upstream possui allowlist de kinds, nao e forwarding irrestrito
+
+== 7. Funcionalidades (por categoria)
+
+=== 7.1 Core
+
+* relay WS Nostr
+* validacao por politicas
+* ingestao batch com dedup e semantica replaceable/addressable
+* persistencia PostgreSQL
+
+=== 7.2 Auxiliares operacionais
+
+* `seed` para migracao/bootstrap
+* `import` e `export` (jsonl/tsv)
+* `download` com filtro JSON e merge strategy
+* `sync` com Negentropy e filtros
+* `cron` para manutencao periodica
+
+=== 7.3 Administrativas
+
+* visao de conexoes ativas/authed
+* moderacao de usuarios (ban/unban)
+* busca e agregacoes de eventos
+* fetch de evento em relays externos
+* painel web interno embedado
+
+== 8. Configuracao tecnica
+
+=== 8.1 Origem e lookup
+
+`config.LoadConfig()` busca `conf.yaml` em:
+
+1. `.`
+2. `../..`
+3. `/etc/nrs`
+
+=== 8.2 Defaults e campos obrigatorios
+
+* defaults definidos em `config/config.go`
+* `db.postgres_uri` obrigatorio (falha no load se vazio)
+* fallback de `app_env`: `production`
+
+=== 8.3 Blocos principais e impacto operacional
+
+* `ws.*`: auth mode e rate-limit de conexoes
+* `relay.*`: limites de consulta, tamanho, POW, kinds protegidos
+* `db.*`: tuning do pool pgx
+* `redis.*`: cache/pubsub e hygiene de subscriptions
+* `ingestion.*`: throughput vs memoria/latencia
+* `cron.*`: jobs de manutencao e retention
+* `stream.*`: federacao upstream/downstream
+* `enable_negentropy`: habilita mensagens `NEG-*`
+* `store.*`: NIP-96 e regras de conteudo
+
+=== 8.4 Modos de autenticacao WS
+
+`ws.auth_mode`:
+
+* `strict`: auth obrigatoria para REQ e EVENT
+* `flexible`: auth obrigatoria para EVENT
+* `optional`: auth opcional (challenge enviado)
+* `none`: auth desligada
+
+Compatibilidade:
+
+* se `auth_mode` invalido e `ws.auth=true`, runtime normaliza para `strict`
+
+== 9. CLI tecnica
+
+=== 9.1 Comandos principais
+
+* `server`: sobe runtime do relay
+* `seed`: migracao e bootstrap opcional
+* `cron`: scheduler/list/run-once de jobs
+* `conf`: print/effective/validate/write
+* `import`: ingestao JSONL local
+* `export`: dump jsonl/tsv com filtro
+* `download`: coleta de relays externos para DB local
+* `sync`: reconciliacao Negentropy
+
+=== 9.2 Regras e validacoes relevantes
+
+* `seed --skip-migrate` exige `--bootstrap`
+* `seed --bootstrap-idempotent` exige `--bootstrap`
+* `cron --list` nao combina com `--run-once`
+* `download --mentioned` exige `--public-key`
+* `download` aceita apenas uma fonte de filtro (`--filter` ou `--filter-file`)
+* `sync` exige relay remoto por argumento posicional ou `--remote`
+
+== 10. Persistencia e modelo de dados
+
+=== 10.1 PostgreSQL
+
+Tabelas chave (ver `docs/data-schema.md` para definicao completa):
+
+* `event`: armazenamento principal de eventos Nostr
+* `profiles`: metadados de usuarios
+* `banned_users`: moderacao
+* `objects`: metadados de blobs NIP-96
+
+Migracao:
+
+* SQL embedado em `infra/db/schema.sql`
+* executado por `Queries.Migrate()`
+
+=== 10.2 Redis
+
+Uso quando habilitado:
+
+* cache de ban/profiles/query/event/dedup
+* pubsub de eventos e estado distribuido
+* cleanup de subscriptions stale
+
+Chaves e canais: ver `docs/data-schema.md`.
+
+== 11. Observabilidade e diagnostico
+
+=== 11.1 Logs
+
+Logger estruturado via Zap.
+
+Pontos de log importantes:
+
+* startup/shutdown de servidores
+* falhas de DB e Redis
+* erros de write/read WS
+* falhas de batch ingestion
+* falhas de stream forwarding
+
+=== 11.2 Metricas
+
+Expostas em `/metrics` (servidor interno).
+
+Cobertura principal:
+
+* request types WS
+* ingestion (batch, duration, duplicates, errors, backpressure)
+* forwarding stream
+* Negentropy
+* download command metrics por relay
+
+== 12. Seguranca e controles
+
+Controles implementados:
+
+* autenticacao NIP-42 por politica configuravel
+* validacao criptografica de eventos (id + assinatura)
+* limite de tamanho de payload WS
+* politicas de conteudo (base64 inline)
+* controle de acesso admin por token opcional
+* politicas para kinds protegidos/DM
+
+Riscos operacionais a observar:
+
+* `admin_token` vazio em ambiente exposto
+* `ws.auth_mode=none` em relay publico sem mitigacoes de abuso
+* retention e cron mal configurados
+
+== 13. Operacao e manutencao
+
+=== 13.1 Setup minimo
 
 [source,bash]
 ----
-nrserver server [flags]
+go run ./cmd/nrserver conf write
+go run ./cmd/nrserver conf validate
+go run ./cmd/nrserver seed
+go run ./cmd/nrserver server
 ----
 
-*Flags:* | Flag | Descrição | Padrão | | :— | :— | :— | | `+-b+`,
-`+--bootstrap+` | Habilita o bootstrap, criando eventos iniciais (Kind
-0, 411, 10002, 10063). | `+false+` | | `+-c+`, `+--config+` | Habilita o
-uso de um arquivo de configuração. | `+true+` | | `+-h+`, `+--help+` |
-Mostra a ajuda para este comando. | |
+=== 13.2 Rotina de manutencao
 
-==== 📝 Gerenciar Configuração
+* validar config antes de deploy (`conf validate`)
+* executar migracao em janela controlada (`seed`)
+* monitorar `/metrics` + logs
+* usar `cron --list` e `cron --run-once` para validacao de jobs
 
-Crie ou imprima o arquivo de configuração.
+=== 13.3 Troubleshooting tecnico
 
-[source,bash]
-----
-nrserver conf [command]
-----
+Sintoma: `missing DB URI`
 
-*Comandos:* - `+print+`: Imprime a configuração atual no console. -
-`+write+`: Escreve o arquivo de configuração padrão (`+config.yml+`) no
-diretório atual.
+* causa: `db.postgres_uri` ausente
+* acao: preencher `conf.yaml` e revalidar
 
-==== 📥 Importar Eventos
+Sintoma: `invalid cron expression`
 
-Popule seu relay com eventos a partir de um arquivo `+.jsonl+`.
+* causa: formato cron incorreto
+* acao: usar 6 campos (`sec min hour day month weekday`)
 
-[source,bash]
-----
-nrserver import [flags]
-----
+Sintoma: queda de ingestao com drops
 
-*Flags:* | Flag | Descrição | Padrão | | :— | :— | :— | | `+-f+`,
-`+--file+` | Arquivo JSONL para importar. | `+events.jsonl+` | | `+-b+`,
-`+--batch-size+` | Quantidade de eventos por lote de importação. |
-`+100+` | | `+-w+`, `+--num-workers+`| Número de workers para importação
-paralela. | `+2+` |
+* causa provavel: backpressure (fila cheia)
+* acao: revisar `ingestion.queue_size`, `workers`, `batch_size` e pressao de entrada
 
-==== 📤 Exportar Eventos
+Sintoma: admin retorna 401
 
-Exporte todos os eventos do seu banco de dados para um arquivo
-`+.jsonl+`.
+* causa: token ausente/invalido
+* acao: enviar `X-Admin-Token` quando `admin_token` estiver configurado
 
-[source,bash]
-----
-nrserver export [flags]
-----
+== 14. Estrutura de projeto e pontos de extensao
 
-*Flags:* | Flag | Descrição | Padrão | | :— | :— | :— | | `+-f+`,
-`+--file+` | Arquivo de destino para a exportação. |
-`+export-TIMESTAMP.jsonl+`| | `+-b+`, `+--batch-size+` | Quantidade de
-eventos por lote de exportação. | `+100+` | | `+-w+`,
-`+--writer-workers+` | Número de workers para escrita paralela. | `+2+`
-|
+=== 14.1 Pontos de extensao recomendados
 
-==== 🔄 Sincronizar com Outro Relay
+* novas politicas: `internal/policies`
+* novos jobs cron: `cmd/internal/cron/jobs.go`
+* novos endpoints admin: `infra/handler/http/admin.go`
+* novos tipos de exportacao: `cmd/internal/export`
+* novos fluxos de sincronizacao: `cmd/internal/sync` + `pkg/negentropy*`
 
-Sincronize eventos com um relay remoto usando o protocolo *Negentropy*.
+=== 14.2 Dependencias entre componentes
 
-____
-⚠️ *Atenção:* Este método só funciona se o relay remoto também tiver
-Negentropy implementado.
-____
+* handlers WS delegam validacao ao hub de politicas
+* ingestion reutiliza politicas antes de persistir
+* stream depende de `nostrpool` e flags `stream.*`
+* cache/pubsub dependem da disponibilidade Redis
 
-[source,bash]
-----
-nrserver sync [flags]
-----
+== 15. Decisoes tecnicas e trade-offs
 
-*Flags:* | Flag | Descrição | Padrão | | :— | :— | :— | | `+-r+`,
-`+--remote+` | Endereço do servidor Nostr remoto (ex:
-`+wss://relay.damus.io+`). | | | `+-p+`, `+--pk+` | Sua chave pública
-(opcional). | | | `+-d+`, `+--direction+`| Direção da sincronização
-(`+up+`, `+down+`, `+both+`). | `+both+` |
+Resumo tecnico (ADRs em `docs/decisions.md`):
 
-==== ⏰ Executar Tarefas Agendadas (Cron)
+* Go para concorrencia e deploy simples
+* Fiber para throughput HTTP
+* PostgreSQL para flexibilidade de consulta/indexacao
+* Redis opcional para escalar horizontalmente
+* pipeline async (ingestion/stream) para proteger hot-path WS
 
-Execute tarefas de manutenção.
+Trade-offs percebidos no codigo:
 
-[source,bash]
-----
-nrserver cron
-----
+* maior complexidade operacional em troca de throughput e resiliencia
+* validacoes mais estritas reduzem ambiguidade, mas exigem melhor configuracao
+* acoplamento moderado entre handlers e camadas infra ainda existe em alguns fluxos legados
 
-____
-*O que ele faz?* Este comando é responsável por deletar eventos antigos
-(se habilitado na configuração) e atualizar estatísticas de uso do pool
-de conexões com o banco de dados.
-____
+== 16. Referencias tecnicas complementares
 
-==== 🌱 Migrar Banco de Dados
+Este arquivo e principal, mas os detalhes exaustivos por tema permanecem em:
 
-Prepara o banco de dados com os dados iniciais necessários para o
-funcionamento.
+* `docs/api-spec.md`
+* `docs/configuration.md`
+* `docs/architecture.md`
+* `docs/data-schema.md`
+* `docs/cli.md`
+* `docs/download-command.md`
+* `docs/policies.md`
+* `docs/decisions.md`
 
-[source,bash]
-----
-nrserver seed
-----
+== 17. Estado da documentacao
 
-'''''
+Esta documentacao foi consolidada com base no codigo atual das camadas:
 
-=== ⚙️ Configuração Padrão
+* boot/runtime (`cmd/server.go`, `infra/net/*`)
+* WS router/connection (`infra/handler/ws/*`)
+* policy hub (`internal/policies/hub.go`)
+* ingestion e stream (`infra/ingestion/*`, `infra/stream/*`)
+* config e CLI (`config/*`, `cmd/*`)
 
-Abaixo está um exemplo do arquivo `+config.yml+` com todas as opções
-disponíveis.
-
-[source,yaml]
-----
-# Porta em que o servidor irá rodar
-port: 9090
-app_env: development
-
-# Configurações do WebSocket
-ws:
-    rate_limit: 1  # Limite de requisições por segundo
-    burst: 5       # Pico de requisições permitidas
-    auth: true     # Exigir autenticação (NIP-42)
-
-# Informações públicas do seu relay (NIP-11)
-relay_information:
-    url: http://localhost:9090
-    name: Nostr Relay Server
-    description: A Nostr Relay Server
-    pub_key: "7ef721e77149c73701497141b0b590a5ebe82b79130228cdbe56e9be2d8e50"
-    priv_key: "e4d347b85fe3429ac1995d3eab801a3858990f66fb0"
-    supported_nips: [1, 2, 4, 9, 11, 17, 25, 45]
-    software: https://github.com/gabrielmoura/nostr-relay-server
-    version: 0.1.0
-    canonical_url: ws://localhost:9090/relay
-    icon: http://localhost:9090/nostr.png
-
-# Limites e regras do relay
-relay:
-    query_limit: 100
-    query_ids_limit: 500
-    query_authors_limit: 500
-    query_kinds_limit: 10
-    query_tags_limit: 100
-    keep_recent_events: true
-    max_size_event_in_bytes: 100000
-    filter_limit: 9999999999
-    reporting_limit: 5
-    enable_anonymous_req: true
-    max_tag_value_length: 150
-
-# Configurações do Banco de Dados (PostgreSQL)
-db:
-    max_conns: 10
-    min_conns: 1
-    postgres_uri: postgres://postgres:Strong@P4ssword@127.0.0.1:5432/nostr
-
-# Sincronização de eventos com outros relays
-stream:
-  relays:
-    - wss://nostr.azzamo.net
-    - wss://relay.damus.io
-  stream_up: false
-  stream_down: false
-# Configurações de armazenamento de mídia (Blossom - NIP-96)
-store:
-    enabled: true
-    api_path: http://localhost:9090/upload
-    media_path: http://localhost:9090/blob
-    accepted_mimetypes:
-        - image/jpeg
-        - image/png
-        - video/mp4
-    allow_adult_content: false
-    allow_violent_content: false
-    names: []
-----
-
-'''''
-
-=== 📊 Monitoramento com Prometheus & Grafana
-
-Acompanhe o desempenho do seu relay com ferramentas de monitoramento
-padrão de mercado.
-
-==== 1. Configurando o Prometheus
-
-Crie um arquivo `+prometheus.yml+` para que o Prometheus possa encontrar
-as métricas do seu relay.
-
-[source,yaml]
-----
-global:
-  scrape_interval: 15s
-
-scrape_configs:
-  - job_name: 'nostr-relay'
-    scrape_interval: 5s
-    static_configs:
-      - targets: ['host.docker.internal:9090'] # Use 'localhost:9090' se não estiver usando Docker
-----
-
-Execute o Prometheus (exemplo com Docker):
-
-[source,bash]
-----
-docker run -d \
-  -p 9090:9090 \
-  --name prometheus \
-  -v ./prometheus.yml:/etc/prometheus/prometheus.yml \
-  --add-host=host.docker.internal:host-gateway \
-  prom/prometheus
-----
-
-==== 2. Visualizando com Grafana
-
-Use o Grafana para criar dashboards visuais com as métricas coletadas.
-
-[arabic]
-. *Execute o Grafana* (exemplo com Docker):
-`+bash     docker run -d \       --name=grafana \       -p 3000:3000 \       --add-host=host.docker.internal:host-gateway \       grafana/grafana-enterprise+`
-. Acesse `+http://localhost:3000+` (login padrão: `+admin+`/`+admin+`).
-. Adicione o Prometheus como uma fonte de dados (`+DataSource+`).
-. *Importe um dashboard!* Você pode usar o arquivo `+grafana.json+`
-deste repositório como ponto de partida.
-
-____
-🎨 *Observação:* O dashboard fornecido é básico. Sinta-se à vontade para
-melhorá-lo e enviar um Pull Request! Sua contribuição é muito bem-vinda.
-____
-
-'''''
-
-=== ❓ Perguntas Frequentes (FAQ)
-
-*Como hospedar este relay em um Raspberry Pi?*
-
-É totalmente possível! A maneira mais fácil é usando Docker: 1. Instale
-o Docker e o Docker Compose no seu Raspberry Pi. 2. Crie um arquivo
-`+docker-compose.yml+` para orquestrar o relay e o banco de dados
-PostgreSQL. 3. Use uma imagem Docker compatível com a arquitetura ARM
-(como as imagens oficiais do PostgreSQL e uma imagem Go compilada para
-ARM). 4. Configure as variáveis de ambiente e volumes no
-`+docker-compose.yml+` e inicie com `+docker-compose up -d+`.
-
-*Como hospedar na Deep Web (via Tor)?*
-
-Para expor seu relay como um serviço oculto do Tor, siga estes passos:
-1. Instale e configure o Tor em seu servidor. 2. Edite o arquivo de
-configuração do Tor (`+torrc+`) para criar um novo `+HiddenService+`.
-Aponte a porta do serviço oculto para a porta local onde seu relay está
-rodando (ex: `+127.0.0.1:9090+`). 3. Após reiniciar o Tor, ele criará um
-hostname `+.onion+` para o seu serviço. 4. *Importante:* Atualize o
-`+canonical_url+` no seu `+config.yml+` para o endereço
-`+ws://SEU_HOSTNAME.onion+`. Isso garantirá que seu relay anuncie o
-endereço correto na rede Nostr. 5. Use `+HTTP_PROXY+` para direcionar o
-tráfego do relay através do Tor, se necessário conforme
-https://pkg.go.dev/net/http#ProxyFromEnvironment.
-
-'''''
-
-=== 📚 Protocolos Imlpementado
-
-* https://github.com/hzrd149/blossom/blob/master/buds/01.md[BUD 01]
-* https://github.com/hzrd149/blossom/blob/master/buds/02.md[BUD 02]
-* https://github.com/nostr-protocol/nips/blob/master/40.md[NIP 40]
-* https://github.com/nostr-protocol/nips/blob/master/98.md[NIP 98]
-* https://github.com/nostr-protocol/nips/blob/master/01.md[NIP 01]
-* https://github.com/nostr-protocol/nips/blob/master/77.md[NIP 77]
-* https://github.com/nostr-protocol/nips/blob/master/42.md[NIP 42 -
-Authentication of clients to relays]
-* https://github.com/nostr-protocol/nips/blob/master/09.md[NIP 09 -
-Event Deletion Request]
-* https://github.com/nostr-protocol/nips/blob/master/50.md[NIP-50 -
-Search Capability]
-* https://github.com/nostr-protocol/nips/blob/master/62.md[NIP-62 -
-Request to Vanish]
-
-=== 🤝 Como Contribuir
-
-Sua ajuda é muito bem-vinda para tornar este projeto ainda melhor!
-
-* *Reporte Bugs:* Encontrou um problema? Abra uma
-https://github.com/gabrielmoura/nostr-relay-server/issues[Issue].
-* *Sugira Melhorias:* Tem uma ideia para uma nova funcionalidade? Abra
-uma https://github.com/gabrielmoura/nostr-relay-server/issues[Issue]
-para discutirmos.
-* *Envie Pull Requests:* Faça um fork do projeto, crie uma branch para
-sua alteração e envie um PR.
-
-'''''
-
-=== 📜 Licença
-
-Este projeto ainda não possui uma licença definida. Sinta-se à vontade
-para contribuir, mas lembre-se de que o código é fornecido "`como está`"
-sem garantias de qualquer tipo.
+Quando houver divergencia entre documento e implementacao, considerar o codigo-fonte como fonte de verdade e atualizar este arquivo.

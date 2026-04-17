@@ -674,7 +674,7 @@ The project currently documents support for:
 
 ## Documentation
 
-Project documentation is organized under `docs/`:
+Project documentation is primarily organized under `docs/`, with unified setup guides at the repository root:
 
 * `docs/api-spec.md` — WebSocket protocol, HTTP routes, admin endpoints, payloads, and error envelopes
 * `docs/configuration.md` — Complete `conf.yaml` schema, defaults, and production examples
@@ -685,6 +685,8 @@ Project documentation is organized under `docs/`:
 * `docs/cli.md` — CLI behavior, command UX, flags, and operational guidance
 * `docs/download-command.md` — Download command flow, `--filter` semantics, precedence, and troubleshooting
 * `docs/todo.md` — Roadmap and implementation checklist
+* `nrserver.adoc` — Main Technical Documentation (AsciiDoc)
+* `nrserver.md` — Unified environment setup and operations guide (Markdown)
 
 ---
 
