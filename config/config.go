@@ -118,6 +118,53 @@ func setDefaults(export bool) {
 	viper.SetDefault("relay.protected_kinds", []int{nostr.KindApplicationSpecificData, nostr.KindEncryptedDirectMessage})
 	viper.SetDefault("relay.minimum_pow_limit", 0)
 
+	viper.SetDefault("nip29.enabled", false)
+	viper.SetDefault("nip29.relay_scope", "")
+	viper.SetDefault("nip29.cache_ttl_seconds", 60)
+	viper.SetDefault("nip29.membership_cache_ttl_seconds", 30)
+	viper.SetDefault("nip29.ban_cache_ttl_seconds", 30)
+	viper.SetDefault("nip29.timeline_cache_ttl_seconds", 300)
+	viper.SetDefault("nip29.group_creator_role", "admin")
+	viper.SetDefault("nip29.default_roles", []map[string]any{
+		{
+			"name":        "admin",
+			"description": "Full group administration",
+			"permissions": []string{"create-group", "put-user", "remove-user", "edit-metadata", "delete-event", "delete-group", "create-invite"},
+		},
+		{
+			"name":        "moderator",
+			"description": "Moderation actions without full ownership",
+			"permissions": []string{"put-user", "remove-user", "delete-event", "create-invite"},
+		},
+	})
+	viper.SetDefault("nip29.create.enabled", true)
+	viper.SetDefault("nip29.create.max_groups_per_pubkey", 10)
+	viper.SetDefault("nip29.moderation.allow_private_groups", true)
+	viper.SetDefault("nip29.moderation.require_recent_moderation", true)
+	viper.SetDefault("nip29.moderation.recent_window_seconds", 60)
+	viper.SetDefault("nip29.admission.default_closed", false)
+	viper.SetDefault("nip29.admission.default_private", false)
+	viper.SetDefault("nip29.admission.default_restricted", false)
+	viper.SetDefault("nip29.admission.default_hidden", false)
+	viper.SetDefault("nip29.admission.require_membership_for_write", true)
+	viper.SetDefault("nip29.admission.allow_late_publication", false)
+	viper.SetDefault("nip29.invite.enabled", false)
+	viper.SetDefault("nip29.invite.default_max_uses", 1)
+	viper.SetDefault("nip29.invite.default_ttl_seconds", 86400)
+	viper.SetDefault("nip29.invite.allow_multi_use", false)
+	viper.SetDefault("nip29.pow.enabled", false)
+	viper.SetDefault("nip29.pow.default_min_difficulty", 0)
+	viper.SetDefault("nip29.pow.moderation_min_difficulty", 0)
+	viper.SetDefault("nip29.timeline.enabled", false)
+	viper.SetDefault("nip29.timeline.required_on_moderation", false)
+	viper.SetDefault("nip29.timeline.min_references", 0)
+	viper.SetDefault("nip29.timeline.recent_window", 50)
+	viper.SetDefault("nip29.advanced.emit_member_list_events", true)
+	viper.SetDefault("nip29.advanced.emit_role_events", true)
+	viper.SetDefault("nip29.advanced.cache_membership_lookup", true)
+	viper.SetDefault("nip29.advanced.cache_group_metadata", true)
+	viper.SetDefault("nip29.permissions.create_invite", true)
+
 	if export {
 		viper.SetDefault("db.postgres_uri", "postgres://user:password@localhost:5432/dbname")
 	}
@@ -167,7 +214,19 @@ func applyLoadedConfig() error {
 	}
 
 	Cfg = cfg
+	if cfg.NIP29.Enabled {
+		cfg.RelayInformation.SupportedNIPs = appendSupportedNIP(cfg.RelayInformation.SupportedNIPs, 29)
+	}
 	return nil
+}
+
+func appendSupportedNIP(values []int, nip int) []int {
+	for _, v := range values {
+		if v == nip {
+			return values
+		}
+	}
+	return append(values, nip)
 }
 
 // PrintYamlConfig exibe a configuração atual no formato YAML.

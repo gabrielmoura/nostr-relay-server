@@ -5,6 +5,7 @@ import (
 	"github.com/gabrielmoura/nostr-relay-server/infra/metrics"
 	"github.com/gabrielmoura/nostr-relay-server/internal/db"
 	"github.com/gabrielmoura/nostr-relay-server/internal/dto"
+	"github.com/gabrielmoura/nostr-relay-server/internal/groups"
 	json "github.com/gabrielmoura/nostr-relay-server/internal/jsonx"
 	policies "github.com/gabrielmoura/nostr-relay-server/internal/policies"
 	"github.com/nbd-wtf/go-nostr"
@@ -39,7 +40,10 @@ func DoCOUNT(ws *dto.WsServer, data dto.Data) string {
 	}
 
 	for _, filter := range normalized {
-		count, err := db.DbQueries.CountEvents(ws.Ctx, filter)
+		count, handled, err := groups.CountEvents(ws.Ctx, ws.Authed, filter, db.DbQueries.QueryEventsChan)
+		if !handled {
+			count, err = db.DbQueries.CountEvents(ws.Ctx, filter)
+		}
 		if err != nil {
 			log.Logger.Error("store: %v", zap.Error(err))
 			continue

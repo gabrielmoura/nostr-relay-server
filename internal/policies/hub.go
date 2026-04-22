@@ -12,6 +12,7 @@ import (
 	"github.com/gabrielmoura/nostr-relay-server/infra/cache"
 	"github.com/gabrielmoura/nostr-relay-server/internal/db"
 	"github.com/gabrielmoura/nostr-relay-server/internal/dto"
+	"github.com/gabrielmoura/nostr-relay-server/internal/groups"
 	json "github.com/gabrielmoura/nostr-relay-server/internal/jsonx"
 	"github.com/minio/sha256-simd"
 	"github.com/nbd-wtf/go-nostr"
@@ -33,7 +34,10 @@ func (p Policies) ValidateIncomingEvent(ctx context.Context, evt *nostr.Event) (
 	if reject, reason := p.validateEventIdentity(evt); reject {
 		return true, reason
 	}
-	return p.validateStorageEvent(ctx, evt)
+	if reject, reason := p.validateStorageEvent(ctx, evt); reject {
+		return true, reason
+	}
+	return groups.ValidateIncomingEvent(ctx, evt)
 }
 
 func (p Policies) ValidateBatchEvent(ctx context.Context, evt *nostr.Event) (bool, string) {
@@ -76,6 +80,9 @@ func (p Policies) validateRequestFilters(ctx context.Context, ws *dto.WsServer, 
 			return nil, true, reason
 		}
 		if reject, reason := p.checkDirectMessageAccess(filter, ws); reject {
+			return nil, true, reason
+		}
+		if reject, reason := groups.ValidateFilter(ctx, ws.Authed, filter); reject {
 			return nil, true, reason
 		}
 	}

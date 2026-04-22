@@ -24,6 +24,7 @@ type Config struct {
 	Stream           WsStreamConfig           `json:"stream" yaml:"stream" mapstructure:"stream"`
 	EnableNegentropy bool                     `json:"enable_negentropy" yaml:"enable_negentropy" mapstructure:"enable_negentropy"`
 	Store            StoreConfig              `json:"store" yaml:"store" mapstructure:"store"`
+	NIP29            NIP29Config              `json:"nip29" yaml:"nip29" mapstructure:"nip29"`
 }
 type StoreConfig struct {
 	Enabled             bool     `json:"enabled" yaml:"enabled" mapstructure:"enabled"`
@@ -165,6 +166,82 @@ type CronNIP40Config struct {
 	Enabled   bool   `json:"enabled" yaml:"enabled" mapstructure:"enabled"`
 	Schedule  string `json:"schedule" yaml:"schedule" mapstructure:"schedule"`
 	BatchSize int    `json:"batch_size" yaml:"batch_size" mapstructure:"batch_size"`
+}
+
+type NIP29Config struct {
+	Enabled                   bool                   `json:"enabled" yaml:"enabled" mapstructure:"enabled"`
+	RelayScope                string                 `json:"relay_scope" yaml:"relay_scope" mapstructure:"relay_scope"`
+	CacheTTLSeconds           int                    `json:"cache_ttl_seconds" yaml:"cache_ttl_seconds" mapstructure:"cache_ttl_seconds"`
+	MembershipCacheTTLSeconds int                    `json:"membership_cache_ttl_seconds" yaml:"membership_cache_ttl_seconds" mapstructure:"membership_cache_ttl_seconds"`
+	BanCacheTTLSeconds        int                    `json:"ban_cache_ttl_seconds" yaml:"ban_cache_ttl_seconds" mapstructure:"ban_cache_ttl_seconds"`
+	TimelineCacheTTLSeconds   int                    `json:"timeline_cache_ttl_seconds" yaml:"timeline_cache_ttl_seconds" mapstructure:"timeline_cache_ttl_seconds"`
+	GroupCreatorRole          string                 `json:"group_creator_role" yaml:"group_creator_role" mapstructure:"group_creator_role"`
+	DefaultRoles              []NIP29RoleConfig      `json:"default_roles" yaml:"default_roles" mapstructure:"default_roles"`
+	Create                    NIP29CreateConfig      `json:"create" yaml:"create" mapstructure:"create"`
+	Moderation                NIP29ModerationConfig  `json:"moderation" yaml:"moderation" mapstructure:"moderation"`
+	Admission                 NIP29AdmissionConfig   `json:"admission" yaml:"admission" mapstructure:"admission"`
+	Invite                    NIP29InviteConfig      `json:"invite" yaml:"invite" mapstructure:"invite"`
+	PoW                       NIP29PoWConfig         `json:"pow" yaml:"pow" mapstructure:"pow"`
+	Timeline                  NIP29TimelineConfig    `json:"timeline" yaml:"timeline" mapstructure:"timeline"`
+	Advanced                  NIP29AdvancedConfig    `json:"advanced" yaml:"advanced" mapstructure:"advanced"`
+	Permissions               NIP29PermissionToggles `json:"permissions" yaml:"permissions" mapstructure:"permissions"`
+}
+
+type NIP29RoleConfig struct {
+	Name        string   `json:"name" yaml:"name" mapstructure:"name"`
+	Description string   `json:"description" yaml:"description" mapstructure:"description"`
+	Permissions []string `json:"permissions" yaml:"permissions" mapstructure:"permissions"`
+}
+
+type NIP29CreateConfig struct {
+	Enabled            bool `json:"enabled" yaml:"enabled" mapstructure:"enabled"`
+	MaxGroupsPerPubkey int  `json:"max_groups_per_pubkey" yaml:"max_groups_per_pubkey" mapstructure:"max_groups_per_pubkey"`
+}
+
+type NIP29ModerationConfig struct {
+	AllowPrivateGroups      bool `json:"allow_private_groups" yaml:"allow_private_groups" mapstructure:"allow_private_groups"`
+	RequireRecentModeration bool `json:"require_recent_moderation" yaml:"require_recent_moderation" mapstructure:"require_recent_moderation"`
+	RecentWindowSeconds     int  `json:"recent_window_seconds" yaml:"recent_window_seconds" mapstructure:"recent_window_seconds"`
+}
+
+type NIP29AdmissionConfig struct {
+	DefaultClosed             bool `json:"default_closed" yaml:"default_closed" mapstructure:"default_closed"`
+	DefaultPrivate            bool `json:"default_private" yaml:"default_private" mapstructure:"default_private"`
+	DefaultRestricted         bool `json:"default_restricted" yaml:"default_restricted" mapstructure:"default_restricted"`
+	DefaultHidden             bool `json:"default_hidden" yaml:"default_hidden" mapstructure:"default_hidden"`
+	RequireMembershipForWrite bool `json:"require_membership_for_write" yaml:"require_membership_for_write" mapstructure:"require_membership_for_write"`
+	AllowLatePublication      bool `json:"allow_late_publication" yaml:"allow_late_publication" mapstructure:"allow_late_publication"`
+}
+
+type NIP29InviteConfig struct {
+	Enabled           bool `json:"enabled" yaml:"enabled" mapstructure:"enabled"`
+	DefaultMaxUses    int  `json:"default_max_uses" yaml:"default_max_uses" mapstructure:"default_max_uses"`
+	DefaultTTLSeconds int  `json:"default_ttl_seconds" yaml:"default_ttl_seconds" mapstructure:"default_ttl_seconds"`
+	AllowMultiUse     bool `json:"allow_multi_use" yaml:"allow_multi_use" mapstructure:"allow_multi_use"`
+}
+
+type NIP29PoWConfig struct {
+	Enabled                 bool `json:"enabled" yaml:"enabled" mapstructure:"enabled"`
+	DefaultMinDifficulty    int  `json:"default_min_difficulty" yaml:"default_min_difficulty" mapstructure:"default_min_difficulty"`
+	ModerationMinDifficulty int  `json:"moderation_min_difficulty" yaml:"moderation_min_difficulty" mapstructure:"moderation_min_difficulty"`
+}
+
+type NIP29TimelineConfig struct {
+	Enabled              bool `json:"enabled" yaml:"enabled" mapstructure:"enabled"`
+	RequiredOnModeration bool `json:"required_on_moderation" yaml:"required_on_moderation" mapstructure:"required_on_moderation"`
+	MinReferences        int  `json:"min_references" yaml:"min_references" mapstructure:"min_references"`
+	RecentWindow         int  `json:"recent_window" yaml:"recent_window" mapstructure:"recent_window"`
+}
+
+type NIP29AdvancedConfig struct {
+	EmitMemberListEvents  bool `json:"emit_member_list_events" yaml:"emit_member_list_events" mapstructure:"emit_member_list_events"`
+	EmitRoleEvents        bool `json:"emit_role_events" yaml:"emit_role_events" mapstructure:"emit_role_events"`
+	CacheMembershipLookup bool `json:"cache_membership_lookup" yaml:"cache_membership_lookup" mapstructure:"cache_membership_lookup"`
+	CacheGroupMetadata    bool `json:"cache_group_metadata" yaml:"cache_group_metadata" mapstructure:"cache_group_metadata"`
+}
+
+type NIP29PermissionToggles struct {
+	CreateInvite bool `json:"create_invite" yaml:"create_invite" mapstructure:"create_invite"`
 }
 
 func (cfg *RelayInformationDocument) ToJson() (data []byte, err error) {

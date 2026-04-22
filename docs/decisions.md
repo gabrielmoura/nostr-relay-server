@@ -978,3 +978,43 @@ export function parseEventTags(event: RawEvent): ParsedEvent {
 - ✅ Single source of truth for transformations
 - ✅ Easier to test parsing in isolation
 - ⚠️ Need to keep parsers in sync with backend changes
+
+---
+
+## ADR-024: Optional NIP-29 Groups Module
+
+**Status:** Proposed  
+**Date:** 2026-04-22
+
+### Context
+
+The relay already stores generic Nostr events and exposes a shared policy/ingestion pipeline. The goal is to add NIP-29 group support without rewriting the relay core, while keeping startup, existing event flow and deployment topology stable when the feature is disabled.
+
+The live PostgreSQL database already contains draft `nip29_*` tables, but the repository schema and runtime code do not currently wire them into production behavior.
+
+### Decision
+
+Implement NIP-29 as an **optional module** with explicit configuration and incremental integration points:
+
+1. **Configuration-first enablement**: no group logic runs unless `nip29.enabled=true`
+2. **Reuse current hot paths**: keep `event` as the source of stored group content; add NIP-29 state tables for membership, roles, bans, invites and policy overrides
+3. **Minimal startup wiring**: initialize the module in `cmd/server.go` after DB/Redis setup and before handlers start serving traffic
+4. **Policy integration**: extend `internal/policies` with group-aware EVENT/REQ checks instead of branching logic in handlers
+5. **Ingestion side effects**: update group state and emit relay-generated metadata/admin/member/role events after accepted writes
+6. **Targeted Redis use**: cache only repeated hot lookups (membership, bans, invite codes, recent timeline references, metadata)
+
+### Reasons
+
+1. **Compatibility**: disabled mode must behave like the current relay
+2. **Safety**: incremental integration keeps rollback surface small
+3. **Performance**: fast membership/ban checks are needed on write and read hot paths
+4. **Observability**: group metrics should integrate into the existing Prometheus surface
+5. **Pragmatism**: the codebase already uses package-level initialization and shared singletons, so the groups module should align with that pattern instead of forcing a large DI migration now
+
+### Consequences
+
+- ✅ NIP-29 can be deployed per environment without forking the relay
+- ✅ Existing event storage/query model remains intact
+- ✅ Redis stays optional and value-oriented
+- ⚠️ Group state now exists in both event history and relational tables and must stay synchronized carefully
+- ⚠️ Relay-generated metadata events require a configured relay private key when the module is enabled

@@ -15,6 +15,7 @@ import (
 	"github.com/gabrielmoura/nostr-relay-server/infra/stream"
 	"github.com/gabrielmoura/nostr-relay-server/internal/bootstrap"
 	"github.com/gabrielmoura/nostr-relay-server/internal/db"
+	"github.com/gabrielmoura/nostr-relay-server/internal/groups"
 	policies2 "github.com/gabrielmoura/nostr-relay-server/internal/policies"
 	"github.com/gabrielmoura/nostr-relay-server/pkg/nostrpool"
 	"github.com/spf13/cobra"
@@ -73,6 +74,9 @@ func runServer(cmd *cobra.Command, args []string) {
 		signal.Notify(stopChan, os.Interrupt, syscall.SIGTERM)
 
 		metrics.RegisterMetrics()
+		if err := groups.Init(db.DbQueries); err != nil {
+			log.Logger.Fatal("Erro ao inicializar NIP-29", zap.Error(err))
+		}
 		policies2.Init()
 
 		// Initialize and start batch ingestion

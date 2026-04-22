@@ -330,6 +330,19 @@ Client WebSocket
 - `infra/ingestion` reuses the same policy package before persistence
 - `infra/stream` uses dedicated forwarding rules instead of handler-driven checks
 
+## Optional NIP-29 Groups
+
+- NIP-29 must be an opt-in module that does not change relay startup or baseline EVENT/REQ behavior when disabled.
+- The implementation should preserve the current transport and ingestion flow, adding group-aware checks only when an event/filter targets a group via `h`/`d` tags or NIP-29 kinds.
+- The recommended integration points are:
+  - startup wiring in `cmd/server.go`
+  - event/request validation in `internal/policies`
+  - persistence adapters in `infra/db`
+  - post-persist side effects in `infra/ingestion`
+  - relay-generated metadata emission for `39000`-`39003`
+- Group chat content continues to live in the existing `event` table; NIP-29-specific tables store authoritative group state, permissions, invites and moderation support data.
+- Redis should be used only on the hot path where PostgreSQL round-trips would be repeated frequently (membership lookup, ban lookup, invite redemption, recent timeline references, and cacheable group metadata).
+
 ## Transport Separation
 
 - HTTP handlers own route binding, request decoding, status codes, and HTTP payloads

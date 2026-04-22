@@ -137,6 +137,52 @@ store:
   allow_adult_content: false
   allow_violent_content: false
   names: []
+
+nip29:
+  enabled: false
+  relay_scope: ""
+  cache_ttl_seconds: 60
+  membership_cache_ttl_seconds: 30
+  ban_cache_ttl_seconds: 30
+  timeline_cache_ttl_seconds: 300
+  group_creator_role: admin
+  default_roles:
+    - name: admin
+      description: Full group administration
+    - name: moderator
+      description: Moderation without ownership
+  create:
+    enabled: true
+    max_groups_per_pubkey: 10
+  moderation:
+    allow_private_groups: true
+    require_recent_moderation: true
+    recent_window_seconds: 60
+  admission:
+    default_closed: false
+    default_private: false
+    default_restricted: false
+    default_hidden: false
+    require_membership_for_write: true
+  invite:
+    enabled: false
+    default_max_uses: 1
+    default_ttl_seconds: 86400
+    allow_multi_use: false
+  pow:
+    enabled: false
+    default_min_difficulty: 0
+    moderation_min_difficulty: 0
+  timeline:
+    enabled: false
+    required_on_moderation: false
+    min_references: 0
+    recent_window: 50
+  advanced:
+    emit_member_list_events: true
+    emit_role_events: true
+    cache_membership_lookup: true
+    cache_group_metadata: true
 ```
 
 ## Key-by-Key Reference
@@ -336,6 +382,80 @@ Global switch:
 | `store.allow_adult_content` | bool | zero value (`false`) | Content policy toggle. |
 | `store.allow_violent_content` | bool | zero value (`false`) | Content policy toggle. |
 | `store.names` | string[] | zero value (`[]`) | Custom names/tags. |
+
+### `nip29`
+
+`nip29` is fully optional. When `nip29.enabled=false`, the relay must behave exactly as today.
+
+| Key | Type | Default | Description |
+|---|---|---:|---|
+| `nip29.enabled` | bool | `false` | Enables the optional NIP-29 groups module. |
+| `nip29.relay_scope` | string | `""` | Explicit logical relay scope for group state; defaults to canonical relay identity when empty. |
+| `nip29.cache_ttl_seconds` | int | `60` | Default metadata/state cache TTL. |
+| `nip29.membership_cache_ttl_seconds` | int | `30` | Membership lookup cache TTL. |
+| `nip29.ban_cache_ttl_seconds` | int | `30` | Group ban lookup cache TTL. |
+| `nip29.timeline_cache_ttl_seconds` | int | `300` | TTL for recent timeline references in Redis. |
+| `nip29.group_creator_role` | string | `admin` | Role granted to group creator. |
+
+`nip29.create`:
+
+| Key | Type | Default | Description |
+|---|---|---:|---|
+| `enabled` | bool | `true` | Allows relay-side group creation. |
+| `max_groups_per_pubkey` | int | `10` | Hard limit for groups created per pubkey. |
+
+`nip29.moderation`:
+
+| Key | Type | Default | Description |
+|---|---|---:|---|
+| `allow_private_groups` | bool | `true` | Allows `private` groups to be created/edited. |
+| `require_recent_moderation` | bool | `true` | Reject stale moderation actions. |
+| `recent_window_seconds` | int | `60` | Recency window for moderation actions. |
+
+`nip29.admission`:
+
+| Key | Type | Default | Description |
+|---|---|---:|---|
+| `default_closed` | bool | `false` | Default join policy for new groups. |
+| `default_private` | bool | `false` | Default read policy for new groups. |
+| `default_restricted` | bool | `false` | Default write policy for new groups. |
+| `default_hidden` | bool | `false` | Default metadata visibility policy. |
+| `require_membership_for_write` | bool | `true` | Default write restriction policy. |
+
+`nip29.invite`:
+
+| Key | Type | Default | Description |
+|---|---|---:|---|
+| `enabled` | bool | `false` | Enables invite-code flow for `kind:9009` / `9021 code`. |
+| `default_max_uses` | int | `1` | Default invite use count. |
+| `default_ttl_seconds` | int | `86400` | Default invite expiration. |
+| `allow_multi_use` | bool | `false` | Allows multi-use invites when explicitly requested. |
+
+`nip29.pow`:
+
+| Key | Type | Default | Description |
+|---|---|---:|---|
+| `enabled` | bool | `false` | Enables NIP-13 PoW checks for groups. |
+| `default_min_difficulty` | int | `0` | Default minimum PoW difficulty for group writes. |
+| `moderation_min_difficulty` | int | `0` | Optional stricter PoW for moderation actions. |
+
+`nip29.timeline`:
+
+| Key | Type | Default | Description |
+|---|---|---:|---|
+| `enabled` | bool | `false` | Enables timeline reference enforcement. |
+| `required_on_moderation` | bool | `false` | Requires `previous` on moderation actions. |
+| `min_references` | int | `0` | Minimum accepted `previous` references. |
+| `recent_window` | int | `50` | Number of recent group events tracked for validation. |
+
+`nip29.advanced`:
+
+| Key | Type | Default | Description |
+|---|---|---:|---|
+| `emit_member_list_events` | bool | `true` | Emit `39002` events after membership changes. |
+| `emit_role_events` | bool | `true` | Emit `39003` events after role changes. |
+| `cache_membership_lookup` | bool | `true` | Use Redis for membership lookup when available. |
+| `cache_group_metadata` | bool | `true` | Use Redis for group metadata caching when available. |
 
 ## Production Example (Strict Retention + Report Fetch)
 

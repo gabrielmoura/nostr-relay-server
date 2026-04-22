@@ -104,6 +104,96 @@ Stores metadata for uploaded files (NIP-96).
 - `idx_objects_mime_type` - B-tree on `mime_type`
 - `idx_objects_blocked` - B-tree on `blocked`
 
+### 5. `nip29_groups` - Group State
+
+Authoritative state for NIP-29 groups when the optional groups module is enabled.
+
+Recommended shape:
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `relay` | TEXT | PK component | Relay scope (`canonical_url` or normalized relay identity) |
+| `group_id` | TEXT | PK component | NIP-29 group id (`h`/`d` tag value) |
+| `name` | VARCHAR | NOT NULL | Display name |
+| `picture` | TEXT | NULL | Group picture |
+| `about` | TEXT | NULL | Group description |
+| `private` | BOOLEAN | NOT NULL DEFAULT FALSE | Read restricted to members |
+| `closed` | BOOLEAN | NOT NULL DEFAULT FALSE | Join requests ignored unless invite policy allows |
+| `restricted` | BOOLEAN | NOT NULL DEFAULT FALSE | Write restricted to members |
+| `hidden` | BOOLEAN | NOT NULL DEFAULT FALSE | Metadata hidden from non-members |
+| `require_moderation_timeline_ref` | BOOLEAN | NOT NULL DEFAULT FALSE | Enforce `previous` references on moderation events |
+| `min_pow` | INTEGER | NOT NULL DEFAULT 0 | Minimum PoW difficulty override |
+| `last_metadata_update` | TIMESTAMPTZ | NOT NULL | Last 39000 refresh timestamp |
+| `last_admins_update` | TIMESTAMPTZ | NOT NULL | Last 39001 refresh timestamp |
+| `last_members_update` | TIMESTAMPTZ | NOT NULL | Last 39002 refresh timestamp |
+| `last_roles_update` | TIMESTAMPTZ | NOT NULL | Last 39003 refresh timestamp |
+
+Suggested indexes:
+
+- `idx_groups_name` on `(name)`
+- `idx_groups_last_metadata_update` on `(last_metadata_update)`
+- `idx_groups_last_members_update` on `(last_members_update)`
+
+### 6. `nip29_roles` / `nip29_group_roles` - Supported Roles
+
+These tables separate role catalog from group-to-role assignment.
+
+- `nip29_roles` stores stable role definitions (`role_id`, `name`, `description`)
+- `nip29_group_roles` stores which roles are valid for a group
+
+This avoids repeating descriptions on every member row and keeps relay policy changes local.
+
+### 7. `nip29_group_members` - Membership and Role Assignment
+
+Membership rows should support fast checks by `(relay, group_id, user_id)` and allow a member to have multiple roles.
+
+Operational recommendation:
+
+- use one row per `(relay, group_id, user_id, role_id)` for role assignment
+- avoid using the `banned` flag as the primary ban mechanism; keep bans in a separate table for clean semantics and simpler indexes
+- add an index on `(relay, group_id, user_id)` for hot membership lookups
+
+### 8. `nip29_group_bans` - Explicit Ban State
+
+Recommended addition for production clarity.
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `relay` | TEXT | PK component | Relay scope |
+| `group_id` | TEXT | PK component | Group id |
+| `user_id` | VARCHAR(64) | PK component | Banned pubkey |
+| `reason` | TEXT | NULL | Optional audit reason |
+| `created_by` | VARCHAR(64) | NULL | Moderator/admin pubkey |
+| `created_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() | Ban timestamp |
+
+Suggested indexes:
+
+- PK on `(relay, group_id, user_id)`
+- optional index on `(relay, user_id)` for admin tooling
+
+### 9. `nip29_group_invites` - Invite Codes (Optional)
+
+Recommended for `kind:9009` support.
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `relay` | TEXT | PK component | Relay scope |
+| `group_id` | TEXT | PK component | Group id |
+| `code` | TEXT | PK component | Invite code |
+| `created_by` | VARCHAR(64) | NOT NULL | Creator pubkey |
+| `max_uses` | INTEGER | NOT NULL DEFAULT 1 | Allowed uses |
+| `uses` | INTEGER | NOT NULL DEFAULT 0 | Consumed uses |
+| `expires_at` | TIMESTAMPTZ | NULL | Optional expiration |
+| `revoked_at` | TIMESTAMPTZ | NULL | Revocation marker |
+| `created_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() | Creation timestamp |
+| `last_used_at` | TIMESTAMPTZ | NULL | Last redemption timestamp |
+
+Suggested indexes:
+
+- PK on `(relay, group_id, code)`
+- `idx_group_invites_expires_at` on `(expires_at)` for cleanup
+- `idx_group_invites_active_lookup` on `(relay, group_id, code, revoked_at, expires_at)` for validation
+
 ## Functions
 
 ### `tags_to_tagvalues(JSONB) -> TEXT[]`
@@ -182,6 +272,19 @@ Same filters as event queries but returns `COUNT(*)`.
 | `sub:filter:{hash}` | STRING | 5m | Filter hash | `"hash"` |
 | `ws:last_seen:{ws_id}` | STRING | 2m | WebSocket heartbeat timestamp | `1710000000` |
 | `query:meta:{hash}` | HASH | 30s | Query cache metadata | `{hits,last_access}` |
+| `nip29:group:{relay}:{group_id}` | HASH | configurable | Cached group metadata/policy |
+| `nip29:member:{relay}:{group_id}:{pubkey}` | STRING | configurable | Membership hit cache |
+| `nip29:ban:{relay}:{group_id}:{pubkey}` | STRING | configurable | Ban hit cache |
+| `nip29:invite:{relay}:{group_id}:{code}` | HASH | until expiry | Invite validation and redemption state |
+| `nip29:timeline:{relay}:{group_id}` | LIST | short TTL | Rolling recent event ids/prefixes for `previous` checks |
+
+### Redis Guidance for NIP-29
+
+- Use Redis as a **hot-path accelerator**, not as the source of truth.
+- PostgreSQL remains authoritative for group metadata, memberships, bans and invite audit.
+- Membership and ban lookups are good cache targets because they are checked repeatedly on EVENT/REQ hot paths.
+- Invite redemption should use an atomic Redis path only when it meaningfully reduces DB contention; otherwise prefer PostgreSQL row locking.
+- Timeline references are a strong Redis fit because they are short-lived, bounded and frequently rewritten.
 
 ### Pub/Sub Channels
 

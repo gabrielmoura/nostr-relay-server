@@ -11,6 +11,7 @@ import (
 	"github.com/gabrielmoura/nostr-relay-server/infra/stream"
 	"github.com/gabrielmoura/nostr-relay-server/internal/db"
 	"github.com/gabrielmoura/nostr-relay-server/internal/dto"
+	"github.com/gabrielmoura/nostr-relay-server/internal/groups"
 	json "github.com/gabrielmoura/nostr-relay-server/internal/jsonx"
 	policies2 "github.com/gabrielmoura/nostr-relay-server/internal/policies"
 	"github.com/nbd-wtf/go-nostr"
@@ -52,7 +53,10 @@ func DoREQ(ws *dto.WsServer, data dto.Data) string {
 
 	for _, filter := range normalizedFilters {
 
-		events, err := db.DbQueries.QueryEventsChan(ws.Ctx, filter)
+		events, handled, err := groups.QueryEvents(ws.Ctx, ws.Authed, filter, db.DbQueries.QueryEventsChan)
+		if !handled {
+			events, err = db.DbQueries.QueryEventsChan(ws.Ctx, filter)
+		}
 		if err != nil {
 			log.Logger.Error("store", zap.Error(err))
 			continue

@@ -16,6 +16,7 @@ import (
 	"github.com/gabrielmoura/nostr-relay-server/infra/pubsub"
 	"github.com/gabrielmoura/nostr-relay-server/infra/stream"
 	"github.com/gabrielmoura/nostr-relay-server/internal/db"
+	"github.com/gabrielmoura/nostr-relay-server/internal/groups"
 	json "github.com/gabrielmoura/nostr-relay-server/internal/jsonx"
 	policies "github.com/gabrielmoura/nostr-relay-server/internal/policies"
 	"github.com/nbd-wtf/go-nostr"
@@ -270,6 +271,13 @@ func insertBatch(ctx context.Context, events []*nostr.Event) error {
 		_ = cache.SetEvent(evt.ID, string(serialized))
 		metrics.NostrKindEventCounter.WithLabelValues(metrics.GetKindName(evt.Kind)).Inc()
 		metrics.NostrUserEventCounter.WithLabelValues(evt.PubKey).Inc()
+		if err := groups.AfterStoreEvent(ctx, evt); err != nil {
+			log.Logger.Warn("nip29 post-persist handling failed",
+				zap.String("event_id", evt.ID),
+				zap.Int("kind", evt.Kind),
+				zap.Error(err),
+			)
+		}
 	}
 
 	return nil

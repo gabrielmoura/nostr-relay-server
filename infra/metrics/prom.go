@@ -366,6 +366,59 @@ var (
 			Buckets: prometheus.DefBuckets,
 		},
 	)
+	NostrNIP29GroupsCreatedTotal = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "nostr_nip29_groups_created_total",
+			Help: "Total NIP-29 groups created by this relay.",
+		},
+	)
+	NostrNIP29GroupsActive = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "nostr_nip29_groups_active",
+			Help: "Current number of active NIP-29 groups known to the relay.",
+		},
+	)
+	NostrNIP29EventsReceivedTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "nostr_nip29_events_received_total",
+			Help: "Total NIP-29 relevant events received by kind.",
+		},
+		[]string{"kind"},
+	)
+	NostrNIP29EventsRejectedTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "nostr_nip29_events_rejected_total",
+			Help: "Total NIP-29 event rejections by reason.",
+		},
+		[]string{"reason"},
+	)
+	NostrNIP29InvitesGeneratedTotal = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "nostr_nip29_invites_generated_total",
+			Help: "Total invite codes generated for NIP-29 groups.",
+		},
+	)
+	NostrNIP29InvitesConsumedTotal = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "nostr_nip29_invites_consumed_total",
+			Help: "Total invite codes consumed for NIP-29 groups.",
+		},
+	)
+	NostrNIP29ProcessingSeconds = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "nostr_nip29_processing_seconds",
+			Help:    "Latency of NIP-29 processing paths by operation.",
+			Buckets: prometheus.DefBuckets,
+		},
+		[]string{"operation"},
+	)
+	NostrNIP29CacheTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "nostr_nip29_cache_total",
+			Help: "NIP-29 cache hits and misses by cache name.",
+		},
+		[]string{"cache", "result"},
+	)
 )
 
 func RegisterMetrics() {
@@ -423,6 +476,14 @@ func RegisterMetrics() {
 		NostrCronNIP40RunsTotal,
 		NostrCronNIP40DeletedEventsTotal,
 		NostrCronNIP40DurationSeconds,
+		NostrNIP29GroupsCreatedTotal,
+		NostrNIP29GroupsActive,
+		NostrNIP29EventsReceivedTotal,
+		NostrNIP29EventsRejectedTotal,
+		NostrNIP29InvitesGeneratedTotal,
+		NostrNIP29InvitesConsumedTotal,
+		NostrNIP29ProcessingSeconds,
+		NostrNIP29CacheTotal,
 	)
 
 }
