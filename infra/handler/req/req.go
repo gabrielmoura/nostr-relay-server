@@ -51,6 +51,15 @@ func DoREQ(ws *dto.WsServer, data dto.Data) string {
 		return ""
 	}
 
+	maxSubscriptions := config.Cfg.RelayInformation.MaxSubscriptions()
+	if maxSubscriptions > 0 && !listener.HasSubscription(ws, id) && listener.SubscriptionCount(ws) >= maxSubscriptions {
+		ws.ChanSender <- nostr.ClosedEnvelope{
+			Reason:         "rate-limited: max subscriptions reached",
+			SubscriptionID: id,
+		}
+		return ""
+	}
+
 	for _, filter := range normalizedFilters {
 
 		events, handled, err := groups.QueryEvents(ws.Ctx, ws.Authed, filter, db.DbQueries.QueryEventsChan)

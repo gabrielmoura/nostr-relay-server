@@ -41,13 +41,40 @@ relay_information:
   url: http://localhost:9090
   name: Nostr Relay Server
   description: A Nostr Relay Server
+  banner: ""
   pub_key: ""
+  self: ""
   priv_key: ""
   contact: ""
   supported_nips: [11, 1, 2, 4, 25]
   software: https://github.com/gabrielmoura/nostr-relay-server
   version: 0.1.0
   canonical_url: ws://localhost:9090
+  terms_of_service: ""
+  limitation:
+    max_message_length: null
+    max_subscriptions: null
+    max_filters: null
+    max_limit: null
+    default_limit: null
+    max_subid_length: null
+    max_event_tags: null
+    max_content_length: null
+    min_pow_difficulty: null
+    created_at_lower_limit: null
+    created_at_upper_limit: null
+    auth_required: null
+    payment_required: null
+    restricted_writes: null
+  relay_countries: []
+  language_tags: []
+  tags: []
+  posting_policy: ""
+  payments_url: ""
+  fees:
+    admission: []
+    subscription: []
+    publication: []
   icon: http://localhost:9090/nostr.png
 
 relay:
@@ -245,14 +272,51 @@ Authentication modes:
 | `relay_information.url` | string | `http://localhost:<port>` | Public relay info URL. |
 | `relay_information.name` | string | `Nostr Relay Server` | Display name. |
 | `relay_information.description` | string | `A Nostr Relay Server` | Description for NIP-11. |
+| `relay_information.banner` | string | `""` | Optional banner URL for NIP-11. |
 | `relay_information.pub_key` | string | `""` | Relay pubkey. |
+| `relay_information.self` | string | `""` | Optional relay identity pubkey for NIP-11 `self`. |
 | `relay_information.priv_key` | string | `""` | Relay private key (keep secret). |
 | `relay_information.contact` | string | `""` | Contact metadata. |
 | `relay_information.supported_nips` | int[] | `[11,1,2,4,25]` | Advertised supported NIPs. |
 | `relay_information.software` | string | repo URL | Software URL. |
 | `relay_information.version` | string | `0.1.0` | Version string. |
 | `relay_information.canonical_url` | string | `ws://localhost:<port>/relay` | Canonical websocket URL. |
+| `relay_information.terms_of_service` | string | `""` | Optional terms of service URL exposed in NIP-11. |
+| `relay_information.relay_countries` | string[] | `[]` | Optional country/region tags exposed in NIP-11. |
+| `relay_information.language_tags` | string[] | `[]` | Optional language tags exposed in NIP-11. |
+| `relay_information.tags` | string[] | `[]` | Optional topical tags exposed in NIP-11. |
+| `relay_information.posting_policy` | string | `""` | Optional posting policy URL/text reference exposed in NIP-11. |
+| `relay_information.payments_url` | string | `""` | Optional payments page for pay-to-relay setups. |
 | `relay_information.icon` | string | `http://localhost:<port>/nostr.png` | Relay icon URL. |
+
+`relay_information.limitation`:
+
+All fields are optional and are only emitted in the public NIP-11 document when explicitly configured.
+
+| Key | Type | Default | Description |
+|---|---|---:|---|
+| `max_message_length` | int | unset | Advertised maximum inbound websocket frame/message size. |
+| `max_subscriptions` | int | unset | Maximum active subscriptions per websocket connection; enforced by the relay when configured. |
+| `max_filters` | int | unset | Optional advertised per-request filter count limit. |
+| `max_limit` | int | unset | Optional advertised filter `limit` clamp. |
+| `default_limit` | int | unset | Optional advertised default limit when filter omits `limit`. |
+| `max_subid_length` | int | unset | Optional advertised maximum subscription id length. |
+| `max_event_tags` | int | unset | Optional advertised maximum tag count per event. |
+| `max_content_length` | int | unset | Optional advertised maximum content length. |
+| `min_pow_difficulty` | int | unset | Optional advertised PoW requirement. |
+| `created_at_lower_limit` | int | unset | Optional advertised lower `created_at` bound. |
+| `created_at_upper_limit` | int | unset | Optional advertised upper `created_at` bound. |
+| `auth_required` | bool | unset | Optional advertised auth requirement. |
+| `payment_required` | bool | unset | Optional advertised payment requirement. |
+| `restricted_writes` | bool | unset | Optional advertised restricted writes flag. |
+
+`relay_information.fees`:
+
+Supports the standard NIP-11 fee groups:
+
+- `admission`
+- `subscription`
+- `publication`
 
 ### `relay`
 

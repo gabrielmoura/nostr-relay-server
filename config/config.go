@@ -167,6 +167,20 @@ func setDefaults(export bool) {
 
 	if export {
 		viper.SetDefault("db.postgres_uri", "postgres://user:password@localhost:5432/dbname")
+		viper.SetDefault("relay_information.limitation.max_message_length", 0)
+		viper.SetDefault("relay_information.limitation.max_subscriptions", 0)
+		viper.SetDefault("relay_information.limitation.max_filters", 0)
+		viper.SetDefault("relay_information.limitation.max_limit", 0)
+		viper.SetDefault("relay_information.limitation.default_limit", 0)
+		viper.SetDefault("relay_information.limitation.max_subid_length", 0)
+		viper.SetDefault("relay_information.limitation.max_event_tags", 0)
+		viper.SetDefault("relay_information.limitation.max_content_length", 0)
+		viper.SetDefault("relay_information.limitation.min_pow_difficulty", 0)
+		viper.SetDefault("relay_information.limitation.created_at_lower_limit", 0)
+		viper.SetDefault("relay_information.limitation.created_at_upper_limit", 0)
+		viper.SetDefault("relay_information.limitation.auth_required", false)
+		viper.SetDefault("relay_information.limitation.payment_required", false)
+		viper.SetDefault("relay_information.limitation.restricted_writes", false)
 	}
 }
 

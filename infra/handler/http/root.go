@@ -1,6 +1,7 @@
 package http
 
 import (
+	"strings"
 	"time"
 
 	"github.com/gabrielmoura/nostr-relay-server/config"
@@ -14,18 +15,25 @@ import (
 
 func TermsOfService(cfg *config.Config) fiber.Handler {
 	return func(c *fiber.Ctx) error {
+		if strings.TrimSpace(cfg.RelayInformation.TermsOfService) != "" {
+			return c.Redirect(cfg.RelayInformation.TermsOfService)
+		}
 		return c.Redirect(cfg.Store.APIPath + "/terms-of-service")
 	}
 }
 
 func NIP96(cfg *config.Config) fiber.Handler {
 	return func(c *fiber.Ctx) error {
+		tosURL := cfg.RelayInformation.URL + "/terms-of-service"
+		if strings.TrimSpace(cfg.RelayInformation.TermsOfService) != "" {
+			tosURL = cfg.RelayInformation.TermsOfService
+		}
 		return c.JSON(config.FileServerConfig{
 			APIURL:        cfg.Store.APIPath,
 			DownloadURL:   cfg.Store.MediaPath,
 			ContentTypes:  cfg.Store.AcceptedMimetypes,
 			SupportedNIPS: []int{1, 4, 5, 78, 94, 96, 98},
-			TOSURL:        cfg.RelayInformation.URL + "/terms-of-service",
+			TOSURL:        tosURL,
 		})
 	}
 }
@@ -65,8 +73,8 @@ func NostrJSON(cfg *config.Config) fiber.Handler {
 
 func RootUpgrade(cfg *config.Config) fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		if c.Get("Accept") == "application/nostr+json" {
-			return c.JSON(cfg.RelayInformation)
+		if strings.Contains(c.Get("Accept"), "application/nostr+json") {
+			return c.JSON(cfg.RelayInformation.PublicNIP11())
 		}
 		if websocket.IsWebSocketUpgrade(c) {
 			now := time.Now().UTC()

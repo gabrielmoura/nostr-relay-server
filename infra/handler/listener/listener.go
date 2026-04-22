@@ -292,6 +292,31 @@ func SetListener(id string, ws *dto.WsServer, filters nostr.Filters) {
 	}
 }
 
+func SubscriptionCount(ws *dto.WsServer) int {
+	localListenersMutex.RLock()
+	defer localListenersMutex.RUnlock()
+
+	return subscriptionCountLocked(ws)
+}
+
+func HasSubscription(ws *dto.WsServer, id string) bool {
+	localListenersMutex.RLock()
+	defer localListenersMutex.RUnlock()
+
+	if subs, ok := localListeners[ws]; ok {
+		_, exists := subs[id]
+		return exists
+	}
+	return false
+}
+
+func subscriptionCountLocked(ws *dto.WsServer) int {
+	if subs, ok := localListeners[ws]; ok {
+		return len(subs)
+	}
+	return 0
+}
+
 func RemoveListenerId(ws *dto.WsServer, id string) {
 	localListenersMutex.Lock()
 	defer localListenersMutex.Unlock()
