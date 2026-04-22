@@ -36,6 +36,7 @@ func DoCOUNT(ws *dto.WsServer, data dto.Data) string {
 
 	normalized, reject, reason := policies.P.ValidateCount(ws.Ctx, ws, filters)
 	if reject {
+		metrics.NostrSecurityReqRejectedTotal.WithLabelValues("count").Inc()
 		return reason
 	}
 

@@ -10,10 +10,12 @@ import (
 
 	"github.com/gabrielmoura/nostr-relay-server/config"
 	"github.com/gabrielmoura/nostr-relay-server/infra/cache"
+	"github.com/gabrielmoura/nostr-relay-server/infra/metrics"
 	"github.com/gabrielmoura/nostr-relay-server/internal/db"
 	"github.com/gabrielmoura/nostr-relay-server/internal/dto"
 	"github.com/gabrielmoura/nostr-relay-server/internal/groups"
 	json "github.com/gabrielmoura/nostr-relay-server/internal/jsonx"
+	"github.com/gabrielmoura/nostr-relay-server/internal/security"
 	"github.com/minio/sha256-simd"
 	"github.com/nbd-wtf/go-nostr"
 	"github.com/nbd-wtf/go-nostr/nip13"
@@ -60,6 +62,14 @@ func (p Policies) validateRequestFilters(ctx context.Context, ws *dto.WsServer, 
 	for _, filter := range filters {
 		normalized = append(normalized, p.normalizeFilter(filter))
 	}
+	if security.S != nil {
+		var reject bool
+		var reason string
+		normalized, reject, reason = security.S.ValidateRequest(ctx, ws, normalized)
+		if reject {
+			return nil, true, reason
+		}
+	}
 
 	if reject, reason := p.rejectReqBannedUser(ctx, ws); reject {
 		return nil, true, reason
@@ -91,6 +101,9 @@ func (p Policies) validateRequestFilters(ctx context.Context, ws *dto.WsServer, 
 }
 
 func (p Policies) normalizeFilter(filter nostr.Filter) nostr.Filter {
+	if security.S != nil {
+		return security.S.NormalizeFilter(filter)
+	}
 	if filter.Limit == 0 {
 		filter.Limit = p.Config.Relay.FilterLimit
 	}
@@ -106,24 +119,37 @@ func (p Policies) validateEventIdentity(evt *nostr.Event) (bool, string) {
 	}
 	hash := sha256.Sum256(evt.Serialize())
 	if id := hex.EncodeToString(hash[:]); id != evt.ID {
-		return true, "invalid: event id is computed incorrectly"
+		metrics.NostrSecuritySignatureChecksTotal.WithLabelValues("invalid_id").Inc()
+		return true, security.Reason(security.PrefixInvalid, "event id is computed incorrectly")
 	}
 	if ok, err := evt.CheckSignature(); err != nil {
-		return true, "error: failed to verify signature"
+		metrics.NostrRelayEventSignatureFailures.Inc()
+		metrics.NostrSecuritySignatureChecksTotal.WithLabelValues("error").Inc()
+		return true, security.Reason(security.PrefixInvalid, "failed to verify signature")
 	} else if !ok {
-		return true, "invalid: signature is invalid"
+		metrics.NostrRelayEventSignatureFailures.Inc()
+		metrics.NostrSecuritySignatureChecksTotal.WithLabelValues("invalid").Inc()
+		return true, security.Reason(security.PrefixInvalid, "signature is invalid")
 	}
+	metrics.NostrSecuritySignatureChecksTotal.WithLabelValues("valid").Inc()
 	return false, ""
 }
 
 func (p Policies) validateStorageEvent(ctx context.Context, evt *nostr.Event) (bool, string) {
-	if reject, reason := p.rejectEventBannedUser(ctx, evt); reject {
-		return true, reason
-	}
-
 	encoded, _ := json.Marshal(evt)
 	if len(encoded) > p.Config.Relay.MaxEventSize {
-		return true, "very big event"
+		return true, security.Reason(security.PrefixRestricted, "event exceeds configured size")
+	}
+	if security.S != nil {
+		if reject, reason := security.S.ValidateEventPayload(ctx, evt); reject {
+			return true, reason
+		}
+	}
+	if security.BypassFromContext(ctx).PublicationRestrictionsBypassed() {
+		return false, ""
+	}
+	if reject, reason := p.rejectEventBannedUser(ctx, evt); reject {
+		return true, reason
 	}
 	if reject, reason := p.rejectExpiredEvent(evt); reject {
 		return true, reason
@@ -145,14 +171,14 @@ func (p Policies) validateStorageEvent(ctx context.Context, evt *nostr.Event) (b
 
 func (p Policies) rejectEventBannedUser(ctx context.Context, evt *nostr.Event) (bool, string) {
 	if evt.PubKey == "" {
-		return true, "invalid: missing public key"
+		return true, security.Reason(security.PrefixInvalid, "missing public key")
 	}
 	reason, exists, err := cache.WrapGetBanned(db.DbQueries.GetUserBannedByKey)(ctx, evt.PubKey)
 	if err != nil {
 		return true, fmt.Sprintf("error: %s", err.Error())
 	}
 	if exists {
-		return true, fmt.Sprintf("banned: %s", reason)
+		return true, security.Reason(security.PrefixBlocked, reason)
 	}
 	return false, ""
 }
@@ -166,7 +192,7 @@ func (p Policies) rejectReqBannedUser(ctx context.Context, ws *dto.WsServer) (bo
 		return true, fmt.Sprintf("error: %s", err.Error())
 	}
 	if exists {
-		return true, fmt.Sprintf("banned: %s", reason)
+		return true, security.Reason(security.PrefixBlocked, reason)
 	}
 	return false, ""
 }
@@ -178,10 +204,10 @@ func (p Policies) rejectExpiredEvent(event *nostr.Event) (bool, string) {
 		}
 		expiration, err := strconv.ParseInt(tag[1], 10, 64)
 		if err != nil {
-			return true, "invalid expiration tag"
+			return true, security.Reason(security.PrefixInvalid, "invalid expiration tag")
 		}
 		if expiration < time.Now().Unix() {
-			return true, "expired event"
+			return true, security.Reason(security.PrefixInvalid, "event has already expired")
 		}
 		break
 	}
@@ -193,7 +219,7 @@ func (p Policies) checkMinimumPow(evt *nostr.Event) (bool, string) {
 		return false, ""
 	}
 	if err := nip13.Check(evt.ID, p.Config.Relay.MinimumPOWLimit); err != nil {
-		return true, "blocked: minimum POW not obtained"
+		return true, security.Reason(security.PrefixPoW, "minimum proof of work not satisfied")
 	}
 	return false, ""
 }
@@ -201,7 +227,7 @@ func (p Policies) checkMinimumPow(evt *nostr.Event) (bool, string) {
 func (p Policies) preventLargeTags(event *nostr.Event) (bool, string) {
 	for _, tag := range event.Tags {
 		if len(tag) > 1 && len(tag[0]) == 1 && len(tag[1]) > p.Config.Relay.MaxTagValueLength {
-			return true, "event contains too large tags"
+			return true, security.Reason(security.PrefixRestricted, "event contains oversized indexed tags")
 		}
 	}
 	return false, ""
@@ -215,14 +241,14 @@ func (p Policies) preventTooManyIndexableTags(event *nostr.Event) (bool, string)
 		}
 	}
 	if count > p.Config.Relay.FilterLimit {
-		return true, "too many indexable tags"
+		return true, security.Reason(security.PrefixRestricted, "event exceeds indexed tag limit")
 	}
 	return false, ""
 }
 
 func (p Policies) rejectEventsWithBase64Media(evt *nostr.Event) (bool, string) {
 	if strings.Contains(evt.Content, "data:image/") || strings.Contains(evt.Content, "data:video/") {
-		return true, "event with base64 media"
+		return true, security.Reason(security.PrefixRestricted, "event content embeds base64 media")
 	}
 	return false, ""
 }

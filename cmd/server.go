@@ -17,6 +17,7 @@ import (
 	"github.com/gabrielmoura/nostr-relay-server/internal/db"
 	"github.com/gabrielmoura/nostr-relay-server/internal/groups"
 	policies2 "github.com/gabrielmoura/nostr-relay-server/internal/policies"
+	"github.com/gabrielmoura/nostr-relay-server/internal/security"
 	"github.com/gabrielmoura/nostr-relay-server/pkg/nostrpool"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
@@ -74,8 +75,12 @@ func runServer(cmd *cobra.Command, args []string) {
 		signal.Notify(stopChan, os.Interrupt, syscall.SIGTERM)
 
 		metrics.RegisterMetrics()
+		metrics.RegisterSecurityMetrics()
 		if err := groups.Init(db.DbQueries); err != nil {
 			log.Logger.Fatal("Erro ao inicializar NIP-29", zap.Error(err))
+		}
+		if err := security.Init(); err != nil {
+			log.Logger.Fatal("Erro ao inicializar a camada de seguranca", zap.Error(err))
 		}
 		policies2.Init()
 

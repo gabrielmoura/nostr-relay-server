@@ -13,6 +13,7 @@ import (
 	nostr_custom "github.com/gabrielmoura/nostr-relay-server/infra/nostr-custom"
 	"github.com/gabrielmoura/nostr-relay-server/internal/dto"
 	policies "github.com/gabrielmoura/nostr-relay-server/internal/policies"
+	"github.com/gabrielmoura/nostr-relay-server/internal/security"
 	"github.com/nbd-wtf/go-nostr"
 	"go.uber.org/zap"
 )
@@ -40,7 +41,18 @@ func processEvent(ws *dto.WsServer, evt *nostr.Event) string {
 		return ""
 	}
 
-	if reject, reason := policies.P.ValidateIncomingEvent(ws.Ctx, evt); reject {
+	ctx := ws.Ctx
+	if security.S != nil {
+		var reject bool
+		var reason string
+		ctx, reject, reason = security.S.ValidateEvent(ctx, ws, evt)
+		if reject {
+			rejectEvent(ws, evt, reason)
+			return ""
+		}
+	}
+
+	if reject, reason := policies.P.ValidateIncomingEvent(ctx, evt); reject {
 		rejectEvent(ws, evt, reason)
 		return ""
 	}

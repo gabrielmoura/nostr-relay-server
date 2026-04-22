@@ -14,6 +14,7 @@ type Config struct {
 	AppEnv           string                   `json:"app_env" yaml:"app_env" mapstructure:"app_env"`
 	AdminToken       string                   `json:"admin_token" yaml:"admin_token" mapstructure:"admin_token"`
 	Ws               WsConfig                 `json:"ws" yaml:"ws" mapstructure:"ws"`
+	Security         SecurityConfig           `json:"security" yaml:"security" mapstructure:"security"`
 	Anon             Anon                     `json:"anon" yaml:"anon" mapstructure:"anon"`
 	RelayInformation RelayInformationDocument `json:"relay_information" yaml:"relay_information" mapstructure:"relay_information"`
 	Relay            RelayConfig              `json:"relay" yaml:"relay" mapstructure:"relay"`

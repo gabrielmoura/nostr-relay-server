@@ -79,6 +79,7 @@ func RootUpgrade(cfg *config.Config) fiber.Handler {
 		if websocket.IsWebSocketUpgrade(c) {
 			now := time.Now().UTC()
 			userAgent := c.Get("User-Agent")
+			remoteIP := c.IP()
 			c.Locals("allowed", true)
 			c.Locals("ua", userAgent)
 			c.Locals("wss", &dto.WsServer{
@@ -89,6 +90,7 @@ func RootUpgrade(cfg *config.Config) fiber.Handler {
 				StartTime:  now,
 				LastSeen:   now,
 				UserAgent:  userAgent,
+				RemoteIP:   remoteIP,
 			})
 			return c.Next()
 		}

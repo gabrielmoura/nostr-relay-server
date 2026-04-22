@@ -14,6 +14,7 @@ import (
 	"github.com/gabrielmoura/nostr-relay-server/internal/groups"
 	json "github.com/gabrielmoura/nostr-relay-server/internal/jsonx"
 	policies2 "github.com/gabrielmoura/nostr-relay-server/internal/policies"
+	"github.com/gabrielmoura/nostr-relay-server/internal/security"
 	"github.com/nbd-wtf/go-nostr"
 	"go.uber.org/zap"
 )
@@ -44,19 +45,13 @@ func DoREQ(ws *dto.WsServer, data dto.Data) string {
 		if config.Cfg.Ws.RequireAuthForReq() && ws.Authed == "" {
 			auth.SendAuthChallenge(ws)
 		}
-		ws.ChanSender <- nostr.ClosedEnvelope{
-			Reason:         reason,
-			SubscriptionID: id,
-		}
+		ws.ChanSender <- security.ClosedRejectReason(id, reason)
 		return ""
 	}
 
 	maxSubscriptions := config.Cfg.RelayInformation.MaxSubscriptions()
 	if maxSubscriptions > 0 && !listener.HasSubscription(ws, id) && listener.SubscriptionCount(ws) >= maxSubscriptions {
-		ws.ChanSender <- nostr.ClosedEnvelope{
-			Reason:         "rate-limited: max subscriptions reached",
-			SubscriptionID: id,
-		}
+		ws.ChanSender <- security.ClosedReject(id, security.PrefixRateLimited, "max subscriptions reached")
 		return ""
 	}
 

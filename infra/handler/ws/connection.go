@@ -9,6 +9,7 @@ import (
 	"github.com/gabrielmoura/nostr-relay-server/infra/log"
 	"github.com/gabrielmoura/nostr-relay-server/infra/metrics"
 	"github.com/gabrielmoura/nostr-relay-server/internal/dto"
+	"github.com/gabrielmoura/nostr-relay-server/internal/security"
 	"github.com/gofiber/contrib/websocket"
 	"github.com/nbd-wtf/go-nostr"
 	"go.uber.org/zap"
@@ -22,6 +23,16 @@ const (
 )
 
 func HandleConnection(wss *dto.WsServer) {
+	if security.S != nil {
+		allowed, reason := security.S.AcquireConnection(wss.RemoteIP)
+		if !allowed {
+			_ = wss.Conn.WriteJSON(nostr.NoticeEnvelope(reason))
+			_ = wss.Conn.Close()
+			return
+		}
+		defer security.S.ReleaseConnection(wss.RemoteIP)
+	}
+
 	ticker := time.NewTicker(pingPeriod)
 	defer ticker.Stop()
 	defer listener.RemoveListener(wss)
@@ -72,9 +83,14 @@ func writeLoop(wss *dto.WsServer, ticker *time.Ticker) {
 func readLoop(wss *dto.WsServer) {
 	for {
 		typ, message, err := wss.Conn.ReadMessage()
-		if len(message) > maxMessageSize {
-			log.Logger.Warn("message too large", zap.String("for", wss.Conn.IP()), zap.Int("size", len(message)))
-			wss.ChanSender <- nostr.NoticeEnvelope("message too large")
+		limit := maxMessageSize
+		if security.S != nil {
+			limit = security.S.MaxMessageLength()
+		}
+		if len(message) > limit {
+			log.Logger.Warn("message too large", zap.String("for", wss.RemoteIP), zap.Int("size", len(message)))
+			metrics.NostrSecurityMessageRejectedTotal.WithLabelValues("max_message_length").Inc()
+			wss.ChanSender <- nostr.NoticeEnvelope(security.Reason(security.PrefixRestricted, "message exceeds configured max_message_length"))
 			return
 		}
 		if err != nil {

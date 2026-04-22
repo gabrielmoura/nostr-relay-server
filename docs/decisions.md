@@ -219,6 +219,37 @@ Use **Prometheus** for metrics collection with Grafana dashboards.
 
 Needed ability to forward events to other relays.
 
+---
+
+## ADR-009: Incremental Security Hardening Layer
+
+**Status:** Accepted  
+**Date:** 2026-04-22
+
+### Context
+
+The relay already had validation and moderation hooks, but lacked a cohesive hardening layer for configurable whitelist rules, request shaping, resilient abuse controls, and protocol-level integrity metrics.
+
+### Decision
+
+Add a focused `internal/security` package and integrate it incrementally into existing websocket, EVENT, REQ, and policy hub flows instead of introducing a parallel architecture.
+
+### Reasons
+
+1. **Low-risk evolution**: preserves the current runtime flow and global initialization pattern.
+2. **Operational clarity**: keeps security configuration centralized in `config.Security`.
+3. **Protocol consistency**: centralizes standardized Nostr rejection prefixes.
+4. **Observability readiness**: exposes security counters in Prometheus-compatible form.
+5. **Redis compatibility**: allows optional progressive defense using TTL-based counters without making Redis mandatory.
+
+### Consequences
+
+- ✅ Security changes remain localized and incremental.
+- ✅ Whitelist and defense behavior can be enabled gradually.
+- ✅ Future Prometheus dashboards can build on stable counters.
+- ⚠️ Global state remains the integration style for now.
+- ⚠️ Redis-backed defense requires threshold tuning before production enablement.
+
 ### Decision
 
 Implement a **relay pool** singleton for publishing events.

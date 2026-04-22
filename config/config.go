@@ -14,6 +14,28 @@ func setDefaults(export bool) {
 	viper.SetDefault("ws.rate_limit", 1)
 	viper.SetDefault("ws.auth", false)
 	viper.SetDefault("ws.auth_mode", "none")
+	viper.SetDefault("security.enabled", true)
+	viper.SetDefault("security.whitelist.enabled", false)
+	viper.SetDefault("security.whitelist.pubkeys", []string{})
+	viper.SetDefault("security.whitelist.ips", []string{})
+	viper.SetDefault("security.whitelist.cidrs", []string{})
+	viper.SetDefault("security.limits.max_limit", 500)
+	viper.SetDefault("security.limits.max_filters_per_req", 16)
+	viper.SetDefault("security.limits.max_message_length", 131072)
+	viper.SetDefault("security.limits.max_event_tags", 400)
+	viper.SetDefault("security.limits.max_content_length", 65535)
+	viper.SetDefault("security.limits.max_connections_per_ip", 0)
+	viper.SetDefault("security.defense.enabled", false)
+	viper.SetDefault("security.defense.use_redis", true)
+	viper.SetDefault("security.defense.block_ttl_seconds", 300)
+	viper.SetDefault("security.defense.event.window_seconds", 60)
+	viper.SetDefault("security.defense.event.throttle_after", 0)
+	viper.SetDefault("security.defense.event.restrict_after", 0)
+	viper.SetDefault("security.defense.event.temporary_block_after", 0)
+	viper.SetDefault("security.defense.req.window_seconds", 60)
+	viper.SetDefault("security.defense.req.throttle_after", 0)
+	viper.SetDefault("security.defense.req.restrict_after", 0)
+	viper.SetDefault("security.defense.req.temporary_block_after", 0)
 	viper.SetDefault("port", 9090)
 	viper.SetDefault("admin_token", "")
 
@@ -228,6 +250,7 @@ func applyLoadedConfig() error {
 	}
 
 	Cfg = cfg
+	cfg.applySecurityRelayInformationDefaults()
 	if cfg.NIP29.Enabled {
 		cfg.RelayInformation.SupportedNIPs = appendSupportedNIP(cfg.RelayInformation.SupportedNIPs, 29)
 	}

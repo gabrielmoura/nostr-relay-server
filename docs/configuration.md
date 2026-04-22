@@ -156,6 +156,35 @@ stream:
 
 enable_negentropy: false
 
+security:
+  enabled: true
+  whitelist:
+    enabled: false
+    pubkeys: []
+    ips: []
+    cidrs: []
+  limits:
+    max_limit: 500
+    max_filters_per_req: 16
+    max_message_length: 131072
+    max_event_tags: 400
+    max_content_length: 65535
+    max_connections_per_ip: 0
+  defense:
+    enabled: false
+    use_redis: true
+    block_ttl_seconds: 300
+    event:
+      window_seconds: 60
+      throttle_after: 0
+      restrict_after: 0
+      temporary_block_after: 0
+    req:
+      window_seconds: 60
+      throttle_after: 0
+      restrict_after: 0
+      temporary_block_after: 0
+
 store:
   enabled: false
   api_path: http://localhost:9090/upload
@@ -213,6 +242,27 @@ nip29:
 ```
 
 ## Key-by-Key Reference
+
+### Security
+
+| Key | Type | Default | Description |
+|---|---|---:|---|
+| `security.enabled` | bool | `true` | Enables the incremental hardening layer. |
+| `security.whitelist.enabled` | bool | `false` | Enables whitelist evaluation. |
+| `security.whitelist.pubkeys` | list | `[]` | Author whitelist entries. Accepts hex pubkeys or `npub` values. |
+| `security.whitelist.ips` | list | `[]` | Exact IP addresses that bypass request, event, and connection restrictions. |
+| `security.whitelist.cidrs` | list | `[]` | CIDR ranges that bypass request, event, and connection restrictions. |
+| `security.limits.max_limit` | int | `500` | Clamp for `REQ` filter `limit`. |
+| `security.limits.max_filters_per_req` | int | `16` | Maximum number of filters accepted in a single `REQ` / `COUNT`. |
+| `security.limits.max_message_length` | int | `131072` | Maximum websocket JSON payload size in bytes. |
+| `security.limits.max_event_tags` | int | `400` | Maximum number of tags per event. |
+| `security.limits.max_content_length` | int | `65535` | Maximum Unicode rune count for event content. |
+| `security.limits.max_connections_per_ip` | int | `0` | Simultaneous websocket connection cap per IP. `0` disables the cap. |
+| `security.defense.enabled` | bool | `false` | Enables Redis-backed progressive abuse defense. |
+| `security.defense.use_redis` | bool | `true` | Uses Redis counters and TTLs when defense is enabled. |
+| `security.defense.block_ttl_seconds` | int | `300` | Temporary block TTL after the highest defense threshold is reached. |
+| `security.defense.event.*` | object | see skeleton | Thresholds for EVENT escalation. |
+| `security.defense.req.*` | object | see skeleton | Thresholds for REQ/COUNT escalation. |
 
 ### Root
 

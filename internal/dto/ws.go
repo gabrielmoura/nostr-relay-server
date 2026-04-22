@@ -52,6 +52,7 @@ type WsServer struct {
 	StartTime  time.Time
 	LastSeen   time.Time
 	UserAgent  string
+	RemoteIP   string
 	Response   http.ResponseWriter //remove
 	Ctx        context.Context
 	Conn       *websocket.Conn
