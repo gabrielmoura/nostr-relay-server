@@ -437,6 +437,40 @@
 
 ---
 
+## Phase 35: Optional NIP-29 Groups (NEW)
+
+### 35.1: Discovery and Documentation
+- [ ] Document current architecture impact and integration points
+- [ ] Record schema deltas between repository and live database
+- [ ] Maintain `docs/nip29-coordination.md` during implementation
+
+### 35.2: Configuration and Startup
+- [ ] Add `nip29` configuration block and feature toggles
+- [ ] Require relay signing key only when `nip29.enabled=true`
+- [ ] Initialize optional groups module in server bootstrap
+- [x] Normalize `relay_information` keys (`npub`/`nsec`/hex) during config load and derive missing public key from private key
+
+### 35.3: Persistence
+- [ ] Add repository-backed queries for group metadata, roles, members and bans
+- [ ] Add schema support for invite codes and per-group policy overrides
+- [ ] Keep group chat content in the existing `event` table
+
+### 35.4: Policy and Query Flow
+- [ ] Validate NIP-29 moderation/join/leave/group content events
+- [ ] Enforce membership/read policies on `REQ` and `COUNT`
+- [ ] Generate relay-owned `39000`-`39003` state events
+
+### 35.5: Optional Protections
+- [ ] Invite code support (`kind:9009`)
+- [ ] Group/global PoW enforcement
+- [ ] Timeline reference enforcement (`previous` tag)
+
+### 35.6: Observability
+- [ ] Add Prometheus metrics for group lifecycle, rejections, cache hits/misses and processing latency
+- [ ] Add admin/operational visibility for groups where practical
+
+---
+
 ## Phase 32: DB Helper Refactor (NEW)
 
 ### 32.1: Documentation First

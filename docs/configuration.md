@@ -323,9 +323,9 @@ Authentication modes:
 | `relay_information.name` | string | `Nostr Relay Server` | Display name. |
 | `relay_information.description` | string | `A Nostr Relay Server` | Description for NIP-11. |
 | `relay_information.banner` | string | `""` | Optional banner URL for NIP-11. |
-| `relay_information.pub_key` | string | `""` | Relay pubkey. |
+| `relay_information.pub_key` | string | `""` | Relay pubkey. Accepts 32-byte hex or `npub`; runtime stores normalized hex. If empty and `priv_key` is present, runtime derives it automatically. |
 | `relay_information.self` | string | `""` | Optional relay identity pubkey for NIP-11 `self`. |
-| `relay_information.priv_key` | string | `""` | Relay private key (keep secret). |
+| `relay_information.priv_key` | string | `""` | Relay private key (keep secret). Accepts 32-byte hex or `nsec`; runtime stores normalized hex. |
 | `relay_information.contact` | string | `""` | Contact metadata. |
 | `relay_information.supported_nips` | int[] | `[11,1,2,4,25]` | Advertised supported NIPs. |
 | `relay_information.software` | string | repo URL | Software URL. |

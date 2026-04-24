@@ -1049,3 +1049,33 @@ Implement NIP-29 as an **optional module** with explicit configuration and incre
 - ✅ Redis stays optional and value-oriented
 - ⚠️ Group state now exists in both event history and relational tables and must stay synchronized carefully
 - ⚠️ Relay-generated metadata events require a configured relay private key when the module is enabled
+
+---
+
+## ADR-025: Normalize Relay Keys at Config Boundary
+
+**Status:** Accepted  
+**Date:** 2026-04-23
+
+### Context
+
+The relay uses the configured relay keypair in more than one runtime path: NIP-11 metadata exposure, bootstrap flows and NIP-29 relay-signed moderation/state events. Operators often provide keys as NIP-19 values (`npub`, `nsec`) while lower-level runtime code expects raw 32-byte hex.
+
+The previous behavior mixed formats across the codebase and allowed a startup path where NIP-29 attempted to derive a pubkey directly from an `nsec` string, causing a fatal error during server boot. The config validation command also traversed URL checks unsafely and could panic instead of returning a validation error.
+
+### Decision
+
+Normalize relay keys immediately after config load:
+
+1. Accept `relay_information.pub_key` as hex or `npub`
+2. Accept `relay_information.priv_key` as hex or `nsec`
+3. Store both keys internally as lowercase hex
+4. Derive `relay_information.pub_key` from `relay_information.priv_key` when the public key is omitted
+5. Reject mismatched public/private keypairs during config load instead of failing later during server initialization
+
+### Consequences
+
+- ✅ Runtime callers receive one canonical key format
+- ✅ NIP-29 startup no longer depends on callers remembering the input format details
+- ✅ Config validation fails deterministically instead of panicking on malformed relay metadata
+- ⚠️ Effective config output now shows normalized hex values instead of the original NIP-19 input strings

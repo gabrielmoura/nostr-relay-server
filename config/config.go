@@ -249,6 +249,10 @@ func applyLoadedConfig() error {
 		return fmt.Errorf("missing DB URI")
 	}
 
+	if err := cfg.normalizeRelayKeys(); err != nil {
+		return err
+	}
+
 	Cfg = cfg
 	cfg.applySecurityRelayInformationDefaults()
 	if cfg.NIP29.Enabled {

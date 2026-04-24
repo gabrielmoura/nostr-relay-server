@@ -286,13 +286,22 @@ func (cfg *RelayInformationDocument) SetPrivKey(privKey string) {
 
 func (cfg *RelayInformationDocument) Check() []error {
 	var errs []error
-	url1, _ := url.Parse(cfg.CanonicalURL)
-	if url1.Scheme != "wss" {
-		errs = append(errs, errors2.ErrInvalidCanonicalURL)
+	if cfg == nil {
+		return errs
 	}
-	url2, _ := url.Parse(cfg.URL)
-	if strings.Contains(url2.Scheme, "http") {
-		errs = append(errs, errors2.ErrInvalidURL)
+
+	if canonicalURL := strings.TrimSpace(cfg.CanonicalURL); canonicalURL != "" {
+		url1, err := url.Parse(canonicalURL)
+		if err != nil || url1 == nil || (url1.Scheme != "ws" && url1.Scheme != "wss") {
+			errs = append(errs, errors2.ErrInvalidCanonicalURL)
+		}
+	}
+
+	if relayURL := strings.TrimSpace(cfg.URL); relayURL != "" {
+		url2, err := url.Parse(relayURL)
+		if err != nil || url2 == nil || !strings.Contains(url2.Scheme, "http") {
+			errs = append(errs, errors2.ErrInvalidURL)
+		}
 	}
 
 	return errs
