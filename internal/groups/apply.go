@@ -37,12 +37,13 @@ func (m *Manager) afterStoreEvent(ctx context.Context, evt *nostr.Event) error {
 }
 
 func (m *Manager) applyCreateGroup(ctx context.Context, evt *nostr.Event) error {
+	log.Logger.Debug("applyCreateGroup", zap.Any("event", evt))
 	now := time.Now().UTC()
 	groupID := groupIDFromEvent(evt)
 	group := dbstore.NIP29Group{
 		Relay:                m.relayScope,
 		GroupID:              groupID,
-		Name:                 groupID,
+		Name:                 "",
 		Private:              m.cfg.Admission.DefaultPrivate,
 		Closed:               m.cfg.Admission.DefaultClosed,
 		Restricted:           m.cfg.Admission.DefaultRestricted,
@@ -56,6 +57,10 @@ func (m *Manager) applyCreateGroup(ctx context.Context, evt *nostr.Event) error 
 		LastMembersUpdate:    now,
 		LastRolesUpdate:      now,
 	}
+
+	// Clients can specify group metadata tags directly in the 9007 Create Group event
+	applyMetadataEdits(&group, evt)
+
 	if m.cfg.Timeline.RequiredOnModeration {
 		group.RequireModerationTimelineRef = true
 	}

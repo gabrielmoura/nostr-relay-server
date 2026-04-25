@@ -10,8 +10,8 @@ func buildMetadataTags(group *dbstore.NIP29Group) nostr.Tags {
 	appendOptionalTag(&tags, "name", group.Name)
 	appendOptionalTag(&tags, "picture", group.Picture)
 	appendOptionalTag(&tags, "about", group.About)
-	appendMarkerTag(&tags, "private", group.Private)
-	appendMarkerTag(&tags, "closed", group.Closed)
+	appendStatusTag(&tags, "private", "public", group.Private)
+	appendStatusTag(&tags, "closed", "open", group.Closed)
 	appendMarkerTag(&tags, "restricted", group.Restricted)
 	appendMarkerTag(&tags, "hidden", group.Hidden)
 	return tags
@@ -26,6 +26,14 @@ func appendOptionalTag(tags *nostr.Tags, key, value string) {
 func appendMarkerTag(tags *nostr.Tags, key string, enabled bool) {
 	if enabled {
 		*tags = append(*tags, nostr.Tag{key})
+	}
+}
+
+func appendStatusTag(tags *nostr.Tags, trueTag, falseTag string, enabled bool) {
+	if enabled {
+		*tags = append(*tags, nostr.Tag{trueTag})
+	} else {
+		*tags = append(*tags, nostr.Tag{falseTag})
 	}
 }
 

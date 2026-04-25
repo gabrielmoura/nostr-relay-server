@@ -114,21 +114,14 @@ func (m *Manager) validateJoinRequest(ctx context.Context, evt *nostr.Event, gro
 	if member {
 		return m.reject("duplicate_member", "duplicate: already a member")
 	}
-	if !group.Closed {
-		return false, ""
-	}
-	if !m.cfg.Invite.Enabled {
-		return m.reject("closed_group", "restricted: group is closed")
-	}
 
 	code := firstTagValue(evt, "code")
-	if code == "" {
-		return m.reject("invite_required", "restricted: invite code required")
-	}
-	if ok, err := m.validateInvite(ctx, group.GroupID, code); err != nil {
-		return m.reject("invite_lookup_error", "error: failed to validate invite code")
-	} else if !ok {
-		return m.reject("invite_invalid", "restricted: invalid or expired invite code")
+	if code != "" && m.cfg.Invite.Enabled {
+		if ok, err := m.validateInvite(ctx, group.GroupID, code); err != nil {
+			return m.reject("invite_lookup_error", "error: failed to validate invite code")
+		} else if !ok {
+			return m.reject("invite_invalid", "restricted: invalid or expired invite code")
+		}
 	}
 	return false, ""
 }

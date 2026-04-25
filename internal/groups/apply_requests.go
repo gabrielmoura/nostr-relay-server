@@ -38,6 +38,12 @@ func (m *Manager) applyCreateInvite(ctx context.Context, evt *nostr.Event) error
 
 func (m *Manager) applyJoinRequest(ctx context.Context, evt *nostr.Event) error {
 	groupID := groupIDFromEvent(evt)
+	group, ok, err := m.getGroup(ctx, groupID)
+	if err != nil || !ok {
+		return err
+	}
+
+	consumedInvite := false
 	if code := firstTagValue(evt, "code"); code != "" && m.cfg.Invite.Enabled {
 		used, err := m.consumeInvite(ctx, groupID, code)
 		if err != nil {
@@ -45,7 +51,12 @@ func (m *Manager) applyJoinRequest(ctx context.Context, evt *nostr.Event) error 
 		}
 		if used {
 			metrics.NostrNIP29InvitesConsumedTotal.Inc()
+			consumedInvite = true
 		}
+	}
+
+	if group.Closed && !consumedInvite {
+		return nil
 	}
 
 	internal := &nostr.Event{

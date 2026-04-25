@@ -45,10 +45,22 @@ func applyMetadataEdits(group *dbstore.NIP29Group, evt *nostr.Event) {
 	if value := firstTagValue(evt, "about"); value != "" {
 		group.About = value
 	}
-	group.Private = tagExists(evt, "private")
-	group.Closed = tagExists(evt, "closed")
-	group.Restricted = tagExists(evt, "restricted")
-	group.Hidden = tagExists(evt, "hidden")
+	if tagExists(evt, "private") {
+		group.Private = true
+	} else if tagExists(evt, "public") {
+		group.Private = false
+	}
+	if tagExists(evt, "closed") {
+		group.Closed = true
+	} else if tagExists(evt, "open") {
+		group.Closed = false
+	}
+	if tagExists(evt, "restricted") {
+		group.Restricted = true
+	}
+	if tagExists(evt, "hidden") {
+		group.Hidden = true
+	}
 	group.LastMetadataUpdate = time.Unix(int64(evt.CreatedAt), 0).UTC()
 }
 
