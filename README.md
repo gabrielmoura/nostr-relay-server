@@ -5,7 +5,7 @@
 ![GitHub stars](https://img.shields.io/github/stars/gabrielmoura/nostr-relay-server?style=for-the-badge)
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/gabrielmoura/nostr-relay-server)
 
-High-performance Nostr relay written in Go, with PostgreSQL storage, optional Redis integration, embedded admin panel, Blossom-compatible media storage, Negentropy sync, Prometheus metrics, and configurable cron jobs.
+High-performance Nostr relay written in Go, with PostgreSQL storage, optional Redis integration, embedded admin panel, Blossom-compatible media storage, Negentropy sync, optional NIP-29 groups, Prometheus metrics, and configurable cron jobs.
 
 ---
 
@@ -21,6 +21,7 @@ It provides:
 - Embedded admin API and admin panel at `/panel`
 - Blossom-compatible media storage
 - Negentropy-based relay synchronization
+- Optional NIP-29 relay-based groups with relay-generated state events
 - Prometheus metrics
 - Import/export and operational CLI tools
 - Cron jobs for maintenance and background routines
@@ -35,6 +36,7 @@ It provides:
 - **Optional Redis support** for cache and pub/sub scenarios
 - **Blossom media storage support** for blobs and uploads
 - **Negentropy sync** with compatible relays
+- **Optional NIP-29 groups** with configurable admission, moderation, invite codes, PoW and timeline-reference enforcement
 - **Prometheus metrics** for monitoring and observability
 - **Configurable cron jobs** for cleanup and maintenance
 - **JSONL import/export** for migration and backup workflows
@@ -51,13 +53,14 @@ It provides:
 5. [Admin API and Panel](#admin-api-and-panel)
 6. [Configuration](#configuration)
 7. [Monitoring with Prometheus and Grafana](#monitoring-with-prometheus-and-grafana)
-8. [Supported Protocols](#supported-protocols)
-9. [Documentation](#documentation)
-10. [Frontend Development](#frontend-development)
-11. [Build](#build)
-12. [FAQ](#faq)
-13. [Contributing](#contributing)
-14. [License](#license)
+8. [NIP-29 Groups](#nip-29-groups)
+9. [Supported Protocols](#supported-protocols)
+10. [Documentation](#documentation)
+11. [Frontend Development](#frontend-development)
+12. [Build](#build)
+13. [FAQ](#faq)
+14. [Contributing](#contributing)
+15. [License](#license)
 
 ---
 
@@ -88,6 +91,7 @@ At minimum, review and adjust:
 * `db.postgres_uri`
 * relay ports
 * relay information
+* `relay_information.limitation.max_subscriptions` if you want to cap active subscriptions per connection
 * storage settings
 * `admin_token` if you want to protect the admin API
 
@@ -551,11 +555,84 @@ Some especially relevant settings:
 * `cron.nip40.*`: expiration cleanup configuration
 * `stream.*`: upstream/downstream relay streaming
 * `store.*`: Blossom media server settings
+* `nip29.*`: optional relay-based group support, admission, moderation, invite, PoW and timeline-reference rules
 * `admin_token`: enables token protection for admin API
 
 For the complete schema and production-oriented examples, see:
 
 * `docs/configuration.md`
+
+---
+
+## NIP-29 Groups
+
+The relay now includes an optional NIP-29 groups module.
+
+When disabled, the relay behaves exactly as before.
+
+When enabled, it adds:
+
+- Relay-scoped group state stored in PostgreSQL
+- Relay-generated state events `39000`, `39001`, `39002`, `39003`
+- Validation for NIP-29 moderation and membership flows
+- Optional invite-code flow via `kind:9009` + `9021` `code` tag
+- Optional PoW enforcement for group writes and moderation events
+- Optional timeline-reference validation using `previous` tags
+- Redis-backed hot-path caches for group metadata, membership, bans, invites and recent timeline references
+
+### High-level behavior
+
+- Group content continues to use the main `event` table.
+- Group state lives in dedicated `nip29_*` tables.
+- The relay signs generated metadata/admin/member/role events with `relay_information.priv_key`.
+- `REQ` and `COUNT` are filtered by group visibility rules when applicable.
+
+### Main configuration block
+
+Representative example:
+
+```yaml
+nip29:
+  enabled: false
+  relay_scope: ""
+  cache_ttl_seconds: 60
+  membership_cache_ttl_seconds: 30
+  ban_cache_ttl_seconds: 30
+  timeline_cache_ttl_seconds: 300
+  group_creator_role: admin
+  create:
+    enabled: true
+    max_groups_per_pubkey: 10
+  moderation:
+    allow_private_groups: true
+    require_recent_moderation: true
+    recent_window_seconds: 60
+  admission:
+    default_closed: false
+    default_private: false
+    default_restricted: false
+    default_hidden: false
+    require_membership_for_write: true
+  invite:
+    enabled: false
+    default_max_uses: 1
+    default_ttl_seconds: 86400
+  pow:
+    enabled: false
+    default_min_difficulty: 0
+    moderation_min_difficulty: 0
+  timeline:
+    enabled: false
+    required_on_moderation: false
+    min_references: 0
+    recent_window: 50
+```
+
+See also:
+
+- `docs/configuration.md`
+- `docs/data-schema.md`
+- `docs/nip29-coordination.md`
 
 ---
 
@@ -640,6 +717,19 @@ sum by (operation, result) (rate(nostr_negentropy_v2_requests_total[5m]))
 sum by (backend, result) (rate(nostr_negentropy_v2_cache_total[5m]))
 ```
 
+### NIP-29 metrics to watch
+
+When NIP-29 is enabled, these metrics are especially useful:
+
+- `nostr_nip29_groups_created_total`
+- `nostr_nip29_groups_active`
+- `nostr_nip29_events_received_total{kind}`
+- `nostr_nip29_events_rejected_total{reason}`
+- `nostr_nip29_invites_generated_total`
+- `nostr_nip29_invites_consumed_total`
+- `nostr_nip29_processing_seconds{operation}`
+- `nostr_nip29_cache_total{cache,result}`
+
 ---
 
 ## Supported Protocols
@@ -652,9 +742,11 @@ The project currently documents support for:
 * NIP-02 — Follow list
 * NIP-04 — Encrypted direct messages
 * NIP-09 — Event deletion
+* NIP-13 — Proof of work
 * NIP-11 — Relay information document
 * NIP-17 — Relay list metadata
 * NIP-18 — Public chat
+* NIP-29 — Relay-based groups *(optional)*
 * NIP-25 — Reactions
 * NIP-40 — Expiration timestamp
 * NIP-42 — Authentication of clients to relays
@@ -684,6 +776,8 @@ Project documentation is primarily organized under `docs/`, with unified setup g
 * `docs/decisions.md` — ADR history and architecture decisions
 * `docs/cli.md` — CLI behavior, command UX, flags, and operational guidance
 * `docs/download-command.md` — Download command flow, `--filter` semantics, precedence, and troubleshooting
+* `docs/nip29-coordination.md` — implementation status, risks, toggles, metrics and migration notes for NIP-29
+* `docs/wot.md` — Web of Trust calculation, caching mechanism, and architecture
 * `docs/todo.md` — Roadmap and implementation checklist
 * `nrserver.adoc` — Main Technical Documentation (AsciiDoc)
 * `nrserver.md` — Unified environment setup and operations guide (Markdown)

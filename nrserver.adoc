@@ -30,6 +30,7 @@ Objetivos:
 * transporte WebSocket para protocolo Nostr
 * persistencia em PostgreSQL
 * cache/pubsub opcional via Redis
+* suporte opcional a grupos NIP-29
 * pipeline de ingestao em lote com backpressure
 * APIs administrativas internas
 * metricas Prometheus
@@ -40,13 +41,15 @@ Objetivos:
 Responsabilidades core:
 
 * receber mensagens Nostr (`EVENT`, `REQ`, `COUNT`, `AUTH`, `CLOSE`, `NEG-*`)
-* validar politicas de evento e request
+* validar politicas de evento e request (incluindo Web of Trust e Listas de Kinds)
 * persistir eventos de forma segura e eficiente
 * notificar subscribers locais e distribuidos
 * opcionalmente federar eventos/requests para relays externos
+* opcionalmente manter estado de grupos NIP-29 e emitir eventos relay-owned `39000`-`39003`
 
 Responsabilidades auxiliares:
 
+* proxy WebSocket (`proxy`) multiplexador com alta vazao e deduplicacao (`bostr2` style)
 * import/export/download/sync via CLI
 * jobs de manutencao (`cron`)
 * bootstrap de dados iniciais (`seed --bootstrap`)
@@ -81,6 +84,8 @@ Endpoints principais:
 * `infra/stream/`: dispatcher async de federacao
 * `infra/db/`: queries e migracao SQL
 * `internal/policies/`: hub unico de politicas
+* `internal/wot/`: mecanismo otimizado O(1) do Web of Trust (Trust Graph)
+* `internal/groups/`: runtime opcional de grupos NIP-29
 * `pkg/negentropy*`: reconciliacao de sincronizacao
 * `pkg/nostrpool/`: relay pool para stream up/down
 
@@ -117,13 +122,14 @@ Sequencia observada em `cmd/server.go`:
 6. inicializa conexao DB (falha e fatal)
 7. tenta prepared statements em `production` (falha nao e fatal)
 8. registra metricas
-9. inicializa hub de politicas
-10. inicia ingestion workers e stream dispatcher
-11. constroi apps Fiber interno/externo (`infra/net.Router()`)
-12. inicializa relay pool se stream up/down habilitado
-13. opcionalmente executa bootstrap de eventos
-14. abre listeners TCP em `port+1` e `port`
-15. bloqueia aguardando `mainCtx.Done()`
+9. inicializa modulo opcional NIP-29
+10. inicializa hub de politicas
+11. inicia ingestion workers e stream dispatcher
+12. constroi apps Fiber interno/externo (`infra/net.Router()`)
+13. inicializa relay pool se stream up/down habilitado
+14. opcionalmente executa bootstrap de eventos
+15. abre listeners TCP em `port+1` e `port`
+16. bloqueia aguardando `mainCtx.Done()`
 
 === 4.3 Shutdown
 
@@ -212,6 +218,8 @@ Comportamento:
 Para EVENT/BATCH:
 
 * id hash valido
+* validacao no grafo em memoria de Web of Trust (WoT) configuravel
+* fitragem rigorosa por `WhitelistKinds` e `BlacklistKinds`
 * assinatura valida
 * ban check
 * tamanho maximo
@@ -219,6 +227,7 @@ Para EVENT/BATCH:
 * POW minimo
 * limites de tags
 * bloqueio de base64 inline
+* regras NIP-29 para grupos, permissao, convite, PoW e `previous` quando habilitado
 
 Para REQ/COUNT:
 
@@ -237,7 +246,9 @@ NIPs/BUDs suportados estao documentados em `README.md` e `docs/api-spec.md`.
 No runtime, os contratos principais incluem:
 
 * NIP-01 envelopes WS (`REQ`, `EVENT`, `EOSE`, `OK`, `NOTICE`, `CLOSED`)
+* NIP-13 para validacao opcional de POW em grupos NIP-29
 * NIP-11 relay information no endpoint raiz HTTP
+* NIP-29 relay-based groups com kinds `9000`-`9009`, `9021`, `9022`, `39000`-`39003`
 * NIP-42 auth challenge/response
 * NIP-45 (`COUNT`)
 * NIP-96 upload/download de blobs
@@ -308,10 +319,23 @@ Conjuntos de endpoint:
 === 7.2 Auxiliares operacionais
 
 * `seed` para migracao/bootstrap
+* `proxy` para instanciar sub-processos lightweight que consultam upstreams (`Stream.Relays`)
 * `import` e `export` (jsonl/tsv)
 * `download` com filtro JSON e merge strategy
 * `sync` com Negentropy e filtros
 * `cron` para manutencao periodica
+
+=== 7.2 Grupos NIP-29 (opcional)
+
+Quando `nip29.enabled=true`:
+
+* cria e atualiza estado de grupos em tabelas `nip29_*`
+* valida `h` tag, permissao e visibilidade de leitura/escrita
+* emite eventos relay-owned `39000`, `39001`, `39002`, `39003`
+* suporta convites por codigo com `kind:9009`
+* suporta PoW por grupo ou por moderacao
+* suporta validacao de timeline references via tag `previous`
+* usa Redis como acelerador de hot path para membership, bans, invites, metadata e timeline recente
 
 === 7.3 Administrativas
 
@@ -340,9 +364,11 @@ Conjuntos de endpoint:
 === 8.3 Blocos principais e impacto operacional
 
 * `ws.*`: auth mode e rate-limit de conexoes
-* `relay.*`: limites de consulta, tamanho, POW, kinds protegidos
+* `relay.*`: limites, tamanho, POW, whitelist/blacklist de kinds
+* `wot.*`: controles e limits pro background goroutine do Web of Trust
 * `db.*`: tuning do pool pgx
 * `redis.*`: cache/pubsub e hygiene de subscriptions
+* `nip29.*`: habilitacao de grupos, admissao, moderacao, convites, PoW, timeline e cache
 * `ingestion.*`: throughput vs memoria/latencia
 * `cron.*`: jobs de manutencao e retention
 * `stream.*`: federacao upstream/downstream
@@ -367,6 +393,7 @@ Compatibilidade:
 === 9.1 Comandos principais
 
 * `server`: sobe runtime do relay
+* `proxy`: edge-router focado em throughput extraindo/deduplicando de varios upstream relays
 * `seed`: migracao e bootstrap opcional
 * `cron`: scheduler/list/run-once de jobs
 * `conf`: print/effective/validate/write
@@ -394,6 +421,7 @@ Tabelas chave (ver `docs/data-schema.md` para definicao completa):
 * `profiles`: metadados de usuarios
 * `banned_users`: moderacao
 * `objects`: metadados de blobs NIP-96
+* `nip29_groups`, `nip29_roles`, `nip29_group_roles`, `nip29_group_members`, `nip29_group_bans`, `nip29_group_invites`: estado relacional de grupos NIP-29
 
 Migracao:
 
@@ -407,6 +435,7 @@ Uso quando habilitado:
 * cache de ban/profiles/query/event/dedup
 * pubsub de eventos e estado distribuido
 * cleanup de subscriptions stale
+* cache hot-path de metadata, membership, bans, invites e timeline recente de grupos NIP-29
 
 Chaves e canais: ver `docs/data-schema.md`.
 
@@ -435,6 +464,7 @@ Cobertura principal:
 * forwarding stream
 * Negentropy
 * download command metrics por relay
+* grupos NIP-29: grupos criados/ativos, eventos recebidos/rejeitados, invites, latencia e hit/miss de cache
 
 == 12. Seguranca e controles
 
@@ -446,6 +476,7 @@ Controles implementados:
 * politicas de conteudo (base64 inline)
 * controle de acesso admin por token opcional
 * politicas para kinds protegidos/DM
+* controles opcionais NIP-29 para permissao de grupo, convites, PoW e timeline references
 
 Riscos operacionais a observar:
 
@@ -608,7 +639,9 @@ Este arquivo e principal, mas os detalhes exaustivos por tema permanecem em:
 * `docs/data-schema.md`
 * `docs/cli.md`
 * `docs/download-command.md`
+* `docs/nip29-coordination.md`
 * `docs/policies.md`
+* `docs/wot.md`
 * `docs/decisions.md`
 * `Dockerfile`
 * `docker-compose.yml`
