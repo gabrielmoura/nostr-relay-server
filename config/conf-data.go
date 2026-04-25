@@ -26,7 +26,19 @@ type Config struct {
 	EnableNegentropy bool                     `json:"enable_negentropy" yaml:"enable_negentropy" mapstructure:"enable_negentropy"`
 	Store            StoreConfig              `json:"store" yaml:"store" mapstructure:"store"`
 	NIP29            NIP29Config              `json:"nip29" yaml:"nip29" mapstructure:"nip29"`
+	WoT              WoTConfig                `json:"wot" yaml:"wot" mapstructure:"wot"`
 }
+
+type WoTConfig struct {
+	Enabled              bool     `json:"enabled" yaml:"enabled" mapstructure:"enabled"`
+	RefreshIntervalHours int      `json:"refresh_interval_hours" yaml:"refresh_interval_hours" mapstructure:"refresh_interval_hours"`
+	MinimumFollowers     int      `json:"minimum_followers" yaml:"minimum_followers" mapstructure:"minimum_followers"`
+	TargetPubkey         string   `json:"target_pubkey" yaml:"target_pubkey" mapstructure:"target_pubkey"`
+	MaxTrustNetwork      int      `json:"max_trust_network" yaml:"max_trust_network" mapstructure:"max_trust_network"`
+	MaxOneHopNetwork     int      `json:"max_one_hop_network" yaml:"max_one_hop_network" mapstructure:"max_one_hop_network"`
+	SeedRelays           []string `json:"seed_relays" yaml:"seed_relays" mapstructure:"seed_relays"`
+}
+
 type StoreConfig struct {
 	Enabled             bool     `json:"enabled" yaml:"enabled" mapstructure:"enabled"`
 	APIPath             string   `json:"api_path" yaml:"api_path" mapstructure:"api_path"`
@@ -67,6 +79,8 @@ type RelayConfig struct {
 	FakeDeletion       bool  `json:"fake_deletion" yaml:"fake_deletion" mapstructure:"fake_deletion"`
 	VanishEvent        bool  `json:"vanish_event" yaml:"vanish_event" mapstructure:"vanish_event"`
 	EnableEmptyFilter  bool  `json:"enable_empty_filter" yaml:"enable_empty_filter" mapstructure:"enable_empty_filter"`
+	WhitelistKinds     []int `json:"whitelist_kinds" yaml:"whitelist_kinds" mapstructure:"whitelist_kinds"`
+	BlacklistKinds     []int `json:"blacklist_kinds" yaml:"blacklist_kinds" mapstructure:"blacklist_kinds"`
 }
 type WsConfig struct {
 	ReteLimit rate.Limit `json:"rate_limit" yaml:"rate_limit" mapstructure:"rate_limit"`

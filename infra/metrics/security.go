@@ -52,6 +52,19 @@ var (
 		},
 		[]string{"result"},
 	)
+	NostrBlockedKindsTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "nostr_blocked_kinds_total",
+			Help: "Total events blocked due to kind whitelist or blacklist policies.",
+		},
+		[]string{"policy"}, // "whitelist" or "blacklist"
+	)
+	NostrBlockedWOTTotal = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "nostr_blocked_wot_total",
+			Help: "Total events blocked because author is not in the Web of Trust.",
+		},
+	)
 )
 
 func RegisterSecurityMetrics() {
@@ -63,5 +76,7 @@ func RegisterSecurityMetrics() {
 		NostrSecurityDefenseActionsTotal,
 		NostrSecurityWhitelistBypassTotal,
 		NostrSecuritySignatureChecksTotal,
+		NostrBlockedKindsTotal,
+		NostrBlockedWOTTotal,
 	)
 }

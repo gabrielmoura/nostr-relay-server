@@ -16,6 +16,7 @@ import (
 	"github.com/gabrielmoura/nostr-relay-server/internal/groups"
 	json "github.com/gabrielmoura/nostr-relay-server/internal/jsonx"
 	"github.com/gabrielmoura/nostr-relay-server/internal/security"
+	"github.com/gabrielmoura/nostr-relay-server/internal/wot"
 	"github.com/minio/sha256-simd"
 	"github.com/nbd-wtf/go-nostr"
 	"github.com/nbd-wtf/go-nostr/nip13"
@@ -165,6 +166,28 @@ func (p Policies) validateStorageEvent(ctx context.Context, evt *nostr.Event) (b
 	}
 	if reject, reason := p.rejectEventsWithBase64Media(evt); reject {
 		return true, reason
+	}
+	if reject, reason := p.validateWhitelistBlacklist(evt); reject {
+		return true, reason
+	}
+	if !wot.Validate(evt.PubKey) {
+		return true, security.Reason(security.PrefixRestricted, "pubkey not in web of trust")
+	}
+	return false, ""
+}
+
+func (p Policies) validateWhitelistBlacklist(evt *nostr.Event) (bool, string) {
+	if len(p.Config.Relay.WhitelistKinds) > 0 {
+		if !slices.Contains(p.Config.Relay.WhitelistKinds, evt.Kind) {
+			metrics.NostrBlockedKindsTotal.WithLabelValues("whitelist").Inc()
+			return true, security.Reason(security.PrefixRestricted, "event kind is not in the whitelist")
+		}
+	}
+	if len(p.Config.Relay.BlacklistKinds) > 0 {
+		if slices.Contains(p.Config.Relay.BlacklistKinds, evt.Kind) {
+			metrics.NostrBlockedKindsTotal.WithLabelValues("blacklist").Inc()
+			return true, security.Reason(security.PrefixRestricted, "event kind is blacklisted")
+		}
 	}
 	return false, ""
 }

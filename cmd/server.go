@@ -18,6 +18,7 @@ import (
 	"github.com/gabrielmoura/nostr-relay-server/internal/groups"
 	policies2 "github.com/gabrielmoura/nostr-relay-server/internal/policies"
 	"github.com/gabrielmoura/nostr-relay-server/internal/security"
+	"github.com/gabrielmoura/nostr-relay-server/internal/wot"
 	"github.com/gabrielmoura/nostr-relay-server/pkg/nostrpool"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
@@ -87,6 +88,7 @@ func runServer(cmd *cobra.Command, args []string) {
 		// Initialize and start batch ingestion
 		ingestion.Init()
 		ingestion.Start(mainCtx)
+		wot.Start(mainCtx)
 		stream.Start(mainCtx)
 
 		// Inicializa o handler dentro do contexto principal

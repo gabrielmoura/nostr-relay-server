@@ -62,6 +62,22 @@ func setDefaults(export bool) {
 	viper.SetDefault("relay.enable_anonymous_req", true)
 	viper.SetDefault("relay.fake_deletion", false)
 	viper.SetDefault("relay.vanish_event", false)
+	viper.SetDefault("relay.whitelist_kinds", []int{})
+	viper.SetDefault("relay.blacklist_kinds", []int{})
+
+	viper.SetDefault("wot.enabled", false)
+	viper.SetDefault("wot.refresh_interval_hours", 3)
+	viper.SetDefault("wot.minimum_followers", 1)
+	viper.SetDefault("wot.target_pubkey", "")
+	viper.SetDefault("wot.max_trust_network", 40000)
+	viper.SetDefault("wot.max_one_hop_network", 50000)
+	viper.SetDefault("wot.seed_relays", []string{
+		"wss://nos.lol",
+		"wss://nostr.mom",
+		"wss://purplepag.es",
+		"wss://purplerelay.com",
+		"wss://relay.damus.io",
+	})
 
 	viper.SetDefault("store.api_path", fmt.Sprintf("http://localhost:%s/upload", viper.GetString("port")))
 	viper.SetDefault("store.media_path", fmt.Sprintf("http://localhost:%s/blob", viper.GetString("port")))
