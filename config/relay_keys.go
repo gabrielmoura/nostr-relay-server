@@ -19,6 +19,20 @@ func (cfg *Config) normalizeRelayKeys() error {
 	return cfg.RelayInformation.NormalizeKeys()
 }
 
+func (cfg *Config) normalizeAdminKeys() error {
+	if cfg == nil {
+		return nil
+	}
+
+	pubKey, err := normalizeOptionalPublicKey(cfg.AdminPubKey)
+	if err != nil {
+		return fmt.Errorf("normalize admin_pubkey: %w", err)
+	}
+
+	cfg.AdminPubKey = pubKey
+	return nil
+}
+
 func (cfg *RelayInformationDocument) NormalizeKeys() error {
 	if cfg == nil {
 		return nil

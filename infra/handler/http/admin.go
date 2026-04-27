@@ -225,9 +225,11 @@ type adminFetchEventRequest struct {
 type adminFetchEventResponse struct {
 	EventID      string                  `json:"event_id,omitempty"`
 	SourceRelay  string                  `json:"source_relay,omitempty"`
+	Found        bool                    `json:"found"`
 	Persisted    bool                    `json:"persisted"`
 	RelaysTried  int                     `json:"relays_tried"`
 	RelayResults []adminFetchRelayResult `json:"relay_results"`
+	Message      string                  `json:"message,omitempty"`
 }
 
 type adminImportFileResult struct {
@@ -271,7 +273,7 @@ var defaultAdminFetchRelays = []string{
 
 func AdminTokenMiddleware(cfg *config.Config) fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		if cfg.AdminToken == "" {
+		if cfg == nil || !cfg.AdminAPIRequiresToken() {
 			return c.Next()
 		}
 		if c.Get("X-Admin-Token") != cfg.AdminToken {
@@ -897,7 +899,14 @@ func FetchEventFromRelays() fiber.Handler {
 		event, sourceRelay, tried, relayResults, err := fetchEventFromRelays(c.UserContext(), eventID, relays)
 		if err != nil {
 			if errors.Is(err, errAdminEventNotFoundOnRelays) {
-				return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "event not found on provided relays", "relays_tried": tried, "relay_results": relayResults})
+				return c.JSON(adminFetchEventResponse{
+					EventID:      eventID,
+					Found:        false,
+					Persisted:    false,
+					RelaysTried:  tried,
+					RelayResults: relayResults,
+					Message:      "event not found on provided relays",
+				})
 			}
 			return internalServerError(c, err)
 		}
@@ -914,9 +923,11 @@ func FetchEventFromRelays() fiber.Handler {
 		return c.JSON(adminFetchEventResponse{
 			EventID:      event.ID,
 			SourceRelay:  sourceRelay,
+			Found:        true,
 			Persisted:    persisted,
 			RelaysTried:  tried,
 			RelayResults: relayResults,
+			Message:      "event found on relay",
 		})
 	}
 }

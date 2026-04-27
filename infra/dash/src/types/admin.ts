@@ -23,6 +23,47 @@ export type RelayMetricCard = {
   helper?: string
 }
 
+export type NIP86PubKeyRecord = {
+  pubkey: string
+  reason?: string
+  created_by?: string
+  created_at?: string
+  updated_at?: string
+}
+
+export type NIP86EventRecord = {
+  event_id: string
+  reason?: string
+  created_by?: string
+  created_at?: string
+  updated_at?: string
+}
+
+export type NIP86IPRecord = {
+  ip: string
+  reason?: string
+  created_by?: string
+  created_at?: string
+  updated_at?: string
+}
+
+export type NIP86RelayMetadata = {
+  relay_url: string
+  name?: string
+  description?: string
+  updated_by?: string
+  updated_at?: string
+}
+
+export type NIP86ReasonPayload = {
+  reason: string
+}
+
+export type NIP86RelayMetadataPayload = {
+  name: string
+  description: string
+}
+
 export type RelayOverview = {
   cards: RelayMetricCard[]
   status: "operational" | "degraded"
@@ -261,9 +302,11 @@ export type FetchEventFromRelaysPayload = {
 export type FetchEventFromRelaysResponse = {
   event_id: string
   source_relay: string
+  found: boolean
   persisted: boolean
   relays_tried: number
   relay_results: RelayFetchStatus[]
+  message?: string
 }
 
 export type ImportEventsFileResult = {

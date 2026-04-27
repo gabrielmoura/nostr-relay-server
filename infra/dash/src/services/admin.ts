@@ -11,6 +11,12 @@ import type {
   FetchEventFromRelaysResponse,
   ImportEventsResponse,
   LoggedUser,
+  NIP86EventRecord,
+  NIP86IPRecord,
+  NIP86PubKeyRecord,
+  NIP86ReasonPayload,
+  NIP86RelayMetadata,
+  NIP86RelayMetadataPayload,
   NIP05Identity,
   NIP05IdentityPayload,
   EventReportsResponse,
@@ -498,6 +504,74 @@ export async function deleteNIP05Identity(name: string) {
 
 export async function getUserNIP05(pubkey: string) {
   return request<UserNIP05Association>(`/users/${pubkey}/nip05`)
+}
+
+export async function getNIP86AllowedPubKeysPage(query: string, params: PageParams) {
+  const search = new URLSearchParams({ limit: String(params.limit), offset: String(params.offset) })
+  if (query) {
+    search.set("q", query)
+  }
+  return request<AdminPage<NIP86PubKeyRecord>>(`/nip86/allowed-pubkeys?${search.toString()}`)
+}
+
+export async function allowNIP86PubKey(pubkey: string, payload: NIP86ReasonPayload) {
+  return request<{ ok: boolean }>(`/nip86/allowed-pubkeys/${encodeURIComponent(pubkey)}`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function unallowNIP86PubKey(pubkey: string) {
+  return request<{ ok: boolean }>(`/nip86/allowed-pubkeys/${encodeURIComponent(pubkey)}`, { method: "DELETE" })
+}
+
+export async function getNIP86BlockedIPsPage(query: string, params: PageParams) {
+  const search = new URLSearchParams({ limit: String(params.limit), offset: String(params.offset) })
+  if (query) {
+    search.set("q", query)
+  }
+  return request<AdminPage<NIP86IPRecord>>(`/nip86/blocked-ips?${search.toString()}`)
+}
+
+export async function blockNIP86IP(ip: string, payload: NIP86ReasonPayload) {
+  return request<{ ok: boolean }>(`/nip86/blocked-ips/${encodeURIComponent(ip)}`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function unblockNIP86IP(ip: string) {
+  return request<{ ok: boolean }>(`/nip86/blocked-ips/${encodeURIComponent(ip)}`, { method: "DELETE" })
+}
+
+export async function getNIP86BannedEventsPage(query: string, params: PageParams) {
+  const search = new URLSearchParams({ limit: String(params.limit), offset: String(params.offset) })
+  if (query) {
+    search.set("q", query)
+  }
+  return request<AdminPage<NIP86EventRecord>>(`/nip86/banned-events?${search.toString()}`)
+}
+
+export async function banNIP86Event(eventID: string, payload: NIP86ReasonPayload) {
+  return request<{ ok: boolean }>(`/nip86/banned-events/${encodeURIComponent(eventID)}`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function unbanNIP86Event(eventID: string) {
+  return request<{ ok: boolean }>(`/nip86/banned-events/${encodeURIComponent(eventID)}`, { method: "DELETE" })
+}
+
+export async function getNIP86RelayMetadata() {
+  return request<NIP86RelayMetadata>("/nip86/relay-metadata")
+}
+
+export async function updateNIP86RelayMetadata(payload: NIP86RelayMetadataPayload) {
+  return request<{ updated: boolean; name: string; description: string }>("/nip86/relay-metadata", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  })
 }
 
 export function getEventTags(event: EventRecord) {

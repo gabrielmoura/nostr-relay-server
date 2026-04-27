@@ -62,6 +62,8 @@ Filters define which events to subscribe to:
 
 **NIP-11:** Returns relay information when `Accept: application/nostr+json`
 
+**NIP-86:** Accepts JSON-RPC over HTTP on the same `/` route when `Content-Type: application/nostr+json+rpc`
+
 #### Request
 ```http
 GET / HTTP/1.1
@@ -88,6 +90,74 @@ Accept: application/nostr+json
   }
 }
 ```
+
+#### Request (NIP-86 JSON-RPC)
+
+```http
+POST / HTTP/1.1
+Content-Type: application/nostr+json+rpc
+Authorization: Nostr <base64_kind_27235_event>
+```
+
+```json
+{
+  "method": "banpubkey",
+  "params": ["<hex-pubkey>", "spam"]
+}
+```
+
+#### Authentication Rules for NIP-86
+
+- `Authorization` is mandatory.
+- Authorization event must be a valid NIP-98 `kind:27235` event.
+- Required checks:
+  - `kind == 27235`
+  - valid signature
+  - `created_at` inside a short freshness window
+  - `method` tag equals the HTTP method
+  - `u` tag equals the absolute request URL
+  - `payload` tag equals the SHA-256 hex of the raw JSON-RPC body
+- Only the configured relay administrator pubkey may execute methods.
+- Failures return `401 Unauthorized`.
+
+Operational note:
+
+- this public API is optional and disabled by default
+- the embedded dashboard should keep using the internal `/admin/*` API instead of signing NIP-98 requests in the browser
+
+#### NIP-86 JSON-RPC Response
+
+```json
+{
+  "result": true,
+  "error": ""
+}
+```
+
+#### Planned Supported NIP-86 Methods
+
+- `supportedmethods`
+- `banpubkey`
+- `unbanpubkey`
+- `listbannedpubkeys`
+- `allowpubkey`
+- `unallowpubkey`
+- `listallowedpubkeys`
+- `allowevent`
+- `banevent`
+- `listbannedevents`
+- `changerelayname`
+- `changerelaydescription`
+- `blockip`
+- `unblockip`
+- `listblockedips`
+
+#### NIP-86 Error Mapping
+
+- `400` - malformed JSON-RPC payload, unsupported content type, invalid params
+- `401` - missing/invalid NIP-98 auth or caller is not the configured admin pubkey
+- `405` - HTTP method not allowed
+- `500` - internal execution error
 
 ### Static Files
 
@@ -670,6 +740,54 @@ Lists reported target events (NIP-56 kind `1984`) with moderation-friendly metad
 }
 ```
 
+### Planned Internal Admin Endpoints For NIP-86 Dashboard
+
+These endpoints are backend conveniences for the internal dashboard. They should reuse the same persistence/runtime behavior as the NIP-86 service layer instead of duplicating business rules.
+
+#### `GET /admin/nip86/allowed-pubkeys`
+
+Returns allowed pubkeys with reason and audit timestamps.
+
+#### `POST /admin/nip86/allowed-pubkeys`
+
+Creates or updates an allowed pubkey entry.
+
+#### `DELETE /admin/nip86/allowed-pubkeys/:pubkey`
+
+Removes an allowlisted pubkey.
+
+#### `GET /admin/nip86/blocked-ips`
+
+Returns blocked IPs with reason and audit timestamps.
+
+#### `POST /admin/nip86/blocked-ips`
+
+Blocks an IP and triggers disconnect of active matching websocket sessions.
+
+#### `DELETE /admin/nip86/blocked-ips/:ip`
+
+Removes an IP block entry.
+
+#### `GET /admin/nip86/banned-events`
+
+Returns banned event ids with audit metadata.
+
+#### `POST /admin/nip86/banned-events`
+
+Creates or updates a banned event entry.
+
+#### `DELETE /admin/nip86/banned-events/:id`
+
+Removes a banned event entry.
+
+#### `GET /admin/nip86/relay-metadata`
+
+Returns current runtime relay metadata overrides.
+
+#### `POST /admin/nip86/relay-metadata`
+
+Updates runtime relay name and description overrides.
+
 ## Negentropy Protocol (NIP-47)
 
 Negentropy is used for efficient set reconciliation between relays, minimizing bandwidth when comparing large event sets.
@@ -745,6 +863,7 @@ The relay may answer with:
 | 77 | Kind 30078 | ✅ |
 | 96 | Blossom Storage | ✅ |
 | 98 | HTTP Auth | ✅ |
+| 86 | Relay Management API | planned |
 
 ## Error Responses
 

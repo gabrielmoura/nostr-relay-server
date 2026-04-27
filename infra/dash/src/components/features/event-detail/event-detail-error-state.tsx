@@ -36,6 +36,10 @@ export function EventDetailErrorState({ eventID, error, onRetry }: EventDetailEr
     try {
       const response = await mutation.mutateAsync({ eventID, relays })
       setRelayFeedback(response.relay_results ?? [])
+      if (!response.found) {
+        toast.error(response.message || t("eventDetail.searchRelayError"))
+        return
+      }
       toast.success(t("eventDetail.foundInRelay", { relay: response.source_relay }))
       setOpen(false)
       onRetry()

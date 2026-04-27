@@ -104,6 +104,18 @@ Located in `infra/dash/src/components/shared/`
 
 ---
 
+### NIP-86 (`components/features/nip86/`) - Planned
+
+| Component | Type | Purpose |
+|-----------|------|---------|
+| `AllowedPubkeysPanel` | Smart | Search, list and mutate allowlisted pubkeys |
+| `BlockedIPsPanel` | Smart | Search, list, block/unblock IPs and surface disconnect impact |
+| `BannedEventsPanel` | Smart | Search, list and unban moderated event ids |
+| `RelayMetadataForm` | Smart | Edit runtime relay name/description overrides |
+| `Nip86ActionToolbar` | Dumb | Compact filter/action strip reused across NIP-86 lists |
+
+---
+
 ## Route Components (Smart)
 
 Located in `infra/dash/src/routes/`
@@ -122,6 +134,10 @@ Located in `infra/dash/src/routes/`
 | `/reported` | `reported-events-page.tsx` | ~154 | NIP-56 reports |
 | `/stream` | `stream-status-page.tsx` | ~127 | Stream/forward status |
 | `/nip05` | `nip05-page.tsx` | - | NIP-05 management |
+| `/nip86` | `nip86-page.tsx` | planned | NIP-86 command center |
+| `/nip86/allowed` | `nip86-allowed-page.tsx` | planned | Allowlist management |
+| `/nip86/blocked-ips` | `nip86-blocked-ips-page.tsx` | planned | IP blocking + disconnect visibility |
+| `/nip86/banned-events` | `nip86-banned-events-page.tsx` | planned | Event moderation state |
 
 ---
 

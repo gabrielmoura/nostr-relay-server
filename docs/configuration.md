@@ -12,6 +12,7 @@ This document describes the `conf.yaml` structure supported by the relay.
 - If `app_env` is empty, runtime fallback is `production`.
 - Cron expressions use **6 fields** (`sec min hour day month weekday`) because scheduler uses `cron.WithSeconds()`.
 - `stream.stream_up` / `stream.stream_down` are the active keys.
+- If `nip86.enabled=true`, runtime requires a valid `admin_pubkey` and non-empty `relay_information.url`.
 
 Operational CLI helpers:
 
@@ -26,6 +27,12 @@ Operational CLI helpers:
 port: 4869
 app_env: production
 admin_token: ""
+admin_pubkey: ""
+
+nip86:
+  enabled: false
+  auth_window_seconds: 60
+  cache_ttl_seconds: 300
 
 ws:
   rate_limit: 1
@@ -243,6 +250,41 @@ nip29:
 
 ## Key-by-Key Reference
 
+## Admin Surfaces and Feature Flags
+
+The relay now has two separate administration surfaces with different trust models:
+
+- `admin_token` protects the **internal** `/admin/*` HTTP API and the embedded dashboard at `/panel`.
+- `nip86.enabled` + `admin_pubkey` enable the **external** NIP-86 JSON-RPC surface on `/`.
+
+Recommended operator posture:
+
+- keep `admin_token` enabled whenever the internal server is reachable by anything beyond localhost
+- keep `nip86.enabled=false` unless you explicitly need remote relay management from Nostr-native tooling
+- do not store production private keys, `db.postgres_uri`, or live admin values in versioned example files
+
+### Suggested User Profiles
+
+#### Local development / single operator
+
+- enable PostgreSQL
+- keep Redis optional
+- keep `nip86.enabled=false`
+- set `admin_token` if you access `/panel` outside localhost
+
+#### Public relay with internal dashboard
+
+- set `admin_token`
+- keep the internal server behind VPN, reverse proxy auth, or a private network
+- enable only the feature blocks you actually use (`store`, `stream`, `nip29`, cron jobs)
+
+#### Remote automation with NIP-86
+
+- enable `nip86.enabled=true`
+- set `admin_pubkey`
+- verify `relay_information.url` matches the externally reachable HTTP URL exactly
+- treat NIP-86 as a privileged operator surface with the same care as SSH or DB admin credentials
+
 ### Security
 
 | Key | Type | Default | Description |
@@ -271,7 +313,29 @@ nip29:
 | `port` | int | `9090` | External server port. Internal server uses `port+1`. |
 | `app_env` | string | `production` (runtime fallback) | Environment mode. |
 | `admin_token` | string | `""` | If set, `/admin` requires `X-Admin-Token`. |
+| `admin_pubkey` | string | `""` | Relay administrator pubkey for NIP-86. Accepts hex or `npub`; runtime should normalize to lowercase hex. |
+
+### NIP-86
+
+| Key | Type | Default | Description |
+|---|---|---:|---|
+| `nip86.enabled` | bool | `false` | Enables the external NIP-86 JSON-RPC relay-management API on `/`. |
+| `nip86.auth_window_seconds` | int | `60` | Freshness window used when validating NIP-98 authorization events. |
+| `nip86.cache_ttl_seconds` | int | `300` | TTL used for targeted hot-path cache entries such as blocked IP and banned event lookups. |
+
+Operational notes:
+
+- enabling NIP-86 appends NIP `86` to the advertised supported NIPs
+- config validation should be considered failed if `nip86.enabled=true` but `admin_pubkey` is missing
+- `blockip` disconnect is immediate only for websocket sessions visible to the local process
 | `enable_negentropy` | bool | `false` | Enables Negentropy flow (`NEG-OPEN`, `NEG-MSG`, `NEG-CLOSE`) and related sync handlers. |
+
+### NIP-86 Operational Note
+
+- `admin_token` protects the internal admin panel.
+- `admin_pubkey` protects the external NIP-86 JSON-RPC endpoint on `/`.
+- `nip86.enabled` must be `true` before the external JSON-RPC management surface is activated.
+- These mechanisms are intentionally separate because panel automation and Nostr-native relay management have different trust models.
 
 ### Negentropy and Sync Operational Notes
 

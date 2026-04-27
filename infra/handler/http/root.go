@@ -9,6 +9,7 @@ import (
 	"github.com/gabrielmoura/nostr-relay-server/infra/util"
 	"github.com/gabrielmoura/nostr-relay-server/internal/db"
 	"github.com/gabrielmoura/nostr-relay-server/internal/dto"
+	"github.com/gabrielmoura/nostr-relay-server/internal/nip86"
 	"github.com/gofiber/contrib/websocket"
 	"github.com/gofiber/fiber/v2"
 )
@@ -73,10 +74,22 @@ func NostrJSON(cfg *config.Config) fiber.Handler {
 
 func RootUpgrade(cfg *config.Config) fiber.Handler {
 	return func(c *fiber.Ctx) error {
+		if handled, err := handleNIP86JSONRPC(c, cfg); handled {
+			return err
+		}
 		if strings.Contains(c.Get("Accept"), "application/nostr+json") {
 			return c.JSON(cfg.RelayInformation.PublicNIP11())
 		}
 		if websocket.IsWebSocketUpgrade(c) {
+			if nip86.S != nil && nip86.S.Enabled() {
+				reason, blocked, err := nip86.S.IsIPBlocked(c.UserContext(), c.IP())
+				if err != nil {
+					return c.Status(fiber.StatusServiceUnavailable).SendString("ip moderation lookup failed")
+				}
+				if blocked {
+					return c.Status(fiber.StatusForbidden).SendString(reason)
+				}
+			}
 			now := time.Now().UTC()
 			userAgent := c.Get("User-Agent")
 			remoteIP := c.IP()

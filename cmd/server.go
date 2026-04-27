@@ -16,6 +16,7 @@ import (
 	"github.com/gabrielmoura/nostr-relay-server/internal/bootstrap"
 	"github.com/gabrielmoura/nostr-relay-server/internal/db"
 	"github.com/gabrielmoura/nostr-relay-server/internal/groups"
+	"github.com/gabrielmoura/nostr-relay-server/internal/nip86"
 	policies2 "github.com/gabrielmoura/nostr-relay-server/internal/policies"
 	"github.com/gabrielmoura/nostr-relay-server/internal/security"
 	"github.com/gabrielmoura/nostr-relay-server/internal/wot"
@@ -62,6 +63,12 @@ func runServer(cmd *cobra.Command, args []string) {
 		// Iniciar Conexão com o banco de dados
 		if err := db.Init(mainCtx); err != nil {
 			log.Logger.Fatal("Erro ao iniciar conexão com o banco de dados", zap.Error(err))
+		}
+		if err := nip86.Init(db.DbQueries); err != nil {
+			log.Logger.Fatal("Erro ao inicializar NIP-86", zap.Error(err))
+		}
+		if err := nip86.ApplyRelayMetadataOverride(mainCtx); err != nil {
+			log.Logger.Fatal("Erro ao aplicar override de metadata do relay", zap.Error(err))
 		}
 
 		// Inicializar prepared statements (apenas em produção)

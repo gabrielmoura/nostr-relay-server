@@ -35,6 +35,7 @@
       "connectionsLogged": "Logged connections",
       "eventsSearch": "Event search",
       "nip05": "NIP-05",
+      "nip86": "NIP-86",
       "eventsReported": "Reported events",
       "streams": "Streams",
       "usersSearch": "User search"
@@ -173,7 +174,94 @@
     "clusterTopologyDescription": "Operational representation with load balancer.",
     "redisRole": "for shared pub/sub and caches",
     "postgresRole": "shared for event consistency",
-    "currentStreamState": "Current stream state"
+    "currentStreamState": "Current stream state",
+    "nip86Title": "NIP-86 command center",
+    "nip86Description": "Operational surface for allowlists, blocked IPs, banned events and runtime relay metadata.",
+    "nip86Body": "Use the dedicated NIP-86 workspace to apply safe relay-management actions with visible audit context.",
+    "nip86Action": "Open NIP-86 workspace"
+  },
+  "nip86": {
+    "shared": {
+      "noReason": "No reason registered"
+    },
+    "header": {
+      "title": "NIP-86 relay management",
+      "description": "Compact operational workflow for trusted allowlists, network blocks, event moderation and runtime relay metadata.",
+      "reviewReports": "Review reports"
+    },
+    "cards": {
+      "allowed": {
+        "badge": "ALLOWLIST",
+        "title": "Trusted pubkeys",
+        "description": "Fast path for approved identities.",
+        "body": "Pin trusted pubkeys with audit context so operations can review exceptions without opening user search first."
+      },
+      "blockedIps": {
+        "badge": "NETWORK BLOCK",
+        "title": "IP containment",
+        "description": "Immediate connection disruption.",
+        "body": "Block abusive IPs and trigger active WebSocket disconnects from the same control plane."
+      },
+      "bannedEvents": {
+        "badge": "EVENT MODERATION",
+        "title": "Banned event ids",
+        "description": "Precise event-level suppression.",
+        "body": "Track explicit event bans and reverse them without touching broader user moderation state."
+      }
+    },
+    "allowed": {
+      "title": "Allowed pubkeys",
+      "description": "Manage explicit pubkey allowlist entries exposed by the NIP-86 management layer.",
+      "searchPlaceholder": "Search pubkey or reason",
+      "pubkeyPlaceholder": "hex pubkey or npub",
+      "reasonPlaceholder": "Reason for allowlisting",
+      "addAction": "Allow pubkey",
+      "removeAction": "Remove",
+      "loading": "Loading allowed pubkeys...",
+      "errorTitle": "Failed to load allowed pubkeys",
+      "errorDescription": "The internal admin API could not read allowlist entries.",
+      "emptyTitle": "No allowed pubkeys",
+      "emptyDescription": "Create the first trusted identity entry to document safe exceptions."
+    },
+    "blockedIps": {
+      "title": "Blocked IPs",
+      "description": "Apply network-level containment and observe exact blocked addresses with audit reasons.",
+      "searchPlaceholder": "Search IP or reason",
+      "ipPlaceholder": "203.0.113.10",
+      "reasonPlaceholder": "Reason for block",
+      "blockAction": "Block IP",
+      "unblockAction": "Unblock",
+      "disconnectHint": "When an IP is blocked, current matching WebSocket sessions are disconnected immediately on this relay node.",
+      "loading": "Loading blocked IPs...",
+      "errorTitle": "Failed to load blocked IPs",
+      "errorDescription": "The internal admin API could not read blocked IP entries.",
+      "emptyTitle": "No blocked IPs",
+      "emptyDescription": "No network blocks are active right now."
+    },
+    "bannedEvents": {
+      "title": "Banned events",
+      "description": "Moderate specific event ids without escalating directly to account-level actions.",
+      "searchPlaceholder": "Search event id or reason",
+      "idPlaceholder": "64-char event id",
+      "reasonPlaceholder": "Reason for event ban",
+      "banAction": "Ban event",
+      "allowAction": "Allow again",
+      "reuseAction": "Reuse id",
+      "loading": "Loading banned events...",
+      "errorTitle": "Failed to load banned events",
+      "errorDescription": "The internal admin API could not read banned event entries.",
+      "emptyTitle": "No banned events",
+      "emptyDescription": "No event ids are currently pinned in the banned set."
+    },
+    "metadata": {
+      "title": "Relay metadata override",
+      "description": "Edit runtime NIP-11 relay name and description without touching the config file directly.",
+      "descriptionLabel": "Relay description",
+      "saveAction": "Save relay metadata",
+      "loading": "Loading relay metadata override...",
+      "errorTitle": "Failed to load relay metadata",
+      "errorDescription": "The internal admin API could not read current relay metadata override state."
+    }
   },
   "loggedUsers": {
     "title": "Logged users",

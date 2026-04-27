@@ -2,7 +2,7 @@ import type { ComponentType, FormEvent } from "react"
 import { useMemo, useState } from "react"
 import { Link, Outlet, useLocation, useNavigate } from "@tanstack/react-router"
 import { useTranslation } from "react-i18next"
-import { AtSign, Bell, Cable, LayoutDashboard, Menu, Radio, Search, ShieldAlert, TriangleAlert, UserRound, Users } from "lucide-react"
+import { AtSign, Bell, Cable, LayoutDashboard, Menu, Radio, Search, ShieldAlert, ShieldCheck, TriangleAlert, UserRound, Users } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -23,6 +23,7 @@ const primaryNav: NavItem[] = [
   { to: "/connections/logged", labelKey: "layout.nav.connectionsLogged", icon: UserRound },
   { to: "/events/search", labelKey: "layout.nav.eventsSearch", icon: Search },
   { to: "/nip05", labelKey: "layout.nav.nip05", icon: AtSign },
+  { to: "/nip86", labelKey: "layout.nav.nip86", icon: ShieldCheck },
   { to: "/events/reported", labelKey: "layout.nav.eventsReported", icon: TriangleAlert },
   { to: "/stream", labelKey: "layout.nav.streams", icon: Radio },
 ]
@@ -33,12 +34,12 @@ function SideNav({ onNavigate }: { onNavigate?: () => void }) {
 
   return (
     <div className="flex h-full flex-col gap-6">
-      <div className="space-y-1 rounded-[var(--radius)] border border-border bg-card p-5 panel-shadow">
+      <div className="space-y-1 rounded-[var(--radius)] border border-primary/15 bg-[linear-gradient(135deg,rgba(14,165,233,0.08),rgba(255,255,255,0.98))] p-5 panel-shadow">
         <p className="font-heading text-lg font-semibold text-foreground">{t("layout.brandTitle")}</p>
         <p className="text-sm text-muted-foreground">{t("layout.brandDescription")}</p>
       </div>
 
-      <nav className="space-y-2 rounded-[var(--radius)] border border-border bg-card p-3 panel-shadow">
+      <nav className="space-y-2 rounded-[var(--radius)] border border-border bg-card/95 p-3 panel-shadow">
         {primaryNav.map((item) => {
           const active = location.pathname === item.to
           const Icon = item.icon
@@ -48,7 +49,7 @@ function SideNav({ onNavigate }: { onNavigate?: () => void }) {
               key={item.to}
               activeOptions={{ exact: item.to === "/" }}
               className={cn(
-                "flex items-center gap-3 rounded-[calc(var(--radius)-0.2rem)] px-3 py-2 text-sm transition-all duration-200",
+                "flex cursor-pointer items-center gap-3 rounded-[calc(var(--radius)-0.2rem)] px-3 py-2 text-sm transition-all duration-200",
                 active
                   ? "bg-primary text-primary-foreground"
                   : "text-muted-foreground hover:bg-muted hover:text-foreground",
@@ -63,7 +64,7 @@ function SideNav({ onNavigate }: { onNavigate?: () => void }) {
         })}
         <Link
           className={cn(
-            "flex items-center gap-3 rounded-[calc(var(--radius)-0.2rem)] px-3 py-2 text-sm transition-all duration-200",
+            "flex cursor-pointer items-center gap-3 rounded-[calc(var(--radius)-0.2rem)] px-3 py-2 text-sm transition-all duration-200",
             location.pathname === "/users/search"
               ? "bg-primary text-primary-foreground"
               : "text-muted-foreground hover:bg-muted hover:text-foreground",
@@ -76,7 +77,7 @@ function SideNav({ onNavigate }: { onNavigate?: () => void }) {
         </Link>
       </nav>
 
-      <div className="rounded-[var(--radius)] border border-orange-200 bg-orange-50 p-4 text-sm text-orange-800 panel-shadow">
+      <div className="rounded-[var(--radius)] border border-sky-200 bg-sky-50 p-4 text-sm text-sky-900 panel-shadow">
         <div className="mb-1 flex items-center gap-2 font-heading font-semibold">
           <Bell className="size-4" />
           {t("layout.operationAlert")}

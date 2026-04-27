@@ -4,6 +4,36 @@
 
 The admin dashboard (`infra/dash/`) is a React 19 + TypeScript SPA built with TanStack Router and i18next. It provides operational controls for the Nostr relay server.
 
+## Planned NIP-86 Dashboard Extension
+
+The dashboard will remain on the internal admin API and will not call the external NIP-86 JSON-RPC endpoint directly from the browser.
+
+Reasons:
+
+- keeps the admin browser flow aligned with the existing `X-Admin-Token` trust model
+- avoids exposing NIP-98 signing responsibilities to the SPA
+- reuses the current typed `services/admin.ts` integration pattern
+- lets the backend translate UI actions into the same persistence/runtime side effects used by NIP-86
+
+The internal admin API should gain dedicated endpoints for:
+
+- allowed pubkeys
+- banned events
+- blocked IPs
+- relay metadata overrides
+
+## Visual Direction
+
+Using `ui-ux-pro-max`, the recommended direction for the new moderation area is a data-dense operational dashboard:
+
+- **Pattern:** data-dense + drill-down
+- **Style:** compact KPI cards, dense tables, low-friction filters, clear status badges
+- **Palette:** security blue base with green success accents and pale blue surfaces
+- **Typography:** `Fira Code` for headings and `Fira Sans` for body copy
+- **Interaction:** row highlighting, compact toolbars, fast filter feedback, visible focus states
+
+This should refine the current dashboard instead of replacing it with a marketing-style interface.
+
 ## Technology Stack
 
 | Layer | Technology | Purpose |
@@ -89,7 +119,29 @@ All API calls should go through a service layer:
 └─────────────┘     └─────────────┘     └─────────────┘
 ```
 
-Currently, API calls are embedded in route components. Future refactoring should extract them to `services/`.
+Currently, API calls already flow through `services/admin.ts` for most dashboard paths. New NIP-86-facing admin features should continue to use this service-first pattern.
+
+## Planned NIP-86 Feature Modules
+
+New feature components should be grouped under:
+
+```text
+components/features/nip86/
+  allowed-pubkeys-panel.tsx
+  banned-events-panel.tsx
+  blocked-ips-panel.tsx
+  relay-metadata-form.tsx
+```
+
+Suggested route split:
+
+```text
+routes/
+  nip86-page.tsx                # overview / command center
+  nip86-allowed-page.tsx        # allowlist management
+  nip86-banned-events-page.tsx  # event moderation state
+  nip86-blocked-ips-page.tsx    # network blocking and disconnect actions
+```
 
 ## Error Handling
 

@@ -471,6 +471,36 @@
 
 ---
 
+## Phase 36: NIP-86 Relay Management API (NEW)
+
+### 36.1: Documentation and Design
+- [ ] Document NIP-86 protocol branch on external `/`
+- [ ] Document NIP-98 requirements for `kind:27235` with mandatory `payload`
+- [ ] Record schema additions for allowlist, blocked IPs, banned events, and relay metadata overrides
+
+### 36.2: Configuration
+- [ ] Add `admin_pubkey` configuration with hex/`npub` normalization
+- [ ] Keep `admin_token` behavior unchanged for internal `/admin/*`
+
+### 36.3: Transport and Auth
+- [ ] Extend root HTTP handler to detect `application/nostr+json+rpc`
+- [ ] Implement NIP-98 middleware for exact URL, method, signature, freshness, and payload hash validation
+- [ ] Reject non-admin pubkeys with `401`
+
+### 36.4: Service and Repository
+- [ ] Add NIP-86 dispatcher and method handlers
+- [ ] Add repository support for `banpubkey`, `unbanpubkey`, `allowpubkey`, `unallowpubkey`
+- [ ] Add repository support for `allowevent`, `banevent`
+- [ ] Add repository support for `changerelayname`, `changerelaydescription`
+- [ ] Add repository support for `blockip`, `unblockip`
+
+### 36.5: Runtime Side Effects and Observability
+- [ ] Drop live websocket connections after `blockip`
+- [ ] Add structured JSON logs for each admin mutation
+- [ ] Add focused tests for auth, dispatch, repository mutations, and IP disconnect flow
+
+---
+
 ## Phase 32: DB Helper Refactor (NEW)
 
 ### 32.1: Documentation First

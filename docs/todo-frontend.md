@@ -47,6 +47,11 @@
 - [ ] Review and finalize `docs/components-tree.md`
 - [ ] Review and finalize `docs/state-management.md`
 
+### NIP-86 Dashboard Extension
+- [ ] Add NIP-86 dashboard information architecture to docs
+- [ ] Define new internal admin service endpoints consumed by the SPA
+- [ ] Add visual system updates for compact moderation workflows
+
 ---
 
 ## Backlog (Future Refactoring)
@@ -90,6 +95,14 @@ For each large file, follow the same pattern:
 - [ ] Create `services/api.ts` - centralized API client
 - [ ] Create `services/events.ts` - event-specific API calls
 - [ ] Create `services/users.ts` - user-specific API calls
+
+### NIP-86 Admin UX
+- [ ] Add `nip86-page.tsx` command center route
+- [ ] Add allowlist management route and components
+- [ ] Add blocked IP management route and components
+- [ ] Add banned event management route and components
+- [ ] Add relay metadata override form to dashboard
+- [ ] Extend `services/admin.ts` and `types/admin.ts` for new responses and mutations
 
 ### State Management
 - [ ] Evaluate TanStack Query for server state

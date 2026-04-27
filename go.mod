@@ -4,6 +4,7 @@ go 1.26.0
 
 require (
 	github.com/bytedance/sonic v1.15.0
+	github.com/coder/websocket v1.8.14
 	github.com/emmansun/base64 v0.9.0
 	github.com/fasthttp/websocket v1.5.12
 	github.com/gofiber/contrib/websocket v1.3.4
@@ -39,7 +40,6 @@ require (
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/clipperhouse/uax29/v2 v2.7.0 // indirect
 	github.com/cloudwego/base64x v0.1.6 // indirect
-	github.com/coder/websocket v1.8.14 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/decred/dcrd/crypto/blake256 v1.1.0 // indirect
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.4.1 // indirect

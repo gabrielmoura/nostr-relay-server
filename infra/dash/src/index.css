@@ -1,43 +1,44 @@
-@import url("https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&family=Fira+Sans:wght@300;400;500;600;700&display=swap");
 @import "tailwindcss";
 
 @theme {
-  --color-background: oklch(0.985 0.004 74.3);
-  --color-foreground: oklch(0.171 0.006 56.4);
+  --color-background: oklch(0.981 0.015 233.7);
+  --color-foreground: oklch(0.35 0.08 238.8);
   --color-card: oklch(1 0 0);
-  --color-card-foreground: oklch(0.171 0.006 56.4);
+  --color-card-foreground: oklch(0.35 0.08 238.8);
   --color-popover: oklch(1 0 0);
-  --color-popover-foreground: oklch(0.171 0.006 56.4);
-  --color-primary: oklch(0.218 0.012 264.2);
+  --color-popover-foreground: oklch(0.35 0.08 238.8);
+  --color-primary: oklch(0.52 0.11 235.4);
   --color-primary-foreground: oklch(1 0 0);
-  --color-secondary: oklch(0.967 0.003 264.5);
-  --color-secondary-foreground: oklch(0.28 0.006 255.4);
-  --color-muted: oklch(0.969 0.004 74.6);
-  --color-muted-foreground: oklch(0.548 0.023 264.4);
-  --color-accent: oklch(0.984 0.011 54.4);
-  --color-accent-foreground: oklch(0.379 0.084 35.7);
+  --color-secondary: oklch(0.963 0.019 225.1);
+  --color-secondary-foreground: oklch(0.42 0.07 235.2);
+  --color-muted: oklch(0.956 0.014 228.1);
+  --color-muted-foreground: oklch(0.51 0.05 236.3);
+  --color-accent: oklch(0.78 0.16 138.7);
+  --color-accent-foreground: oklch(0.27 0.04 155.2);
   --color-destructive: oklch(0.577 0.222 27.3);
   --color-destructive-foreground: oklch(1 0 0);
-  --color-border: oklch(0.922 0.004 67.7);
-  --color-input: oklch(0.922 0.004 67.7);
-  --color-ring: oklch(0.641 0.161 42.9);
+  --color-border: oklch(0.903 0.023 224.1);
+  --color-input: oklch(0.903 0.023 224.1);
+  --color-ring: oklch(0.62 0.1 227.5);
   --color-success: oklch(0.627 0.171 148.4);
   --color-success-foreground: oklch(0.985 0.015 149.6);
   --color-warning: oklch(0.769 0.164 66.2);
   --color-warning-foreground: oklch(0.268 0.039 44.7);
-  --font-sans: "Inter", sans-serif;
-  --font-heading: "Space Grotesk", sans-serif;
+  --font-sans: "Fira Sans", sans-serif;
+  --font-heading: "Fira Code", monospace;
   --font-mono: "Fira Code", monospace;
   --radius: 0.95rem;
-  --shadow-panel: 0 10px 30px rgba(15, 23, 42, 0.06);
+  --shadow-panel: 0 14px 38px rgba(3, 105, 161, 0.08);
 }
 
 :root {
   font-family: var(--font-sans);
-  color: rgb(10 10 10);
+  color: rgb(12 74 110);
   background:
-    radial-gradient(circle at top left, rgba(255, 247, 237, 0.8), transparent 28%),
-    linear-gradient(180deg, #fafaf9 0%, #f5f5f4 100%);
+    radial-gradient(circle at top left, rgba(224, 242, 254, 0.92), transparent 26%),
+    radial-gradient(circle at right, rgba(220, 252, 231, 0.52), transparent 22%),
+    linear-gradient(180deg, #f0f9ff 0%, #f8fafc 100%);
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -58,9 +59,9 @@ body {
   min-height: 100dvh;
   color: theme(--color-foreground);
   background:
-    radial-gradient(circle at top left, rgba(255, 237, 213, 0.7), transparent 24%),
-    radial-gradient(circle at bottom right, rgba(254, 242, 242, 0.7), transparent 20%),
-    linear-gradient(180deg, #fafaf9 0%, #f5f5f4 100%);
+    radial-gradient(circle at top left, rgba(224, 242, 254, 0.78), transparent 24%),
+    radial-gradient(circle at bottom right, rgba(220, 252, 231, 0.66), transparent 20%),
+    linear-gradient(180deg, #f0f9ff 0%, #f8fafc 100%);
 }
 
 button,
@@ -89,8 +90,8 @@ a {
 
 .surface-grid {
   background-image:
-    linear-gradient(rgba(231, 229, 228, 0.55) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(231, 229, 228, 0.55) 1px, transparent 1px);
+    linear-gradient(rgba(186, 230, 253, 0.42) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(186, 230, 253, 0.42) 1px, transparent 1px);
   background-size: 24px 24px;
 }
 

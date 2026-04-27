@@ -5,7 +5,7 @@
 ![GitHub stars](https://img.shields.io/github/stars/gabrielmoura/nostr-relay-server?style=for-the-badge)
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/gabrielmoura/nostr-relay-server)
 
-High-performance Nostr relay written in Go, with PostgreSQL storage, optional Redis integration, embedded admin panel, Blossom-compatible media storage, Negentropy sync, optional NIP-29 groups, Prometheus metrics, and configurable cron jobs.
+High-performance Nostr relay written in Go, with PostgreSQL storage, optional Redis integration, embedded admin panel, Blossom-compatible media storage, Negentropy sync, optional NIP-29 groups, optional NIP-86 relay-management API, Prometheus metrics, and configurable cron jobs.
 
 ---
 
@@ -19,6 +19,7 @@ It provides:
 - PostgreSQL as the primary storage backend
 - Optional Redis cache/pubsub integration
 - Embedded admin API and admin panel at `/panel`
+- Optional NIP-86 JSON-RPC management on the public root endpoint
 - Blossom-compatible media storage
 - Negentropy-based relay synchronization
 - Optional NIP-29 relay-based groups with relay-generated state events
@@ -32,6 +33,7 @@ It provides:
 
 - **High performance relay core** for Nostr workloads
 - **Admin API + Admin Panel** exposed on the internal server
+- **Optional NIP-86 relay management API** using JSON-RPC + NIP-98 auth
 - **PostgreSQL storage** with support for operational tooling
 - **Optional Redis support** for cache and pub/sub scenarios
 - **Blossom media storage support** for blobs and uploads
@@ -51,16 +53,18 @@ It provides:
 3. [Requirements](#requirements)
 4. [CLI Commands](#cli-commands)
 5. [Admin API and Panel](#admin-api-and-panel)
-6. [Configuration](#configuration)
-7. [Monitoring with Prometheus and Grafana](#monitoring-with-prometheus-and-grafana)
-8. [NIP-29 Groups](#nip-29-groups)
-9. [Supported Protocols](#supported-protocols)
-10. [Documentation](#documentation)
-11. [Frontend Development](#frontend-development)
-12. [Build](#build)
-13. [FAQ](#faq)
-14. [Contributing](#contributing)
-15. [License](#license)
+6. [NIP-86 Relay Management](#nip-86-relay-management)
+7. [Configuration](#configuration)
+8. [Limitations and Operational Caveats](#limitations-and-operational-caveats)
+9. [Monitoring with Prometheus and Grafana](#monitoring-with-prometheus-and-grafana)
+10. [NIP-29 Groups](#nip-29-groups)
+11. [Supported Protocols](#supported-protocols)
+12. [Documentation](#documentation)
+13. [Frontend Development](#frontend-development)
+14. [Build](#build)
+15. [FAQ](#faq)
+16. [Contributing](#contributing)
+17. [License](#license)
 
 ---
 
@@ -94,6 +98,7 @@ At minimum, review and adjust:
 * `relay_information.limitation.max_subscriptions` if you want to cap active subscriptions per connection
 * storage settings
 * `admin_token` if you want to protect the admin API
+* `nip86.enabled` and `admin_pubkey` if you want to expose NIP-86 relay management
 
 ### 3. Run database migrations
 
@@ -130,6 +135,7 @@ By default, the project starts two HTTP servers:
 Used by Nostr clients.
 
 * **Relay / NIP-11:** `http://localhost:9090`
+* **NIP-86 JSON-RPC:** `POST /` with `Content-Type: application/nostr+json+rpc` *(optional, disabled by default)*
 
 ### Internal server
 
@@ -470,6 +476,61 @@ X-Admin-Token: <your_token>
 
 This is useful to protect administrative operations without exposing them publicly.
 
+For browser users and operators:
+
+- `/panel` is intended for trusted internal networks, VPNs, or reverse-proxied admin environments.
+- `/admin/*` is a backend/admin surface and should not be exposed to untrusted public traffic without deliberate controls.
+- The dashboard uses the internal admin API, not the external NIP-86 JSON-RPC surface.
+
+---
+
+## NIP-86 Relay Management
+
+NIP-86 support is available but **disabled by default**.
+
+When enabled, the relay accepts JSON-RPC management requests on the same public root endpoint used for WebSocket upgrade.
+
+### What it does
+
+- `supportedmethods`
+- `banpubkey` / `unbanpubkey`
+- `allowpubkey` / `unallowpubkey`
+- `banevent` / `allowevent`
+- `blockip` / `unblockip`
+- `changerelayname` / `changerelaydescription`
+
+### How it is protected
+
+All NIP-86 requests require:
+
+- `Content-Type: application/nostr+json+rpc`
+- `Authorization: Nostr <base64-event>`
+- NIP-98 event `kind:27235`
+- valid signature
+- matching `method` tag
+- matching `u` tag for the relay URL
+- matching `payload` tag with SHA-256 of the request body
+- caller pubkey equal to `admin_pubkey`
+
+### Minimum config to enable it
+
+```yaml
+admin_pubkey: "<hex-or-npub-admin-pubkey>"
+
+nip86:
+  enabled: true
+  auth_window_seconds: 60
+  cache_ttl_seconds: 300
+```
+
+### Important notes for operators
+
+- NIP-86 is optional. Leaving `nip86.enabled: false` keeps the relay behavior unchanged.
+- Enabling NIP-86 without a stable public `relay_information.url` is not supported.
+- `blockip` disconnects active WebSocket sessions on the current relay node immediately after persistence succeeds.
+- In multi-node deployments, durable IP blocks propagate through shared persistence, but immediate disconnect of already-open sessions is only guaranteed on the local node unless you add your own cross-node coordination.
+- The admin dashboard does **not** sign NIP-98 requests in the browser. It continues to use the internal `/admin/*` API.
+
 ---
 
 ## Configuration
@@ -485,6 +546,13 @@ Below is a representative example with the main sections:
 ```yaml
 port: 9090
 app_env: development
+admin_token: ""
+admin_pubkey: ""
+
+nip86:
+  enabled: false
+  auth_window_seconds: 60
+  cache_ttl_seconds: 300
 
 ws:
   rate_limit: 1
@@ -542,8 +610,6 @@ store:
 
 cron:
   enabled: true
-
-admin_token: ""
 ```
 
 ### Important configuration notes
@@ -556,11 +622,39 @@ Some especially relevant settings:
 * `stream.*`: upstream/downstream relay streaming
 * `store.*`: Blossom media server settings
 * `nip29.*`: optional relay-based group support, admission, moderation, invite, PoW and timeline-reference rules
-* `admin_token`: enables token protection for admin API
+* `admin_token`: enables token protection for internal admin API
+* `admin_pubkey`: required only when `nip86.enabled=true`
+* `nip86.*`: enables and tunes the external relay-management surface
 
 For the complete schema and production-oriented examples, see:
 
 * `docs/configuration.md`
+
+### Recommended production posture
+
+- Keep `admin_token` set when using the embedded admin panel or internal admin API.
+- Keep `nip86.enabled: false` unless you explicitly need Nostr-native remote relay management.
+- Never commit `db.postgres_uri`, relay private keys, or production admin values into public repositories.
+
+---
+
+## Limitations and Operational Caveats
+
+Before enabling all optional features, keep these limitations in mind:
+
+- PostgreSQL is mandatory; Redis is optional.
+- WebSocket payloads still have a hard upper bound and request limits may reject abusive filters.
+- NIP-86 is intentionally narrow: it covers relay management actions, not a full browser-facing admin workflow.
+- `blockip` is immediate only for sessions known by the local process.
+- Runtime relay metadata overrides persist in PostgreSQL; they do not rewrite `conf.yaml`.
+- The internal dashboard currently uses the internal admin API as its source of truth; it is not a direct NIP-86 client.
+- Large frontend bundles can trigger Vite chunk-size warnings until more route-level code splitting is introduced.
+
+For end users running a public relay:
+
+- If you only want a normal relay plus dashboard, keep NIP-86 disabled.
+- If you expose `/panel`, place it behind a trusted network boundary or reverse proxy authentication.
+- If you enable groups, Blossom, stream federation, and NIP-86 together, test each feature set independently before combining them in production.
 
 ---
 
@@ -754,6 +848,7 @@ The project currently documents support for:
 * NIP-50 — Search capability
 * NIP-62 — Request to vanish
 * NIP-77
+* NIP-86 — Relay management *(optional)*
 * NIP-96 — File storage / Blossom
 * NIP-98 — HTTP auth
 
@@ -770,6 +865,7 @@ Project documentation is primarily organized under `docs/`, with unified setup g
 
 * `docs/api-spec.md` — WebSocket protocol, HTTP routes, admin endpoints, payloads, and error envelopes
 * `docs/configuration.md` — Complete `conf.yaml` schema, defaults, and production examples
+* `docs/nip86-management.md` — NIP-86 architecture, schema additions, auth model, and runtime trade-offs
 * `docs/architecture.md` — C4 architecture, stack, flow, and module layout
 * `docs/policies.md` — Event and REQ policy rules
 * `docs/data-schema.md` — PostgreSQL and Redis schema, indexes, and cache/pubsub keys

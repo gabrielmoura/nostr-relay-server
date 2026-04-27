@@ -64,6 +64,10 @@ export function ListRefSyncCard({ eventID, preferredRelay }: ListRefSyncCardProp
     try {
       const response = await syncMutation.mutateAsync({ eventID, relays: selectedRelays })
       setRelayFeedback(response.relay_results ?? [])
+      if (!response.found) {
+        setStatus(t("eventDetail.syncStatusError", { error: response.message || t("eventDetail.syncFailed") }))
+        return
+      }
       setStatus(
         t("eventDetail.syncStatusOk", {
           persisted: response.persisted ? t("eventDetail.imported") : t("eventDetail.alreadyExisted"),

@@ -194,6 +194,71 @@ Suggested indexes:
 - `idx_group_invites_expires_at` on `(expires_at)` for cleanup
 - `idx_group_invites_active_lookup` on `(relay, group_id, code, revoked_at, expires_at)` for validation
 
+### 10. `nip86_allowed_pubkeys` - Explicit Allowlist
+
+Required for `allowpubkey`, `unallowpubkey`, and `listallowedpubkeys`.
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `pubkey` | VARCHAR(64) | PRIMARY KEY | Allowed pubkey |
+| `reason` | TEXT | NULL | Optional audit reason |
+| `created_by` | VARCHAR(64) | NOT NULL | Admin pubkey that applied the change |
+| `created_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() | Creation timestamp |
+| `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() | Last update timestamp |
+
+Suggested indexes:
+
+- PK on `(pubkey)`
+- optional `idx_nip86_allowed_pubkeys_updated_at` on `(updated_at DESC)`
+
+### 11. `nip86_banned_events` - Event Ban State
+
+Required for `banevent`, `allowevent`, `listbannedevents`, and moderation audit.
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `event_id` | VARCHAR(64) | PRIMARY KEY | Banned event id |
+| `reason` | TEXT | NULL | Optional audit reason |
+| `created_by` | VARCHAR(64) | NOT NULL | Admin pubkey that applied the change |
+| `created_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() | Ban timestamp |
+| `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() | Last update timestamp |
+
+Suggested indexes:
+
+- PK on `(event_id)`
+- optional `idx_nip86_banned_events_updated_at` on `(updated_at DESC)`
+
+### 12. `nip86_blocked_ips` - Network Blocklist
+
+Required for `blockip`, `unblockip`, and `listblockedips`.
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `ip` | INET | PRIMARY KEY | Exact blocked IP |
+| `reason` | TEXT | NULL | Optional audit reason |
+| `created_by` | VARCHAR(64) | NOT NULL | Admin pubkey that applied the change |
+| `created_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() | Block timestamp |
+| `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() | Last update timestamp |
+
+Suggested indexes:
+
+- PK on `(ip)`
+- optional `idx_nip86_blocked_ips_updated_at` on `(updated_at DESC)`
+
+### 13. `nip86_relay_metadata` - Runtime NIP-11 Overrides
+
+Required so `changerelayname` and `changerelaydescription` survive process restarts without editing `conf.yaml`.
+
+Single-row table keyed by relay identity.
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `relay_url` | TEXT | PRIMARY KEY | Logical relay id, preferably `relay_information.url` |
+| `name` | TEXT | NULL | Runtime override for NIP-11 name |
+| `description` | TEXT | NULL | Runtime override for NIP-11 description |
+| `updated_by` | VARCHAR(64) | NOT NULL | Admin pubkey that made the latest change |
+| `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() | Last change timestamp |
+
 ## Functions
 
 ### `tags_to_tagvalues(JSONB) -> TEXT[]`
@@ -264,6 +329,9 @@ Same filters as event queries but returns `COUNT(*)`.
 | Key Pattern | Type | TTL | Purpose | Example |
 |-------------|------|-----|---------|---------|
 | `ban:{pubkey}` | STRING | 1h | Banned user reason | `"spam"` |
+| `allow:{pubkey}` | STRING | 1h | Allowed pubkey audit marker | `"ops allowlist"` |
+| `banevent:{id}` | STRING | 10m | Banned event audit marker | `"malware"` |
+| `blockip:{ip}` | STRING | 5m | Blocked IP audit marker | `"abuse"` |
 | `profile:{pubkey}` | HASH | 5m | Profile metadata | `{name, about, picture}` |
 | `query:{hash}` | STRING | 30s | Query results | `[event1, event2]` |
 | `event:{id}` | STRING | 10m | Event cache | `{json}` |
@@ -285,6 +353,13 @@ Same filters as event queries but returns `COUNT(*)`.
 - Membership and ban lookups are good cache targets because they are checked repeatedly on EVENT/REQ hot paths.
 - Invite redemption should use an atomic Redis path only when it meaningfully reduces DB contention; otherwise prefer PostgreSQL row locking.
 - Timeline references are a strong Redis fit because they are short-lived, bounded and frequently rewritten.
+
+### Redis Guidance for NIP-86
+
+- Use exact-key lookups only (`allow:{pubkey}`, `blockip:{ip}`, `banevent:{id}`); do not add wildcard invalidation or large set scans to the request path.
+- Invalidate targeted keys on every admin mutation instead of global cache flushes.
+- Reuse existing pub/sub only when a cross-instance disconnect fan-out is needed for `blockip`; PostgreSQL remains the source of truth.
+- Avoid storing large JSON-RPC responses in Redis; NIP-86 results are small and mutation-heavy.
 
 ### Pub/Sub Channels
 

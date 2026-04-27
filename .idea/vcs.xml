@@ -4,7 +4,12 @@
     <mapping directory="" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/pkg/webc/nostrudel" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/ref/blossom" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/ref/bostr2" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/ref/nips" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/ref/other-relay" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/ref/pyramid" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/ref/relay29" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/ref/strfry" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/ref/wot-relay" vcs="Git" />
   </component>
 </project>

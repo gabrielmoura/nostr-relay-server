@@ -218,3 +218,41 @@ CREATE TABLE IF NOT EXISTS nip29_group_invites (
 );
 
 CREATE INDEX IF NOT EXISTS idx_group_invites_expires_at ON nip29_group_invites (expires_at);
+
+CREATE TABLE IF NOT EXISTS nip86_allowed_pubkeys (
+    pubkey VARCHAR(64) PRIMARY KEY,
+    reason TEXT,
+    created_by VARCHAR(64) NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_nip86_allowed_pubkeys_updated_at ON nip86_allowed_pubkeys (updated_at DESC);
+
+CREATE TABLE IF NOT EXISTS nip86_banned_events (
+    event_id VARCHAR(64) PRIMARY KEY,
+    reason TEXT,
+    created_by VARCHAR(64) NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_nip86_banned_events_updated_at ON nip86_banned_events (updated_at DESC);
+
+CREATE TABLE IF NOT EXISTS nip86_blocked_ips (
+    ip INET PRIMARY KEY,
+    reason TEXT,
+    created_by VARCHAR(64) NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_nip86_blocked_ips_updated_at ON nip86_blocked_ips (updated_at DESC);
+
+CREATE TABLE IF NOT EXISTS nip86_relay_metadata (
+    relay_url TEXT PRIMARY KEY,
+    name TEXT,
+    description TEXT,
+    updated_by VARCHAR(64) NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);

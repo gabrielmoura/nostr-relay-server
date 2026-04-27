@@ -1,7 +1,7 @@
 import { useMemo } from "react"
 import { Link } from "@tanstack/react-router"
 import { useTranslation } from "react-i18next"
-import { ArrowRight, Search } from "lucide-react"
+import { ArrowRight, Search, ShieldCheck } from "lucide-react"
 
 import { BanUserDialog } from "@/components/features/ban-user-dialog"
 import { MetricCard } from "@/components/shared/metric-card"
@@ -9,6 +9,7 @@ import { PageHeader } from "@/components/shared/page-header"
 import { EmptyPanel, ErrorPanel, LoadingPanel } from "@/components/shared/state-panels"
 import { UserAvatarChip } from "@/components/shared/user-avatar-chip"
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { useInfiniteBannedUsers, useInfiniteConnections, useInfiniteLoggedUsers, useRelayOverview, useStreamStatus } from "@/hooks/use-admin-data"
 
@@ -130,6 +131,28 @@ export function OverviewPage() {
                   <p>{connection.authed ? t("overview.authenticated") : t("overview.anonymous")} · {t("overview.subscriptionsCount", { count: connection.subscription_count })}</p>
                 </div>
               ))}
+            </CardContent>
+          </Card>
+
+          <Card className="border-primary/15 bg-[linear-gradient(135deg,rgba(14,165,233,0.08),rgba(255,255,255,0.98))]">
+            <CardHeader className="gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <CardTitle>{t("overview.nip86Title")}</CardTitle>
+                <CardDescription>{t("overview.nip86Description")}</CardDescription>
+              </div>
+              <Badge variant="success">NIP-86</Badge>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm text-muted-foreground">
+              <div className="flex items-start gap-3 rounded-[calc(var(--radius)-0.2rem)] border border-primary/10 bg-card/80 px-3 py-3">
+                <ShieldCheck className="mt-0.5 size-4 text-primary" />
+                <p>{t("overview.nip86Body")}</p>
+              </div>
+              <Button asChild className="w-full sm:w-auto" variant="outline">
+                <Link to="/nip86">
+                  {t("overview.nip86Action")}
+                  <ArrowRight className="size-4" />
+                </Link>
+              </Button>
             </CardContent>
           </Card>
 

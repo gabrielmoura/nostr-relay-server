@@ -1079,3 +1079,42 @@ Normalize relay keys immediately after config load:
 - ✅ NIP-29 startup no longer depends on callers remembering the input format details
 - ✅ Config validation fails deterministically instead of panicking on malformed relay metadata
 - ⚠️ Effective config output now shows normalized hex values instead of the original NIP-19 input strings
+
+---
+
+## ADR-026: Add NIP-86 as an External JSON-RPC Admin Surface
+
+**Status:** Proposed  
+**Date:** 2026-04-27
+
+### Context
+
+The relay already exposes an internal admin API protected by `X-Admin-Token`, plus existing runtime structures for bans, connection tracking, Redis cache/pubsub, and NIP-98 verification patterns in the Blossom flow. We need Nostr-native relay management without replacing the current admin panel or rewriting the transport stack.
+
+### Decision
+
+Implement NIP-86 on the same external root route `/` used for WebSocket upgrades, using a strict HTTP branch activated by `Content-Type: application/nostr+json+rpc`.
+
+The design is:
+
+1. `RootUpgrade` becomes a small protocol switch: NIP-11, NIP-86 JSON-RPC, or WebSocket upgrade.
+2. A dedicated NIP-98 middleware validates `kind:27235`, signature, freshness, `method`, exact URL, and mandatory `payload` hash.
+3. Authorization is limited to one configured relay administrator pubkey (`admin_pubkey`).
+4. A focused NIP-86 service layer owns method dispatch and delegates persistence to repository interfaces backed by `pgx`.
+5. PostgreSQL remains authoritative for allowlists, blocked IPs, banned events, and relay metadata overrides; Redis is only a hot-path accelerator and disconnect fan-out tool.
+
+### Reasons
+
+1. **Compatibility**: preserves the current root URI and WebSocket flow.
+2. **Low-risk evolution**: adds one HTTP branch instead of introducing a second public admin endpoint.
+3. **Reuse**: builds on existing listener, cache, pubsub, and moderation infrastructure.
+4. **Auditability**: NIP-86 mutations map cleanly to structured JSON logs and relational audit columns.
+5. **Operational safety**: `blockip` can immediately drop active sessions while persisting the durable block.
+
+### Consequences
+
+- ✅ Keeps WebSocket and admin management on the standards-compliant root URI.
+- ✅ Avoids replacing the existing internal admin panel.
+- ✅ Makes admin mutations observable and durable.
+- ⚠️ Requires careful route ordering so JSON-RPC does not interfere with WebSocket upgrades.
+- ⚠️ Introduces a new config secret/identity boundary (`admin_pubkey`) that must be documented clearly.

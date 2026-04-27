@@ -12,6 +12,7 @@ import { ReportedEventsPage } from "@/routes/reported-events-page"
 import { StreamStatusPage } from "@/routes/stream-status-page"
 import { UserDetailPage } from "@/routes/user-detail-page"
 import { NIP05Page } from "@/routes/nip05-page"
+import { NIP86Page } from "@/routes/nip86-page"
 import { UserSearchPage } from "@/routes/user-search-page"
 
 const rootRoute = createRootRoute({
@@ -46,6 +47,12 @@ const nip05Route = createRoute({
   getParentRoute: () => rootRoute,
   path: "/nip05",
   component: NIP05Page,
+})
+
+const nip86Route = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/nip86",
+  component: NIP86Page,
 })
 
 const userDetailRoute = createRoute({
@@ -96,6 +103,7 @@ const routeTree = rootRoute.addChildren([
   bannedUsersRoute,
   userSearchRoute,
   nip05Route,
+  nip86Route,
   userDetailRoute,
   activeConnectionsRoute,
   loggedConnectionsRoute,

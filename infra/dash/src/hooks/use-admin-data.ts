@@ -1,11 +1,18 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient, useSuspenseQuery } from "@tanstack/react-query"
 
-import type { BanPayload, EventSearchFilters } from "@/types/admin"
+import type { BanPayload, EventSearchFilters, NIP86ReasonPayload, NIP86RelayMetadataPayload } from "@/types/admin"
 import {
+  allowNIP86PubKey,
   banUser,
+  banNIP86Event,
+  blockNIP86IP,
   deleteNIP05Identity,
   disconnectConnection,
   fetchEventFromRelays,
+  getNIP86AllowedPubKeysPage,
+  getNIP86BannedEventsPage,
+  getNIP86BlockedIPsPage,
+  getNIP86RelayMetadata,
   getNIP05Page,
   importEventsFiles,
   getEventDetail,
@@ -23,8 +30,12 @@ import {
   getUserNIP05,
   searchEventsPage,
   searchUsersPage,
+  unallowNIP86PubKey,
+  unbanNIP86Event,
+  unblockNIP86IP,
   upsertNIP05Identity,
   unbanUser,
+  updateNIP86RelayMetadata,
 } from "@/services/admin"
 
 const defaultPageSize = 50
@@ -146,6 +157,37 @@ export function useInfiniteNIP05(query: string) {
   })
 }
 
+export function useInfiniteNIP86AllowedPubKeys(query: string) {
+  return useInfiniteQuery({
+    initialPageParam: 0,
+    queryKey: ["nip86", "allowed-pubkeys", query],
+    queryFn: ({ pageParam }) => getNIP86AllowedPubKeysPage(query, { limit: defaultPageSize, offset: pageParam }),
+    getNextPageParam: (lastPage) => (lastPage.has_more ? lastPage.offset + lastPage.items.length : undefined),
+  })
+}
+
+export function useInfiniteNIP86BlockedIPs(query: string) {
+  return useInfiniteQuery({
+    initialPageParam: 0,
+    queryKey: ["nip86", "blocked-ips", query],
+    queryFn: ({ pageParam }) => getNIP86BlockedIPsPage(query, { limit: defaultPageSize, offset: pageParam }),
+    getNextPageParam: (lastPage) => (lastPage.has_more ? lastPage.offset + lastPage.items.length : undefined),
+  })
+}
+
+export function useInfiniteNIP86BannedEvents(query: string) {
+  return useInfiniteQuery({
+    initialPageParam: 0,
+    queryKey: ["nip86", "banned-events", query],
+    queryFn: ({ pageParam }) => getNIP86BannedEventsPage(query, { limit: defaultPageSize, offset: pageParam }),
+    getNextPageParam: (lastPage) => (lastPage.has_more ? lastPage.offset + lastPage.items.length : undefined),
+  })
+}
+
+export function useNIP86RelayMetadata() {
+  return useQuery({ queryKey: ["nip86", "relay-metadata"], queryFn: getNIP86RelayMetadata })
+}
+
 export function useUpsertNIP05Mutation() {
   const queryClient = useQueryClient()
 
@@ -251,6 +293,100 @@ export function useDisconnectConnectionMutation() {
         queryClient.invalidateQueries({ queryKey: ["connections"] }),
         queryClient.invalidateQueries({ queryKey: ["relay-overview"] }),
         queryClient.invalidateQueries({ queryKey: ["logged-users"] }),
+      ])
+    },
+  })
+}
+
+export function useAllowNIP86PubKeyMutation() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ pubkey, payload }: { pubkey: string; payload: NIP86ReasonPayload }) => allowNIP86PubKey(pubkey, payload),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["nip86", "allowed-pubkeys"] }),
+        queryClient.invalidateQueries({ queryKey: ["relay-overview"] }),
+      ])
+    },
+  })
+}
+
+export function useUnallowNIP86PubKeyMutation() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (pubkey: string) => unallowNIP86PubKey(pubkey),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["nip86", "allowed-pubkeys"] }),
+        queryClient.invalidateQueries({ queryKey: ["relay-overview"] }),
+      ])
+    },
+  })
+}
+
+export function useBlockNIP86IPMutation() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ ip, payload }: { ip: string; payload: NIP86ReasonPayload }) => blockNIP86IP(ip, payload),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["nip86", "blocked-ips"] }),
+        queryClient.invalidateQueries({ queryKey: ["connections"] }),
+        queryClient.invalidateQueries({ queryKey: ["relay-overview"] }),
+      ])
+    },
+  })
+}
+
+export function useUnblockNIP86IPMutation() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (ip: string) => unblockNIP86IP(ip),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["nip86", "blocked-ips"] }),
+        queryClient.invalidateQueries({ queryKey: ["relay-overview"] }),
+      ])
+    },
+  })
+}
+
+export function useBanNIP86EventMutation() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ eventID, payload }: { eventID: string; payload: NIP86ReasonPayload }) => banNIP86Event(eventID, payload),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["nip86", "banned-events"] }),
+        queryClient.invalidateQueries({ queryKey: ["events-search"] }),
+        queryClient.invalidateQueries({ queryKey: ["reported-events"] }),
+      ])
+    },
+  })
+}
+
+export function useUnbanNIP86EventMutation() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (eventID: string) => unbanNIP86Event(eventID),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["nip86", "banned-events"] }),
+        queryClient.invalidateQueries({ queryKey: ["events-search"] }),
+        queryClient.invalidateQueries({ queryKey: ["reported-events"] }),
+      ])
+    },
+  })
+}
+
+export function useUpdateNIP86RelayMetadataMutation() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (payload: NIP86RelayMetadataPayload) => updateNIP86RelayMetadata(payload),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["nip86", "relay-metadata"] }),
+        queryClient.invalidateQueries({ queryKey: ["relay-overview"] }),
       ])
     },
   })

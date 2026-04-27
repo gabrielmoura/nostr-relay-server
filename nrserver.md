@@ -9,6 +9,7 @@ O `nrserver` e um relay Nostr em Go com:
 - armazenamento principal em PostgreSQL (obrigatorio)
 - Redis opcional (cache/pubsub)
 - painel/admin interno em `/panel` e `/admin`
+- NIP-86 opcional na raiz publica com autenticacao NIP-98
 - suporte a import/export, download e sync por CLI
 - metricas Prometheus em `/metrics`
 
@@ -48,6 +49,7 @@ No minimo, revise:
 - `port` (porta externa do relay)
 - `relay_information.*` (dados NIP-11)
 - `admin_token` (recomendado para proteger `/admin/*`)
+- `nip86.enabled` e `admin_pubkey` somente se voce realmente precisar de gerenciamento remoto Nostr-native
 
 Exemplo de URI:
 
@@ -87,6 +89,7 @@ go run ./cmd/nrserver server --bootstrap
 Com `port: 9090` no `conf.yaml`:
 
 - Relay/NIP-11: `http://localhost:9090`
+- NIP-86 JSON-RPC (opcional): `POST http://localhost:9090/`
 - Admin API: `http://localhost:9091/admin`
 - Admin Panel: `http://localhost:9091/panel`
 - Metrics: `http://localhost:9091/metrics`
@@ -96,6 +99,12 @@ Se `admin_token` estiver definido, envie header:
 ```text
 X-Admin-Token: <seu_token>
 ```
+
+Para NIP-86:
+
+- manter desabilitado por padrao e recomendado para a maioria dos usuarios
+- quando habilitado, exige `admin_pubkey` e `relay_information.url` corretos
+- usa `Content-Type: application/nostr+json+rpc` e `Authorization: Nostr <base64-event>`
 
 ## Fluxo com Binario
 
@@ -255,7 +264,16 @@ Fluxo resumido:
 - erro `missing DB URI`: preencher `db.postgres_uri` no `conf.yaml`
 - erro de cron expression: usar formato com 6 campos (`sec min hour day month weekday`)
 - erro de `/admin` sem token: enviar `X-Admin-Token` quando `admin_token` estiver configurado
+- erro de NIP-86: validar `admin_pubkey`, `relay_information.url` e o hash `payload` do body
 - `seed` com falha de conexao: validar acesso ao PostgreSQL (host, porta, usuario, senha, DB)
+
+## Limitacoes importantes
+
+- PostgreSQL e obrigatorio.
+- Redis continua opcional.
+- `blockip` do NIP-86 derruba imediatamente apenas conexoes conhecidas pelo processo local.
+- overrides de metadata do relay persistem no banco, nao reescrevem `conf.yaml`.
+- se voce so precisa do painel embedado, nao ha motivo tecnico para habilitar NIP-86.
 
 ## Referencias Consolidada
 

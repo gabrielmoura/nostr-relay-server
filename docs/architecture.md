@@ -347,9 +347,23 @@ Client WebSocket
 
 - HTTP handlers own route binding, request decoding, status codes, and HTTP payloads
 - admin HTTP endpoints expose operational actions and observability on the internal server
+- NIP-86 management uses JSON-RPC over HTTP on the external root `/`, sharing the same URI used for WebSocket upgrade
+- the embedded dashboard continues to use the internal `/admin/*` surface; it does not act as a browser-side NIP-86 client
 - WebSocket handlers own frame decoding, message dispatch, and Nostr envelopes
 - Event and REQ packages act as use-case orchestrators and are reused by WebSocket routing only
 - Shared business logic should not live in HTTP or WebSocket transport packages
+
+## Planned NIP-86 Integration
+
+- Keep the existing external Fiber root route and add a pre-upgrade HTTP branch for `Content-Type: application/nostr+json+rpc`.
+- Reuse NIP-98 verification patterns already present in Blossom auth, but tighten validation for NIP-86: `kind=27235`, signature, short freshness window, exact `method`, exact absolute URL, and mandatory `payload` SHA-256 match.
+- Add a focused NIP-86 service layer behind small repository interfaces instead of placing admin mutation logic directly in HTTP handlers.
+- Reuse existing runtime structures for:
+  - active websocket tracking in `infra/handler/listener`
+  - Redis cache/pubsub for block-list acceleration and disconnect fan-out
+  - PostgreSQL via `pgx` for authoritative moderation state
+- On `blockip`, persist the block, invalidate the hot cache entry, and actively disconnect matching live websocket sessions.
+- Preserve the current internal `/admin/*` token-based panel; NIP-86 is an additional external admin protocol, not a replacement.
 
 ## Helper Package Design
 

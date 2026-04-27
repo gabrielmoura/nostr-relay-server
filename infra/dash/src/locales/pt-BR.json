@@ -35,6 +35,7 @@
       "connectionsLogged": "Conexões logadas",
       "eventsSearch": "Busca de eventos",
       "nip05": "NIP-05",
+      "nip86": "NIP-86",
       "eventsReported": "Eventos reportados",
       "streams": "Streams",
       "usersSearch": "Busca de usuários"
@@ -173,7 +174,94 @@
     "clusterTopologyDescription": "Representação para operação com balanceador de carga.",
     "redisRole": "para pub/sub e caches compartilhados",
     "postgresRole": "compartilhado para consistência de eventos",
-    "currentStreamState": "Estado atual stream"
+    "currentStreamState": "Estado atual stream",
+    "nip86Title": "Central NIP-86",
+    "nip86Description": "Superfície operacional para allowlists, bloqueios de IP, eventos banidos e metadata dinâmica do relay.",
+    "nip86Body": "Use o workspace dedicado do NIP-86 para aplicar ações de gerenciamento do relay com contexto auditável e fluxo enxuto.",
+    "nip86Action": "Abrir workspace NIP-86"
+  },
+  "nip86": {
+    "shared": {
+      "noReason": "Sem motivo registrado"
+    },
+    "header": {
+      "title": "Gerenciamento NIP-86",
+      "description": "Fluxo operacional compacto para allowlists confiáveis, bloqueios de rede, moderação de eventos e metadata dinâmica do relay.",
+      "reviewReports": "Revisar reports"
+    },
+    "cards": {
+      "allowed": {
+        "badge": "ALLOWLIST",
+        "title": "Pubkeys confiáveis",
+        "description": "Via rápida para identidades aprovadas.",
+        "body": "Fixe pubkeys confiáveis com contexto de auditoria para revisar exceções sem depender primeiro da busca de usuários."
+      },
+      "blockedIps": {
+        "badge": "BLOQUEIO DE REDE",
+        "title": "Contenção por IP",
+        "description": "Interrupção imediata de conexões.",
+        "body": "Bloqueie IPs abusivos e acione o disconnect das sessões WebSocket ativas a partir do mesmo plano de controle."
+      },
+      "bannedEvents": {
+        "badge": "MODERAÇÃO DE EVENTO",
+        "title": "Eventos banidos",
+        "description": "Supressão precisa por evento.",
+        "body": "Acompanhe banimentos explícitos por event id e reverta o bloqueio sem tocar no estado geral de moderação do usuário."
+      }
+    },
+    "allowed": {
+      "title": "Pubkeys permitidas",
+      "description": "Gerencie entradas explícitas de allowlist expostas pela camada de gerenciamento NIP-86.",
+      "searchPlaceholder": "Buscar pubkey ou motivo",
+      "pubkeyPlaceholder": "pubkey hex ou npub",
+      "reasonPlaceholder": "Motivo para permitir",
+      "addAction": "Permitir pubkey",
+      "removeAction": "Remover",
+      "loading": "Carregando pubkeys permitidas...",
+      "errorTitle": "Falha ao carregar pubkeys permitidas",
+      "errorDescription": "A API administrativa interna não conseguiu ler as entradas da allowlist.",
+      "emptyTitle": "Nenhuma pubkey permitida",
+      "emptyDescription": "Crie a primeira identidade confiável para documentar exceções seguras."
+    },
+    "blockedIps": {
+      "title": "IPs bloqueados",
+      "description": "Aplique contenção por rede e observe endereços bloqueados com motivo auditável.",
+      "searchPlaceholder": "Buscar IP ou motivo",
+      "ipPlaceholder": "203.0.113.10",
+      "reasonPlaceholder": "Motivo do bloqueio",
+      "blockAction": "Bloquear IP",
+      "unblockAction": "Desbloquear",
+      "disconnectHint": "Quando um IP é bloqueado, as sessões WebSocket ativas correspondentes são derrubadas imediatamente neste nó do relay.",
+      "loading": "Carregando IPs bloqueados...",
+      "errorTitle": "Falha ao carregar IPs bloqueados",
+      "errorDescription": "A API administrativa interna não conseguiu ler as entradas de IP bloqueado.",
+      "emptyTitle": "Nenhum IP bloqueado",
+      "emptyDescription": "Nenhum bloqueio de rede está ativo neste momento."
+    },
+    "bannedEvents": {
+      "title": "Eventos banidos",
+      "description": "Modere event ids específicos sem escalar diretamente para ações no nível da conta.",
+      "searchPlaceholder": "Buscar event id ou motivo",
+      "idPlaceholder": "event id com 64 caracteres",
+      "reasonPlaceholder": "Motivo do banimento do evento",
+      "banAction": "Banir evento",
+      "allowAction": "Permitir novamente",
+      "reuseAction": "Reusar id",
+      "loading": "Carregando eventos banidos...",
+      "errorTitle": "Falha ao carregar eventos banidos",
+      "errorDescription": "A API administrativa interna não conseguiu ler as entradas de eventos banidos.",
+      "emptyTitle": "Nenhum evento banido",
+      "emptyDescription": "Nenhum event id está atualmente fixado no conjunto de banidos."
+    },
+    "metadata": {
+      "title": "Override de metadata do relay",
+      "description": "Edite nome e descrição NIP-11 em runtime sem alterar diretamente o arquivo de configuração.",
+      "descriptionLabel": "Descrição do relay",
+      "saveAction": "Salvar metadata do relay",
+      "loading": "Carregando override de metadata do relay...",
+      "errorTitle": "Falha ao carregar metadata do relay",
+      "errorDescription": "A API administrativa interna não conseguiu ler o estado atual do override de metadata do relay."
+    }
   },
   "loggedUsers": {
     "title": "Usuários logados",

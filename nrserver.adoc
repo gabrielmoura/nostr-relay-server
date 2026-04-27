@@ -33,6 +33,7 @@ Objetivos:
 * suporte opcional a grupos NIP-29
 * pipeline de ingestao em lote com backpressure
 * APIs administrativas internas
+* API opcional de gerenciamento NIP-86 na raiz publica
 * metricas Prometheus
 * sincronizacao Negentropy
 
@@ -58,6 +59,7 @@ Responsabilidades administrativas:
 
 * endpoints `/admin/*` para observabilidade e moderacao
 * painel web embedado em `/panel`
+* endpoint opcional NIP-86 JSON-RPC em `/` com autenticacao NIP-98
 
 === 2.3 Topologia de runtime
 
@@ -68,7 +70,7 @@ O processo sobe dois servidores Fiber:
 
 Endpoints principais:
 
-* externo: `/` (NIP-11 + upgrade WS), `/.well-known/*`, `/upload`, `/blob/:id`, `/list/:id`
+* externo: `/` (NIP-11 + upgrade WS + NIP-86 opcional), `/.well-known/*`, `/upload`, `/blob/:id`, `/list/:id`
 * interno: `/metrics`, `/admin/*`, `/panel/*`
 
 == 3. Arquitetura e modulos
@@ -128,8 +130,9 @@ Sequencia observada em `cmd/server.go`:
 12. constroi apps Fiber interno/externo (`infra/net.Router()`)
 13. inicializa relay pool se stream up/down habilitado
 14. opcionalmente executa bootstrap de eventos
-15. abre listeners TCP em `port+1` e `port`
-16. bloqueia aguardando `mainCtx.Done()`
+15. aplica override persistido de metadata do relay (quando existir)
+16. abre listeners TCP em `port+1` e `port`
+17. bloqueia aguardando `mainCtx.Done()`
 
 === 4.3 Shutdown
 
@@ -152,6 +155,7 @@ Observacao tecnica: o fechamento do pool PostgreSQL e indireto pelo ciclo de vid
 `RootUpgrade` (`infra/handler/http/root.go`) faz:
 
 * resposta NIP-11 quando `Accept: application/nostr+json`
+* branch opcional NIP-86 quando `Content-Type: application/nostr+json+rpc`
 * upgrade WS quando aplicavel
 * injeta `dto.WsServer` em `Locals("wss")`
 
@@ -248,6 +252,7 @@ No runtime, os contratos principais incluem:
 * NIP-01 envelopes WS (`REQ`, `EVENT`, `EOSE`, `OK`, `NOTICE`, `CLOSED`)
 * NIP-13 para validacao opcional de POW em grupos NIP-29
 * NIP-11 relay information no endpoint raiz HTTP
+* NIP-86 relay management via JSON-RPC sobre HTTP no endpoint raiz
 * NIP-29 relay-based groups com kinds `9000`-`9009`, `9021`, `9022`, `39000`-`39003`
 * NIP-42 auth challenge/response
 * NIP-45 (`COUNT`)
@@ -290,22 +295,45 @@ Conjuntos de endpoint:
 * conexoes: `/admin/connections/*`
 * usuarios/moderacao: `/admin/users/*`
 * eventos/search/import/fetch/reports: `/admin/events/*`
+* NIP-86 interno para o dashboard: `/admin/nip86/*`
 * painel: `/panel` e `/panel/*`
 
 === 6.5 Contrato HTTP externo
 
 * `/` com `Accept: application/nostr+json` -> relay info
+* `/` com `Content-Type: application/nostr+json+rpc` -> NIP-86 opcional
 * `/` com upgrade WS -> sessao Nostr
 * `/.well-known/nostr/nip96.json`
 * `/.well-known/nostr.json`
 * `/upload`, `/blob/:id`, `/list/:id` (Blossom)
 
-=== 6.6 Limitacoes conhecidas
+=== 6.6 Contrato NIP-86 (externo e opcional)
+
+Quando habilitado:
+
+* endpoint: `POST /`
+* content-type obrigatorio: `application/nostr+json+rpc`
+* auth obrigatoria via NIP-98 (`kind:27235`)
+* `payload` obrigatorio com SHA-256 do corpo JSON-RPC
+* somente a `pubkey` configurada em `admin_pubkey` pode executar metodos
+
+Metodos suportados atualmente:
+
+* `supportedmethods`
+* `banpubkey`, `unbanpubkey`
+* `allowpubkey`, `unallowpubkey`
+* `banevent`, `allowevent`
+* `blockip`, `unblockip`
+* `changerelayname`, `changerelaydescription`
+
+=== 6.7 Limitacoes conhecidas
 
 * limite hard de mensagem WS: `1 MiB`
 * cron usa expressoes com 6 campos (segundos incluidos)
 * `db.postgres_uri` e obrigatorio
 * stream upstream possui allowlist de kinds, nao e forwarding irrestrito
+* NIP-86 e desabilitado por padrao e exige `admin_pubkey` + `relay_information.url`
+* `blockip` derruba imediatamente apenas conexoes conhecidas pelo processo local
 
 == 7. Funcionalidades (por categoria)
 
@@ -357,9 +385,10 @@ Quando `nip29.enabled=true`:
 
 === 8.2 Defaults e campos obrigatorios
 
-* defaults definidos em `config/config.go`
+* defaults definidos em `config/defaults.go`
 * `db.postgres_uri` obrigatorio (falha no load se vazio)
 * fallback de `app_env`: `production`
+* `nip86.enabled=true` exige `admin_pubkey`, `relay_information.url`, `auth_window_seconds>0` e `cache_ttl_seconds>0`
 
 === 8.3 Blocos principais e impacto operacional
 
@@ -368,6 +397,8 @@ Quando `nip29.enabled=true`:
 * `wot.*`: controles e limits pro background goroutine do Web of Trust
 * `db.*`: tuning do pool pgx
 * `redis.*`: cache/pubsub e hygiene de subscriptions
+* `admin_token`: protecao do plano administrativo interno (`/admin/*` + `/panel`)
+* `admin_pubkey` + `nip86.*`: habilitacao e tuning da superficie administrativa externa NIP-86
 * `nip29.*`: habilitacao de grupos, admissao, moderacao, convites, PoW, timeline e cache
 * `ingestion.*`: throughput vs memoria/latencia
 * `cron.*`: jobs de manutencao e retention
@@ -410,6 +441,7 @@ Compatibilidade:
 * `download --mentioned` exige `--public-key`
 * `download` aceita apenas uma fonte de filtro (`--filter` ou `--filter-file`)
 * `sync` exige relay remoto por argumento posicional ou `--remote`
+* `conf validate` falha se `nip86.enabled=true` sem `admin_pubkey` e `relay_information.url`
 
 == 10. Persistencia e modelo de dados
 
@@ -420,6 +452,7 @@ Tabelas chave (ver `docs/data-schema.md` para definicao completa):
 * `event`: armazenamento principal de eventos Nostr
 * `profiles`: metadados de usuarios
 * `banned_users`: moderacao
+* `nip86_allowed_pubkeys`, `nip86_banned_events`, `nip86_blocked_ips`, `nip86_relay_metadata`: estado administrativo do NIP-86
 * `objects`: metadados de blobs NIP-96
 * `nip29_groups`, `nip29_roles`, `nip29_group_roles`, `nip29_group_members`, `nip29_group_bans`, `nip29_group_invites`: estado relacional de grupos NIP-29
 
@@ -473,6 +506,7 @@ Controles implementados:
 * autenticacao NIP-42 por politica configuravel
 * validacao criptografica de eventos (id + assinatura)
 * limite de tamanho de payload WS
+* autenticacao NIP-98 para NIP-86 quando habilitado
 * politicas de conteudo (base64 inline)
 * controle de acesso admin por token opcional
 * politicas para kinds protegidos/DM
@@ -481,8 +515,24 @@ Controles implementados:
 Riscos operacionais a observar:
 
 * `admin_token` vazio em ambiente exposto
+* `nip86.enabled=true` sem reverse proxy, governanca operacional ou administracao de chaves adequada
 * `ws.auth_mode=none` em relay publico sem mitigacoes de abuso
 * retention e cron mal configurados
+
+=== 12.1 Orientacoes para usuarios finais e operadores
+
+Para uso simples/local:
+
+* mantenha `nip86.enabled=false`
+* defina `admin_token` se abrir o painel alem de `localhost`
+* use apenas PostgreSQL se nao precisar de cache/pubsub distribuido
+
+Para uso avancado/remoto:
+
+* habilite NIP-86 somente se existir necessidade real de automacao remota por tooling Nostr-native
+* trate `admin_pubkey` como credencial de alto impacto operacional
+* prefira expor a superficie publica atras de TLS/reverse proxy estavel para manter `relay_information.url` consistente
+* em clusters, considere coordenacao adicional para disconnect imediato cross-node
 
 == 13. Operacao e manutencao
 

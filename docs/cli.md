@@ -245,6 +245,7 @@ Validates:
 
 - required DB URI
 - relay information checks
+- NIP-86 prerequisites when enabled (`admin_pubkey`, relay URL, positive auth/cache windows)
 - cron expressions for enabled jobs
 - `reported_events_fetch.relays` when that job is enabled
 
