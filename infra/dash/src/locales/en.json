@@ -60,7 +60,8 @@
     "startAction": "Start Sync",
     "started": "Sync started in background.",
     "errorTitle": "Start failed",
-    "errorDescription": "Could not start synchronization."
+    "errorDescription": "Could not start synchronization.",
+    "successStartedWithJob": "Sync started. Job {{jobId}}"
   },
   "download": {
     "title": "Event Download",
@@ -77,6 +78,60 @@
     "started": "Download started in background.",
     "errorTitle": "Start failed",
     "errorDescription": "Could not start download."
+  },
+  "jobs": {
+    "summary": {
+      "active": "Active",
+      "completed": "Completed",
+      "failed": "Failed/DLQ"
+    },
+    "filters": {
+      "allStatuses": "All statuses"
+    },
+    "actions": {
+      "refresh": "Refresh",
+      "details": "Details",
+      "retry": "Retry",
+      "cancel": "Cancel"
+    },
+    "status": {
+      "unknown": "unknown",
+      "queued": "queued",
+      "delayed": "delayed",
+      "running": "running",
+      "succeeded": "succeeded",
+      "failed": "failed",
+      "dead": "dead letter",
+      "canceled": "canceled"
+    },
+    "errors": {
+      "loadTitle": "Failed to load jobs"
+    },
+    "card": {
+      "queue": "Queue",
+      "priority": "Priority",
+      "attempts": "Attempts",
+      "createdAt": "Created at",
+      "startedAt": "Started at",
+      "finishedAt": "Finished at"
+    },
+    "dialog": {
+      "title": "Job details",
+      "payload": "Payload",
+      "result": "Result"
+    },
+    "download": {
+      "title": "Download jobs",
+      "description": "Queued, running, completed or failed downloads backed by the real queue runtime.",
+      "emptyTitle": "No download jobs",
+      "emptyDescription": "No operational downloads have been started yet."
+    },
+    "sync": {
+      "title": "Sync jobs",
+      "description": "Track Negentropy synchronizations with durable state, attempts and terminal failures.",
+      "emptyTitle": "No sync jobs",
+      "emptyDescription": "No synchronizations have been queued yet."
+    }
   },
   "groups": {
     "title": "NIP-29 Groups",

@@ -66,6 +66,34 @@ export type NIP86RelayMetadataPayload = {
 
 export type DownloadJobStatus = "queued" | "running" | "completed" | "failed"
 
+export type AdminJobStatus = "unknown" | "queued" | "running" | "succeeded" | "failed" | "delayed" | "dead" | "canceled"
+
+export type AdminJob = {
+  id: string
+  queue: string
+  priority: string
+  job_name: string
+  status: AdminJobStatus
+  attempts: number
+  max_attempts: number
+  created_at: string
+  started_at?: string
+  finished_at?: string
+  run_at?: string
+  last_error?: string
+  payload?: any
+  result?: any
+}
+
+export type AdminJobsResponse = AdminPage<AdminJob>
+
+export type AdminJobsFilters = {
+  queue?: string
+  job_name?: string
+  status?: AdminJobStatus | ""
+  limit?: number
+}
+
 export type DownloadJobSummary = {
   events_received: number
   inserted_events: number
@@ -372,6 +400,13 @@ export type NegentropySyncRequest = {
   direction: "up" | "down" | "both"
   filter?: any[]
   timeout?: number
+}
+
+export type NegentropySyncResponse = {
+  status: string
+  remote: string
+  message: string
+  job_id?: string
 }
 
 export type DownloadEventsRequest = {

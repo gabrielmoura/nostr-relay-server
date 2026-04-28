@@ -1,5 +1,8 @@
 import type {
   AdminPage,
+  AdminJob,
+  AdminJobsFilters,
+  AdminJobsResponse,
   BanPayload,
   BannedUser,
   ConnectionRecord,
@@ -27,6 +30,7 @@ import type {
   UserNIP05Association,
   UserProfile,
   NegentropySyncRequest,
+  NegentropySyncResponse,
   DownloadEventsRequest,
   DownloadJobsResponse,
   DownloadJob,
@@ -41,12 +45,14 @@ import { mockConnections, mockEvents, mockUsers, seedBannedUsers } from "@/mocks
 export class ApiError extends Error {
   status?: number
   details?: unknown
+  requestId?: string
 
-  constructor(message: string, status?: number, details?: unknown) {
+  constructor(message: string, status?: number, details?: unknown, requestId?: string) {
     super(message)
     this.name = "ApiError"
     this.status = status
     this.details = details
+    this.requestId = requestId
   }
 }
 
@@ -65,6 +71,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     ...init,
     headers,
   })
+  const requestId = response.headers.get("x-request-id") ?? undefined
 
   if (!response.ok) {
     let message = `Falha na requisicao (${response.status})`
@@ -78,10 +85,22 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     } catch {
       // ignore
     }
-    throw new ApiError(message, response.status, details)
+    throw new ApiError(message, response.status, details, requestId)
   }
 
   return response.json() as Promise<T>
+}
+
+function buildQuery(search: Record<string, string | number | undefined>) {
+  const params = new URLSearchParams()
+  for (const [key, value] of Object.entries(search)) {
+    if (value === undefined || value === "") {
+      continue
+    }
+    params.set(key, String(value))
+  }
+  const query = params.toString()
+  return query ? `?${query}` : ""
 }
 
 function fallbackPage<T>(items: T[], limit: number, offset: number): AdminPage<T> {
@@ -585,7 +604,7 @@ export function getEventTags(event: EventRecord) {
 }
 
 export async function startNegentropySync(payload: NegentropySyncRequest) {
-  return request<{ status: string; remote: string; message: string }>("/sync/negentropy", {
+  return request<NegentropySyncResponse>("/sync/negentropy", {
     method: "POST",
     body: JSON.stringify(payload),
   })
@@ -604,6 +623,28 @@ export async function getDownloadJobs() {
 
 export async function getDownloadJob(jobID: string) {
   return request<DownloadJob>(`/events/download/jobs/${encodeURIComponent(jobID)}`)
+}
+
+export async function getJobs(filters: AdminJobsFilters = {}) {
+  return request<AdminJobsResponse>(`/jobs${buildQuery(filters)}`)
+}
+
+export async function getJob(jobID: string, queue?: string) {
+  return request<AdminJob>(`/jobs/${encodeURIComponent(jobID)}${buildQuery({ queue })}`)
+}
+
+export async function retryJob(jobID: string, queue: string) {
+  return request<{ ok: boolean; id: string; queue: string }>(`/jobs/${encodeURIComponent(jobID)}/retry`, {
+    method: "POST",
+    body: JSON.stringify({ queue }),
+  })
+}
+
+export async function cancelJob(jobID: string, queue: string) {
+  return request<{ ok: boolean; id: string; queue: string }>(`/jobs/${encodeURIComponent(jobID)}/cancel`, {
+    method: "POST",
+    body: JSON.stringify({ queue }),
+  })
 }
 
 export async function getGroupsPage(params: PageParams) {

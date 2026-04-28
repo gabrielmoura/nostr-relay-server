@@ -189,6 +189,68 @@ Refinement strategy:
 
 This keeps the visual queue truthful to real backend execution instead of simulating success after the request returns.
 
+## Planned Generic Operational Jobs UX
+
+The queue backend now supports durable jobs for download, sync and cron. The dashboard should stop treating these as feature-specific background toasts and instead present them through one shared operational jobs experience.
+
+### UX direction applied from `ui-ux-pro-max`
+
+Because this lives inside an existing admin dashboard, the new UI should reuse the current visual language instead of switching to a radically different theme. We will only borrow the useful parts of the generated system:
+
+- **Pattern:** real-time monitoring
+- **Layout:** dense operational cards + drill-down table
+- **Typography emphasis:** keep existing app typography, but use monospace treatment for job ids, queues and timing values
+- **Feedback:** compact status chips, subtle activity pulse for running jobs, strong error panels for terminal failures
+- **Avoid:** fake progress bars, noisy glow effects, or marketing-style hero layouts
+
+### Architecture refinement
+
+The generic jobs flow should be split into four frontend layers:
+
+1. **Service layer** in `services/admin.ts`
+   - `getJob(jobId)`
+   - `getJobs(filters?)`
+   - `retryJob(jobId)`
+   - `cancelJob(jobId)`
+
+2. **Types layer** in `types/admin.ts`
+   - `AdminJob`
+   - `AdminJobStatus`
+   - `AdminJobListResponse`
+   - `AdminJobResult`
+
+3. **TanStack Query hooks** in `hooks/use-admin-data.ts`
+   - `useJobsQuery`
+   - `useJobQuery`
+   - `useRetryJobMutation`
+   - `useCancelJobMutation`
+
+4. **Feature UI** in `components/features/jobs/`
+   - reusable queue board, cards, details drawer/dialog and action toolbar
+
+### Screen strategy
+
+Instead of adding one more isolated page immediately, the first rollout should integrate the generic jobs board into the existing operational routes:
+
+- `/download` shows the shared jobs board filtered to `job_name=download.events`
+- `/sync` shows the shared jobs board filtered to `job_name=sync.negentropy`
+- a later follow-up may add `/jobs` as a global operator command center once cron and dead-letter workflows need broader inspection
+
+### Error handling strategy
+
+- route-level error states stay in the route containers
+- query failures render inline operational panels instead of relying only on toast messages
+- retry/cancel mutations must surface backend `x-request-id` when available through the shared `ApiError`
+- dialogs/drawers remain dumb; mutation and polling logic stays in smart containers/hooks
+
+### React 19 decision
+
+This feature should continue to use **TanStack Query** as the primary server-state mechanism because:
+
+- jobs are long-lived server state, not simple form submissions
+- polling, targeted invalidation and mutation side effects are already standardized in the dashboard
+- `useActionState` would add ceremony without helping cache coordination here
+
 ## Error Handling
 
 ### Error Boundaries

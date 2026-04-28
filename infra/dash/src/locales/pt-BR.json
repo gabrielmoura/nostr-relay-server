@@ -60,7 +60,8 @@
     "startAction": "Iniciar Sincronização",
     "started": "Sincronização iniciada em segundo plano.",
     "errorTitle": "Falha ao iniciar",
-    "errorDescription": "Não foi possível iniciar a sincronização."
+    "errorDescription": "Não foi possível iniciar a sincronização.",
+    "successStartedWithJob": "Sincronização iniciada. Job {{jobId}}"
   },
   "download": {
     "title": "Download de Eventos",
@@ -77,6 +78,60 @@
     "started": "Download iniciado em segundo plano.",
     "errorTitle": "Falha ao iniciar",
     "errorDescription": "Não foi possível iniciar o download."
+  },
+  "jobs": {
+    "summary": {
+      "active": "Ativos",
+      "completed": "Concluídos",
+      "failed": "Falhos/DLQ"
+    },
+    "filters": {
+      "allStatuses": "Todos os estados"
+    },
+    "actions": {
+      "refresh": "Atualizar",
+      "details": "Detalhes",
+      "retry": "Reenfileirar",
+      "cancel": "Cancelar"
+    },
+    "status": {
+      "unknown": "desconhecido",
+      "queued": "na fila",
+      "delayed": "agendado",
+      "running": "executando",
+      "succeeded": "concluído",
+      "failed": "falhou",
+      "dead": "dead letter",
+      "canceled": "cancelado"
+    },
+    "errors": {
+      "loadTitle": "Falha ao carregar trabalhos"
+    },
+    "card": {
+      "queue": "Fila",
+      "priority": "Prioridade",
+      "attempts": "Tentativas",
+      "createdAt": "Criado em",
+      "startedAt": "Iniciado em",
+      "finishedAt": "Finalizado em"
+    },
+    "dialog": {
+      "title": "Detalhes do trabalho",
+      "payload": "Payload",
+      "result": "Resultado"
+    },
+    "download": {
+      "title": "Trabalhos de download",
+      "description": "Downloads enfileirados, em andamento, concluídos ou falhos com estado real do backend.",
+      "emptyTitle": "Sem downloads na fila",
+      "emptyDescription": "Nenhum download operacional foi disparado ainda."
+    },
+    "sync": {
+      "title": "Trabalhos de sincronização",
+      "description": "Acompanhe sincronizações Negentropy com estado durável, tentativas e falhas terminais.",
+      "emptyTitle": "Sem sincronizações na fila",
+      "emptyDescription": "Nenhuma sincronização foi enfileirada ainda."
+    }
   },
   "groups": {
     "title": "Grupos NIP-29",

@@ -221,6 +221,60 @@ Persistence rules:
 - backend download job state lives in memory and is fetched by polling
 - the frontend queue must preserve local cards until refresh or explicit dismissal, even after completion
 
+### Generic Operational Jobs Flow (Planned)
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│                Generic Operational Jobs Flow                 │
+├──────────────────────────────────────────────────────────────┤
+│                                                              │
+│  Feature Route (download / sync)                             │
+│       │                                                      │
+│       ├── mutation starts backend job                        │
+│       │      └── returns job_id                              │
+│       │                                                      │
+│       └── useJobsQuery({ job_name })                         │
+│               │ polling / invalidation                       │
+│               ▼                                              │
+│           JobsBoard (Smart)                                  │
+│               │                                              │
+│               ├── JobQueueSummary (Dumb)                     │
+│               ├── JobQueueFilters (Dumb)                     │
+│               ├── JobCard[] (Dumb)                           │
+│               └── JobDetailsDialog (Dumb)                    │
+│                                                              │
+│  Retry / Cancel actions                                      │
+│       │                                                      │
+│       └── useRetryJobMutation / useCancelJobMutation         │
+│                                                              │
+└──────────────────────────────────────────────────────────────┘
+```
+
+States:
+
+| State | Meaning |
+|-------|---------|
+| `queued` | accepted and waiting for worker |
+| `delayed` | delayed or retry-scheduled |
+| `running` | actively executing in a worker |
+| `succeeded` | terminal success |
+| `failed` | terminal failure without dead-letter promotion yet |
+| `dead` | dead-letter state |
+| `canceled` | canceled before completion |
+
+Mutation rules:
+
+- start-sync and start-download invalidate the filtered jobs query immediately
+- retry invalidates the relevant jobs list and selected job detail
+- cancel invalidates the relevant jobs list and selected job detail
+- the board should poll only while there are active states (`queued`, `delayed`, `running`)
+
+Recovery rules:
+
+- query failure -> inline panel with retry action
+- mutation failure -> toast + persistent inline error when action is job-specific
+- selected job dialog must remain open if retry/cancel fails, preserving operator context
+
 ### WoT Management Flow
 
 ```

@@ -81,6 +81,24 @@ Relay selection for event recovery should delegate persistence and editing to th
 | `DownloadJobDetailsDialog` | Dumb | Shows per-job relay results, summary and raw filters |
 | `DownloadFiltersDialog` | Dumb | Compact viewer for the serialized filter used by a job |
 
+### Generic Jobs (`components/features/jobs/`) - Planned
+
+| Component | Type | Props | Events |
+|-----------|------|-------|--------|
+| `JobsBoard` | Smart | `jobs`, `isLoading`, `error`, `filterPreset`, `onRetry`, `onCancel`, `onRefresh` | `onRetry`, `onCancel`, `onRefresh`, `onSelectJob` |
+| `JobQueueFilters` | Dumb | `queueOptions`, `statusOptions`, `value`, `onChange` | `onChange` |
+| `JobQueueSummary` | Dumb | `totals`, `activeCount`, `deadCount`, `delayedCount` | - |
+| `JobCard` | Dumb | `job`, `onViewDetails`, `onRetry`, `onCancel` | `onViewDetails`, `onRetry`, `onCancel` |
+| `JobDetailsDialog` | Dumb | `job`, `open`, `onOpenChange` | `onOpenChange` |
+| `JobResultPanel` | Dumb | `job` | - |
+| `JobEmptyState` | Dumb | `title`, `description` | - |
+
+Rules:
+
+- `JobsBoard` is the only smart component in this module.
+- all rendering-only blocks stay dumb and reusable across `/download` and `/sync`.
+- no component in `components/features/jobs/` talks to `fetch` directly.
+
 **Parser**: `lib/event-parser.ts` (extracts imeta, media, references from event tags)
 
 ---
@@ -153,6 +171,11 @@ Located in `infra/dash/src/routes/`
 | `/download` | `download-page.tsx` | ~110 | Bulk event download |
 | `/groups` | `groups-page.tsx` | ~120 | NIP-29 group management |
 | `/wot` | `wot-page.tsx` | ~110 | WoT & Trusted Pubkeys |
+
+Planned route refinements:
+
+- `download-page.tsx` becomes a smart orchestrator for `DownloadForm` + generic `JobsBoard`
+- `sync-page.tsx` becomes a smart orchestrator for `SyncForm` + generic `JobsBoard`
 
 ---
 

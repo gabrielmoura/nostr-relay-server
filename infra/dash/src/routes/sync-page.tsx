@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next"
 import { RefreshCcw } from "lucide-react"
 import { toast } from "sonner"
 
+import { JobsBoard } from "@/components/features/jobs/jobs-board"
 import { PageHeader } from "@/components/shared/page-header"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -27,12 +28,16 @@ export function SyncPage() {
     }
 
     try {
-      await syncMutation.mutateAsync({
+      const response = await syncMutation.mutateAsync({
         remote: remote.trim(),
         direction,
         filter: [filter],
       })
-      toast.success(t("sync.successStarted", "Sync process started in background"))
+      toast.success(
+        response.job_id
+          ? t("sync.successStartedWithJob", { jobId: response.job_id, defaultValue: `Sync initiated. Job ${response.job_id}` })
+          : t("sync.successStarted", "Sync process started in background"),
+      )
     } catch (error) {
       console.error("Sync failed:", error)
       toast.error(t("common.error"))
@@ -94,6 +99,14 @@ export function SyncPage() {
             title={t("sync.filterTitle", "Sync Scope")}
           />
         </div>
+
+        <JobsBoard
+          description={t("jobs.sync.description", "Acompanhe sincronizações Negentropy com estado durável, tentativas e falhas terminais.")}
+          emptyDescription={t("jobs.sync.emptyDescription", "Nenhuma sincronização foi enfileirada ainda.")}
+          emptyTitle={t("jobs.sync.emptyTitle", "Sem sincronizações na fila")}
+          filters={{ job_name: "sync.negentropy" }}
+          title={t("jobs.sync.title", "Trabalhos de sincronização")}
+        />
       </div>
     </Suspense>
   )

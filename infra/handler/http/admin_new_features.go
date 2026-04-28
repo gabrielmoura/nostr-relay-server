@@ -1,6 +1,9 @@
 package http
 
 import (
+	"context"
+	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -59,6 +62,27 @@ type AdminWoTSummaryResponse struct {
 
 type TrustedPubkeyRequest struct {
 	Pubkey string `json:"pubkey"`
+}
+
+type AdminJob struct {
+	ID          string          `json:"id"`
+	Queue       string          `json:"queue"`
+	Priority    string          `json:"priority"`
+	JobName     string          `json:"job_name"`
+	Status      string          `json:"status"`
+	Attempts    uint8           `json:"attempts"`
+	MaxAttempts uint8           `json:"max_attempts"`
+	CreatedAt   string          `json:"created_at"`
+	StartedAt   string          `json:"started_at,omitempty"`
+	FinishedAt  string          `json:"finished_at,omitempty"`
+	RunAt       string          `json:"run_at,omitempty"`
+	LastError   string          `json:"last_error,omitempty"`
+	Payload     json.RawMessage `json:"payload,omitempty"`
+	Result      json.RawMessage `json:"result,omitempty"`
+}
+
+type adminJobMutationRequest struct {
+	Queue string `json:"queue"`
 }
 
 func NegentropySync() fiber.Handler {
@@ -175,6 +199,211 @@ func DownloadJobDetail() fiber.Handler {
 		}
 		return c.JSON(job)
 	}
+}
+
+func JobsList() fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		service := jobcore.Default()
+		if service == nil || service.Monitor == nil {
+			return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"error": "job runtime is not initialized"})
+		}
+
+		limit := adminLimit(c)
+		offset := adminOffset(c)
+		queueFilter := strings.TrimSpace(c.Query("queue"))
+		jobNameFilter := strings.TrimSpace(c.Query("job_name"))
+		statusFilter := strings.TrimSpace(c.Query("status"))
+
+		snapshots, err := listAdminJobSnapshots(c.UserContext(), service.Monitor, queueFilter)
+		if err != nil {
+			return internalServerError(c, err)
+		}
+
+		items := make([]AdminJob, 0, len(snapshots))
+		for _, snapshot := range snapshots {
+			if jobNameFilter != "" && snapshot.Name != jobNameFilter {
+				continue
+			}
+			if statusFilter != "" && snapshot.Status.String() != statusFilter {
+				continue
+			}
+			items = append(items, adminJobFromSnapshot(snapshot))
+		}
+
+		total := len(items)
+		return c.JSON(newAdminPage(paginate(items, limit, offset), total, limit, offset))
+	}
+}
+
+func JobDetail() fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		service := jobcore.Default()
+		if service == nil || service.Monitor == nil {
+			return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"error": "job runtime is not initialized"})
+		}
+
+		jobID, err := jobcore.ParseJobID(c.Params("jobId"))
+		if err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		}
+
+		snapshot, err := findAdminJobSnapshot(c.UserContext(), service.Monitor, strings.TrimSpace(c.Query("queue")), jobID)
+		if err != nil {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": err.Error()})
+		}
+
+		return c.JSON(adminJobFromSnapshot(snapshot))
+	}
+}
+
+func RetryJob() fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		service := jobcore.Default()
+		if service == nil || service.Monitor == nil {
+			return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"error": "job runtime is not initialized"})
+		}
+
+		jobID, err := jobcore.ParseJobID(c.Params("jobId"))
+		if err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		}
+
+		queueName, err := resolveAdminJobQueue(c)
+		if err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		}
+
+		if err := service.Monitor.Retry(c.UserContext(), queueName, jobID); err != nil {
+			return internalServerError(c, err)
+		}
+
+		return c.JSON(fiber.Map{"ok": true, "id": jobID.String(), "queue": queueName})
+	}
+}
+
+func CancelJob() fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		service := jobcore.Default()
+		if service == nil || service.Monitor == nil {
+			return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"error": "job runtime is not initialized"})
+		}
+
+		jobID, err := jobcore.ParseJobID(c.Params("jobId"))
+		if err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		}
+
+		queueName, err := resolveAdminJobQueue(c)
+		if err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		}
+
+		if err := service.Monitor.Cancel(c.UserContext(), queueName, jobID); err != nil {
+			return internalServerError(c, err)
+		}
+
+		return c.JSON(fiber.Map{"ok": true, "id": jobID.String(), "queue": queueName})
+	}
+}
+
+func adminJobFromSnapshot(snapshot jobcore.Snapshot) AdminJob {
+	item := AdminJob{
+		ID:          snapshot.ID.String(),
+		Queue:       snapshot.Queue,
+		Priority:    string(snapshot.Priority),
+		JobName:     snapshot.Name,
+		Status:      snapshot.Status.String(),
+		Attempts:    snapshot.Attempts,
+		MaxAttempts: snapshot.MaxAttempts,
+		CreatedAt:   formatTime(snapshot.CreatedAt),
+		LastError:   snapshot.LastError,
+		Payload:     snapshot.Payload,
+		Result:      snapshot.Result,
+	}
+	if snapshot.StartedAt != nil {
+		item.StartedAt = formatTime(*snapshot.StartedAt)
+	}
+	if snapshot.FinishedAt != nil {
+		item.FinishedAt = formatTime(*snapshot.FinishedAt)
+	}
+	if snapshot.RunAt != nil {
+		item.RunAt = formatTime(*snapshot.RunAt)
+	}
+	return item
+}
+
+func listAdminJobSnapshots(ctx context.Context, monitor jobcore.Monitor, queueFilter string) ([]jobcore.Snapshot, error) {
+	queues := adminJobQueues(queueFilter)
+	items := make([]jobcore.Snapshot, 0)
+	seen := make(map[string]struct{})
+	for _, queueName := range queues {
+		snapshots, err := monitor.List(ctx, queueName, jobcore.ListFilter{Limit: int64(maxAdminLimit)})
+		if err != nil {
+			return nil, fmt.Errorf("list jobs for queue %s: %w", queueName, err)
+		}
+		for _, snapshot := range snapshots {
+			key := snapshot.Queue + ":" + snapshot.ID.String()
+			if _, ok := seen[key]; ok {
+				continue
+			}
+			seen[key] = struct{}{}
+			items = append(items, snapshot)
+		}
+	}
+	sort.Slice(items, func(i, j int) bool {
+		return items[i].CreatedAt.After(items[j].CreatedAt)
+	})
+	return items, nil
+}
+
+func findAdminJobSnapshot(ctx context.Context, monitor jobcore.Monitor, queueFilter string, jobID jobcore.JobID) (jobcore.Snapshot, error) {
+	for _, queueName := range adminJobQueues(queueFilter) {
+		snapshot, err := monitor.Get(ctx, queueName, jobID)
+		if err == nil {
+			return snapshot, nil
+		}
+	}
+	return jobcore.Snapshot{}, fmt.Errorf("job %s not found", jobID.String())
+}
+
+func adminJobQueues(queueFilter string) []string {
+	if queueFilter != "" {
+		return []string{queueFilter}
+	}
+	if config.Cfg == nil {
+		return nil
+	}
+	values := []string{config.Cfg.Jobs.Download.Queue, config.Cfg.Jobs.Sync.Queue, config.Cfg.Jobs.Cron.Queue, config.Cfg.Jobs.DefaultQueue}
+	seen := make(map[string]struct{}, len(values))
+	queues := make([]string, 0, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		if _, ok := seen[value]; ok {
+			continue
+		}
+		seen[value] = struct{}{}
+		queues = append(queues, value)
+	}
+	return queues
+}
+
+func resolveAdminJobQueue(c *fiber.Ctx) (string, error) {
+	queueName := strings.TrimSpace(c.Query("queue"))
+	if queueName != "" {
+		return queueName, nil
+	}
+	var body adminJobMutationRequest
+	if err := parseAdminJSONBody(c, &body); err != nil {
+		return "", err
+	}
+	queueName = strings.TrimSpace(body.Queue)
+	if queueName == "" {
+		return "", fmt.Errorf("queue is required")
+	}
+	return queueName, nil
 }
 
 func ListGroups() fiber.Handler {

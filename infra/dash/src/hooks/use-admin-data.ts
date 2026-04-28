@@ -1,6 +1,6 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient, useSuspenseQuery } from "@tanstack/react-query"
 
-import type { BanPayload, EventSearchFilters, NIP86ReasonPayload, NIP86RelayMetadataPayload } from "@/types/admin"
+import type { AdminJobsFilters, BanPayload, EventSearchFilters, NIP86ReasonPayload, NIP86RelayMetadataPayload } from "@/types/admin"
 import {
   allowNIP86PubKey,
   banUser,
@@ -11,6 +11,8 @@ import {
   fetchEventFromRelays,
   getDownloadJob,
   getDownloadJobs,
+  getJob,
+  getJobs,
   getNIP86AllowedPubKeysPage,
   getNIP86BannedEventsPage,
   getNIP86BlockedIPsPage,
@@ -40,6 +42,8 @@ import {
   updateNIP86RelayMetadata,
   startNegentropySync,
   startDownloadEvents,
+  retryJob,
+  cancelJob,
   getGroupsPage,
   getWoTSummary,
   addTrustedPubkey,
@@ -422,8 +426,12 @@ export function useWoTSummarySuspense() {
 }
 
 export function useSyncMutation() {
+  const queryClient = useQueryClient()
   return useMutation({
     mutationFn: startNegentropySync,
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["jobs"] })
+    },
   })
 }
 
@@ -459,6 +467,55 @@ export function useDownloadJob(jobID: string, enabled = true) {
     refetchInterval: (query) => {
       const status = query.state.data?.status
       return status === "queued" || status === "running" ? 2500 : false
+    },
+  })
+}
+
+export function useJobsQuery(filters: AdminJobsFilters) {
+  return useQuery({
+    queryKey: ["jobs", filters],
+    queryFn: () => getJobs(filters),
+    refetchInterval: (query) => {
+      const items = query.state.data?.items ?? []
+      return items.some((item) => item.status === "queued" || item.status === "running" || item.status === "delayed") ? 2500 : 8000
+    },
+  })
+}
+
+export function useJobQuery(jobID: string, queue?: string, enabled = true) {
+  return useQuery({
+    queryKey: ["job", jobID, queue],
+    queryFn: () => getJob(jobID, queue),
+    enabled: enabled && Boolean(jobID),
+    refetchInterval: (query) => {
+      const status = query.state.data?.status
+      return status === "queued" || status === "running" || status === "delayed" ? 2500 : false
+    },
+  })
+}
+
+export function useRetryJobMutation() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ jobID, queue }: { jobID: string; queue: string }) => retryJob(jobID, queue),
+    onSuccess: async (_, payload) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["jobs"] }),
+        queryClient.invalidateQueries({ queryKey: ["job", payload.jobID, payload.queue] }),
+      ])
+    },
+  })
+}
+
+export function useCancelJobMutation() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ jobID, queue }: { jobID: string; queue: string }) => cancelJob(jobID, queue),
+    onSuccess: async (_, payload) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["jobs"] }),
+        queryClient.invalidateQueries({ queryKey: ["job", payload.jobID, payload.queue] }),
+      ])
     },
   })
 }

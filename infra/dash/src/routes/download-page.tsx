@@ -3,8 +3,8 @@ import { useTranslation } from "react-i18next"
 import { Download, Radio, Settings2 } from "lucide-react"
 import { toast } from "sonner"
 
-import { DownloadJobQueue } from "@/components/features/download/download-job-queue"
 import { NostrFilterBuilder, type NostrFilter } from "@/components/features/filters/nostr-filter-builder"
+import { JobsBoard } from "@/components/features/jobs/jobs-board"
 import { PageHeader } from "@/components/shared/page-header"
 import { RelayListModal } from "@/components/shared/relay-list-modal"
 import { Badge } from "@/components/ui/badge"
@@ -13,13 +13,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
-import { useDownloadJobs, useDownloadMutation } from "@/hooks/use-admin-data"
+import { useDownloadMutation, useJobsQuery } from "@/hooks/use-admin-data"
 import { readRelayStorage } from "@/lib/relay-presets"
 
 export function DownloadPage() {
   const { t } = useTranslation()
   const downloadMutation = useDownloadMutation()
-  const jobsQuery = useDownloadJobs()
+  const jobsQuery = useJobsQuery({ job_name: "download.events", limit: 30 })
 
   const [relays, setRelays] = useState<string[]>(() => readRelayStorage("external-relays"))
   const [filter, setFilter] = useState<NostrFilter>({ limit: 100 })
@@ -125,7 +125,13 @@ export function DownloadPage() {
           <NostrFilterBuilder initialFilter={filter} onChange={setFilter} title={t("download.filterTitle", "Escopo do Download")} />
         </div>
 
-        <DownloadJobQueue jobs={jobsQuery.data?.items ?? []} />
+        <JobsBoard
+          description={t("jobs.download.description", "Downloads enfileirados, em andamento, concluídos ou falhos com estado real do backend.")}
+          emptyDescription={t("jobs.download.emptyDescription", "Nenhum download operacional foi disparado ainda.")}
+          emptyTitle={t("jobs.download.emptyTitle", "Sem downloads na fila")}
+          filters={{ job_name: "download.events" }}
+          title={t("jobs.download.title", "Trabalhos de download")}
+        />
 
         <RelayListModal
           description={t(
