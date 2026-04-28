@@ -390,6 +390,65 @@ Type: HASH
 - a periodic cleanup job removes `subs:{ws_id}` when `ws:last_seen:{ws_id}` no longer exists
 - `sub:cleanup` pub/sub messages notify other instances to evict stale mirrors
 
+### Planned Queue Keys
+
+The operational queue refactor uses compact Redis structures. PostgreSQL is not introduced as the primary job store in the first iteration.
+
+| Key Pattern | Type | TTL | Purpose |
+|---|---|---|---|
+| `rq:{queue}:seq` | STRING | none | Sequential numeric job id allocator |
+| `rq:{queue}:stream:{priority}` | STREAM | bounded by `MAXLEN ~` | Main delivery channel for Consumer Groups |
+| `rq:{queue}:delayed` | ZSET | none | Delayed and retry-ready jobs by `run_at_ms` |
+| `rq:{queue}:dead` | ZSET | policy-driven | Dead-letter queue ordered by terminal timestamp |
+| `rq:{queue}:jobs` | ZSET | none | Recent job ordering index by creation time |
+| `rq:{queue}:body:{job_id}` | STRING | configurable | Serialized job payload/envelope |
+| `rq:{queue}:result:{job_id}` | STRING | configurable | Optional structured terminal result payload |
+| `rq:{queue}:state` | STRING (BITFIELD) | none | 3-bit compact lifecycle state per job id |
+| `rq:{queue}:attempts` | STRING (BITFIELD) | none | 8-bit attempt counter per job id |
+| `rq:{queue}:meta:{job_id}` | HASH | configurable | Small metadata only (`j`, `q`, `p`, `a`, `ma`, `ca`, `la`, `sa`, `fa`, `ra`, `e`) |
+| `rq:{queue}:metrics:{yyyyMMddHHmm}` | HASH | short TTL | Per-minute aggregate counters |
+| `rq:{queue}:workers:{yyyyMMddHHmm}` | HLL | short TTL | Approximate unique workers per window |
+| `rq:{queue}:unique:{fingerprint}` | STRING | option-driven | Idempotency / uniqueness guard |
+
+### Planned Queue Metadata Fields
+
+| Field | Meaning |
+|---|---|
+| `j` | job name |
+| `q` | queue name |
+| `p` | priority |
+| `a` | current attempts |
+| `ma` | max attempts |
+| `ca` | created at unix ms |
+| `la` | last attempt unix ms |
+| `sa` | started at unix ms |
+| `fa` | finished at unix ms |
+| `ra` | delayed/retry release unix ms |
+| `e` | summarized last error |
+
+### Planned Queue Status Encoding
+
+Stored in `rq:{queue}:state` with `BITFIELD` using 3 bits per sequential id.
+
+| Value | Meaning |
+|---:|---|
+| 0 | unknown |
+| 1 | queued |
+| 2 | running |
+| 3 | succeeded |
+| 4 | failed |
+| 5 | delayed |
+| 6 | dead |
+| 7 | canceled |
+
+### Planned Queue Operational Notes
+
+- Streams are the source of delivery truth.
+- ZSET is used for delayed and retry scheduling only.
+- payload stays in STRING to avoid large Hash memory overhead.
+- per-job Hash data must remain compact; no large JSON blobs in Hash fields.
+- all queue keys for the same logical queue share one Redis hash tag (`{queue}`) to keep Lua multi-key operations cluster-safe.
+
 ### Configuration
 
 Redis connection via `conf.yaml`:

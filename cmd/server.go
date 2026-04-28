@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	croncmd "github.com/gabrielmoura/nostr-relay-server/cmd/internal/cron"
 	"github.com/gabrielmoura/nostr-relay-server/config"
 	"github.com/gabrielmoura/nostr-relay-server/infra/cache"
 	"github.com/gabrielmoura/nostr-relay-server/infra/handler/listener"
@@ -11,14 +12,18 @@ import (
 	"github.com/gabrielmoura/nostr-relay-server/infra/metrics"
 	"github.com/gabrielmoura/nostr-relay-server/infra/net"
 	"github.com/gabrielmoura/nostr-relay-server/infra/pubsub"
+	redisqueue "github.com/gabrielmoura/nostr-relay-server/infra/queue/redis"
 	"github.com/gabrielmoura/nostr-relay-server/infra/redis"
 	"github.com/gabrielmoura/nostr-relay-server/infra/stream"
 	"github.com/gabrielmoura/nostr-relay-server/internal/bootstrap"
 	"github.com/gabrielmoura/nostr-relay-server/internal/db"
+	"github.com/gabrielmoura/nostr-relay-server/internal/down"
 	"github.com/gabrielmoura/nostr-relay-server/internal/groups"
+	jobcore "github.com/gabrielmoura/nostr-relay-server/internal/jobs"
 	"github.com/gabrielmoura/nostr-relay-server/internal/nip86"
 	policies2 "github.com/gabrielmoura/nostr-relay-server/internal/policies"
 	"github.com/gabrielmoura/nostr-relay-server/internal/security"
+	syncjob "github.com/gabrielmoura/nostr-relay-server/internal/sync"
 	"github.com/gabrielmoura/nostr-relay-server/internal/wot"
 	"github.com/gabrielmoura/nostr-relay-server/pkg/nostrpool"
 	"github.com/spf13/cobra"
@@ -84,6 +89,26 @@ func runServer(cmd *cobra.Command, args []string) {
 
 		metrics.RegisterMetrics()
 		metrics.RegisterSecurityMetrics()
+		if config.Cfg.Jobs.Enabled {
+			queueRuntime, err := redisqueue.NewRuntime(redis.GetClient(), config.Cfg.Redis.Queue, config.Cfg.Jobs)
+			if err != nil {
+				log.Logger.Warn("queue runtime initialization failed", zap.Error(err))
+			} else {
+				if err := down.RegisterQueueHandlers(queueRuntime.Registry()); err != nil {
+					log.Logger.Fatal("failed to register download queue handlers", zap.Error(err))
+				}
+				if err := syncjob.RegisterQueueHandlers(queueRuntime.Registry()); err != nil {
+					log.Logger.Fatal("failed to register sync queue handlers", zap.Error(err))
+				}
+				if err := croncmd.RegisterQueueHandlers(queueRuntime.Registry()); err != nil {
+					log.Logger.Fatal("failed to register cron queue handlers", zap.Error(err))
+				}
+				jobcore.SetDefault(queueRuntime.Service())
+				if err := queueRuntime.Start(mainCtx); err != nil {
+					log.Logger.Fatal("failed to start queue runtime", zap.Error(err))
+				}
+			}
+		}
 		if err := groups.Init(db.DbQueries); err != nil {
 			log.Logger.Fatal("Erro ao inicializar NIP-29", zap.Error(err))
 		}

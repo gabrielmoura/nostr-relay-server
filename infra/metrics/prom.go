@@ -484,6 +484,21 @@ func RegisterMetrics() {
 		NostrNIP29InvitesConsumedTotal,
 		NostrNIP29ProcessingSeconds,
 		NostrNIP29CacheTotal,
+		NostrQueueJobsEnqueuedTotal,
+		NostrQueueJobsStartedTotal,
+		NostrQueueJobsSucceededTotal,
+		NostrQueueJobsFailedTotal,
+		NostrQueueJobsRetriedTotal,
+		NostrQueueJobsDeadTotal,
+		NostrQueueJobDurationSeconds,
+		NostrQueueJobLatencySeconds,
+		NostrQueueDepth,
+		NostrQueueDelayedJobs,
+		NostrQueueDeadJobs,
+		NostrQueueActiveWorkers,
+		NostrQueueRedisErrorsTotal,
+		NostrQueueLuaErrorsTotal,
+		NostrQueueReclaimsTotal,
 	)
 
 }

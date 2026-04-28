@@ -70,8 +70,11 @@ func Sync(cf *ConfSync) {
 		fmt.Printf("Setup error: %v\n", err)
 		return
 	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go handleGracefulShutdown(cancel)
 
-	if err := runSync(cf); err != nil {
+	if err := Execute(ctx, cf); err != nil {
 		log.Logger.Error("Sync process finished with error", zap.Error(err))
 		return
 	}
@@ -79,7 +82,14 @@ func Sync(cf *ConfSync) {
 	log.Logger.Info("Sync completed successfully")
 }
 
-func runSync(cf *ConfSync) error {
+func Execute(ctx context.Context, cf *ConfSync) error {
+	if cf == nil {
+		return fmt.Errorf("sync config cannot be nil")
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
 	if err := validateRemote(cf.Remote); err != nil {
 		return err
 	}
@@ -107,7 +117,7 @@ func runSync(cf *ConfSync) error {
 			)
 		}
 
-		if err := runSingleSync(&runCfg); err != nil {
+		if err := runSingleSync(ctx, &runCfg); err != nil {
 			if len(filters) > 1 {
 				return fmt.Errorf("filter segment %d failed: %w", i+1, err)
 			}
@@ -118,10 +128,9 @@ func runSync(cf *ConfSync) error {
 	return nil
 }
 
-func runSingleSync(cf *ConfSync) error {
-	ctx, cancel := context.WithCancel(context.Background())
+func runSingleSync(ctx context.Context, cf *ConfSync) error {
+	runCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	go handleGracefulShutdown(cancel)
 
 	if len(cf.LocalFilter) == 0 {
 		cf.LocalFilter = []nostr.Filter{{}}
@@ -131,7 +140,7 @@ func runSingleSync(cf *ConfSync) error {
 	}
 
 	session := &SyncSession{
-		Context:           ctx,
+		Context:           runCtx,
 		Cancel:            cancel,
 		RemoteURL:         cf.Remote,
 		Direction:         cf.Direction,
@@ -854,7 +863,9 @@ func setupEnvironment() error {
 		return err
 	}
 	log.Init()
-	db.Init(context.Background())
+	if err := db.Init(context.Background()); err != nil {
+		return fmt.Errorf("init database: %w", err)
+	}
 	return nil
 }
 

@@ -1118,3 +1118,49 @@ The design is:
 - ✅ Makes admin mutations observable and durable.
 - ⚠️ Requires careful route ordering so JSON-RPC does not interfere with WebSocket upgrades.
 - ⚠️ Introduces a new config secret/identity boundary (`admin_pubkey`) that must be documented clearly.
+
+---
+
+## ADR-027: Redis Streams Queue for Operational Background Jobs
+
+**Status:** Proposed  
+**Date:** 2026-04-28
+
+### Context
+
+Operational jobs are currently split across multiple execution styles:
+
+1. download jobs are stored in memory and launched with unmanaged goroutines,
+2. admin sync launches fire-and-forget goroutines with no durable tracking,
+3. cron executes work directly in-process without a shared delivery substrate.
+
+This makes retry, dead-letter routing, cross-instance scaling, job visibility and graceful operational recovery harder than necessary.
+
+### Decision
+
+Introduce a Redis-backed operational queue subsystem with these rules:
+
+1. **Redis Streams** become the primary delivery mechanism.
+2. **Consumer Groups** provide concurrent worker distribution and ACK semantics.
+3. **Lua scripts** are used for atomic enqueue, start, success ACK, retry, dead-letter move, delayed promotion and compact metric/state updates.
+4. **Sorted Sets** store delayed and retry-ready jobs.
+5. **BITFIELD** stores compact lifecycle state and attempts by sequential job id.
+6. **Compact Hashes** store only small metadata fields; job payload stays in `STRING`.
+7. **HyperLogLog** tracks approximate active worker uniqueness per time window.
+
+### Reasons
+
+1. **Durability**: job state survives process restarts.
+2. **Scalability**: workers can scale horizontally without distributed locks.
+3. **Operational clarity**: retries, dead jobs and delayed backlog become observable.
+4. **Performance**: Redis-native structures and Lua reduce round-trips and per-job overhead.
+5. **Incremental migration**: download, sync and cron can adopt the same substrate one by one.
+
+### Consequences
+
+- ✅ one operational queue model for admin and cron work
+- ✅ reliable ACK/retry/dead-letter behavior
+- ✅ queue-specific metrics fit the existing Prometheus surface
+- ✅ compatible with Redis Cluster key-slot rules via `{queue}` hash tags
+- ⚠️ Redis becomes required for queue-backed job execution
+- ⚠️ the first rollout must preserve current HTTP/CLI contracts while old and new execution paths coexist briefly

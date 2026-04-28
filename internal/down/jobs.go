@@ -6,6 +6,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gabrielmoura/nostr-relay-server/config"
+	jobcore "github.com/gabrielmoura/nostr-relay-server/internal/jobs"
 	json "github.com/gabrielmoura/nostr-relay-server/internal/jsonx"
 	"github.com/nbd-wtf/go-nostr"
 )
@@ -54,23 +56,32 @@ type jobStore struct {
 var downloadJobs = &jobStore{jobs: map[string]*Job{}, order: []string{}}
 
 func StartJob(req JobRequest) (*Job, error) {
-	options, err := BuildOptions(CLIOptions{
-		PublicKey: req.PublicKey,
-		RelayURL:  req.Relays,
-		Kinds:     req.Kinds,
-		Timeout:   req.Timeout,
-		Merge:     string(MergeOverride),
-	})
-	if err != nil {
-		return nil, err
-	}
-	if len(req.Filter.IDs) > 0 || len(req.Filter.Kinds) > 0 || len(req.Filter.Authors) > 0 || len(req.Filter.Tags) > 0 || req.Filter.Search != "" || req.Filter.Since != nil || req.Filter.Until != nil || req.Filter.Limit != 0 {
-		options.Filter = req.Filter
+	if useQueuedJobs() {
+		service := jobcore.Default()
+		if service == nil || service.Dispatcher == nil || service.Monitor == nil {
+			return nil, fmt.Errorf("download queue runtime is not initialized")
+		}
+
+		queuedJob, _, err := prepareQueueJob(req)
+		if err != nil {
+			return nil, err
+		}
+		id, err := service.Dispatcher.Dispatch(
+			context.Background(),
+			queuedJob,
+			jobcore.WithQueue(currentDownloadQueue()),
+			jobcore.WithPriority(queueDownloadPriority()),
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		return buildQueuedJobResponse(id, queuedJob), nil
 	}
 
-	filterJSON := "{}"
-	if payload, err := json.Marshal(options.Filter); err == nil {
-		filterJSON = string(payload)
+	options, filterJSON, err := buildJobOptionsWithFilterJSON(req)
+	if err != nil {
+		return nil, err
 	}
 	now := time.Now().UTC()
 	job := &Job{
@@ -92,11 +103,86 @@ func StartJob(req JobRequest) (*Job, error) {
 }
 
 func ListJobs() []*Job {
+	if useQueuedJobs() {
+		service := jobcore.Default()
+		if service == nil || service.Monitor == nil {
+			return nil
+		}
+		snapshots, err := service.Monitor.List(context.Background(), currentDownloadQueue(), jobcore.ListFilter{Limit: 30})
+		if err != nil {
+			return nil
+		}
+		items := make([]*Job, 0, len(snapshots))
+		for _, snapshot := range snapshots {
+			item, convErr := snapshotToJob(snapshot)
+			if convErr != nil {
+				continue
+			}
+			items = append(items, item)
+		}
+		return items
+	}
+
 	return downloadJobs.list()
 }
 
 func GetJob(id string) (*Job, bool) {
+	if useQueuedJobs() {
+		service := jobcore.Default()
+		if service == nil || service.Monitor == nil {
+			return nil, false
+		}
+		parsedID, err := parsePublicJobID(id)
+		if err != nil {
+			return nil, false
+		}
+		snapshot, err := service.Monitor.Get(context.Background(), currentDownloadQueue(), parsedID)
+		if err != nil {
+			return nil, false
+		}
+		item, err := snapshotToJob(snapshot)
+		if err != nil {
+			return nil, false
+		}
+		return item, true
+	}
+
 	return downloadJobs.get(id)
+}
+
+func buildJobOptions(req JobRequest) (*DownloadOptions, error) {
+	options, err := BuildOptions(CLIOptions{
+		PublicKey: req.PublicKey,
+		RelayURL:  req.Relays,
+		Kinds:     req.Kinds,
+		Timeout:   req.Timeout,
+		Merge:     string(MergeOverride),
+	})
+	if err != nil {
+		return nil, err
+	}
+	if len(req.Filter.IDs) > 0 || len(req.Filter.Kinds) > 0 || len(req.Filter.Authors) > 0 || len(req.Filter.Tags) > 0 || req.Filter.Search != "" || req.Filter.Since != nil || req.Filter.Until != nil || req.Filter.Limit != 0 {
+		options.Filter = req.Filter
+	}
+	return options, nil
+}
+
+func buildJobOptionsWithFilterJSON(req JobRequest) (*DownloadOptions, string, error) {
+	options, err := buildJobOptions(req)
+	if err != nil {
+		return nil, "", err
+	}
+
+	filterJSON := "{}"
+	if payload, marshalErr := json.Marshal(options.Filter); marshalErr == nil {
+		filterJSON = string(payload)
+	}
+
+	return options, filterJSON, nil
+}
+
+func useQueuedJobs() bool {
+	return config.Cfg != nil && config.Cfg.Jobs.Enabled && config.Cfg.Redis.Enabled && config.Cfg.Redis.Queue.Enabled
 }
 
 func runJob(jobID string, options *DownloadOptions) {

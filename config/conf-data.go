@@ -18,6 +18,7 @@ type Config struct {
 	Relay            RelayConfig              `json:"relay" yaml:"relay" mapstructure:"relay"`
 	DB               DbConfig                 `json:"db" yaml:"db" mapstructure:"db"`
 	Redis            RedisConfig              `json:"redis" yaml:"redis" mapstructure:"redis"`
+	Jobs             JobsConfig               `json:"jobs" yaml:"jobs" mapstructure:"jobs"`
 	Ingestion        IngestionConfig          `json:"ingestion" yaml:"ingestion" mapstructure:"ingestion"`
 	Cron             CronConfig               `json:"cron" yaml:"cron" mapstructure:"cron"`
 	Stream           WsStreamConfig           `json:"stream" yaml:"stream" mapstructure:"stream"`
@@ -119,14 +120,51 @@ type Anon struct {
 }
 
 type RedisConfig struct {
-	Enabled                            bool           `json:"enabled" yaml:"enabled" mapstructure:"enabled"`
-	Addr                               string         `json:"addr" yaml:"addr" mapstructure:"addr"`
-	Password                           string         `json:"password" yaml:"password" mapstructure:"password"`
-	DB                                 int            `json:"db" yaml:"db" mapstructure:"db"`
-	PoolSize                           int            `json:"pool_size" yaml:"pool_size" mapstructure:"pool_size"`
-	SubscriptionCleanupIntervalSeconds int            `json:"subscription_cleanup_interval_seconds" yaml:"subscription_cleanup_interval_seconds" mapstructure:"subscription_cleanup_interval_seconds"`
-	SubscriptionStaleAfterSeconds      int            `json:"subscription_stale_after_seconds" yaml:"subscription_stale_after_seconds" mapstructure:"subscription_stale_after_seconds"`
-	Cache                              CacheTTLConfig `json:"cache" yaml:"cache" mapstructure:"cache"`
+	Enabled                            bool             `json:"enabled" yaml:"enabled" mapstructure:"enabled"`
+	Addr                               string           `json:"addr" yaml:"addr" mapstructure:"addr"`
+	Password                           string           `json:"password" yaml:"password" mapstructure:"password"`
+	DB                                 int              `json:"db" yaml:"db" mapstructure:"db"`
+	PoolSize                           int              `json:"pool_size" yaml:"pool_size" mapstructure:"pool_size"`
+	Queue                              RedisQueueConfig `json:"queue" yaml:"queue" mapstructure:"queue"`
+	SubscriptionCleanupIntervalSeconds int              `json:"subscription_cleanup_interval_seconds" yaml:"subscription_cleanup_interval_seconds" mapstructure:"subscription_cleanup_interval_seconds"`
+	SubscriptionStaleAfterSeconds      int              `json:"subscription_stale_after_seconds" yaml:"subscription_stale_after_seconds" mapstructure:"subscription_stale_after_seconds"`
+	Cache                              CacheTTLConfig   `json:"cache" yaml:"cache" mapstructure:"cache"`
+}
+
+type RedisQueueConfig struct {
+	Enabled             bool   `json:"enabled" yaml:"enabled" mapstructure:"enabled"`
+	ConsumerGroup       string `json:"consumer_group" yaml:"consumer_group" mapstructure:"consumer_group"`
+	WorkerCount         int    `json:"worker_count" yaml:"worker_count" mapstructure:"worker_count"`
+	BlockMS             int    `json:"block_ms" yaml:"block_ms" mapstructure:"block_ms"`
+	BatchSize           int64  `json:"batch_size" yaml:"batch_size" mapstructure:"batch_size"`
+	MaxLenApprox        int64  `json:"max_len_approx" yaml:"max_len_approx" mapstructure:"max_len_approx"`
+	BodyTTLSeconds      int    `json:"body_ttl_seconds" yaml:"body_ttl_seconds" mapstructure:"body_ttl_seconds"`
+	ResultTTLSeconds    int    `json:"result_ttl_seconds" yaml:"result_ttl_seconds" mapstructure:"result_ttl_seconds"`
+	MetricsTTLSeconds   int    `json:"metrics_ttl_seconds" yaml:"metrics_ttl_seconds" mapstructure:"metrics_ttl_seconds"`
+	ReclaimIdleSeconds  int    `json:"reclaim_idle_seconds" yaml:"reclaim_idle_seconds" mapstructure:"reclaim_idle_seconds"`
+	ReclaimBatchSize    int64  `json:"reclaim_batch_size" yaml:"reclaim_batch_size" mapstructure:"reclaim_batch_size"`
+	PromoteBatchSize    int64  `json:"promote_batch_size" yaml:"promote_batch_size" mapstructure:"promote_batch_size"`
+	PromoteIntervalMS   int    `json:"promote_interval_ms" yaml:"promote_interval_ms" mapstructure:"promote_interval_ms"`
+	RecentJobsListLimit int64  `json:"recent_jobs_list_limit" yaml:"recent_jobs_list_limit" mapstructure:"recent_jobs_list_limit"`
+}
+
+type JobsConfig struct {
+	Enabled                   bool                  `json:"enabled" yaml:"enabled" mapstructure:"enabled"`
+	DefaultQueue              string                `json:"default_queue" yaml:"default_queue" mapstructure:"default_queue"`
+	DefaultTimeoutSeconds     int                   `json:"default_timeout_seconds" yaml:"default_timeout_seconds" mapstructure:"default_timeout_seconds"`
+	DefaultMaxAttempts        int                   `json:"default_max_attempts" yaml:"default_max_attempts" mapstructure:"default_max_attempts"`
+	RetryBaseDelayMS          int                   `json:"retry_base_delay_ms" yaml:"retry_base_delay_ms" mapstructure:"retry_base_delay_ms"`
+	RetryMaxDelayMS           int                   `json:"retry_max_delay_ms" yaml:"retry_max_delay_ms" mapstructure:"retry_max_delay_ms"`
+	RetryJitterMS             int                   `json:"retry_jitter_ms" yaml:"retry_jitter_ms" mapstructure:"retry_jitter_ms"`
+	ActiveWorkerWindowSeconds int                   `json:"active_worker_window_seconds" yaml:"active_worker_window_seconds" mapstructure:"active_worker_window_seconds"`
+	Download                  JobsTargetQueueConfig `json:"download" yaml:"download" mapstructure:"download"`
+	Sync                      JobsTargetQueueConfig `json:"sync" yaml:"sync" mapstructure:"sync"`
+	Cron                      JobsTargetQueueConfig `json:"cron" yaml:"cron" mapstructure:"cron"`
+}
+
+type JobsTargetQueueConfig struct {
+	Queue    string `json:"queue" yaml:"queue" mapstructure:"queue"`
+	Priority string `json:"priority" yaml:"priority" mapstructure:"priority"`
 }
 
 type CacheTTLConfig struct {

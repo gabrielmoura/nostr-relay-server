@@ -932,6 +932,53 @@ Returns one download job with:
 - result counters
 - terminal error, if any
 
+### Queue-backed operational job refinement
+
+The queue refactor keeps the current admin entry points but makes them durable and observable.
+
+#### `POST /admin/sync/negentropy`
+
+Current response compatibility is preserved, but queue-backed execution should add `job_id`:
+
+```json
+{
+  "status": "started",
+  "relay": "wss://relay.damus.io",
+  "job_id": "1042"
+}
+```
+
+#### `GET /admin/jobs/:jobId`
+
+Generic operational job detail endpoint planned for the dashboard and operator tooling.
+
+Response shape:
+
+```json
+{
+  "id": "1042",
+  "queue": "admin",
+  "job_name": "sync.negentropy",
+  "status": "running",
+  "attempts": 1,
+  "max_attempts": 5,
+  "created_at": "2026-04-28T12:00:00Z",
+  "started_at": "2026-04-28T12:00:01Z",
+  "finished_at": null,
+  "run_at": null,
+  "last_error": "",
+  "summary": null
+}
+```
+
+#### `POST /admin/jobs/:jobId/retry`
+
+Requeues a failed or dead operational job.
+
+#### `POST /admin/jobs/:jobId/cancel`
+
+Marks a queued or delayed operational job as canceled when the handler semantics allow it.
+
 ## Negentropy Protocol (NIP-47)
 
 Negentropy is used for efficient set reconciliation between relays, minimizing bandwidth when comparing large event sets.

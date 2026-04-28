@@ -9,6 +9,8 @@ import (
 	"github.com/gabrielmoura/nostr-relay-server/internal/db"
 	"github.com/gabrielmoura/nostr-relay-server/internal/down"
 	"github.com/gabrielmoura/nostr-relay-server/internal/groups"
+	jobcore "github.com/gabrielmoura/nostr-relay-server/internal/jobs"
+	json "github.com/gabrielmoura/nostr-relay-server/internal/jsonx"
 	"github.com/gabrielmoura/nostr-relay-server/internal/sync"
 	"github.com/gabrielmoura/nostr-relay-server/internal/wot"
 	"github.com/gofiber/fiber/v2"
@@ -81,6 +83,43 @@ func NegentropySync() fiber.Handler {
 		timeout := 30 * time.Second
 		if req.Timeout > 0 {
 			timeout = time.Duration(req.Timeout) * time.Second
+		}
+		if config.Cfg != nil && config.Cfg.Jobs.Enabled && config.Cfg.Redis.Enabled && config.Cfg.Redis.Queue.Enabled {
+			service := jobcore.Default()
+			if service == nil || service.Dispatcher == nil {
+				return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"error": "sync queue runtime is not initialized"})
+			}
+
+			filterJSON := ""
+			if len(req.Filter) > 0 {
+				payload, err := json.Marshal(req.Filter)
+				if err != nil {
+					return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid sync filter payload"})
+				}
+				filterJSON = string(payload)
+			}
+
+			id, err := service.Dispatcher.Dispatch(
+				c.UserContext(),
+				sync.QueueJob{
+					Remote:     req.Remote,
+					Direction:  string(direction),
+					FilterJSON: filterJSON,
+					TimeoutSec: int64(timeout / time.Second),
+				},
+				jobcore.WithQueue(config.Cfg.Jobs.Sync.Queue),
+				jobcore.WithPriority(jobcore.Priority(config.Cfg.Jobs.Sync.Priority)),
+			)
+			if err != nil {
+				return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+			}
+
+			return c.JSON(fiber.Map{
+				"status":  "started",
+				"remote":  req.Remote,
+				"job_id":  id.String(),
+				"message": "sync process started in background",
+			})
 		}
 
 		go func() {

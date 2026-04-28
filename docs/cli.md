@@ -203,6 +203,25 @@ Supported job names:
 - cron expressions are 6-field format (seconds precision)
 - each job executes with timeout guard (`--timeout`)
 - scheduler handles SIGINT/SIGTERM and performs graceful stop
+- planned queue mode keeps `nrserver cron` as the scheduler entry point, but future executions may dispatch Redis-backed jobs instead of running the routines inline
+- current behavior: scheduler mode dispatches queue jobs when queue mode is enabled, while `--run-once` still executes jobs inline for compatibility
+
+## Planned `worker`
+
+### Purpose
+
+Provide an optional dedicated queue worker process for Redis-backed operational jobs without starting the full HTTP/WebSocket server.
+
+### Expected Scope
+
+- consume operational jobs from Redis Streams consumer groups
+- run delayed promotion and pending reclaim loops
+- expose the same Prometheus queue metrics used by embedded workers
+
+Current status:
+
+- implemented as `nrserver worker`
+- registers download, sync and cron queue handlers
 
 ### Common Errors
 

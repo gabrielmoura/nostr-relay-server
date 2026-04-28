@@ -487,6 +487,41 @@ Supports the standard NIP-11 fee groups:
 | `redis.cache.event_ttl` | int | `600` |
 | `redis.cache.dedup_ttl` | int | `3600` |
 
+`redis.queue` (planned):
+
+| Key | Type | Default | Description |
+|---|---|---:|---|
+| `redis.queue.enabled` | bool | `false` | Enables Redis-backed operational queue mode. |
+| `redis.queue.consumer_group` | string | `nrserver` | Redis Streams consumer group name. |
+| `redis.queue.worker_count` | int | `2` | Number of embedded workers started by `server` when enabled. |
+| `redis.queue.block_ms` | int | `5000` | `XREADGROUP` blocking time. |
+| `redis.queue.batch_size` | int | `32` | Max stream entries read per worker iteration. |
+| `redis.queue.max_len_approx` | int | `100000` | Approximate stream trim bound per queue/priority. |
+| `redis.queue.body_ttl_seconds` | int | `259200` | Payload retention after dispatch. |
+| `redis.queue.result_ttl_seconds` | int | `259200` | Structured result retention for detail endpoints. |
+| `redis.queue.metrics_ttl_seconds` | int | `172800` | TTL for minute-bucket metrics hashes. |
+| `redis.queue.reclaim_idle_seconds` | int | `120` | Idle threshold before pending messages are reclaimed. |
+| `redis.queue.reclaim_batch_size` | int | `100` | Max pending entries reclaimed per sweep. |
+| `redis.queue.promote_batch_size` | int | `100` | Max delayed jobs promoted per tick. |
+| `redis.queue.promote_interval_ms` | int | `1000` | Delay promoter wake interval. |
+| `redis.queue.recent_jobs_list_limit` | int | `1000` | Max recent jobs retained in the queue ordering index. |
+
+### `jobs` (planned)
+
+| Key | Type | Default | Description |
+|---|---|---:|---|
+| `jobs.enabled` | bool | `false` | Enables queue-backed operational jobs. |
+| `jobs.default_queue` | string | `default` | Fallback queue name. |
+| `jobs.default_timeout_seconds` | int | `300` | Default handler timeout. |
+| `jobs.default_max_attempts` | int | `5` | Default retry ceiling. |
+| `jobs.retry_base_delay_ms` | int | `1000` | Base retry backoff. |
+| `jobs.retry_max_delay_ms` | int | `300000` | Max retry backoff. |
+| `jobs.retry_jitter_ms` | int | `250` | Jitter added to retries. |
+| `jobs.active_worker_window_seconds` | int | `120` | HyperLogLog activity window. |
+| `jobs.download.queue` | string | `admin` | Queue used by admin download jobs. |
+| `jobs.sync.queue` | string | `admin` | Queue used by admin sync jobs. |
+| `jobs.cron.queue` | string | `cron` | Queue used by cron-dispatched jobs. |
+
 ### `ingestion`
 
 | Key | Type | Default | Description |

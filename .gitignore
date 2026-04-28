@@ -12,3 +12,5 @@ ref
 conf.yaml
 nrserver32.exe
 nrserver_x86_64
+/docs/todo.md
+/docs/todo-frontend.md

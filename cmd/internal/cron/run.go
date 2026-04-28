@@ -10,7 +10,10 @@ import (
 
 	"github.com/gabrielmoura/nostr-relay-server/config"
 	"github.com/gabrielmoura/nostr-relay-server/infra/log"
+	redisqueue "github.com/gabrielmoura/nostr-relay-server/infra/queue/redis"
+	"github.com/gabrielmoura/nostr-relay-server/infra/redis"
 	"github.com/gabrielmoura/nostr-relay-server/internal/db"
+	jobcore "github.com/gabrielmoura/nostr-relay-server/internal/jobs"
 	"github.com/robfig/cron/v3"
 	"go.uber.org/zap"
 )
@@ -48,6 +51,16 @@ func Run(options *Options) error {
 
 	if err := db.Init(mainCtx); err != nil {
 		return fmt.Errorf("init database: %w", err)
+	}
+	if useQueueExecution() {
+		if err := redis.Init(&config.Cfg.Redis); err != nil {
+			return fmt.Errorf("init redis: %w", err)
+		}
+		queueRuntime, err := redisqueue.NewRuntime(redis.GetClient(), config.Cfg.Redis.Queue, config.Cfg.Jobs)
+		if err != nil {
+			return fmt.Errorf("init queue runtime: %w", err)
+		}
+		jobcore.SetDefault(queueRuntime.Service())
 	}
 
 	if options.RunOnce {
@@ -100,8 +113,18 @@ func runScheduler(
 
 		jobCopy := job
 		_, err := c.AddFunc(job.Schedule, func() {
-			if err := executeJob(baseCtx, jobCopy, timeout); err != nil {
+			var err error
+			if useQueueExecution() {
+				err = dispatchJob(baseCtx, jobCopy, timeout)
+			} else {
+				err = executeJob(baseCtx, jobCopy, timeout)
+			}
+			if err != nil {
 				log.Logger.Error("cron job failed", zap.String("job", jobCopy.Name), zap.Error(err))
+				return
+			}
+			if useQueueExecution() {
+				log.Logger.Info("cron job dispatched", zap.String("job", jobCopy.Name))
 			}
 		})
 		if err != nil {

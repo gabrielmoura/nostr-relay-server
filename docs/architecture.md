@@ -555,3 +555,62 @@ The `cron` command is responsible for backend data consolidation and maintenance
 - All cron jobs are opt-in by configuration.
 - Each routine has independent schedule and enable flags.
 - Jobs are executed with bounded context timeouts and structured logs.
+
+## Planned Redis Queue and Worker Infrastructure
+
+Operational background work currently uses three different execution models:
+
+- in-memory admin download jobs
+- fire-and-forget admin sync goroutines
+- direct cron execution via `robfig/cron`
+
+This is sufficient for local development, but it does not provide durability, reclaim, retry, dead-letter routing or cross-instance worker coordination.
+
+The planned refactor introduces a shared Redis-backed queue subsystem for operational jobs only.
+
+### Scope
+
+- admin download jobs
+- admin negentropy sync jobs
+- cron-triggered maintenance/fetch routines
+
+The live relay ingestion pipeline in `infra/ingestion` remains a separate in-memory hot path for now.
+
+### Target runtime model
+
+```text
+CLI / Admin HTTP / Cron Scheduler
+          │
+          ▼
+   internal/jobs.Dispatcher
+          │
+          ▼
+ Redis Streams + Lua + ZSET + BITFIELD
+          │
+   ┌──────┴──────┐
+   ▼             ▼
+ Worker Loop   Delayed Promoter
+   │             │
+   └──────┬──────┘
+          ▼
+   Registered Job Handlers
+          │
+          ▼
+   DB / Relay / Existing Services
+```
+
+### Package direction
+
+- `internal/jobs` owns contracts, registry and dispatch-facing orchestration
+- `infra/queue/redis` owns Redis Streams, Lua scripts, reclaim, metrics and compact tracking
+- `cmd/cron` remains the scheduler entry point, but may dispatch queue jobs instead of executing routines inline when queue mode is enabled
+- `cmd/worker` may be added as an optional dedicated process for horizontal worker scale
+
+Current rollout status:
+
+- queue-backed download jobs are implemented behind feature flags
+- `cmd/worker` is available for dedicated operational workers
+- admin sync dispatches to the queue when queue mode is enabled
+- cron scheduler mode dispatches queue jobs when queue mode is enabled; one-shot mode still runs inline for compatibility
+
+See `docs/redis-queue-worker-architecture.md` for the detailed design, incremental rollout plan and compatibility constraints.
