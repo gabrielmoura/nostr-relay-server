@@ -46,6 +46,7 @@ Located in `infra/dash/src/components/shared/`
 | `UserAvatarChip` | Dumb | `pubkey`, `name`, `showVerified` | - |
 | `StatePanels` | Smart | `data` | - |
 | `VirtualizedList` | Smart | `items`, `renderItem`, `height` | `onEndReached` |
+| `RelayListModal` | Smart | `open`, `onOpenChange`, `value`, `onChange`, `storageKey` | `onChange`, `onSubmit` |
 
 ---
 
@@ -66,6 +67,19 @@ Located in `infra/dash/src/components/shared/`
 | `ListRefSyncCard` | Smart | `listId`, `onSync`, `onClose` | `onSync`, `onClose`, `onRelaySelect` |
 | `RelaySearchModal` | Smart | `open`, `onClose` | `onSelect` |
 | `EventDetailErrorState` | Dumb | `error`, `onRetry` | `onRetry` |
+
+Relay selection for event recovery should delegate persistence and editing to the shared `RelayListModal` storage workflow.
+
+---
+
+### Download (`components/features/download/`) - Planned refinement
+
+| Component | Type | Purpose |
+|-----------|------|---------|
+| `DownloadJobQueue` | Smart | Polls and renders backend-backed download jobs |
+| `DownloadJobCard` | Dumb | Visual card for one queued/running/completed/failed download job |
+| `DownloadJobDetailsDialog` | Dumb | Shows per-job relay results, summary and raw filters |
+| `DownloadFiltersDialog` | Dumb | Compact viewer for the serialized filter used by a job |
 
 **Parser**: `lib/event-parser.ts` (extracts imeta, media, references from event tags)
 
@@ -134,10 +148,11 @@ Located in `infra/dash/src/routes/`
 | `/reported` | `reported-events-page.tsx` | ~154 | NIP-56 reports |
 | `/stream` | `stream-status-page.tsx` | ~127 | Stream/forward status |
 | `/nip05` | `nip05-page.tsx` | - | NIP-05 management |
-| `/nip86` | `nip86-page.tsx` | planned | NIP-86 command center |
-| `/nip86/allowed` | `nip86-allowed-page.tsx` | planned | Allowlist management |
-| `/nip86/blocked-ips` | `nip86-blocked-ips-page.tsx` | planned | IP blocking + disconnect visibility |
-| `/nip86/banned-events` | `nip86-banned-events-page.tsx` | planned | Event moderation state |
+| `/nip86` | `nip86-page.tsx` | - | NIP-86 command center |
+| `/sync` | `sync-page.tsx` | ~100 | Negentropy synchronization |
+| `/download` | `download-page.tsx` | ~110 | Bulk event download |
+| `/groups` | `groups-page.tsx` | ~120 | NIP-29 group management |
+| `/wot` | `wot-page.tsx` | ~110 | WoT & Trusted Pubkeys |
 
 ---
 

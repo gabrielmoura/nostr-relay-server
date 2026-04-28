@@ -1,7 +1,7 @@
 package cmd
 
 import (
-	"github.com/gabrielmoura/nostr-relay-server/cmd/internal/down"
+	"github.com/gabrielmoura/nostr-relay-server/internal/down"
 	"github.com/nbd-wtf/go-nostr"
 	"github.com/spf13/cobra"
 )

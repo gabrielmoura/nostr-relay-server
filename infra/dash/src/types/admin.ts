@@ -64,6 +64,49 @@ export type NIP86RelayMetadataPayload = {
   description: string
 }
 
+export type DownloadJobStatus = "queued" | "running" | "completed" | "failed"
+
+export type DownloadJobSummary = {
+  events_received: number
+  inserted_events: number
+  duplicate_events: number
+  pages: number
+  successful_relays: number
+  failed_relays: number
+}
+
+export type DownloadJobRelayResult = {
+  relay: string
+  status: string
+  events_received: number
+  inserted_events: number
+  duplicate_events: number
+  pages: number
+  error?: string
+}
+
+export type DownloadJob = {
+  id: string
+  status: DownloadJobStatus
+  message?: string
+  created_at: string
+  started_at?: string
+  finished_at?: string
+  relays: string[]
+  public_key?: string
+  kinds?: number[]
+  timeout: number
+  filter: any
+  filter_json: string
+  summary: DownloadJobSummary
+  relay_results: DownloadJobRelayResult[]
+  error?: string
+}
+
+export type DownloadJobsResponse = {
+  items: DownloadJob[]
+}
+
 export type RelayOverview = {
   cards: RelayMetricCard[]
   status: "operational" | "degraded"
@@ -323,3 +366,35 @@ export type ImportEventsResponse = {
 }
 
 export type EventSearchResponse = AdminPage<EventRecord>
+
+export type NegentropySyncRequest = {
+  remote: string
+  direction: "up" | "down" | "both"
+  filter?: any[]
+  timeout?: number
+}
+
+export type DownloadEventsRequest = {
+  relays: string[]
+  public_key?: string
+  kinds?: number[]
+  filter?: any
+  timeout?: number
+}
+
+export type AdminGroupResponse = {
+  group_id: string
+  name: string
+  description: string
+  private: boolean
+  closed: boolean
+  hidden: boolean
+  member_count: number
+}
+
+export type AdminWoTSummaryResponse = {
+  total_nodes: number
+  total_edges: number
+  trusted_pubkeys: string[]
+  last_computed_at?: string
+}

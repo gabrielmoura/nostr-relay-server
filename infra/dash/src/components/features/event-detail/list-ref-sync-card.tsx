@@ -1,17 +1,16 @@
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import { Link } from "@tanstack/react-router"
-import { Plus, X } from "lucide-react"
+import { RefreshCcw } from "lucide-react"
 import { useTranslation } from "react-i18next"
-import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
 import { useEventDetail, useFetchEventFromRelaysMutation } from "@/hooks/use-admin-data"
 import { ApiError } from "@/services/admin"
 import { collectMediaForEvent, isImageURL, isVideoURL, VIDEO_KINDS } from "@/lib/event-parser"
+import { readRelayStorage } from "@/lib/relay-presets"
 import { formatDateTime } from "@/lib/utils"
+import { RelayResults, RelaySearchModal } from "./relay-search-modal"
 
 interface ListRefSyncCardProps {
   eventID: string
@@ -26,14 +25,14 @@ export function ListRefSyncCard({ eventID, preferredRelay }: ListRefSyncCardProp
   const syncMutation = useFetchEventFromRelaysMutation()
   const [open, setOpen] = useState(false)
   const [status, setStatus] = useState("")
-  const [relayInput, setRelayInput] = useState("")
-  const [selectedRelays, setSelectedRelays] = useState<string[]>(() => {
-    if (preferredRelay && /^wss?:\/\//.test(preferredRelay)) {
-      return [preferredRelay, ...commonRelays.filter((relay) => relay !== preferredRelay)]
-    }
-    return [...commonRelays]
-  })
   const [relayFeedback, setRelayFeedback] = useState<RelayResult[]>([])
+  const preferredRelays = useMemo(() => {
+    const base = readRelayStorage("external-relays")
+    if (preferredRelay && /^wss?:\/\//.test(preferredRelay) && !base.includes(preferredRelay)) {
+      return [preferredRelay, ...base]
+    }
+    return base
+  }, [preferredRelay])
 
   const referencedEvent = detailQuery.data?.event
   const referencedImages = detailQuery.data?.image_urls ?? []
@@ -41,26 +40,7 @@ export function ListRefSyncCard({ eventID, preferredRelay }: ListRefSyncCardProp
   const imageEvent = referencedEvent?.kind === 20
   const videoEvent = referencedEvent ? VIDEO_KINDS.includes(referencedEvent.kind) : false
 
-  const addRelay = () => {
-    const value = relayInput.trim()
-    if (!value) {
-      return
-    }
-    if (!/^wss?:\/\//.test(value)) {
-      toast.error(t("eventDetail.useWsUrl"))
-      return
-    }
-    setSelectedRelays((current) => (current.includes(value) ? current : [...current, value]))
-    setRelayInput("")
-  }
-
-  const toggleRelay = (relay: string) => {
-    setSelectedRelays((current) =>
-      current.includes(relay) ? current.filter((item) => item !== relay) : [...current, relay]
-    )
-  }
-
-  const handleSync = async () => {
+  const handleSync = async (selectedRelays: string[]) => {
     try {
       const response = await syncMutation.mutateAsync({ eventID, relays: selectedRelays })
       setRelayFeedback(response.relay_results ?? [])
@@ -201,112 +181,22 @@ export function ListRefSyncCard({ eventID, preferredRelay }: ListRefSyncCardProp
             </Link>
           </Button>
           <Button onClick={() => setOpen(true)} size="sm" title={t("eventDetail.openCustomSearchModal")} variant="outline">
+            <RefreshCcw className="size-4" />
             {t("state.retry")}
           </Button>
         </div>
       </div>
 
-      <Dialog onOpenChange={setOpen} open={open}>
-        <DialogContent className="max-w-3xl">
-          <DialogHeader>
-            <DialogTitle>{t("eventDetail.findOnRelays")}</DialogTitle>
-            <DialogDescription>{t("eventDetail.adjustRelaysSync")}</DialogDescription>
-          </DialogHeader>
+      <RelaySearchModal
+        description={t("eventDetail.adjustRelaysSync")}
+        onOpenChange={setOpen}
+        onSearch={handleSync}
+        open={open}
+        relays={preferredRelays}
+        title={t("eventDetail.findOnRelays")}
+      />
 
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-                {t("eventDetail.commonRelays")}
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {commonRelays.map((relay) => (
-                  <Button
-                    key={`${eventID}-${relay}`}
-                    onClick={() => toggleRelay(relay)}
-                    size="sm"
-                    title={t("eventDetail.toggleRelay")}
-                    type="button"
-                    variant={selectedRelays.includes(relay) ? "default" : "outline"}
-                  >
-                    {relay}
-                  </Button>
-                ))}
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">{t("eventDetail.addRelay")}</p>
-              <div className="flex gap-2">
-                <Input onChange={(event) => setRelayInput(event.target.value)} placeholder={t("eventDetail.relayPlaceholder")} value={relayInput} />
-                <Button onClick={addRelay} title={t("eventDetail.addTypedRelay")} type="button" variant="outline">
-                  <Plus className="size-4" />
-                  {t("eventDetail.include")}
-                </Button>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">{t("eventDetail.searchList")}</p>
-              <div className="flex max-h-40 flex-wrap gap-2 overflow-auto rounded-md border border-border p-2">
-                {selectedRelays.map((relay) => (
-                  <Badge className="flex items-center gap-1" key={`${eventID}-selected-${relay}`} variant="muted">
-                    <span className="max-w-[220px] truncate">{relay}</span>
-                    <button
-                      className="cursor-pointer"
-                      onClick={() => setSelectedRelays((current) => current.filter((item) => item !== relay))}
-                      title={t("eventDetail.removeRelay")}
-                      type="button"
-                    >
-                      <X className="size-3" />
-                    </button>
-                  </Badge>
-                ))}
-                {selectedRelays.length === 0 && (
-                  <p className="text-xs text-muted-foreground">{t("eventDetail.noRelaySelected")}</p>
-                )}
-              </div>
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button onClick={() => setOpen(false)} title={t("eventDetail.closeWithoutSearch")} type="button" variant="outline">
-              {t("common.cancel")}
-            </Button>
-            <Button
-              disabled={syncMutation.isPending || selectedRelays.length === 0}
-              title={t("eventDetail.searchImportThisEvent")}
-              onClick={handleSync}
-              type="button"
-            >
-              {syncMutation.isPending ? t("eventDetail.searching") : t("eventDetail.searchEvent")}
-            </Button>
-          </DialogFooter>
-
-          {relayFeedback.length > 0 && (
-            <div className="space-y-2 rounded-md border border-border bg-muted/30 p-3">
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">{t("eventDetail.resultByRelay")}</p>
-              <div className="max-h-40 space-y-2 overflow-auto">
-                {relayFeedback.map((entry) => (
-                  <div className="flex items-center justify-between gap-2 text-xs" key={`${eventID}-${entry.relay}-${entry.status}`}>
-                    <span className="truncate text-muted-foreground">{entry.relay}</span>
-                    <Badge variant={entry.status === "found" ? "success" : "muted"}>
-                      {t(`eventDetail.relayStatus.${entry.status}`, { defaultValue: entry.status })}
-                    </Badge>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+      {relayFeedback.length > 0 ? <RelayResults results={relayFeedback} /> : null}
     </div>
   )
 }
-
-export const commonRelays: string[] = [
-  "wss://relay.damus.io",
-  "wss://relay.primal.net",
-  "wss://nos.lol",
-  "wss://relay.nostr.band",
-  "wss://nostr.mom",
-]

@@ -2,7 +2,7 @@ import type { ComponentType, FormEvent } from "react"
 import { useMemo, useState } from "react"
 import { Link, Outlet, useLocation, useNavigate } from "@tanstack/react-router"
 import { useTranslation } from "react-i18next"
-import { AtSign, Bell, Cable, LayoutDashboard, Menu, Radio, Search, ShieldAlert, ShieldCheck, TriangleAlert, UserRound, Users } from "lucide-react"
+import { AtSign, Bell, Cable, Download, LayoutDashboard, Menu, Network, Radio, RefreshCw, Search, ShieldAlert, ShieldCheck, TriangleAlert, UserRound, Users } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -17,6 +17,10 @@ type NavItem = {
 
 const primaryNav: NavItem[] = [
   { to: "/", labelKey: "layout.nav.overview", icon: LayoutDashboard },
+  { to: "/sync", labelKey: "layout.nav.sync", icon: RefreshCw },
+  { to: "/download", labelKey: "layout.nav.download", icon: Download },
+  { to: "/groups", labelKey: "layout.nav.groups", icon: Users },
+  { to: "/wot", labelKey: "layout.nav.wot", icon: Network },
   { to: "/users/logged", labelKey: "layout.nav.usersLogged", icon: Users },
   { to: "/users/banned", labelKey: "layout.nav.usersBanned", icon: ShieldAlert },
   { to: "/connections/active", labelKey: "layout.nav.connectionsActive", icon: Cable },

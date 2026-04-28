@@ -738,6 +738,117 @@ Lists reported target events (NIP-56 kind `1984`) with moderation-friendly metad
   "last_reported_at": "2026-03-25T13:49:01Z",
   "report_types": ["spam", "malware"]
 }
+
+### `POST /admin/sync`
+
+Starts a background Negentropy synchronization job with a remote relay.
+
+**Body:**
+```json
+{
+  "relay": "wss://relay.damus.io",
+  "filter": {
+    "kinds": [0, 1],
+    "since": 1714000000
+  },
+  "dry_run": false
+}
+```
+
+**Response:**
+```json
+{
+  "status": "started",
+  "relay": "wss://relay.damus.io"
+}
+```
+
+### `POST /admin/download`
+
+Bulk download events from multiple relays based on a filter.
+
+**Body:**
+```json
+{
+  "relays": ["wss://relay.damus.io", "wss://nos.lol"],
+  "filter": {
+    "kinds": [1],
+    "limit": 1000
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "status": "started",
+  "relays": ["wss://relay.damus.io", "wss://nos.lol"],
+  "job_id": "..."
+}
+```
+
+### `GET /admin/nip29/groups`
+
+Lists NIP-29 groups managed by this relay.
+
+**Response:**
+```json
+{
+  "groups": [
+    {
+      "id": "group1",
+      "name": "Nostr Devs",
+      "about": "Group for nostr developers",
+      "picture": "https://...",
+      "is_public": true,
+      "is_open": true
+    }
+  ]
+}
+```
+
+### `GET /admin/wot/summary`
+
+Returns the current Web of Trust (WoT) network status.
+
+**Response:**
+```json
+{
+  "nodes": 4500,
+  "edges": 120000,
+  "trusted_pubkeys": ["<pubkey1>", "<pubkey2>"],
+  "last_recomputed_at": "2026-04-27T12:00:00Z"
+}
+```
+
+### `POST /admin/wot/recompute`
+
+Manually triggers a full WoT graph recomputation.
+
+**Response:**
+```json
+{
+  "status": "triggered"
+}
+```
+
+### `POST /admin/wot/trusted-pubkeys`
+
+Updates the set of trusted root pubkeys for the WoT computation.
+
+**Body:**
+```json
+{
+  "pubkeys": ["<pubkey1>", "<pubkey2>"]
+}
+```
+
+**Response:**
+```json
+{
+  "success": true
+}
+```
 ```
 
 ### Planned Internal Admin Endpoints For NIP-86 Dashboard
@@ -787,6 +898,39 @@ Returns current runtime relay metadata overrides.
 #### `POST /admin/nip86/relay-metadata`
 
 Updates runtime relay name and description overrides.
+
+### Download Job Endpoints - Planned refinement
+
+The dashboard download UX needs real job visibility instead of a fire-and-forget toast.
+
+#### `POST /admin/events/download`
+
+Starts a backend-managed download job.
+
+Response shape should include:
+
+```json
+{
+  "status": "started",
+  "job_id": "dl_...",
+  "relays": ["wss://relay.damus.io"],
+  "message": "download process started in background"
+}
+```
+
+#### `GET /admin/events/download/jobs`
+
+Returns recent download jobs ordered by creation time.
+
+#### `GET /admin/events/download/jobs/:jobId`
+
+Returns one download job with:
+
+- lifecycle status
+- relay list
+- normalized filter payload
+- result counters
+- terminal error, if any
 
 ## Negentropy Protocol (NIP-47)
 

@@ -57,7 +57,7 @@ Responsabilidades auxiliares:
 
 Responsabilidades administrativas:
 
-* endpoints `/admin/*` para observabilidade e moderacao
+* endpoints `/admin/*` para observabilidade, moderacao, sincronizacao e gerenciamento de grupos/WoT
 * painel web embedado em `/panel`
 * endpoint opcional NIP-86 JSON-RPC em `/` com autenticacao NIP-98
 
@@ -294,7 +294,10 @@ Conjuntos de endpoint:
 * overview/status: `/admin/overview`, `/admin/stream/status`
 * conexoes: `/admin/connections/*`
 * usuarios/moderacao: `/admin/users/*`
-* eventos/search/import/fetch/reports: `/admin/events/*`
+* eventos/search/import/fetch/reports/download: `/admin/events/*`
+* sincronizacao: `/admin/sync/*` (Negentropy)
+* grupos NIP-29: `/admin/groups/*`
+* Web of Trust: `/admin/wot/*` (summary e trusted pubkeys)
 * NIP-86 interno para o dashboard: `/admin/nip86/*`
 * painel: `/panel` e `/panel/*`
 
@@ -370,7 +373,9 @@ Quando `nip29.enabled=true`:
 * visao de conexoes ativas/authed
 * moderacao de usuarios (ban/unban)
 * busca e agregacoes de eventos
-* fetch de evento em relays externos
+* fetch/download massivo de eventos em relays externos
+* sincronizacao reconciliada via Negentropy
+* gerenciamento de grupos NIP-29 e Web of Trust (WoT) via dashboard
 * painel web interno embedado
 
 == 8. Configuracao tecnica

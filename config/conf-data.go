@@ -36,6 +36,7 @@ type WoTConfig struct {
 	MaxTrustNetwork      int      `json:"max_trust_network" yaml:"max_trust_network" mapstructure:"max_trust_network"`
 	MaxOneHopNetwork     int      `json:"max_one_hop_network" yaml:"max_one_hop_network" mapstructure:"max_one_hop_network"`
 	SeedRelays           []string `json:"seed_relays" yaml:"seed_relays" mapstructure:"seed_relays"`
+	TrustedPubkeys       []string `json:"trusted_pubkeys" yaml:"trusted_pubkeys" mapstructure:"trusted_pubkeys"`
 }
 
 type StoreConfig struct {

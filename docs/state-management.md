@@ -164,49 +164,112 @@ const { data, isLoading, error } = useEvent(id);
 | `success` | Ban confirmed |
 | `error` | API error |
 
+### Sync/Download Mutations
+
+Mutations that trigger background jobs on the server.
+
+- **Sync**: Reconciles events with a remote relay.
+- **Download**: Fetches events based on filters from multiple relays.
+
+**Flow**:
+1. Component calls `mutateAsync`.
+2. UI shows loading overlay/spinner.
+3. API returns 200 (job started).
+4. UI shows success toast.
+5. `onSuccess` callback invalidates relevant lists (e.g., event search).
+
+### Download Queue Flow (Refinement)
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│                  Download Queue Flow                         │
+├──────────────────────────────────────────────────────────────┤
+│                                                              │
+│  RelayListModal                                              │
+│       │ persists selected relays in localStorage             │
+│       ▼                                                      │
+│  DownloadPage (Smart)                                        │
+│       │ start download mutation                              │
+│       ▼                                                      │
+│  POST /admin/events/download                                 │
+│       │ returns job_id                                       │
+│       ▼                                                      │
+│  useDownloadJobsQuery (polling)                              │
+│       │                                                      │
+│       ├──► DownloadJobQueue                                  │
+│       │       └──► DownloadJobCard                           │
+│       │               ├──► Ver filtros                       │
+│       │               └──► Ver detalhes                      │
+│       │                                                      │
+│       └──► page-level activity indicator                     │
+│                                                              │
+└──────────────────────────────────────────────────────────────┘
+```
+
+States:
+
+| State | Meaning |
+|-------|---------|
+| `queued` | Request accepted, waiting for execution or first poll |
+| `running` | Backend job still processing relay pages |
+| `completed` | Backend finished with summary counters |
+| `failed` | Backend returned terminal error message |
+
+Persistence rules:
+
+- relay presets live in `localStorage`
+- backend download job state lives in memory and is fetched by polling
+- the frontend queue must preserve local cards until refresh or explicit dismissal, even after completion
+
+### WoT Management Flow
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│                      WoT State Flow                          │
+├──────────────────────────────────────────────────────────────┤
+│                                                              │
+│  useWoTSummary (Query)                                       │
+│       │                                                      │
+│       ▼                                                      │
+│  Display nodes/edges counts                                  │
+│                                                              │
+│  useAddTrustedPubkey (Mutation)                              │
+│       │                                                      │
+│       ▼                                                      │
+│  onSuccess: invalidate ["wot-summary"]                       │
+│                                                              │
+└──────────────────────────────────────────────────────────────┘
+```
+
 ---
 
 ## Mutations and Actions
 
-### Current Pattern (Direct Fetch)
+### Pattern (TanStack Query)
+
+Adopted as the primary mechanism for server state.
 
 ```tsx
-const handleSubmit = async (data: FormData) => {
-  setIsSubmitting(true);
-  try {
-    await fetch('/api/admin/action', {
-      method: 'POST',
-      body: JSON.stringify(data)
-    });
-    onSuccess();
-  } catch (err) {
-    setError(err);
-  } finally {
-    setIsSubmitting(false);
-  }
+// use-admin-data.ts
+export const useSyncMutation = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: startSync,
+    onSuccess: () => {
+      // Invalidate relevant queries if needed
+      queryClient.invalidateQueries({ queryKey: ["events-search"] });
+    },
+  });
 };
-```
-
-### Future Pattern (React 19 Actions)
-
-```tsx
-const [state, formAction, isPending] = useActionState(
-  async (prev, formData) => {
-    const data = Object.fromEntries(formData);
-    await post('/api/admin/action', data);
-    return { status: 'success' };
-  },
-  { status: 'idle' }
-);
 ```
 
 ### When to Use What
 
 | Pattern | Use Case |
 |---------|----------|
-| Direct fetch | Simple one-off actions, no form |
-| React 19 Action | Form submissions, pending state needed |
-| TanStack Query | When caching, invalidation needed |
+| TanStack Query | **Primary**. All server data fetching and mutations. |
+| React 19 Action | Simple form-driven mutations without cross-component cache needs. |
+| Direct fetch | Legacy only. Avoid in new features. |
 
 ---
 

@@ -110,3 +110,54 @@ export function eventHeadline(eventItem: EventRecord): string {
   }
   return eventItem.content || "(sem conteudo textual)"
 }
+
+export interface NostrFilter {
+  ids?: string[]
+  authors?: string[]
+  kinds?: number[]
+  since?: number
+  until?: number
+  limit?: number
+  search?: string
+  [key: `#${string}`]: string[]
+  [key: string]: any
+}
+
+export function nostrFilterToEventSearch(nf: NostrFilter): EventSearchFilters {
+  const tags: string[] = []
+  
+  // Convert standard tag filters (#t, #p, etc) to CSV tags (t:value)
+  Object.entries(nf).forEach(([key, values]) => {
+    if (key.startsWith("#") && Array.isArray(values)) {
+      const tagName = key.slice(1)
+      values.forEach(v => tags.push(`${tagName}:${v}`))
+    }
+  })
+
+  return {
+    query: nf.search || "",
+    authors: nf.authors || [],
+    kinds: nf.kinds || [],
+    tags: tags,
+    limit: nf.limit || 100,
+  }
+}
+
+export function eventSearchToNostrFilter(es: EventSearchFilters): NostrFilter {
+  const nf: NostrFilter = {
+    search: es.query || undefined,
+    authors: es.authors.length > 0 ? es.authors : undefined,
+    kinds: es.kinds.length > 0 ? es.kinds : undefined,
+    limit: es.limit || 100,
+  }
+
+  es.tags.forEach(t => {
+    const [key, value] = t.split(":")
+    if (key && value) {
+      const tagKey = `#${key}` as `#${string}`
+      nf[tagKey] = [...(nf[tagKey] || []), value]
+    }
+  })
+
+  return nf
+}

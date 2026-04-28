@@ -38,8 +38,79 @@
       "nip86": "NIP-86",
       "eventsReported": "Eventos reportados",
       "streams": "Streams",
-      "usersSearch": "Busca de usuários"
+      "usersSearch": "Busca de usuários",
+      "sync": "Sincronização",
+      "download": "Download",
+      "groups": "Grupos NIP-29",
+      "wot": "Web of Trust"
     }
+  },
+  "sync": {
+    "title": "Sincronização Negentropy",
+    "description": "Sincronize eventos entre o relay local e um relay remoto usando o protocolo Negentropy.",
+    "remoteLabel": "Relay Remoto",
+    "remotePlaceholder": "wss://relay.damus.io",
+    "directionLabel": "Direção",
+    "directionBoth": "Ambos (Both)",
+    "directionDown": "Download apenas",
+    "directionUp": "Upload apenas",
+    "filterLabel": "Filtro customizado (JSON)",
+    "filterPlaceholder": "[ { \"kinds\": [1] } ]",
+    "timeoutLabel": "Timeout (segundos)",
+    "startAction": "Iniciar Sincronização",
+    "started": "Sincronização iniciada em segundo plano.",
+    "errorTitle": "Falha ao iniciar",
+    "errorDescription": "Não foi possível iniciar a sincronização."
+  },
+  "download": {
+    "title": "Download de Eventos",
+    "description": "Busque e importe eventos de relays externos de forma massiva.",
+    "relaysLabel": "Relays (URLs separadas por vírgula)",
+    "relaysPlaceholder": "wss://relay.damus.io, wss://nos.lol",
+    "pubkeyLabel": "Public Key (npub ou hex)",
+    "pubkeyPlaceholder": "npub1...",
+    "kindsLabel": "Kinds (ex: 0, 1, 3)",
+    "kindsPlaceholder": "1, 3, 6",
+    "filterLabel": "Filtro NIP-01 (JSON)",
+    "timeoutLabel": "Timeout (segundos)",
+    "startAction": "Iniciar Download",
+    "started": "Download iniciado em segundo plano.",
+    "errorTitle": "Falha ao iniciar",
+    "errorDescription": "Não foi possível iniciar o download."
+  },
+  "groups": {
+    "title": "Grupos NIP-29",
+    "description": "Gerenciamento de grupos nativos do protocolo NIP-29.",
+    "table": {
+      "id": "ID do Grupo",
+      "name": "Nome",
+      "members": "Membros",
+      "status": "Status",
+      "privacy": "Privacidade",
+      "open": "Aberto",
+      "closed": "Fechado",
+      "public": "Público",
+      "private": "Privado",
+      "hidden": "Oculto"
+    },
+    "loading": "Carregando grupos...",
+    "empty": "Nenhum grupo encontrado."
+  },
+  "wot": {
+    "title": "Web of Trust",
+    "description": "Gerenciamento do grafo de confiança e pubkeys raiz.",
+    "summary": {
+      "nodes": "Nós",
+      "edges": "Arestas",
+      "lastComputed": "Última computação"
+    },
+    "trustedPubkeys": "Pubkeys Confiáveis (Raiz)",
+    "addPlaceholder": "npub ou hex...",
+    "addAction": "Adicionar",
+    "removing": "Removendo...",
+    "adding": "Adicionando...",
+    "successAdd": "Pubkey adicionada.",
+    "successRemove": "Pubkey removida."
   },
   "nip05": {
     "title": "Gerenciamento NIP-05",
@@ -589,5 +660,16 @@
     "syncStatusOk": "Resultado da sincronizacao: {{persisted}} via {{relay}}.",
     "syncStatusError": "Falha na sincronizacao: {{error}}",
     "syncFailed": "falha na sincronizacao"
+  },
+  "nostrFilterBuilder": {
+    "tagTooltips": {
+      "t": "Hashtags e palavras-chave (#t)",
+      "e": "IDs de referência de eventos (#e)",
+      "p": "IDs de referência de pubkeys (#p)",
+      "d": "Identificador - tipicamente para eventos substituíveis NIP-33 (#d)",
+      "h": "ID de Grupo - contexto legado ou NIP-29 (#h)",
+      "q": "Referências de citações de eventos (#q)",
+      "i": "Tópico ou categoria do indexador (#i)"
+    }
   }
 }

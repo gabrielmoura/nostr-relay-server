@@ -26,6 +26,12 @@ import type {
   StreamStatus,
   UserNIP05Association,
   UserProfile,
+  NegentropySyncRequest,
+  DownloadEventsRequest,
+  DownloadJobsResponse,
+  DownloadJob,
+  AdminGroupResponse,
+  AdminWoTSummaryResponse,
 } from "@/types/admin"
 import { env } from "@/lib/env"
 import { buildNpubLike, formatCount, toTitleCase } from "@/lib/utils"
@@ -576,4 +582,47 @@ export async function updateNIP86RelayMetadata(payload: NIP86RelayMetadataPayloa
 
 export function getEventTags(event: EventRecord) {
   return event.tags.filter((entry) => entry[0] === "t").map((entry) => entry[1])
+}
+
+export async function startNegentropySync(payload: NegentropySyncRequest) {
+  return request<{ status: string; remote: string; message: string }>("/sync/negentropy", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function startDownloadEvents(payload: DownloadEventsRequest) {
+  return request<{ status: string; job_id: string; relays: string[]; message: string }>("/events/download", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function getDownloadJobs() {
+  return request<DownloadJobsResponse>("/events/download/jobs")
+}
+
+export async function getDownloadJob(jobID: string) {
+  return request<DownloadJob>(`/events/download/jobs/${encodeURIComponent(jobID)}`)
+}
+
+export async function getGroupsPage(params: PageParams) {
+  return request<AdminPage<AdminGroupResponse>>(`/groups?limit=${params.limit}&offset=${params.offset}`)
+}
+
+export async function getWoTSummary() {
+  return request<AdminWoTSummaryResponse>("/wot/summary")
+}
+
+export async function addTrustedPubkey(pubkey: string) {
+  return request<{ pubkey: string; added: boolean }>("/wot/trusted", {
+    method: "POST",
+    body: JSON.stringify({ pubkey }),
+  })
+}
+
+export async function removeTrustedPubkey(pubkey: string) {
+  return request<{ pubkey: string; removed: boolean }>(`/wot/trusted/${pubkey}`, {
+    method: "DELETE",
+  })
 }

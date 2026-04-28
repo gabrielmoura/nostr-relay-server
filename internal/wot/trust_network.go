@@ -16,11 +16,20 @@ var (
 	trustNetworkMutex sync.RWMutex
 	followerMutex     sync.RWMutex
 	pool              *nostr.SimplePool
+
+	lastComputed  time.Time
+	recomputeChan = make(chan struct{}, 1)
 )
+
+type Summary struct {
+	Nodes        int
+	Edges        int // Not precisely tracked yet, but can estimate
+	LastComputed time.Time
+}
 
 // Start initializes the background runner if Web of Trust is enabled.
 func Start(ctx context.Context) {
-	if !config.Cfg.WoT.Enabled || config.Cfg.WoT.TargetPubkey == "" {
+	if !config.Cfg.WoT.Enabled || (config.Cfg.WoT.TargetPubkey == "" && len(config.Cfg.WoT.TrustedPubkeys) == 0) {
 		return
 	}
 
@@ -46,6 +55,9 @@ func Start(ctx context.Context) {
 				return
 			case <-ticker.C:
 				refreshTrustNetwork(ctx)
+			case <-recomputeChan:
+				log.Println("🌐 WOT recompute triggered manually.")
+				refreshTrustNetwork(ctx)
 			}
 		}
 	}()
@@ -54,7 +66,7 @@ func Start(ctx context.Context) {
 // Validate checks if the pubkey exists in the trust network
 func Validate(pubkey string) bool {
 	// If WOT is disabled, all pubkeys are considered valid
-	if !config.Cfg.WoT.Enabled || config.Cfg.WoT.TargetPubkey == "" {
+	if !config.Cfg.WoT.Enabled || (config.Cfg.WoT.TargetPubkey == "" && len(config.Cfg.WoT.TrustedPubkeys) == 0) {
 		return true
 	}
 
@@ -76,17 +88,43 @@ func Validate(pubkey string) bool {
 	return trusted
 }
 
+func ScheduleRecompute() {
+	select {
+	case recomputeChan <- struct{}{}:
+	default:
+		// Already scheduled
+	}
+}
+
+func GetSummary() Summary {
+	trustNetworkMutex.RLock()
+	defer trustNetworkMutex.RUnlock()
+	return Summary{
+		Nodes:        len(trustNetworkMap),
+		Edges:        0, // TODO: track edges if needed
+		LastComputed: lastComputed,
+	}
+}
+
 func refreshTrustNetwork(ctx context.Context) {
 	newOneHopNetworkSet := make(map[string]bool)
 	newPubkeyFollowerCount := make(map[string]int)
 	var newOneHopNetwork []string
 
-	timeoutCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	timeoutCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
 	defer cancel()
 
-	ownerPk := config.Cfg.WoT.TargetPubkey
+	roots := append([]string{}, config.Cfg.WoT.TrustedPubkeys...)
+	if config.Cfg.WoT.TargetPubkey != "" {
+		roots = append(roots, config.Cfg.WoT.TargetPubkey)
+	}
+
+	if len(roots) == 0 {
+		return
+	}
+
 	filter := nostr.Filter{
-		Authors: []string{ownerPk},
+		Authors: roots,
 		Kinds:   []int{nostr.KindFollowList},
 	}
 
@@ -155,7 +193,9 @@ func refreshTrustNetwork(ctx context.Context) {
 
 	// Rebuild and swap map
 	newTrustNetworkMap := make(map[string]bool)
-	newTrustNetworkMap[ownerPk] = true // Include the root target natively
+	for _, root := range roots {
+		newTrustNetworkMap[root] = true // Include the root targets natively
+	}
 
 	nodesAdded := 0
 	for pubkey, count := range newPubkeyFollowerCount {
@@ -171,6 +211,7 @@ func refreshTrustNetwork(ctx context.Context) {
 
 	trustNetworkMutex.Lock()
 	trustNetworkMap = newTrustNetworkMap
+	lastComputed = time.Now()
 	trustNetworkMutex.Unlock()
 
 	log.Printf("🌐 WOT cycle completed: Built graph containing %d trusted peers.", len(newTrustNetworkMap))

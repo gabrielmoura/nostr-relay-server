@@ -70,6 +70,13 @@ func Init(queries *dbstore.Queries) error {
 	return nil
 }
 
+func (m *Manager) GetRelayScope() string {
+	if m == nil {
+		return ""
+	}
+	return m.relayScope
+}
+
 func Enabled() bool {
 	return M != nil && M.enabled
 }
@@ -80,7 +87,9 @@ func QueryEvents(ctx context.Context, authed string, filter nostr.Filter, upstre
 	}
 
 	start := time.Now()
-	defer metrics.NostrNIP29ProcessingSeconds.WithLabelValues("query_events").Observe(time.Since(start).Seconds())
+	defer func() {
+		metrics.NostrNIP29ProcessingSeconds.WithLabelValues("query_events").Observe(time.Since(start).Seconds())
+	}()
 
 	if reject, reason := M.validateFilter(ctx, authed, filter); reject {
 		return nil, true, errors.New(reason)
@@ -123,7 +132,9 @@ func ValidateIncomingEvent(ctx context.Context, evt *nostr.Event) (bool, string)
 
 	metrics.NostrNIP29EventsReceivedTotal.WithLabelValues(metrics.GetKindName(evt.Kind)).Inc()
 	start := time.Now()
-	defer metrics.NostrNIP29ProcessingSeconds.WithLabelValues("validate_event").Observe(time.Since(start).Seconds())
+	defer func() {
+		metrics.NostrNIP29ProcessingSeconds.WithLabelValues("validate_event").Observe(time.Since(start).Seconds())
+	}()
 
 	return M.validateIncomingEvent(ctx, evt)
 }
@@ -134,7 +145,9 @@ func AfterStoreEvent(ctx context.Context, evt *nostr.Event) error {
 	}
 
 	start := time.Now()
-	defer metrics.NostrNIP29ProcessingSeconds.WithLabelValues("after_store").Observe(time.Since(start).Seconds())
+	defer func() {
+		metrics.NostrNIP29ProcessingSeconds.WithLabelValues("after_store").Observe(time.Since(start).Seconds())
+	}()
 
 	return M.afterStoreEvent(ctx, evt)
 }

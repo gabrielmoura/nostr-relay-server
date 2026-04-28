@@ -9,6 +9,8 @@ import {
   deleteNIP05Identity,
   disconnectConnection,
   fetchEventFromRelays,
+  getDownloadJob,
+  getDownloadJobs,
   getNIP86AllowedPubKeysPage,
   getNIP86BannedEventsPage,
   getNIP86BlockedIPsPage,
@@ -36,6 +38,12 @@ import {
   upsertNIP05Identity,
   unbanUser,
   updateNIP86RelayMetadata,
+  startNegentropySync,
+  startDownloadEvents,
+  getGroupsPage,
+  getWoTSummary,
+  addTrustedPubkey,
+  removeTrustedPubkey,
 } from "@/services/admin"
 
 const defaultPageSize = 50
@@ -390,4 +398,94 @@ export function useUpdateNIP86RelayMetadataMutation() {
       ])
     },
   })
+}
+
+export function useInfiniteGroups() {
+  return useInfiniteQuery({
+    initialPageParam: 0,
+    queryKey: ["groups"],
+    queryFn: ({ pageParam }) => getGroupsPage({ limit: defaultPageSize, offset: pageParam }),
+    getNextPageParam: (lastPage) => (lastPage.has_more ? lastPage.offset + lastPage.items.length : undefined),
+  })
+}
+
+export function useWoTSummary() {
+  return useQuery({ queryKey: ["wot-summary"], queryFn: getWoTSummary })
+}
+
+export function useWoTSummarySuspense() {
+  return useSuspenseQuery({
+    queryKey: ["wot-summary"],
+    queryFn: getWoTSummary,
+    retry: false,
+  })
+}
+
+export function useSyncMutation() {
+  return useMutation({
+    mutationFn: startNegentropySync,
+  })
+}
+
+export function useDownloadMutation() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: startDownloadEvents,
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["events-search"] }),
+        queryClient.invalidateQueries({ queryKey: ["download-jobs"] }),
+      ])
+    },
+  })
+}
+
+export function useDownloadJobs() {
+  return useQuery({
+    queryKey: ["download-jobs"],
+    queryFn: getDownloadJobs,
+    refetchInterval: (query) => {
+      const items = query.state.data?.items ?? []
+      return items.some((item) => item.status === "queued" || item.status === "running") ? 2500 : 5000
+    },
+  })
+}
+
+export function useDownloadJob(jobID: string, enabled = true) {
+  return useQuery({
+    queryKey: ["download-job", jobID],
+    queryFn: () => getDownloadJob(jobID),
+    enabled: enabled && Boolean(jobID),
+    refetchInterval: (query) => {
+      const status = query.state.data?.status
+      return status === "queued" || status === "running" ? 2500 : false
+    },
+  })
+}
+
+export function useAddTrustedPubkeyMutation() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: addTrustedPubkey,
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["wot-summary"] })
+    },
+  })
+}
+
+export function useRemoveTrustedPubkeyMutation() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: removeTrustedPubkey,
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["wot-summary"] })
+    },
+  })
+}
+
+export function isFeatureDisabledError(error: any): boolean {
+  if (!error) return false
+  const status = error.response?.status
+  const message = error.response?.data?.error || ""
+  return (status === 404 || status === 503) && (message.includes("disabled") || message.includes("not enabled"))
 }

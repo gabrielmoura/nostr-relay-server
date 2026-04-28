@@ -18,10 +18,10 @@ It provides:
 - WebSocket relay core for the Nostr protocol
 - PostgreSQL as the primary storage backend
 - Optional Redis cache/pubsub integration
-- Embedded admin API and admin panel at `/panel`
+- Embedded admin API and admin panel at `/panel` for moderation, synchronization, and NIP-29/WoT management
 - Optional NIP-86 JSON-RPC management on the public root endpoint
 - Blossom-compatible media storage
-- Negentropy-based relay synchronization
+- Negentropy-based relay synchronization and bulk event downloader
 - Optional NIP-29 relay-based groups with relay-generated state events
 - Prometheus metrics
 - Import/export and operational CLI tools
@@ -972,6 +972,8 @@ Yes. The embedded admin panel is exposed at:
 ```text
 http://localhost:9091/panel
 ```
+
+It supports user moderation, event inspection, Negentropy synchronization, bulk event downloading, NIP-29 group management, and Web of Trust (WoT) trusted pubkey administration.
 
 ---
 

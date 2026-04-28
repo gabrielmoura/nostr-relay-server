@@ -14,6 +14,11 @@ import { UserDetailPage } from "@/routes/user-detail-page"
 import { NIP05Page } from "@/routes/nip05-page"
 import { NIP86Page } from "@/routes/nip86-page"
 import { UserSearchPage } from "@/routes/user-search-page"
+import { SyncPage } from "@/routes/sync-page"
+import { DownloadPage } from "@/routes/download-page"
+import { GroupsPage } from "@/routes/groups-page"
+import { WoTPage } from "@/routes/wot-page"
+import { EventSearchRouteSearch } from "@/lib/event-search"
 
 const rootRoute = createRootRoute({
   component: AppShell,
@@ -76,6 +81,15 @@ const loggedConnectionsRoute = createRoute({
 const eventSearchRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/events/search",
+  validateSearch: (search: Record<string, unknown>): EventSearchRouteSearch => {
+    return {
+      q: (search.q as string) || undefined,
+      authors: (search.authors as string) || undefined,
+      kinds: (search.kinds as string) || undefined,
+      tags: (search.tags as string) || undefined,
+      limit: (search.limit as number) || undefined,
+    }
+  },
   component: EventSearchPage,
 })
 
@@ -97,6 +111,30 @@ const streamStatusRoute = createRoute({
   component: StreamStatusPage,
 })
 
+const syncRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/sync",
+  component: SyncPage,
+})
+
+const downloadRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/download",
+  component: DownloadPage,
+})
+
+const groupsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/groups",
+  component: GroupsPage,
+})
+
+const wotRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/wot",
+  component: WoTPage,
+})
+
 const routeTree = rootRoute.addChildren([
   overviewRoute,
   loggedUsersRoute,
@@ -111,6 +149,10 @@ const routeTree = rootRoute.addChildren([
   reportedEventsRoute,
   streamStatusRoute,
   eventDetailRoute,
+  syncRoute,
+  downloadRoute,
+  groupsRoute,
+  wotRoute,
 ])
 
 const normalizedBasePath = import.meta.env.BASE_URL === "/" ? "/" : import.meta.env.BASE_URL.replace(/\/$/, "")

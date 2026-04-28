@@ -39,6 +39,7 @@ This should refine the current dashboard instead of replacing it with a marketin
 | Layer | Technology | Purpose |
 |-------|------------|---------|
 | **Framework** | React 19 | UI library with new hooks (useActionState, useOptimistic) |
+| **State Management** | TanStack Query | Server state management, caching, and mutations |
 | **Routing** | TanStack Router | File-based routing with type-safe navigation |
 | **i18n** | i18next | Internationalization (English/Portuguese) |
 | **Build** | Vite | Fast development and optimized production build |
@@ -72,6 +73,10 @@ infra/dash/src/
     ├── event-detail-page.tsx
     ├── event-search-page.tsx
     ├── overview-page.tsx
+    ├── sync-page.tsx            # Negentropy sync controls
+    ├── download-page.tsx        # Bulk event download
+    ├── groups-page.tsx          # NIP-29 management
+    ├── wot-page.tsx             # Web of Trust / Trusted Pubkeys
     └── ...
 ```
 
@@ -143,6 +148,47 @@ routes/
   nip86-blocked-ips-page.tsx    # network blocking and disconnect actions
 ```
 
+## Planned Relay Workflow Refinement
+
+The dashboard now needs a shared relay-selection UX for operational screens that query external relays.
+
+Shared frontend rules:
+
+- relay lists must be managed through a reusable modal, not raw comma-separated text only
+- the modal must support:
+  - selecting from common relays
+  - adding one relay at a time
+  - importing a comma-separated relay list in one action
+  - removing already-added relays
+- the chosen relay list must be persisted in `localStorage` and reused by:
+  - `/download`
+  - event-detail relay search flows
+  - future relay-driven screens
+
+Implementation split:
+
+- `lib/relay-presets.ts` - localStorage adapter + normalization helpers
+- `components/shared/relay-list-modal.tsx` - reusable modal UI
+- route/feature containers remain responsible for passing current relays and handling submit actions
+
+## Planned Download Job UX
+
+The current `/download` page starts a background backend process but does not expose meaningful progress or completion states to the user.
+
+Refinement strategy:
+
+- introduce backend-backed download jobs with in-memory runtime status
+- start action returns a `job_id`
+- frontend polls job status and renders a work queue
+- work queue should expose:
+  - pending / running / completed / failed state
+  - filter summary
+  - relay count and timeout
+  - result summary (`events_received`, `inserted_events`, `duplicate_events`, `pages`)
+  - “Ver filtros” and “Ver detalhes” actions
+
+This keeps the visual queue truthful to real backend execution instead of simulating success after the request returns.
+
 ## Error Handling
 
 ### Error Boundaries
@@ -173,8 +219,11 @@ Backend responses include `x-request-id` header. Currently not propagated to fro
 
 ### Server State
 
-Currently: direct fetch calls in route components.
-Future: TanStack Query for caching, invalidation, and optimistic updates.
+Adopted **TanStack Query** (v5) for all administrative data fetching and mutations.
+
+- **Queries**: Dashboard metrics, user lists, event search, NIP-29 groups, WoT summary.
+- **Mutations**: Sync start, download start, group moderation, WoT trusted pubkeys management.
+- **Caching**: Automatic background refetching and cache invalidation after mutations.
 
 ### State Patterns
 

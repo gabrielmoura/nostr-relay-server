@@ -8,6 +8,7 @@ import { RefreshCcw } from "lucide-react"
 import { RelaySearchModal } from "./relay-search-modal"
 import { RelayResults } from "./relay-search-modal"
 import { useFetchEventFromRelaysMutation } from "@/hooks/use-admin-data"
+import { readRelayStorage } from "@/lib/relay-presets"
 import { ApiError } from "@/services/admin"
 
 type RelayResult = { relay: string; status: string; error?: string }
@@ -73,6 +74,7 @@ export function EventDetailErrorState({ eventID, error, onRetry }: EventDetailEr
         onOpenChange={setOpen}
         onSearch={handleSearch}
         open={open}
+        relays={readRelayStorage("external-relays")}
         title={t("eventDetail.searchModalTitle")}
       />
       {relayFeedback.length > 0 && <RelayResults results={relayFeedback} />}

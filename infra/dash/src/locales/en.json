@@ -38,8 +38,79 @@
       "nip86": "NIP-86",
       "eventsReported": "Reported events",
       "streams": "Streams",
-      "usersSearch": "User search"
+      "usersSearch": "User search",
+      "sync": "Sync",
+      "download": "Download",
+      "groups": "NIP-29 Groups",
+      "wot": "Web of Trust"
     }
+  },
+  "sync": {
+    "title": "Negentropy Sync",
+    "description": "Synchronize events between the local relay and a remote relay using the Negentropy protocol.",
+    "remoteLabel": "Remote Relay",
+    "remotePlaceholder": "wss://relay.damus.io",
+    "directionLabel": "Direction",
+    "directionBoth": "Both",
+    "directionDown": "Download only",
+    "directionUp": "Upload only",
+    "filterLabel": "Custom filter (JSON)",
+    "filterPlaceholder": "[ { \"kinds\": [1] } ]",
+    "timeoutLabel": "Timeout (seconds)",
+    "startAction": "Start Sync",
+    "started": "Sync started in background.",
+    "errorTitle": "Start failed",
+    "errorDescription": "Could not start synchronization."
+  },
+  "download": {
+    "title": "Event Download",
+    "description": "Bulk fetch and import events from external relays.",
+    "relaysLabel": "Relays (comma-separated URLs)",
+    "relaysPlaceholder": "wss://relay.damus.io, wss://nos.lol",
+    "pubkeyLabel": "Public Key (npub or hex)",
+    "pubkeyPlaceholder": "npub1...",
+    "kindsLabel": "Kinds (e.g. 0, 1, 3)",
+    "kindsPlaceholder": "1, 3, 6",
+    "filterLabel": "NIP-01 Filter (JSON)",
+    "timeoutLabel": "Timeout (seconds)",
+    "startAction": "Start Download",
+    "started": "Download started in background.",
+    "errorTitle": "Start failed",
+    "errorDescription": "Could not start download."
+  },
+  "groups": {
+    "title": "NIP-29 Groups",
+    "description": "Management of native NIP-29 protocol groups.",
+    "table": {
+      "id": "Group ID",
+      "name": "Name",
+      "members": "Members",
+      "status": "Status",
+      "privacy": "Privacy",
+      "open": "Open",
+      "closed": "Closed",
+      "public": "Public",
+      "private": "Private",
+      "hidden": "Hidden"
+    },
+    "loading": "Loading groups...",
+    "empty": "No groups found."
+  },
+  "wot": {
+    "title": "Web of Trust",
+    "description": "Management of the trust graph and root pubkeys.",
+    "summary": {
+      "nodes": "Nodes",
+      "edges": "Edges",
+      "lastComputed": "Last computation"
+    },
+    "trustedPubkeys": "Trusted Pubkeys (Root)",
+    "addPlaceholder": "npub or hex...",
+    "addAction": "Add",
+    "removing": "Removing...",
+    "adding": "Adding...",
+    "successAdd": "Pubkey added.",
+    "successRemove": "Pubkey removed."
   },
   "nip05": {
     "title": "NIP-05 Management",
@@ -589,5 +660,16 @@
     "syncStatusOk": "Sync result: {{persisted}} via {{relay}}.",
     "syncStatusError": "Sync failed: {{error}}",
     "syncFailed": "sync failed"
+  },
+  "nostrFilterBuilder": {
+    "tagTooltips": {
+      "t": "Hashtags and keywords (#t)",
+      "e": "Event reference IDs (#e)",
+      "p": "Pubkey reference IDs (#p)",
+      "d": "Identifier - typically for replaceable events NIP-33 (#d)",
+      "h": "Group ID - legacy or NIP-29 context (#h)",
+      "q": "Quote event references (#q)",
+      "i": "Indexer topic or category (#i)"
+    }
   }
 }

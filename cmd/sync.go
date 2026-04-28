@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/gabrielmoura/nostr-relay-server/cmd/internal/sync"
+	"github.com/gabrielmoura/nostr-relay-server/internal/sync"
 	"github.com/spf13/cobra"
 )
 
