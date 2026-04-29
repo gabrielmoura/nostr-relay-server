@@ -54,6 +54,12 @@ Filters define which events to subscribe to:
 }
 ```
 
+### NIP-29 Validation Scope
+
+- `EVENT`: when `nip29.enabled=true`, relay-side group validation only applies to explicit NIP-29 kinds (`9000`-`9022`, `39000`-`39003`). Events outside that scope are accepted or rejected only by the generic relay/security policies.
+- `REQ` / `COUNT`: filters using `#h` are treated as group-scoped reads and must pass NIP-29 permission checks before matching events are delivered.
+- `REQ` / `COUNT` without `#h` continue to use the normal relay pipeline. If matching results later contain private or hidden NIP-29 material, per-event delivery filtering still applies before the event is sent to the client.
+
 ## External Server Routes (Port)
 
 ### WebSocket Root `/`

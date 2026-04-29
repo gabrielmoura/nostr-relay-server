@@ -11,6 +11,8 @@ Implement NIP-29 group support as an optional, incremental and configurable modu
 - The relay already supports global NIP-13 validation, batching, Redis cache/pubsub, and relay-generated signed events via the configured relay key.
 - The repository schema does **not** currently declare NIP-29 tables, but the live PostgreSQL database already contains draft tables: `nip29_groups`, `nip29_roles`, `nip29_group_roles`, `nip29_group_members`.
 - The current codebase does not yet wire those tables into runtime behavior.
+- The current NIP-29 guard treats any incoming event with `h` or `d` tags as group-scoped, which makes the write path reject unrelated events with `invalid: group does not exist` when the referenced group is unknown.
+- The current REQ/COUNT integration also marks broad filter shapes (`ids`, `#e`, `#a`, `#d`) as NIP-29-handled up front, even when the filter does not explicitly target a group via `#h` or a NIP-29 kind.
 
 ## Reference Analysis
 
@@ -71,8 +73,37 @@ Implement NIP-29 group support as an optional, incremental and configurable modu
 - Done: fix metadata tag emission (`buildMetadataTags`) to always emit `["public"]`/`["open"]` when `Private`/`Closed` are false, matching NIP-29 spec and go-nostr reference.
 - Done: fix `applyMetadataEdits` to recognize `["public"]`/`["open"]` antonym tags and stop unconditionally resetting `Restricted`/`Hidden` on every `edit-metadata`.
 - Done: fix `applyCreateGroup` to not default group name to groupID; leave empty so the client-sent `kind:9002` sets the actual name without contamination from a premature `kind:39000`.
+- Planned now: narrow EVENT validation to explicit NIP-29 kinds only, so generic events with `h`/`d` tags bypass group existence checks.
+- Planned now: narrow REQ/COUNT pre-validation to filters that explicitly declare NIP-29 scope (`#h` and NIP-29 kinds), while preserving per-event delivery filtering for private and hidden groups.
 - Pending: dedicated tests for `internal/groups` and deeper validation of delete-event semantics inside group boundaries.
 - Pending: re-emit `kind:39000` for groups whose persisted metadata event lacks `["public"]`/`["open"]` tags.
+
+## Bug Fix Plan: NIP-29 Validation Scope
+
+### Root Cause
+
+- `groupIDFromEvent()` currently promotes any `h` or `d` tag to a NIP-29 group identifier on the write path.
+- `isRelevantEvent()` therefore routes non-NIP-29 events into `ValidateIncomingEvent()`.
+- `validateIncomingEvent()` then loads group state and rejects unknown groups before the generic relay path can accept the event.
+- `shouldHandleFilter()` is also broader than necessary for the pre-query gate, causing NIP-29 handling to activate for filters that are not explicitly group-scoped.
+
+### Intended Runtime Behavior
+
+- `EVENT`: only explicit NIP-29 kinds (`9000`-`9022`, `39000`-`39003`) trigger group validation.
+- `EVENT`: kinds outside that scope ignore NIP-29 group lookup entirely, even if they carry `h`/`d` tags.
+- `REQ` / `COUNT`: filters with `#h` trigger NIP-29 access validation before query execution.
+- `REQ` / `COUNT`: filters without `#h` stay on the normal path; private and hidden NIP-29 events remain protected by post-query per-event filtering.
+
+### Safe Refactor Outline
+
+1. Introduce explicit helpers for NIP-29 write kinds and NIP-29 read-filter scope.
+2. Stop using raw `h`/`d` tag presence as the sole signal for write-path validation.
+3. Keep `canReadEvent()` as the final delivery guard for private and hidden group material.
+4. Add focused tests for:
+   - non-NIP-29 events with `h` tags;
+   - NIP-29 moderation/state kinds without an existing group;
+   - REQ with `#h` for unauthorized readers;
+   - REQ without `#h` returning only allowed events.
 
 ## Schema Direction
 

@@ -1164,3 +1164,31 @@ Introduce a Redis-backed operational queue subsystem with these rules:
 - ✅ compatible with Redis Cluster key-slot rules via `{queue}` hash tags
 - ⚠️ Redis becomes required for queue-backed job execution
 - ⚠️ the first rollout must preserve current HTTP/CLI contracts while old and new execution paths coexist briefly
+
+---
+
+## ADR-028: Narrow NIP-29 Validation to Explicit Group Scope
+
+**Status:** Proposed  
+**Date:** 2026-04-29
+
+### Context
+
+The first NIP-29 integration reused generic `h`/`d` tag discovery to decide whether an incoming EVENT or REQ belonged to the groups module. That made the write path overly broad: unrelated events carrying those tags were forced through group lookup and rejected with `invalid: group does not exist`.
+
+This behavior breaks the documented requirement that NIP-29 remains optional and must not alter baseline relay behavior for unrelated traffic.
+
+### Decision
+
+Split NIP-29 scope detection by protocol path:
+
+1. **Write path (`EVENT`)**: apply NIP-29 validation only to explicit NIP-29 kinds (`9000`-`9022`, `39000`-`39003`)
+2. **Read path (`REQ` / `COUNT`)**: apply pre-query permission validation only when the filter explicitly targets a group through `#h` or asks directly for NIP-29 state kinds
+3. **Delivery path**: keep per-event filtering for private and hidden group events as the final safety net, even when the original filter was not group-scoped
+
+### Consequences
+
+- ✅ Unrelated events are no longer rejected because they happen to contain `h`/`d` tags
+- ✅ Group read permissions remain enforced for explicit `#h` filters
+- ✅ Private and hidden group events stay protected on mixed queries through post-query filtering
+- ⚠️ NIP-29 write validation becomes intentionally narrower than raw tag detection, so future group-related kinds must be added explicitly to the helper set

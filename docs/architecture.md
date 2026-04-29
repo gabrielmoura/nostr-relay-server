@@ -334,6 +334,8 @@ Client WebSocket
 
 - NIP-29 must be an opt-in module that does not change relay startup or baseline EVENT/REQ behavior when disabled.
 - The implementation should preserve the current transport and ingestion flow, adding group-aware checks only when an event/filter targets a group via `h`/`d` tags or NIP-29 kinds.
+- EVENT guard scope must stay kind-driven on the hot write path: when `nip29.enabled=true`, group existence and membership checks run only for explicit NIP-29 kinds (`9000`-`9022`, `39000`-`39003`) and must not reject unrelated kinds just because they contain `h`/`d` tags.
+- REQ/COUNT guard scope must stay filter-driven on the read path: filters with `#h` keep the NIP-29 permission gate before delivery, while filters without group scope continue through the normal relay query path unchanged.
 - The recommended integration points are:
   - startup wiring in `cmd/server.go`
   - event/request validation in `internal/policies`

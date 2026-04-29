@@ -52,9 +52,13 @@ func (m *Manager) registerRole(ctx context.Context, role config.NIP29RoleConfig)
 	return nil
 }
 
-func (m *Manager) shouldHandleFilter(filter nostr.Filter) bool {
+func (m *Manager) shouldValidateFilter(filter nostr.Filter) bool {
+	return len(filter.Tags["h"]) > 0
+}
+
+func (m *Manager) shouldFilterQueryResults(filter nostr.Filter) bool {
 	for _, kind := range filter.Kinds {
-		if kind >= nostr.KindSimpleGroupMetadata && kind <= nostr.KindSimpleGroupRoles {
+		if isNIP29MetadataKind(kind) {
 			return true
 		}
 	}
@@ -65,10 +69,13 @@ func (m *Manager) isRelevantEvent(evt *nostr.Event) bool {
 	if evt == nil {
 		return false
 	}
-	if groupIDFromEvent(evt) != "" {
+	if isNIP29MetadataKind(evt.Kind) {
 		return true
 	}
-	return evt.Kind >= nostr.KindSimpleGroupMetadata && evt.Kind <= nostr.KindSimpleGroupRoles
+	if !isNIP29ScopedWriteKind(evt.Kind) {
+		return false
+	}
+	return groupIDFromEvent(evt) != ""
 }
 
 func (m *Manager) forwardAllowedEvents(ctx context.Context, authed string, results <-chan *nostr.Event, out chan<- *nostr.Event) {
@@ -267,6 +274,14 @@ func actionName(kind int) string {
 
 func isModerationKind(kind int) bool {
 	return kind >= 9000 && kind <= 9020
+}
+
+func isNIP29MetadataKind(kind int) bool {
+	return kind >= nostr.KindSimpleGroupMetadata && kind <= nostr.KindSimpleGroupRoles
+}
+
+func isNIP29ScopedWriteKind(kind int) bool {
+	return isNIP29MetadataKind(kind) || (kind >= 9000 && kind <= 9022)
 }
 
 func inviteValid(invite *dbstore.NIP29Invite) bool {

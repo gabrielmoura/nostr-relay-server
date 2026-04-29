@@ -14,6 +14,9 @@ func (m *Manager) validateFilter(ctx context.Context, authed string, filter nost
 	if m == nil || !m.enabled {
 		return false, ""
 	}
+	if !m.shouldValidateFilter(filter) {
+		return false, ""
+	}
 
 	for _, groupID := range filter.Tags["h"] {
 		group, ok, err := m.getGroup(ctx, groupID)

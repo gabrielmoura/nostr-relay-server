@@ -82,7 +82,7 @@ func Enabled() bool {
 }
 
 func QueryEvents(ctx context.Context, authed string, filter nostr.Filter, upstream EventQueryFunc) (chan *nostr.Event, bool, error) {
-	if !Enabled() || !M.shouldHandleFilter(filter) {
+	if !Enabled() || !M.shouldFilterQueryResults(filter) {
 		return nil, false, nil
 	}
 
