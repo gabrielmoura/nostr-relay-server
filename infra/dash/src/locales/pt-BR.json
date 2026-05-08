@@ -12,7 +12,8 @@
     "close": "Fechar",
     "delete": "Remover",
     "edit": "Editar",
-    "language": "Idioma"
+    "language": "Idioma",
+    "error": "Erro inesperado"
   },
   "layout": {
     "brandTitle": "Relay Nostr Admin",
@@ -33,8 +34,9 @@
       "usersBanned": "Usuários banidos",
       "connectionsActive": "Conexões ativas",
       "connectionsLogged": "Conexões logadas",
-      "eventsSearch": "Busca de eventos",
-      "nip05": "NIP-05",
+        "eventsSearch": "Busca de eventos",
+        "labels": "Labels",
+        "nip05": "NIP-05",
       "nip86": "NIP-86",
       "eventsReported": "Eventos reportados",
       "streams": "Streams",
@@ -79,6 +81,112 @@
     "errorTitle": "Falha ao iniciar",
     "errorDescription": "Não foi possível iniciar o download."
   },
+  "labels": {
+    "title": "Labels NIP-32",
+    "description": "Inspecione, agrupe e publique eventos de label armazenados no relay.",
+    "loading": "Carregando labels administrativos...",
+    "errorTitle": "Falha ao carregar labels",
+    "errorDescription": "Não foi possível carregar o workspace atual de labels.",
+    "emptyTitle": "Nenhum label encontrado",
+    "emptyDescription": "Nenhum label NIP-32 corresponde ao filtro atual.",
+    "views": {
+      "timeline": "Timeline",
+      "targets": "Por alvo"
+    },
+    "stats": {
+      "events": "Eventos de label",
+      "eventsHelper": "Total de eventos kind 1985 no filtro ativo.",
+      "targets": "Alvos distintos",
+      "targetsHelper": "Entidades unicas afetadas pelos labels atuais.",
+      "topLabel": "Label principal",
+      "topLabelHelper": "Label mais recorrente dentro do recorte atual."
+    },
+    "filters": {
+      "title": "Filtros operacionais",
+      "searchPlaceholder": "Buscar target, comentario ou autor",
+      "namespace": "Namespace",
+      "allNamespaces": "Todos os namespaces",
+      "label": "Label",
+      "noLabelSelected": "Nenhum label selecionado",
+      "allLabels": "Todos os labels",
+      "targetType": "Tipo de alvo",
+      "allTargetTypes": "Todos os tipos",
+      "targetPlaceholder": "Filtrar por target exato",
+      "customLabelPlaceholder": "Filtrar por label customizado",
+      "addCustom": "Aplicar",
+      "reset": "Limpar filtros"
+    },
+    "timeline": {
+      "author": "Autor",
+      "loadMore": "Carregar mais",
+      "loadingMore": "Carregando..."
+    },
+    "targets": {
+      "eventsCount": "{{count}} evento(s)",
+      "namespaces": "Namespaces"
+    },
+    "actions": {
+      "viewEvent": "Ver evento",
+      "banPubkey": "Banir pubkey"
+    },
+    "create": {
+      "trigger": "Criar label",
+      "title": "Criar label NIP-32",
+      "description": "Publique um evento kind 1985 assinado pela identidade administrativa do relay.",
+      "targetType": "Tipo de alvo",
+      "namespace": "Namespace",
+      "customNamespace": "Custom",
+      "customNamespaceLabel": "Namespace customizado",
+      "targetValue": "Valor do alvo",
+      "relayHint": "Relay hint (opcional)",
+      "labels": "Labels",
+      "comment": "Comentário",
+      "commentPlaceholder": "Justificativa, contexto ou observação operacional",
+      "banToggle": "Também banir esta pubkey após publicar o label",
+      "submit": "Publicar label",
+      "success": "Label publicado com sucesso.",
+      "noLabels": "Nenhum label selecionado",
+      "customPlaceholder": "Adicionar label customizado",
+      "addCustom": "Adicionar",
+      "targetPlaceholders": {
+        "event": "id do evento em hex, note ou nevent",
+        "pubkey": "pubkey hex, npub ou nprofile",
+        "address": "kind:pubkey:identifier",
+        "reference": "https://example.com ou relay",
+        "topic": "nome do tópico"
+      },
+      "errors": {
+        "namespace": "Informe um namespace.",
+        "target": "Informe o alvo do label.",
+        "labels": "Selecione ao menos um label."
+      }
+    },
+    "help": {
+      "trigger": "Ajuda",
+      "title": "Ajuda do formulário de labels",
+      "description": "Entenda o papel de cada campo antes de publicar um evento NIP-32.",
+      "targetType": {
+        "title": "Tipo de alvo",
+        "description": "Define se o label aponta para um evento, uma pubkey, um evento endereçável, uma referência externa ou um tópico."
+      },
+      "namespace": {
+        "title": "Namespace",
+        "description": "Agrupa a ontologia do label. Prefira namespaces predefinidos quando quiser interoperabilidade."
+      },
+      "targetValue": {
+        "title": "Valor do alvo",
+        "description": "Aceita o valor canônico e também NIP-19 quando aplicável: note/nevent, npub/nprofile e naddr."
+      },
+      "labels": {
+        "title": "Labels",
+        "description": "Representam as classificações efetivas escritas como tags `l` no evento kind 1985."
+      },
+      "comment": {
+        "title": "Comentário",
+        "description": "Contexto livre salvo no content do evento para observações de moderação, justificativa ou auditoria."
+      }
+    }
+  },
   "jobs": {
     "summary": {
       "active": "Ativos",
@@ -92,7 +200,8 @@
       "refresh": "Atualizar",
       "details": "Detalhes",
       "retry": "Reenfileirar",
-      "cancel": "Cancelar"
+      "cancel": "Cancelar",
+      "clearHistory": "Limpar histórico"
     },
     "status": {
       "unknown": "desconhecido",
@@ -461,7 +570,13 @@
     "openProfile": "Abrir perfil",
     "monitorEvents": "Monitorar eventos",
     "viewProfile": "Ver perfil",
-    "monitor": "Monitorar"
+    "monitor": "Monitorar",
+    "kpis": {
+      "total": "Resultados totais",
+      "suspects": "Suspeitos / banidos",
+      "bannedOnly": "{{count}} banidos",
+      "nip05": "Com NIP-05"
+    }
   },
   "stream": {
     "title": "Streams",
@@ -539,7 +654,13 @@
     "userNoName": "usuário sem nome",
     "reason": "Motivo",
     "noComment": "(sem comentário adicional)",
-    "modalEmptyDescription": "Este evento ainda não possui reports carregados."
+    "modalEmptyDescription": "Este evento ainda não possui reports carregados.",
+    "kpis": {
+      "events": "Eventos reportados",
+      "reports": "Reports acumulados",
+      "topType": "Tipo dominante",
+      "uniqueAuthors": "{{count}} autores distintos"
+    }
   },
   "eventSearch": {
     "title": "Busca de eventos",
@@ -714,7 +835,19 @@
     "alreadyExisted": "ja existia",
     "syncStatusOk": "Resultado da sincronizacao: {{persisted}} via {{relay}}.",
     "syncStatusError": "Falha na sincronizacao: {{error}}",
-    "syncFailed": "falha na sincronizacao"
+    "syncFailed": "falha na sincronizacao",
+    "relatedEvents": "Eventos associados",
+    "openEvent": "Abrir evento",
+    "noRelatedEvents": "Nenhum evento associado foi encontrado nas referências e/q.",
+    "responders": "Usuários que responderam",
+    "replyCount": "{{count}} resposta(s)",
+    "openUser": "Abrir usuário",
+    "noResponders": "Nenhuma resposta indexada para este evento.",
+    "labels": "Labels",
+    "noLabels": "Nenhum label associado a este evento.",
+    "reports": "Reports",
+    "noReports": "Nenhum report associado a este evento.",
+    "replyEvents": "Eventos de resposta"
   },
   "nostrFilterBuilder": {
     "tagTooltips": {

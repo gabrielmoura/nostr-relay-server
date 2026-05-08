@@ -316,6 +316,29 @@ The system builds dynamic SQL queries based on Nostr filters:
 - Filter by `since`/`until` timestamps
 - Full-text search on `content`
 
+### NIP-32 Labels Query Model
+
+`kind:1985` label events remain in the shared `event` table.
+
+No new relational table is planned for labels in the first rollout.
+
+Administrative label queries will extract semantic fields from `tags JSONB` using `jsonb_array_elements(tags)`:
+
+- namespace from the first `L` tag
+- one or many label values from `l` tags
+- target value from the first matching `e`, `p`, `a`, `r`, or `t` tag
+- optional relay hint from the third position of `e` or `p`
+
+This keeps the relay Nostr-native and avoids duplicating label state in a second schema.
+
+Recommended label-query access patterns:
+
+- `WHERE kind = 1985`
+- exact namespace filter through `L`
+- exact label filter through `l`
+- exact target filter through `e` / `p` / `a` / `r` / `t`
+- aggregation by namespace, label, and target type for dashboard counters
+
 ### Count Queries
 
 Same filters as event queries but returns `COUNT(*)`.

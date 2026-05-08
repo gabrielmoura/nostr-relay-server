@@ -24,6 +24,10 @@ import type {
   NIP05IdentityPayload,
   EventReportsResponse,
   EventTimeline,
+  AdminLabelEvent,
+  AdminLabelsFilters,
+  AdminLabelsSummary,
+  CreateAdminLabelPayload,
   ReportedEventItem,
   RelayOverview,
   StreamStatus,
@@ -459,6 +463,61 @@ export async function getReportedEventsPage(query: string, type: string, params:
   }
 
   return request<AdminPage<ReportedEventItem>>(`/events/reported?${search.toString()}`)
+}
+
+export async function getLabelsPage(filters: AdminLabelsFilters, params: PageParams) {
+  const search = new URLSearchParams({ limit: String(params.limit), offset: String(params.offset) })
+  if (filters.namespace) {
+    search.set("namespace", filters.namespace)
+  }
+  if (filters.label) {
+    search.set("label", filters.label)
+  }
+  if (filters.target_type) {
+    search.set("target_type", filters.target_type)
+  }
+  if (filters.target) {
+    search.set("target", filters.target)
+  }
+  if (filters.author) {
+    search.set("author", filters.author)
+  }
+  if (filters.q) {
+    search.set("q", filters.q)
+  }
+
+  return request<AdminPage<AdminLabelEvent>>(`/labels?${search.toString()}`)
+}
+
+export async function getLabelsSummary(filters: AdminLabelsFilters) {
+  const search = new URLSearchParams()
+  if (filters.namespace) {
+    search.set("namespace", filters.namespace)
+  }
+  if (filters.label) {
+    search.set("label", filters.label)
+  }
+  if (filters.target_type) {
+    search.set("target_type", filters.target_type)
+  }
+  if (filters.target) {
+    search.set("target", filters.target)
+  }
+  if (filters.author) {
+    search.set("author", filters.author)
+  }
+  if (filters.q) {
+    search.set("q", filters.q)
+  }
+
+  return request<AdminLabelsSummary>(`/labels/summary${search.toString() ? `?${search.toString()}` : ""}`)
+}
+
+export async function createLabel(payload: CreateAdminLabelPayload) {
+  return request<{ event: { id: string; pubkey: string; created_at: number; kind: number; content: string; tags: string[][]; sig?: string }; stored: boolean }>("/labels", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  })
 }
 
 export async function searchUsersPage(query: string, params: PageParams) {

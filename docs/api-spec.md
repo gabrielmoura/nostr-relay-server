@@ -745,6 +745,119 @@ Lists reported target events (NIP-56 kind `1984`) with moderation-friendly metad
   "report_types": ["spam", "malware"]
 }
 
+### `GET /admin/labels`
+
+Returns stored NIP-32 label events (`kind:1985`) for the admin dashboard.
+
+**Query Parameters:**
+- `namespace=<text>` - optional exact `L` namespace filter
+- `label=<text>` - optional exact `l` value filter
+- `target_type=<event|pubkey|address|reference|topic>` - optional target type filter
+- `target=<text>` - optional exact target value filter
+- `author=<hex_pubkey>` - optional label author filter
+- `q=<text>` - optional fuzzy search over target value and `content`
+- `limit=<n>`
+- `offset=<n>`
+
+**Response:**
+```json
+{
+  "items": [
+    {
+      "id": "ac206e...",
+      "pubkey": "<author_pubkey>",
+      "created_at": 1777975125,
+      "kind": 1985,
+      "content": "Conta usada para flood promocional.",
+      "namespace": "ugc",
+      "labels": ["spam", "scam"],
+      "target": {
+        "type": "pubkey",
+        "value": "<hex-pubkey>",
+        "relay_hint": "wss://relay.example"
+      },
+      "tags": [["L", "ugc"], ["l", "spam", "ugc"], ["p", "<hex-pubkey>"]]
+    }
+  ],
+  "total": 12,
+  "limit": 50,
+  "offset": 0,
+  "has_more": false
+}
+```
+
+### `GET /admin/labels/summary`
+
+Returns aggregated moderation-friendly summaries for NIP-32 labels.
+
+**Query Parameters:** same filtering parameters accepted by `GET /admin/labels`, except pagination.
+
+**Response:**
+```json
+{
+  "total_events": 12,
+  "total_targets": 7,
+  "namespaces": [
+    {"namespace": "ugc", "count": 8},
+    {"namespace": "content-warning", "count": 2}
+  ],
+  "labels": [
+    {"label": "spam", "count": 5},
+    {"label": "nsfw", "count": 2}
+  ],
+  "target_types": [
+    {"target_type": "pubkey", "count": 4},
+    {"target_type": "event", "count": 3}
+  ]
+}
+```
+
+### `POST /admin/labels`
+
+Creates, signs and stores a NIP-32 label event on behalf of the relay admin surface.
+
+**Body:**
+```json
+{
+  "namespace": "ugc",
+  "labels": ["spam", "scam"],
+  "comment": "Conta usada para flood promocional.",
+  "target": {
+    "type": "pubkey",
+    "value": "<hex-pubkey>",
+    "relay_hint": "wss://relay.example"
+  }
+}
+```
+
+**Validation rules:**
+- `namespace` is required
+- at least one `labels[]` value is required
+- `target.type` must be one of `event`, `pubkey`, `address`, `reference`, `topic`
+- `target.value` is required
+- `relay_information.priv_key` must be configured so the relay can sign the event
+
+**Response:**
+```json
+{
+  "event": {
+    "id": "...",
+    "pubkey": "<relay_pubkey>",
+    "created_at": 1778000000,
+    "kind": 1985,
+    "content": "Conta usada para flood promocional.",
+    "tags": [
+      ["L", "ugc"],
+      ["l", "spam", "ugc"],
+      ["l", "scam", "ugc"],
+      ["p", "<hex-pubkey>", "wss://relay.example"]
+    ],
+    "sig": "..."
+  },
+  "stored": true
+}
+```
+
 ### `POST /admin/sync`
 
 Starts a background Negentropy synchronization job with a remote relay.

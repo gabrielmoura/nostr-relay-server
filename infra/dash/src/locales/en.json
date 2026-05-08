@@ -12,7 +12,8 @@
     "close": "Close",
     "delete": "Delete",
     "edit": "Edit",
-    "language": "Language"
+    "language": "Language",
+    "error": "Unexpected error"
   },
   "layout": {
     "brandTitle": "Relay Nostr Admin",
@@ -33,8 +34,9 @@
       "usersBanned": "Banned users",
       "connectionsActive": "Active connections",
       "connectionsLogged": "Logged connections",
-      "eventsSearch": "Event search",
-      "nip05": "NIP-05",
+        "eventsSearch": "Event search",
+        "labels": "Labels",
+        "nip05": "NIP-05",
       "nip86": "NIP-86",
       "eventsReported": "Reported events",
       "streams": "Streams",
@@ -79,6 +81,112 @@
     "errorTitle": "Start failed",
     "errorDescription": "Could not start download."
   },
+  "labels": {
+    "title": "NIP-32 Labels",
+    "description": "Inspect, group and publish label events stored on the relay.",
+    "loading": "Loading administrative labels...",
+    "errorTitle": "Failed to load labels",
+    "errorDescription": "Could not load the current label workspace.",
+    "emptyTitle": "No labels found",
+    "emptyDescription": "No NIP-32 labels match the current filters.",
+    "views": {
+      "timeline": "Timeline",
+      "targets": "By Target"
+    },
+    "stats": {
+      "events": "Label events",
+      "eventsHelper": "Total kind 1985 events for the active filter.",
+      "targets": "Distinct targets",
+      "targetsHelper": "Unique entities affected by the current labels.",
+      "topLabel": "Top label",
+      "topLabelHelper": "Most frequent label inside the current slice."
+    },
+    "filters": {
+      "title": "Operational filters",
+      "searchPlaceholder": "Search target, comment or author",
+      "namespace": "Namespace",
+      "allNamespaces": "All namespaces",
+      "label": "Label",
+      "noLabelSelected": "No label selected",
+      "allLabels": "All labels",
+      "targetType": "Target type",
+      "allTargetTypes": "All types",
+      "targetPlaceholder": "Filter by exact target",
+      "customLabelPlaceholder": "Filter by custom label",
+      "addCustom": "Apply",
+      "reset": "Reset filters"
+    },
+    "timeline": {
+      "author": "Author",
+      "loadMore": "Load more",
+      "loadingMore": "Loading..."
+    },
+    "targets": {
+      "eventsCount": "{{count}} event(s)",
+      "namespaces": "Namespaces"
+    },
+    "actions": {
+      "viewEvent": "View event",
+      "banPubkey": "Ban pubkey"
+    },
+    "create": {
+      "trigger": "Create label",
+      "title": "Create NIP-32 label",
+      "description": "Publish a kind 1985 event signed by the administrative relay identity.",
+      "targetType": "Target type",
+      "namespace": "Namespace",
+      "customNamespace": "Custom",
+      "customNamespaceLabel": "Custom namespace",
+      "targetValue": "Target value",
+      "relayHint": "Relay hint (optional)",
+      "labels": "Labels",
+      "comment": "Comment",
+      "commentPlaceholder": "Reason, context or operational note",
+      "banToggle": "Also ban this pubkey after publishing the label",
+      "submit": "Publish label",
+      "success": "Label published successfully.",
+      "noLabels": "No labels selected",
+      "customPlaceholder": "Add custom label",
+      "addCustom": "Add",
+      "targetPlaceholders": {
+        "event": "hex event id, note or nevent",
+        "pubkey": "hex pubkey, npub or nprofile",
+        "address": "kind:pubkey:identifier",
+        "reference": "https://example.com or relay",
+        "topic": "topic name"
+      },
+      "errors": {
+        "namespace": "Enter a namespace.",
+        "target": "Enter the label target.",
+        "labels": "Select at least one label."
+      }
+    },
+    "help": {
+      "trigger": "Help",
+      "title": "Labels form help",
+      "description": "Understand what each field means before publishing a NIP-32 event.",
+      "targetType": {
+        "title": "Target type",
+        "description": "Defines whether the label points to an event, a pubkey, an addressable event, an external reference or a topic."
+      },
+      "namespace": {
+        "title": "Namespace",
+        "description": "Groups the label ontology. Prefer predefined namespaces when you want interoperability."
+      },
+      "targetValue": {
+        "title": "Target value",
+        "description": "Accepts the canonical value and also NIP-19 where applicable: note/nevent, npub/nprofile and naddr."
+      },
+      "labels": {
+        "title": "Labels",
+        "description": "Represents the effective classification values written as `l` tags in the kind 1985 event."
+      },
+      "comment": {
+        "title": "Comment",
+        "description": "Free-form context stored in the event content for moderation notes, rationale or audit detail."
+      }
+    }
+  },
   "jobs": {
     "summary": {
       "active": "Active",
@@ -92,7 +200,8 @@
       "refresh": "Refresh",
       "details": "Details",
       "retry": "Retry",
-      "cancel": "Cancel"
+      "cancel": "Cancel",
+      "clearHistory": "Clear history"
     },
     "status": {
       "unknown": "unknown",
@@ -461,7 +570,13 @@
     "openProfile": "Open profile",
     "monitorEvents": "Monitor events",
     "viewProfile": "View profile",
-    "monitor": "Monitor"
+    "monitor": "Monitor",
+    "kpis": {
+      "total": "Total results",
+      "suspects": "Suspects / banned",
+      "bannedOnly": "{{count}} banned",
+      "nip05": "With NIP-05"
+    }
   },
   "stream": {
     "title": "Streams",
@@ -539,7 +654,13 @@
     "userNoName": "user without name",
     "reason": "Reason",
     "noComment": "(no additional comment)",
-    "modalEmptyDescription": "This event does not have loaded reports yet."
+    "modalEmptyDescription": "This event does not have loaded reports yet.",
+    "kpis": {
+      "events": "Reported events",
+      "reports": "Accumulated reports",
+      "topType": "Top report type",
+      "uniqueAuthors": "{{count}} distinct authors"
+    }
   },
   "eventSearch": {
     "title": "Event search",
@@ -714,7 +835,19 @@
     "alreadyExisted": "already existed",
     "syncStatusOk": "Sync result: {{persisted}} via {{relay}}.",
     "syncStatusError": "Sync failed: {{error}}",
-    "syncFailed": "sync failed"
+    "syncFailed": "sync failed",
+    "relatedEvents": "Associated events",
+    "openEvent": "Open event",
+    "noRelatedEvents": "No associated events were found in the e/q references.",
+    "responders": "Users who replied",
+    "replyCount": "{{count}} reply(ies)",
+    "openUser": "Open user",
+    "noResponders": "No indexed replies for this event.",
+    "labels": "Labels",
+    "noLabels": "No labels associated with this event.",
+    "reports": "Reports",
+    "noReports": "No reports associated with this event.",
+    "replyEvents": "Reply events"
   },
   "nostrFilterBuilder": {
     "tagTooltips": {

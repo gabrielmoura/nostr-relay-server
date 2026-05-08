@@ -16,19 +16,21 @@ type JobsBoardProps = {
   filters: AdminJobsFilters
   emptyTitle: string
   emptyDescription: string
+  clearHistoryKey?: string
 }
 
-export function JobsBoard({ title, description, filters, emptyTitle, emptyDescription }: JobsBoardProps) {
+export function JobsBoard({ title, description, filters, emptyTitle, emptyDescription, clearHistoryKey }: JobsBoardProps) {
   const { t } = useTranslation()
   const [statusFilter, setStatusFilter] = useState<AdminJobStatus | "">("")
   const [selectedJob, setSelectedJob] = useState<AdminJob | null>(null)
+  const [dismissedKeys, setDismissedKeys] = useState<string[]>(() => readDismissedJobKeys(clearHistoryKey))
 
   const jobsQuery = useJobsQuery({ ...filters, status: statusFilter || undefined, limit: 30 })
   const retryMutation = useRetryJobMutation()
   const cancelMutation = useCancelJobMutation()
   const detailQuery = useJobQuery(selectedJob?.id ?? "", selectedJob?.queue, Boolean(selectedJob))
 
-  const jobs = jobsQuery.data?.items ?? []
+  const jobs = (jobsQuery.data?.items ?? []).filter((job) => !dismissedKeys.includes(jobKey(job)))
   const activeCount = jobs.filter((job) => job.status === "queued" || job.status === "running" || job.status === "delayed").length
   const failedCount = jobs.filter((job) => job.status === "failed" || job.status === "dead").length
   const completedCount = jobs.filter((job) => job.status === "succeeded").length
@@ -43,6 +45,20 @@ export function JobsBoard({ title, description, filters, emptyTitle, emptyDescri
     ],
     [activeCount, completedCount, failedCount, t],
   )
+
+  const clearableCount = jobs.length
+
+  const handleClearHistory = () => {
+    if (!clearHistoryKey || jobs.length === 0) {
+      return
+    }
+    const next = jobs.map(jobKey)
+    setDismissedKeys((current) => {
+      const merged = [...new Set([...current, ...next])]
+      writeDismissedJobKeys(clearHistoryKey, merged)
+      return merged
+    })
+  }
 
   return (
     <Card className="panel-shadow border-border/70 bg-card/90">
@@ -71,6 +87,11 @@ export function JobsBoard({ title, description, filters, emptyTitle, emptyDescri
               <RefreshCcw className={`size-4 ${jobsQuery.isFetching ? "animate-spin" : ""}`} />
               {t("jobs.actions.refresh", "Atualizar")}
             </Button>
+            {clearHistoryKey ? (
+              <Button disabled={clearableCount === 0} onClick={handleClearHistory} size="sm" type="button" variant="outline">
+                {t("jobs.actions.clearHistory", "Limpar histórico")}
+              </Button>
+            ) : null}
           </div>
         </div>
 
@@ -264,4 +285,31 @@ function formatTimestamp(value?: string) {
     return "-"
   }
   return new Date(value).toLocaleString()
+}
+
+function jobKey(job: AdminJob) {
+  return `${job.queue}:${job.id}`
+}
+
+function readDismissedJobKeys(storageKey?: string) {
+  if (!storageKey || typeof window === "undefined") {
+    return []
+  }
+  try {
+    const raw = window.localStorage.getItem(storageKey)
+    if (!raw) {
+      return []
+    }
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === "string") : []
+  } catch {
+    return []
+  }
+}
+
+function writeDismissedJobKeys(storageKey: string, keys: string[]) {
+  if (typeof window === "undefined") {
+    return
+  }
+  window.localStorage.setItem(storageKey, JSON.stringify(keys))
 }

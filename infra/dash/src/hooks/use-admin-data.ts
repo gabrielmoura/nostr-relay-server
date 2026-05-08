@@ -1,6 +1,14 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient, useSuspenseQuery } from "@tanstack/react-query"
 
-import type { AdminJobsFilters, BanPayload, EventSearchFilters, NIP86ReasonPayload, NIP86RelayMetadataPayload } from "@/types/admin"
+import type {
+  AdminJobsFilters,
+  AdminLabelsFilters,
+  BanPayload,
+  CreateAdminLabelPayload,
+  EventSearchFilters,
+  NIP86ReasonPayload,
+  NIP86RelayMetadataPayload,
+} from "@/types/admin"
 import {
   allowNIP86PubKey,
   banUser,
@@ -9,10 +17,13 @@ import {
   deleteNIP05Identity,
   disconnectConnection,
   fetchEventFromRelays,
+  createLabel,
   getDownloadJob,
   getDownloadJobs,
   getJob,
   getJobs,
+  getLabelsPage,
+  getLabelsSummary,
   getNIP86AllowedPubKeysPage,
   getNIP86BannedEventsPage,
   getNIP86BlockedIPsPage,
@@ -146,6 +157,22 @@ export function useInfiniteReportedEvents(query: string, type: string) {
     queryKey: ["reported-events", query, type],
     queryFn: ({ pageParam }) => getReportedEventsPage(query, type, { limit: defaultPageSize, offset: pageParam }),
     getNextPageParam: (lastPage) => (lastPage.has_more ? lastPage.offset + lastPage.items.length : undefined),
+  })
+}
+
+export function useInfiniteLabels(filters: AdminLabelsFilters) {
+  return useInfiniteQuery({
+    initialPageParam: 0,
+    queryKey: ["labels", filters],
+    queryFn: ({ pageParam }) => getLabelsPage(filters, { limit: defaultPageSize, offset: pageParam }),
+    getNextPageParam: (lastPage) => (lastPage.has_more ? lastPage.offset + lastPage.items.length : undefined),
+  })
+}
+
+export function useLabelsSummary(filters: AdminLabelsFilters) {
+  return useQuery({
+    queryKey: ["labels-summary", filters],
+    queryFn: () => getLabelsSummary(filters),
   })
 }
 
@@ -290,6 +317,21 @@ export function useUnbanMutation() {
         queryClient.invalidateQueries({ queryKey: ["ban-status", pubkey] }),
         queryClient.invalidateQueries({ queryKey: ["user", pubkey] }),
         queryClient.invalidateQueries({ queryKey: ["users-search"] }),
+      ])
+    },
+  })
+}
+
+export function useCreateLabelMutation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (payload: CreateAdminLabelPayload) => createLabel(payload),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["labels"] }),
+        queryClient.invalidateQueries({ queryKey: ["labels-summary"] }),
+        queryClient.invalidateQueries({ queryKey: ["reported-events"] }),
       ])
     },
   })

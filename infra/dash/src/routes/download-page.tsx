@@ -126,6 +126,7 @@ export function DownloadPage() {
         </div>
 
         <JobsBoard
+          clearHistoryKey="jobs-history:download"
           description={t("jobs.download.description", "Downloads enfileirados, em andamento, concluídos ou falhos com estado real do backend.")}
           emptyDescription={t("jobs.download.emptyDescription", "Nenhum download operacional foi disparado ainda.")}
           emptyTitle={t("jobs.download.emptyTitle", "Sem downloads na fila")}

@@ -1192,3 +1192,48 @@ Split NIP-29 scope detection by protocol path:
 - ✅ Group read permissions remain enforced for explicit `#h` filters
 - ✅ Private and hidden group events stay protected on mixed queries through post-query filtering
 - ⚠️ NIP-29 write validation becomes intentionally narrower than raw tag detection, so future group-related kinds must be added explicitly to the helper set
+
+---
+
+## ADR-029: Manage NIP-32 Labels Through the Internal Admin API
+
+**Status:** Proposed  
+**Date:** 2026-05-06
+
+### Context
+
+The relay already stores `kind:1985` events, and the product requirement is to add an operator-facing labels management screen inspired by `ref/divine-relay-manager` without reintroducing its browser/worker publishing model.
+
+We need a native relay implementation that:
+
+1. lists stored labels,
+2. aggregates them by namespace and target,
+3. creates new signed NIP-32 events from the internal admin dashboard.
+
+### Decision
+
+Implement NIP-32 labels management through the internal `/admin` API and the embedded dashboard.
+
+The design is:
+
+1. add `/admin/labels` and `/admin/labels/summary` for server-side reads,
+2. add `POST /admin/labels` for signed label creation,
+3. keep PostgreSQL `event` as the only source of label truth,
+4. sign new label events with `relay_information.priv_key`,
+5. keep banning as a separate moderation action using the existing ban endpoints.
+
+### Reasons
+
+1. **Reuse:** label events already fit the existing event storage model.
+2. **Low-risk rollout:** no migration is required for first delivery.
+3. **Operational consistency:** the dashboard already trusts the internal admin API and token model.
+4. **Protocol fidelity:** the stored object remains a real Nostr `kind:1985` event.
+5. **Feature coverage:** this route lets us support `e`, `p`, `a`, `r`, and `t` targets cleanly.
+
+### Consequences
+
+- ✅ No duplicate labels table.
+- ✅ The admin dashboard stays service-first and browser-safe.
+- ✅ Existing stored `kind:1985` data becomes immediately visible in the UI.
+- ⚠️ Labels created by the dashboard are authored by the relay admin identity, not by each moderator browser key.
+- ⚠️ JSONB tag extraction queries need dedicated tests to avoid regressions in filtering and aggregation.

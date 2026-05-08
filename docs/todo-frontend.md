@@ -33,10 +33,26 @@
 - [x] Fix TypeScript build errors
 - [x] Verify build passes
 
-### 4. Documentation
-- [x] Create `docs/frontend-architecture.md`
-- [x] Create `docs/components-tree.md`
-- [x] Create `docs/state-management.md`
+### 4. Admin Dashboard Enhancements
+- [x] Adopt TanStack Query for server state management
+- [x] Atualizar Vite para v8 e Rolldown
+- [x] Implementar `NostrFilterBuilder` avançado (NIP-01, 24, 29, 34, 35, 39, 50, 52, 73)
+- [x] Substituir formulário de busca legado em `/panel/events/search`
+- [x] Integrar construtor de filtros em `SyncPage` e `DownloadPage`
+- [x] Correção de erros críticos de nulos no WoT
+- [x] Implementar Error Boundaries e Suspense em todas as páginas administrativas
+- [x] Criar tela de "Funcionalidade Desabilitada" (NIP-86, WoT, NIP-29)
+- [x] Create `sync-page.tsx` for Negentropy synchronization
+- [x] Create `download-page.tsx` for bulk event download
+- [x] Create `groups-page.tsx` for NIP-29 group management
+- [x] Create `wot-page.tsx` for WoT & Trusted Pubkeys management
+- [x] Add i18n coverage for all new features
+- [x] Register new routes in `router.tsx`
+
+### 5. Documentation
+- [x] Create/Update `docs/frontend-architecture.md`
+- [x] Create/Update `docs/components-tree.md`
+- [x] Create/Update `docs/state-management.md`
 
 ---
 
@@ -51,6 +67,53 @@
 - [ ] Add NIP-86 dashboard information architecture to docs
 - [ ] Define new internal admin service endpoints consumed by the SPA
 - [ ] Add visual system updates for compact moderation workflows
+
+### Relay Workflow UX
+- [ ] Add reusable relay selection modal with localStorage persistence
+- [ ] Replace raw comma-separated relay editing on `/download` with modal-assisted workflow
+- [ ] Reuse persisted relay selections in event-detail relay recovery
+
+### Download Queue UX
+- [ ] Add backend-backed download job queue cards
+- [ ] Add “Ver filtros” and “Ver detalhes” dialogs for each download job
+- [ ] Surface running/completed/failed visual states without relying only on toast messages
+
+### Generic Operational Jobs UX
+- [ ] Extend `types/admin.ts` with generic job contracts
+- [ ] Extend `services/admin.ts` with generic jobs endpoints and error/request-id propagation
+- [ ] Add TanStack Query hooks for generic jobs polling, retry and cancel
+- [ ] Create `components/features/jobs/` smart/dumb split
+- [ ] Refactor `/download` to consume generic jobs board filtered by `download.events`
+- [ ] Refactor `/sync` to consume generic jobs board filtered by `sync.negentropy`
+- [ ] Add i18n copy for generic queue states, actions and empty/error panels
+- [ ] Verify `pnpm build` for `infra/dash`
+
+### NIP-32 Labels Dashboard
+- [ ] Add `/labels` route in `router.tsx`
+- [ ] Add nav entry in `components/layout/app-shell.tsx`
+- [ ] Extend `types/admin.ts` with `AdminLabelEvent`, `AdminLabelTarget`, `AdminLabelsSummary`, and create payload types
+- [ ] Extend `services/admin.ts` with `getLabels`, `getLabelsSummary`, and `createLabel`
+- [ ] Add TanStack Query hooks for labels list, summary and create mutation
+- [ ] Create `components/features/labels/` smart/dumb split
+- [ ] Implement timeline view for `kind:1985`
+- [ ] Implement grouped `By Target` view
+- [ ] Implement label creation dialog with target types `event`, `pubkey`, `address`, `reference`, `topic`
+- [ ] Accept NIP-19 values in label target input when applicable
+- [ ] Add help button + field glossary modal to `/labels`
+- [ ] Chain optional pubkey ban after successful label creation
+- [ ] Add i18n copy for labels filters, states and actions
+- [ ] Verify `pnpm build` for `infra/dash`
+
+### Operational UX Follow-ups
+- [ ] Add clear-history interaction to `/download`
+- [ ] Add clear-history interaction to `/sync`
+- [ ] Add KPI cards to `/events/reported`
+- [ ] Add KPI cards to `/users/search`
+- [ ] Expand `/events/$eventId` with labels, reports, replies and related actors
+- [ ] Extend `NostrFilterBuilder` to accept NIP-19 or hex where applicable
+- [ ] Fix `/sync` cancel flow so canceled jobs do not auto-resume
+- [ ] Add explicit resume action for canceled sync jobs
+
 
 ---
 
@@ -96,17 +159,15 @@ For each large file, follow the same pattern:
 - [ ] Create `services/events.ts` - event-specific API calls
 - [ ] Create `services/users.ts` - user-specific API calls
 
-### NIP-86 Admin UX
-- [ ] Add `nip86-page.tsx` command center route
-- [ ] Add allowlist management route and components
-- [ ] Add blocked IP management route and components
-- [ ] Add banned event management route and components
+### NIP-86 Admin UX (Phase 1)
+- [x] Add `sync-page.tsx` and `download-page.tsx`
+- [x] Add NIP-29 and WoT management routes
+- [x] Extend `services/admin.ts` and `types/admin.ts` for new responses and mutations
 - [ ] Add relay metadata override form to dashboard
-- [ ] Extend `services/admin.ts` and `types/admin.ts` for new responses and mutations
 
 ### State Management
-- [ ] Evaluate TanStack Query for server state
-- [ ] Add React 19 Actions for form submissions
+- [x] Evaluate and Adopt TanStack Query for server state
+- [ ] Add React 19 Actions for form submissions where applicable
 - [ ] Add useOptimistic for mutations
 
 ### Error Handling

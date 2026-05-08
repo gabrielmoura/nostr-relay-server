@@ -316,6 +316,59 @@ export type ReportedEventItem = {
   target_event?: EventRecord
 }
 
+export type AdminLabelTargetType = "event" | "pubkey" | "address" | "reference" | "topic"
+
+export type AdminLabelTarget = {
+  type: AdminLabelTargetType
+  value: string
+  relay_hint?: string
+}
+
+export type AdminLabelEvent = {
+  id: string
+  pubkey: string
+  author_npub?: string
+  created_at: number
+  kind: number
+  content: string
+  namespace: string
+  labels: string[]
+  target: AdminLabelTarget
+  tags: string[][]
+}
+
+export type AdminLabelCount = {
+  count: number
+  namespace?: string
+  label?: string
+  target_type?: AdminLabelTargetType
+}
+
+export type AdminLabelsSummary = {
+  total_events: number
+  total_targets: number
+  namespaces: AdminLabelCount[]
+  labels: AdminLabelCount[]
+  target_types: AdminLabelCount[]
+}
+
+export type AdminLabelsFilters = {
+  namespace?: string
+  label?: string
+  target_type?: AdminLabelTargetType | ""
+  target?: string
+  author?: string
+  q?: string
+  limit?: number
+}
+
+export type CreateAdminLabelPayload = {
+  namespace: string
+  labels: string[]
+  comment?: string
+  target: AdminLabelTarget
+}
+
 export type EventSearchFilters = {
   query: string
   authors: string[]

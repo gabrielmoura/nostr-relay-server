@@ -159,6 +159,38 @@
 - [x] Add automatic NIP-56 reported events fetch with explicit relay list
 - [x] Add retention cleanup by `older_than_days` with batched deletion
 
+## Phase 35: Redis Queue and Worker Refactor
+
+### 35.1: Docs and design
+- [x] Document current background-work architecture and gaps
+- [x] Write Redis queue/worker design doc
+- [x] Add ADR for Redis Streams operational queue
+- [x] Define planned Redis key schema and config surface
+
+### 35.2: Queue core
+- [x] Add `internal/jobs` contracts and registry
+- [x] Add `infra/queue/redis` package with key builder and script loader
+- [x] Embed and preload Lua scripts via SHA
+- [x] Add queue-specific Prometheus metrics
+
+### 35.3: Worker runtime
+- [x] Implement Redis Streams dispatcher
+- [x] Implement concurrent worker loop with graceful shutdown
+- [x] Implement delayed promoter and pending reclaim flow
+- [x] Implement retry/backoff/jitter and dead-letter routing
+
+### 35.4: Incremental migrations
+- [x] Migrate admin download jobs from in-memory store to queue-backed execution
+- [x] Migrate admin sync from fire-and-forget goroutine to tracked queue job
+- [x] Wrap cron routines as queue handlers while preserving `nrserver cron`
+- [x] Add optional dedicated `worker` Cobra command
+
+### 35.5: Observability and validation
+- [ ] Add integration tests for dispatch, retry, delayed and dead-letter flows
+- [ ] Add compatibility tests for existing admin endpoints
+- [ ] Add metrics assertions for queue depth, retries and worker activity
+- [ ] Document rollout and fallback strategy
+
 ## Phase 18: Testing 🔄 IN PROGRESS
 
 - [ ] Unit tests for policies
@@ -190,6 +222,31 @@
 - [x] Add cursorless incremental windows (`limit` + `offset`) for admin endpoints consumed by virtual scrolling
 - [x] Connect `infra/dash` to backend-served admin endpoints
 - [x] Replace manual pagination in the SPA with virtualized incremental lists
+
+## Phase 37: NIP-32 Labels Management (NEW)
+
+### 37.1: Documentation and contract
+- [ ] Replace legacy labels docs tied to the reference frontend with relay-native requirements
+- [ ] Document internal admin endpoints for labels list, summary and creation
+- [ ] Record NIP-32 target support (`e`, `p`, `a`, `r`, `t`) and relay-signing behavior
+
+### 37.2: Backend read path
+- [ ] Add `infra/db/admin_query.go` queries for `kind:1985` list filters
+- [ ] Add `infra/db/admin_query.go` aggregations for labels summary
+- [ ] Add `GET /admin/labels`
+- [ ] Add `GET /admin/labels/summary`
+
+### 37.3: Backend write path
+- [ ] Add request validation for label creation payloads
+- [ ] Build and sign `kind:1985` events with `relay_information.priv_key`
+- [ ] Persist signed labels through the existing event storage flow
+- [ ] Add focused tests for target mapping, namespace mapping and validation errors
+
+### 37.4: Frontend integration
+- [ ] Add `/labels` route to `infra/dash`
+- [ ] Add labels service methods, types and TanStack Query hooks
+- [ ] Add timeline and by-target management views
+- [ ] Add label creation dialog with optional pubkey ban chaining
 
 ---
 
@@ -459,6 +516,9 @@
 - [ ] Validate NIP-29 moderation/join/leave/group content events
 - [ ] Enforce membership/read policies on `REQ` and `COUNT`
 - [ ] Generate relay-owned `39000`-`39003` state events
+- [ ] Narrow NIP-29 EVENT validation to explicit NIP-29 kinds only
+- [ ] Narrow NIP-29 REQ/COUNT pre-validation to explicit group-scoped filters (`#h` / NIP-29 state kinds)
+- [ ] Add regression coverage for non-NIP-29 events carrying `h`/`d` tags
 
 ### 35.5: Optional Protections
 - [ ] Invite code support (`kind:9009`)

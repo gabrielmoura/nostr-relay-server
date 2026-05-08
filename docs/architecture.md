@@ -115,6 +115,25 @@ Nostr Relay Server is a high-performance Nostr relay implementation in Go, suppo
 | **Admin SPA** | React 19 + Vite + TanStack Router + i18next | Internal operations dashboard (English/Portuguese localization) |
 | **Embedded Assets** | `embed.FS` | Ships `infra/dash/dist` inside the Go binary |
 
+## Planned NIP-32 Labels Management
+
+The relay already stores `kind:1985` label events in the shared `event` table. The next admin feature extends the internal dashboard and admin API so operators can inspect and create NIP-32 labels without relying on a browser-side Nostr signer.
+
+### Backend shape
+
+- **Transport:** internal admin HTTP only (`/admin/labels`, `/admin/labels/summary`, `/admin/labels` POST)
+- **Storage:** existing `event` table; no dedicated `labels` table
+- **Read path:** `infra/handler/http/admin.go` + dedicated query methods in `infra/db/admin_query.go`
+- **Write path:** admin handler validates command payload, builds a `nostr.Event` (`kind:1985`), signs it with `config.Cfg.RelayInformation.PrivKey`, and persists it through the existing event store
+- **Moderation coupling:** optional pubkey ban remains a separate admin action through the existing ban endpoints
+
+### Frontend shape
+
+- **Route:** `/labels` inside `infra/dash`
+- **State model:** TanStack Query for list, summary and create mutation
+- **Feature goal:** timeline view, by-target view, filters, and label creation dialog
+- **NIP coverage:** explicit support for targets `e`, `p`, `a`, `r`, and `t`
+
 ## Directory Structure
 
 ```

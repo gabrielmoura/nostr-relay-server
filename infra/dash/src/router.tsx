@@ -13,12 +13,14 @@ import { StreamStatusPage } from "@/routes/stream-status-page"
 import { UserDetailPage } from "@/routes/user-detail-page"
 import { NIP05Page } from "@/routes/nip05-page"
 import { NIP86Page } from "@/routes/nip86-page"
+import { LabelsPage } from "@/routes/labels-page"
 import { UserSearchPage } from "@/routes/user-search-page"
 import { SyncPage } from "@/routes/sync-page"
 import { DownloadPage } from "@/routes/download-page"
 import { GroupsPage } from "@/routes/groups-page"
 import { WoTPage } from "@/routes/wot-page"
 import { EventSearchRouteSearch } from "@/lib/event-search"
+import { normalizeLabelsSearch, type LabelsRouteSearch } from "@/lib/labels"
 
 const rootRoute = createRootRoute({
   component: AppShell,
@@ -105,6 +107,13 @@ const reportedEventsRoute = createRoute({
   component: ReportedEventsPage,
 })
 
+const labelsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/labels",
+  validateSearch: (search: Record<string, unknown>): LabelsRouteSearch => normalizeLabelsSearch(search),
+  component: LabelsPage,
+})
+
 const streamStatusRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/stream",
@@ -147,6 +156,7 @@ const routeTree = rootRoute.addChildren([
   loggedConnectionsRoute,
   eventSearchRoute,
   reportedEventsRoute,
+  labelsRoute,
   streamStatusRoute,
   eventDetailRoute,
   syncRoute,

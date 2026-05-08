@@ -31,6 +31,10 @@ export function UserSearchPage() {
     return allUsers
   }, [allUsers, mode])
 
+  const bannedCount = allUsers.filter((user) => user.status === "banned").length
+  const suspectOrBannedCount = allUsers.filter((user) => user.status === "suspect" || user.status === "banned" || Boolean(user.reason)).length
+  const nip05Count = allUsers.filter((user) => Boolean(user.nip05)).length
+
   return (
     <div className="space-y-6">
       <PageHeader description={t("userSearch.description")} title={t("userSearch.title")} />
@@ -38,6 +42,12 @@ export function UserSearchPage() {
 
       <Card>
         <CardContent className="space-y-4 p-4">
+          <div className="grid gap-3 md:grid-cols-3">
+            <KpiCard label={t("userSearch.kpis.total", "Resultados totais")} value={String(total)} />
+            <KpiCard label={t("userSearch.kpis.suspects", "Suspeitos / banidos")} value={String(suspectOrBannedCount)} helper={t("userSearch.kpis.bannedOnly", { count: bannedCount, defaultValue: `${bannedCount} banidos` })} />
+            <KpiCard label={t("userSearch.kpis.nip05", "Com NIP-05")} value={String(nip05Count)} />
+          </div>
+
           <div className="grid gap-3 lg:grid-cols-[1fr_auto]">
             <Input placeholder={t("userSearch.inputPlaceholder")} value={query} onChange={(event) => setQuery(event.target.value)} />
             <Button>{t("userSearch.searchProfile")}</Button>
@@ -128,6 +138,16 @@ export function UserSearchPage() {
           ) : null}
         </CardContent>
       </Card>
+    </div>
+  )
+}
+
+function KpiCard({ label, value, helper }: { label: string; value: string; helper?: string }) {
+  return (
+    <div className="rounded-[calc(var(--radius)-0.25rem)] border border-border bg-background/80 px-4 py-4">
+      <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">{label}</p>
+      <p className="mt-2 font-heading text-2xl text-foreground">{value}</p>
+      {helper ? <p className="mt-1 text-xs text-muted-foreground">{helper}</p> : null}
     </div>
   )
 }

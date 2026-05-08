@@ -27,6 +27,9 @@ export function ReportedEventsPage() {
   const pages = reportedQuery.data?.pages ?? []
   const items = pages.flatMap((page) => page.items)
   const total = pages[0]?.total ?? 0
+  const totalReports = items.reduce((acc, item) => acc + item.report_count, 0)
+  const uniqueAuthors = new Set(items.map((item) => item.target_author?.pubkey).filter(Boolean)).size
+  const topType = mostCommon(items.flatMap((item) => item.report_types))
 
   const reportsQuery = useEventReports(selectedEventID ?? "")
   const reports = reportsQuery.data?.pages.flatMap((page) => page.items) ?? []
@@ -50,6 +53,12 @@ export function ReportedEventsPage() {
             ))}
           </SelectContent>
         </Select>
+      </div>
+
+      <div className="grid gap-3 md:grid-cols-3">
+        <KpiCard label={t("reported.kpis.events", "Eventos reportados")} value={String(total)} />
+        <KpiCard label={t("reported.kpis.reports", "Reports acumulados")} value={String(totalReports)} />
+        <KpiCard label={t("reported.kpis.topType", "Tipo dominante")} value={topType || t("reported.notAvailable")} helper={t("reported.kpis.uniqueAuthors", { count: uniqueAuthors, defaultValue: `${uniqueAuthors} autores distintos` })} />
       </div>
 
       {reportedQuery.isLoading && items.length === 0 ? <LoadingPanel label={t("reported.loading")} /> : null}
@@ -151,4 +160,22 @@ export function ReportedEventsPage() {
       </Dialog>
     </div>
   )
+}
+
+function KpiCard({ label, value, helper }: { label: string; value: string; helper?: string }) {
+  return (
+    <div className="rounded-[calc(var(--radius)-0.25rem)] border border-border bg-card px-4 py-4 panel-shadow">
+      <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">{label}</p>
+      <p className="mt-2 font-heading text-2xl text-foreground">{value}</p>
+      {helper ? <p className="mt-1 text-xs text-muted-foreground">{helper}</p> : null}
+    </div>
+  )
+}
+
+function mostCommon(values: string[]) {
+  const counts = new Map<string, number>()
+  for (const value of values) {
+    counts.set(value, (counts.get(value) ?? 0) + 1)
+  }
+  return [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? ""
 }

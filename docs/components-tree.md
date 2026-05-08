@@ -148,6 +148,24 @@ Rules:
 
 ---
 
+### Labels (`components/features/labels/`) - Planned
+
+| Component | Type | Props | Events |
+|-----------|------|-------|--------|
+| `LabelsWorkspace` | Smart | `initialFilters?` | `onCreateLabel`, `onBanPubkey`, `onFilterChange` |
+| `LabelsHelpDialog` | Dumb | `open`, `onOpenChange` | `onOpenChange` |
+| `LabelsStatsStrip` | Dumb | `summary` | - |
+| `LabelsFilterBar` | Dumb | `filters`, `namespaces`, `labels`, `onChange` | `onChange`, `onReset` |
+| `LabelsTimeline` | Dumb | `items`, `isLoading`, `onBanPubkey` | `onBanPubkey`, `onSelectItem` |
+| `LabelsTargetsTable` | Dumb | `items`, `onBanPubkey` | `onBanPubkey`, `onSelectTarget` |
+| `CreateLabelDialog` | Smart | `defaultTarget?`, `open`, `onOpenChange`, `onCreated` | `onCreated`, `onOpenChange` |
+| `LabelFormFields` | Dumb | `value`, `errors`, `onChange` | `onChange`, `onSubmit` |
+| `LabelCategoryPicker` | Dumb | `selected`, `onToggle`, `onAddCustom` | `onToggle`, `onAddCustom` |
+| `LabelTargetBadge` | Dumb | `target` | - |
+| `LabelEmptyState` | Dumb | `title`, `description` | - |
+
+---
+
 ## Route Components (Smart)
 
 Located in `infra/dash/src/routes/`
@@ -167,6 +185,7 @@ Located in `infra/dash/src/routes/`
 | `/stream` | `stream-status-page.tsx` | ~127 | Stream/forward status |
 | `/nip05` | `nip05-page.tsx` | - | NIP-05 management |
 | `/nip86` | `nip86-page.tsx` | - | NIP-86 command center |
+| `/labels` | `labels-page.tsx` | - | NIP-32 labels management |
 | `/sync` | `sync-page.tsx` | ~100 | Negentropy synchronization |
 | `/download` | `download-page.tsx` | ~110 | Bulk event download |
 | `/groups` | `groups-page.tsx` | ~120 | NIP-29 group management |
@@ -176,6 +195,7 @@ Planned route refinements:
 
 - `download-page.tsx` becomes a smart orchestrator for `DownloadForm` + generic `JobsBoard`
 - `sync-page.tsx` becomes a smart orchestrator for `SyncForm` + generic `JobsBoard`
+- `event-detail-page.tsx` should aggregate labels, reports, replies, responder identities and associated events around the primary event
 
 ---
 

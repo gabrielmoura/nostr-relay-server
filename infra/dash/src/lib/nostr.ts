@@ -1,4 +1,5 @@
 import { nip19 } from "nostr-tools"
+import type { AdminLabelTargetType } from "@/types/admin"
 
 export function toNpub(pubkey: string) {
   if (!pubkey) {
@@ -48,5 +49,47 @@ export function toNote(eventID: string) {
     return nip19.noteEncode(eventID)
   } catch {
     return ""
+  }
+}
+
+export function normalizeNip19TargetInput(targetType: AdminLabelTargetType, value: string) {
+  const trimmed = value.trim()
+  if (!trimmed) {
+    return ""
+  }
+
+  if (!trimmed.startsWith("n")) {
+    return trimmed
+  }
+
+  try {
+    const decoded = nip19.decode(trimmed)
+
+    if (targetType === "event") {
+      if (decoded.type === "note") {
+        return decoded.data as string
+      }
+      if (decoded.type === "nevent") {
+        return (decoded.data as { id: string }).id
+      }
+    }
+
+    if (targetType === "pubkey") {
+      if (decoded.type === "npub") {
+        return decoded.data as string
+      }
+      if (decoded.type === "nprofile") {
+        return (decoded.data as { pubkey: string }).pubkey
+      }
+    }
+
+    if (targetType === "address" && decoded.type === "naddr") {
+      const data = decoded.data as { kind: number; pubkey: string; identifier: string }
+      return `${data.kind}:${data.pubkey}:${data.identifier}`
+    }
+
+    return trimmed
+  } catch {
+    return trimmed
   }
 }

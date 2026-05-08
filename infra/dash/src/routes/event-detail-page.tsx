@@ -1,4 +1,5 @@
 import React, { Suspense } from "react"
+import { Link } from "@tanstack/react-router"
 import { QueryErrorResetBoundary } from "@tanstack/react-query"
 import { useParams } from "@tanstack/react-router"
 import { useTranslation } from "react-i18next"
@@ -24,8 +25,11 @@ import {
   LinksAndQuotes,
 } from "@/components/features/event-detail/nostr-references"
 import { EventDetailErrorState } from "@/components/features/event-detail/event-detail-error-state"
-import { useEventDetailSuspense } from "@/hooks/use-admin-data"
+import { Badge } from "@/components/ui/badge"
+import { useEventDetailSuspense, useEventReports, useInfiniteEventSearch, useInfiniteLabels } from "@/hooks/use-admin-data"
+import { labelBadgeVariant } from "@/lib/labels"
 import { firstTagValue, parseImetaResources, parseEventRefTags, parseEmbeddedRepost, tagValues, REACTION_KIND, REPOST_KINDS, LIST_KIND, unique } from "@/lib/event-parser"
+import { shortenId } from "@/lib/utils"
 
 type EventDetailBoundaryProps = {
   children: React.ReactNode
@@ -88,6 +92,18 @@ function EventDetailPageContent({ eventID }: { eventID: string }) {
   const targetEventID = eRefs[0] ?? ""
   const listRefs = event.kind === LIST_KIND ? parseEventRefTags(tags) : []
   const kindLabel = t(`eventDetail.kindLabels.${event.kind}`, { defaultValue: t("eventDetail.specializedKind") })
+
+  const relatedEvents = unique([...eRefs, ...qRefs].filter((value) => value && value !== event.id))
+  const repliesQuery = useInfiniteEventSearch({ query: "", authors: [], kinds: [], tags: [`e:${event.id}`], limit: 20 })
+  const replyEvents = repliesQuery.data?.pages.flatMap((page) => page.items) ?? []
+  const labelsQuery = useInfiniteLabels({ target_type: "event", target: event.id, limit: 20 })
+  const labelEvents = labelsQuery.data?.pages.flatMap((page) => page.items) ?? []
+  const reportsQuery = useEventReports(event.id)
+  const reports = reportsQuery.data?.pages.flatMap((page) => page.items) ?? []
+  const respondingUsers = unique(replyEvents.map((item) => item.pubkey)).map((pubkey) => {
+    const reply = replyEvents.find((item) => item.pubkey === pubkey)
+    return { pubkey, reply }
+  })
 
   return (
     <div className="space-y-6">
@@ -157,6 +173,102 @@ function EventDetailPageContent({ eventID }: { eventID: string }) {
           </CardContent>
         </Card>
       </div>
+
+      <div className="grid gap-4 xl:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>{t("eventDetail.relatedEvents", "Eventos associados")}</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {relatedEvents.length > 0 ? relatedEvents.map((relatedID) => (
+              <div className="flex items-center justify-between gap-3 rounded-[calc(var(--radius)-0.25rem)] border border-border p-3" key={relatedID}>
+                <p className="font-mono text-xs text-foreground">{shortenId(relatedID, 18, 6)}</p>
+                <Link className="text-sm text-primary underline underline-offset-2" params={{ eventId: relatedID }} to="/events/$eventId">
+                  {t("eventDetail.openEvent", "Abrir evento")}
+                </Link>
+              </div>
+            )) : <p className="text-sm text-muted-foreground">{t("eventDetail.noRelatedEvents", "Nenhum evento associado encontrado nos tags e/q.")}</p>}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>{t("eventDetail.responders", "Usuários que responderam")}</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {respondingUsers.length > 0 ? respondingUsers.map((user) => (
+              <div className="flex items-center justify-between gap-3 rounded-[calc(var(--radius)-0.25rem)] border border-border p-3" key={user.pubkey}>
+                <div>
+                  <p className="text-sm font-medium text-foreground">{shortenId(user.pubkey, 16, 6)}</p>
+                  <p className="text-xs text-muted-foreground">{t("eventDetail.replyCount", { count: replyEvents.filter((item) => item.pubkey === user.pubkey).length, defaultValue: `${replyEvents.filter((item) => item.pubkey === user.pubkey).length} resposta(s)` })}</p>
+                </div>
+                <Link className="text-sm text-primary underline underline-offset-2" params={{ pubkey: user.pubkey }} to="/users/$pubkey">
+                  {t("eventDetail.openUser", "Abrir usuário")}
+                </Link>
+              </div>
+            )) : <p className="text-sm text-muted-foreground">{t("eventDetail.noResponders", "Nenhuma resposta indexada para este evento.")}</p>}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>{t("eventDetail.labels", "Labels")}</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {labelEvents.length > 0 ? labelEvents.map((labelEvent) => (
+              <div className="rounded-[calc(var(--radius)-0.25rem)] border border-border p-3" key={labelEvent.id}>
+                <div className="flex flex-wrap gap-2">
+                  <Badge variant="muted">{labelEvent.namespace}</Badge>
+                  {labelEvent.labels.map((label) => (
+                    <Badge key={`${labelEvent.id}-${label}`} variant={labelBadgeVariant(label)}>{label}</Badge>
+                  ))}
+                </div>
+                {labelEvent.content ? <p className="mt-2 text-sm text-foreground">{labelEvent.content}</p> : null}
+                <p className="mt-2 font-mono text-xs text-muted-foreground">{shortenId(labelEvent.id, 18, 6)}</p>
+              </div>
+            )) : <p className="text-sm text-muted-foreground">{t("eventDetail.noLabels", "Nenhum label associado a este evento.")}</p>}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>{t("eventDetail.reports", "Reports")}</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {reports.length > 0 ? reports.map((report) => (
+              <div className="rounded-[calc(var(--radius)-0.25rem)] border border-border p-3" key={report.report_event_id}>
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-sm font-medium text-foreground">{report.report_type || t("reported.other", "other")}</p>
+                  <p className="text-xs text-muted-foreground">{new Date(report.created_at * 1000).toLocaleString()}</p>
+                </div>
+                <p className="mt-1 text-sm text-muted-foreground">{report.content || t("reported.noComment")}</p>
+                <p className="mt-2 font-mono text-xs text-muted-foreground">{shortenId(report.reporter_npub || report.reporter_pubkey, 16, 6)}</p>
+              </div>
+            )) : <p className="text-sm text-muted-foreground">{t("eventDetail.noReports", "Nenhum report associado a este evento.")}</p>}
+          </CardContent>
+        </Card>
+      </div>
+
+      {replyEvents.length > 0 ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>{t("eventDetail.replyEvents", "Eventos de resposta")}</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {replyEvents.map((reply) => (
+              <div className="flex items-center justify-between gap-3 rounded-[calc(var(--radius)-0.25rem)] border border-border p-3" key={reply.id}>
+                <div>
+                  <p className="text-sm font-medium text-foreground">kind {reply.kind}</p>
+                  <p className="text-xs text-muted-foreground">{shortenId(reply.pubkey, 16, 6)}</p>
+                </div>
+                <Link className="text-sm text-primary underline underline-offset-2" params={{ eventId: reply.id }} to="/events/$eventId">
+                  {t("eventDetail.openEvent", "Abrir evento")}
+                </Link>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      ) : null}
     </div>
   )
 }

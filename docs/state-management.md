@@ -275,6 +275,69 @@ Recovery rules:
 - mutation failure -> toast + persistent inline error when action is job-specific
 - selected job dialog must remain open if retry/cancel fails, preserving operator context
 
+### Labels Management Flow (Planned)
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│                   Labels Management Flow                     │
+├──────────────────────────────────────────────────────────────┤
+│                                                              │
+│  URL Search Params                                           │
+│       │ namespace / label / targetType / q                   │
+│       ▼                                                      │
+│  LabelsPage (Smart Route)                                    │
+│       │                                                      │
+│       ├── useLabelsSummaryQuery(filters)                     │
+│       ├── useLabelsQuery(filters)                            │
+│       │                                                      │
+│       ▼                                                      │
+│  LabelsWorkspace (Smart)                                     │
+│       │                                                      │
+│       ├──► LabelsStatsStrip (Dumb)                           │
+│       ├──► LabelsFilterBar (Dumb)                            │
+│       ├──► LabelsTimeline (Dumb)                             │
+│       └──► LabelsTargetsTable (Dumb)                         │
+│                                                              │
+│  CreateLabelDialog (Smart)                                   │
+│       │                                                      │
+│       ├── createLabel mutation                               │
+│       └── optional banUser mutation                          │
+│                                                              │
+└──────────────────────────────────────────────────────────────┘
+```
+
+States:
+
+| State | Meaning |
+|-------|---------|
+| `loading` | summary/list queries are in flight |
+| `success` | list and/or grouped targets available |
+| `empty` | no labels at all or no labels for the current filter |
+| `error` | list/summary fetch failed |
+| `submitting` | create-label mutation in progress |
+| `ban-chaining` | label created, optional ban mutation still running |
+| `mutation-error` | create or ban action failed; form state preserved |
+
+Mutation rules:
+
+- `createLabel` invalidates `labels`, `labels-summary`, and related target-specific pages when applicable
+- optional `banUser` invalidates `banned-users`, `ban-status`, `user`, `users-search`, and `relay-overview`
+- if ban chaining fails after label creation succeeds, the UI must report partial success instead of rolling back the created label visually
+- NIP-19 typed input is normalized in the client before `createLabel` submission so the API still receives canonical values
+
+Recovery rules:
+
+- form input stays intact on mutation failure
+- route-level fetch failure shows inline retry panel
+- mutation failures surface `ApiError.requestId` when available
+
+Related state notes:
+
+- jobs history clearing on `/download` and `/sync` is view-local unless a future backend deletion endpoint is introduced
+- event detail associations may partially load independently (`labels`, `reports`, `reply events`, `reply authors`)
+- sync canceled jobs should transition to a true terminal state; any future return to execution must only happen through an explicit resume mutation
+- `NostrFilterBuilder` should normalize NIP-19 and hex representations into canonical query values before dispatching search state
+
 ### WoT Management Flow
 
 ```

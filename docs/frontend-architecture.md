@@ -22,6 +22,42 @@ The internal admin API should gain dedicated endpoints for:
 - blocked IPs
 - relay metadata overrides
 
+## Planned NIP-32 Labels Dashboard
+
+The dashboard also needs a dedicated labels workspace for `kind:1985` events.
+
+### Product goal
+
+- inspect existing labels already stored on the relay;
+- create new labels from the internal admin UI;
+- support NIP-32 targets `e`, `p`, `a`, `r`, and `t`;
+- normalize applicable NIP-19 input into canonical target values before mutation;
+- optionally chain a pubkey ban after a successful label mutation.
+
+### API strategy
+
+The SPA must stay on the internal admin API and must not publish labels directly over browser WebSocket connections.
+
+Planned service functions in `services/admin.ts`:
+
+- `getLabels(filters)`
+- `getLabelsSummary(filters)`
+- `createLabel(payload)`
+
+Optional ban chaining keeps using the existing ban service:
+
+- `banUser(payload)`
+
+### Visual direction
+
+Using `ui-ux-pro-max`, we keep the existing compact operations-dashboard language and apply only the useful structural guidance:
+
+- **Pattern:** data-dense + drill-down
+- **Layout:** KPI strip + filter bar + dual content views
+- **Interaction:** row highlight, compact chips, quick actions, strong empty/error states
+- **Typography:** current dashboard typography, with monospaced treatment only for ids/namespaces/targets
+- **Important:** preserve the current dashboard palette and avoid a generic purple-heavy visual reset
+
 ## Visual Direction
 
 Using `ui-ux-pro-max`, the recommended direction for the new moderation area is a data-dense operational dashboard:
@@ -148,6 +184,46 @@ routes/
   nip86-blocked-ips-page.tsx    # network blocking and disconnect actions
 ```
 
+## Planned Labels Feature Module
+
+Suggested split:
+
+```text
+components/features/labels/
+  labels-workspace.tsx          # smart orchestrator used by the route
+  labels-help-dialog.tsx        # dumb/help content dialog
+  labels-stats-strip.tsx        # dumb KPI cards
+  labels-filter-bar.tsx         # dumb URL-driven filters
+  labels-timeline.tsx           # dumb event list
+  labels-targets-table.tsx      # dumb aggregated-by-target view
+  create-label-dialog.tsx       # smart mutation container
+  label-form-fields.tsx         # dumb form body
+  label-category-picker.tsx     # dumb category + custom label selector
+```
+
+Planned route:
+
+```text
+routes/
+  labels-page.tsx
+```
+
+## Related operational refinements
+
+- `JobsBoard` should support a clear-history interaction for noisy operational queues like `/download` and `/sync`
+- `/events/reported` and `/users/search` should expose compact KPI strips derived from the current filtered dataset
+- `/events/$eventId` should become a richer moderation workspace by combining event detail with labels, reports, reply authors and associated event references
+- `NostrFilterBuilder` should normalize NIP-19 or hex input consistently across search and operational forms
+- canceled sync jobs must remain terminal until an operator explicitly resumes them
+
+## Current known gap
+
+The current sync queue UX exposes `cancel`, but the backend/runtime behavior can still let a canceled item resume automatically later. The intended fix is:
+
+- preserve `canceled` as a stable terminal state
+- add an explicit `resume` action for canceled jobs
+- keep the frontend board aligned with real backend semantics instead of simulating cancellation locally
+
 ## Planned Relay Workflow Refinement
 
 The dashboard now needs a shared relay-selection UX for operational screens that query external relays.
@@ -271,6 +347,8 @@ This feature should continue to use **TanStack Query** as the primary server-sta
 ### x-request-id Propagation
 
 Backend responses include `x-request-id` header. Currently not propagated to frontend. Future: capture and display in error messages for traceability.
+
+For the labels workspace this becomes mandatory on mutation failures because operators may need to trace rejected label creation or chained ban actions.
 
 ## State Management
 
