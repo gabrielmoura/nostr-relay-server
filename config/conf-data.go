@@ -163,8 +163,9 @@ type JobsConfig struct {
 }
 
 type JobsTargetQueueConfig struct {
-	Queue    string `json:"queue" yaml:"queue" mapstructure:"queue"`
-	Priority string `json:"priority" yaml:"priority" mapstructure:"priority"`
+	Queue                  string `json:"queue" yaml:"queue" mapstructure:"queue"`
+	Priority               string `json:"priority" yaml:"priority" mapstructure:"priority"`
+	MaxConcurrentPerRemote int    `json:"max_concurrent_per_remote" yaml:"max_concurrent_per_remote" mapstructure:"max_concurrent_per_remote"`
 }
 
 type CacheTTLConfig struct {

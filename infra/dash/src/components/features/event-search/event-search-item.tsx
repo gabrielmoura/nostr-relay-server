@@ -9,6 +9,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { getEventTags } from "@/services/admin"
 import { formatDateTime, shortenId } from "@/lib/utils"
 import { parseEventRefs, parseServers, parseProfileContent, eventHeadline, type EventRef } from "@/lib/event-search"
+import { parseCommunityMetadata } from "@/lib/event-parser"
 import type { EventRecord } from "@/types/admin"
 
 interface EventSearchItemProps {
@@ -22,6 +23,7 @@ export function EventSearchItem({ eventItem, index, onOpenJSON }: EventSearchIte
   const refs = parseEventRefs(eventItem)
   const servers = parseServers(eventItem)
   const profile = eventItem.kind === 0 ? parseProfileContent(eventItem.content) : null
+  const community = eventItem.kind === 34550 ? parseCommunityMetadata(eventItem.tags) : null
 
   const copyEventId = async () => {
     await navigator.clipboard.writeText(eventItem.id)
@@ -103,6 +105,22 @@ export function EventSearchItem({ eventItem, index, onOpenJSON }: EventSearchIte
                 </div>
                 <p className="text-muted-foreground truncate">{profile.display_name || profile.name || "Unnamed user"}</p>
                 {profile.about && <p className="line-clamp-2 text-muted-foreground opacity-70 italic">{profile.about}</p>}
+              </div>
+            )}
+
+            {eventItem.kind === 34550 && community && (
+              <div className="rounded border border-emerald-500/20 bg-emerald-500/5 p-2 text-[11px] space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="font-bold text-foreground/80">Community</p>
+                  {community.d ? <span className="text-[9px] px-1.5 py-0.5 bg-background border rounded-sm text-muted-foreground">d: {community.d}</span> : null}
+                </div>
+                {community.description ? <p className="line-clamp-3 text-muted-foreground">{community.description}</p> : null}
+                {community.image ? (
+                  <div className="flex items-center gap-2">
+                    <img alt={community.d || "community image"} className="size-14 rounded object-cover border border-border/60" src={community.image} />
+                    <a className="text-xs text-primary underline underline-offset-2" href={community.image} rel="noreferrer" target="_blank">Abrir imagem</a>
+                  </div>
+                ) : null}
               </div>
             )}
 

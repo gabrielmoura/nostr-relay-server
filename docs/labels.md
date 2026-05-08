@@ -57,7 +57,7 @@ Adicionar uma superficie administrativa interna para labels em `/admin`:
 Responsabilidades:
 
 - consultar labels persistidos no Postgres;
-- expor filtros operacionais por namespace, label, alvo, autor e tipo de alvo;
+- expor filtros operacionais por namespace, um ou multiplos labels, alvo, autor e tipo de alvo;
 - agregar contagens por namespace, label e alvo;
 - criar novos eventos `kind:1985` assinados com `relay_information.priv_key`;
 - persistir o evento no banco reaproveitando o modelo de evento Nostr ja existente;
@@ -101,6 +101,14 @@ Representacao administrativa unificada:
 }
 ```
 
+Para `type = pubkey`, o operador deve poder informar:
+
+- hex canonico
+- `npub`
+- `nprofile`
+
+Todos os formatos devem ser normalizados para hex antes da escrita do evento. Isso significa que sim, o fluxo suporta labeling direto de um perfil/identidade Nostr.
+
 ### Payload de criacao
 
 ```json
@@ -138,6 +146,7 @@ Evento produzido:
 - nenhuma nova tabela sera criada para NIP-32;
 - o armazenamento continua na tabela `event`;
 - a consulta administrativa usa SQL dedicado com `jsonb_array_elements(tags)` para extrair namespace, labels e target;
+- o filtro administrativo por labels deve aceitar repeticao de `label=` com semantica OR para permitir multi-selecao no dashboard;
 - agregacoes operacionais tambem ficam no Postgres, evitando duplicacao em Redis.
 
 ### Publicacao

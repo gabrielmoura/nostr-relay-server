@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 	"time"
 
@@ -95,7 +96,7 @@ func (t *Tracker) Retry(ctx context.Context, queue string, id jobs.JobID) error 
 	if err != nil {
 		return err
 	}
-	if snapshot.Status != jobs.StatusFailed && snapshot.Status != jobs.StatusDead {
+	if snapshot.Status != jobs.StatusFailed && snapshot.Status != jobs.StatusDead && snapshot.Status != jobs.StatusSucceeded {
 		return fmt.Errorf("job %s is not retryable from status %s", id.String(), snapshot.Status.String())
 	}
 
@@ -123,6 +124,8 @@ func (t *Tracker) Cancel(ctx context.Context, queue string, id jobs.JobID) error
 		keys.State(),
 		keys.Meta(id),
 		keys.MetricsBucket(now),
+		keys.Delayed(),
+		keys.Dead(),
 	}, id.String(), now.UnixMilli(), int(t.runtime.MetricsTTL.Seconds())).Result()
 	if err != nil {
 		metrics.NostrQueueLuaErrorsTotal.WithLabelValues(queue, "cancel").Inc()
@@ -130,6 +133,88 @@ func (t *Tracker) Cancel(ctx context.Context, queue string, id jobs.JobID) error
 	}
 
 	return nil
+}
+
+func (t *Tracker) Resume(ctx context.Context, queue string, id jobs.JobID) error {
+	snapshot, err := t.Get(ctx, queue, id)
+	if err != nil {
+		return err
+	}
+	if snapshot.Status != jobs.StatusCanceled {
+		return fmt.Errorf("job %s is not resumable from status %s", id.String(), snapshot.Status.String())
+	}
+	if snapshot.RunAt == nil && snapshot.StartedAt == nil {
+		now := time.Now().UTC()
+		keys := NewKeys(queue)
+		_, err := t.client.Raw().TxPipelined(ctx, func(pipe goredis.Pipeliner) error {
+			pipe.BitField(ctx, keys.State(), "SET", "u3", "#"+id.String(), int64(jobs.StatusQueued))
+			pipe.HSet(ctx, keys.Meta(id), "e", "", "fa", "", "la", now.UnixMilli())
+			return nil
+		})
+		if err != nil {
+			return fmt.Errorf("resume queued job %s: %w", id.String(), err)
+		}
+		return nil
+	}
+	return t.enqueueExisting(ctx, queue, id, snapshot.Priority)
+}
+
+func (t *Tracker) Delete(ctx context.Context, queue string, filter jobs.DeleteFilter) (int64, error) {
+	snapshots, err := t.List(ctx, queue, jobs.ListFilter{Limit: t.runtime.RecentJobsLimit})
+	if err != nil {
+		return 0, err
+	}
+
+	keys := NewKeys(queue)
+	var deleted int64
+	for _, snapshot := range snapshots {
+		if filter.JobName != "" && snapshot.Name != filter.JobName {
+			continue
+		}
+		if len(filter.Statuses) > 0 && !slices.Contains(filter.Statuses, snapshot.Status) {
+			continue
+		}
+		if !isTerminalJobStatus(snapshot.Status) {
+			continue
+		}
+
+		_, err := t.client.Raw().TxPipelined(ctx, func(pipe goredis.Pipeliner) error {
+			pipe.ZRem(ctx, keys.Jobs(), snapshot.ID.String())
+			pipe.ZRem(ctx, keys.Delayed(), snapshot.ID.String())
+			pipe.ZRem(ctx, keys.Dead(), snapshot.ID.String())
+			pipe.Del(ctx, keys.Body(snapshot.ID), keys.Meta(snapshot.ID), keys.Result(snapshot.ID))
+			return nil
+		})
+		if err != nil {
+			return deleted, fmt.Errorf("delete job %s: %w", snapshot.ID.String(), err)
+		}
+		deleted++
+	}
+
+	return deleted, nil
+}
+
+func (t *Tracker) enqueueExisting(ctx context.Context, queue string, id jobs.JobID, priority jobs.Priority) error {
+	now := time.Now().UTC()
+	keys := NewKeys(queue)
+	streamKey := keys.Stream(priority)
+	_, err := t.client.Raw().TxPipelined(ctx, func(pipe goredis.Pipeliner) error {
+		pipe.ZRem(ctx, keys.Dead(), id.String())
+		pipe.ZRem(ctx, keys.Delayed(), id.String())
+		pipe.XAdd(ctx, &goredis.XAddArgs{Stream: streamKey, MaxLen: t.runtime.MaxLenApprox, Approx: true, Values: map[string]any{"i": id.String()}})
+		pipe.BitField(ctx, keys.State(), "SET", "u3", "#"+id.String(), int64(jobs.StatusQueued))
+		pipe.HSet(ctx, keys.Meta(id), "e", "", "ra", "", "fa", "", "sa", "", "la", now.UnixMilli())
+		return nil
+	})
+	if err != nil {
+		metrics.NostrQueueRedisErrorsTotal.WithLabelValues(queue, "reenqueue_manual").Inc()
+		return fmt.Errorf("reenqueue job %s: %w", id.String(), err)
+	}
+	return nil
+}
+
+func isTerminalJobStatus(status jobs.Status) bool {
+	return status == jobs.StatusSucceeded || status == jobs.StatusFailed || status == jobs.StatusDead || status == jobs.StatusCanceled
 }
 
 func buildSnapshot(id jobs.JobID, meta map[string]string, stateVals, attemptVals []int64, bodyValue, resultValue string) (jobs.Snapshot, error) {

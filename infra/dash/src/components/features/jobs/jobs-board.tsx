@@ -2,7 +2,7 @@ import { useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { AlertTriangle, Clock3, LoaderCircle, RefreshCcw, SquareStack, XCircle } from "lucide-react"
 
-import { useCancelJobMutation, useJobQuery, useJobsQuery, useRetryJobMutation } from "@/hooks/use-admin-data"
+import { useCancelJobMutation, useDeleteJobsHistoryMutation, useJobQuery, useJobsQuery, useResumeJobMutation, useRetryJobMutation } from "@/hooks/use-admin-data"
 import type { AdminJob, AdminJobsFilters, AdminJobStatus } from "@/types/admin"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -16,21 +16,21 @@ type JobsBoardProps = {
   filters: AdminJobsFilters
   emptyTitle: string
   emptyDescription: string
-  clearHistoryKey?: string
 }
 
-export function JobsBoard({ title, description, filters, emptyTitle, emptyDescription, clearHistoryKey }: JobsBoardProps) {
+export function JobsBoard({ title, description, filters, emptyTitle, emptyDescription }: JobsBoardProps) {
   const { t } = useTranslation()
   const [statusFilter, setStatusFilter] = useState<AdminJobStatus | "">("")
   const [selectedJob, setSelectedJob] = useState<AdminJob | null>(null)
-  const [dismissedKeys, setDismissedKeys] = useState<string[]>(() => readDismissedJobKeys(clearHistoryKey))
 
   const jobsQuery = useJobsQuery({ ...filters, status: statusFilter || undefined, limit: 30 })
   const retryMutation = useRetryJobMutation()
   const cancelMutation = useCancelJobMutation()
+  const resumeMutation = useResumeJobMutation()
+  const deleteHistoryMutation = useDeleteJobsHistoryMutation()
   const detailQuery = useJobQuery(selectedJob?.id ?? "", selectedJob?.queue, Boolean(selectedJob))
 
-  const jobs = (jobsQuery.data?.items ?? []).filter((job) => !dismissedKeys.includes(jobKey(job)))
+  const jobs = jobsQuery.data?.items ?? []
   const activeCount = jobs.filter((job) => job.status === "queued" || job.status === "running" || job.status === "delayed").length
   const failedCount = jobs.filter((job) => job.status === "failed" || job.status === "dead").length
   const completedCount = jobs.filter((job) => job.status === "succeeded").length
@@ -46,17 +46,16 @@ export function JobsBoard({ title, description, filters, emptyTitle, emptyDescri
     [activeCount, completedCount, failedCount, t],
   )
 
-  const clearableCount = jobs.length
+  const clearableCount = jobs.filter((job) => job.status === "succeeded" || job.status === "failed" || job.status === "dead").length
 
-  const handleClearHistory = () => {
-    if (!clearHistoryKey || jobs.length === 0) {
+  const handleClearHistory = async () => {
+    if (!filters.job_name || clearableCount === 0) {
       return
     }
-    const next = jobs.map(jobKey)
-    setDismissedKeys((current) => {
-      const merged = [...new Set([...current, ...next])]
-      writeDismissedJobKeys(clearHistoryKey, merged)
-      return merged
+    await deleteHistoryMutation.mutateAsync({
+      job_name: filters.job_name,
+      queue: filters.queue,
+      statuses: ["succeeded", "failed", "dead"],
     })
   }
 
@@ -87,11 +86,9 @@ export function JobsBoard({ title, description, filters, emptyTitle, emptyDescri
               <RefreshCcw className={`size-4 ${jobsQuery.isFetching ? "animate-spin" : ""}`} />
               {t("jobs.actions.refresh", "Atualizar")}
             </Button>
-            {clearHistoryKey ? (
-              <Button disabled={clearableCount === 0} onClick={handleClearHistory} size="sm" type="button" variant="outline">
-                {t("jobs.actions.clearHistory", "Limpar histórico")}
-              </Button>
-            ) : null}
+            <Button disabled={clearableCount === 0 || deleteHistoryMutation.isPending || !filters.job_name} onClick={() => void handleClearHistory()} size="sm" type="button" variant="outline">
+              {t("jobs.actions.clearHistory", "Limpar histórico")}
+            </Button>
           </div>
         </div>
 
@@ -140,12 +137,13 @@ export function JobsBoard({ title, description, filters, emptyTitle, emptyDescri
                       </div>
                       <p className="text-sm text-foreground">{detail.title}</p>
                       <p className="text-xs text-muted-foreground">{detail.meta}</p>
+                      {detail.filterSummary ? <p className="text-xs text-muted-foreground">{detail.filterSummary}</p> : null}
                     </div>
                     <div className="flex flex-wrap gap-2">
                       <Button onClick={() => setSelectedJob(job)} size="sm" type="button" variant="outline">
                         {t("jobs.actions.details", "Detalhes")}
                       </Button>
-                      {(job.status === "failed" || job.status === "dead") ? (
+                      {(job.status === "failed" || job.status === "dead" || job.status === "succeeded") ? (
                         <Button
                           disabled={retryMutation.isPending}
                           onClick={() => retryMutation.mutate({ jobID: job.id, queue: job.queue })}
@@ -154,6 +152,11 @@ export function JobsBoard({ title, description, filters, emptyTitle, emptyDescri
                           variant="outline"
                         >
                           {t("jobs.actions.retry", "Reenfileirar")}
+                        </Button>
+                      ) : null}
+                      {job.status === "canceled" ? (
+                        <Button disabled={resumeMutation.isPending} onClick={() => resumeMutation.mutate({ jobID: job.id, queue: job.queue })} size="sm" type="button" variant="outline">
+                          {t("jobs.actions.resume", "Retomar")}
                         </Button>
                       ) : null}
                       {(job.status === "queued" || job.status === "delayed" || job.status === "running") ? (
@@ -261,22 +264,42 @@ function JobStatusBadge({ status }: { status: AdminJobStatus }) {
 }
 
 function getJobDetailSummary(job: AdminJob) {
+  const filterSummary = summarizeJobFilter(job)
   if (job.job_name === "download.events") {
     const relayCount = Array.isArray(job.payload?.request?.relays) ? job.payload.request.relays.length : 0
     return {
       title: relayCount > 0 ? `${relayCount} relays preparados para importação` : "Download operacional em fila",
       meta: `queue=${job.queue} · status=${job.status}`,
+      filterSummary,
     }
   }
   if (job.job_name === "sync.negentropy") {
     return {
       title: job.payload?.remote ? `Sync com ${job.payload.remote}` : "Sincronização Negentropy",
       meta: `direction=${job.payload?.direction ?? "both"} · queue=${job.queue}`,
+      filterSummary,
     }
   }
   return {
     title: job.job_name,
     meta: `queue=${job.queue} · status=${job.status}`,
+    filterSummary,
+  }
+}
+
+function summarizeJobFilter(job: AdminJob) {
+  const payload = job.payload as { filter?: unknown; filter_json?: string; request?: { filter?: unknown } } | undefined
+  const rawFilter = payload?.filter ?? payload?.request?.filter ?? payload?.filter_json
+  if (!rawFilter) {
+    return ""
+  }
+  if (typeof rawFilter === "string") {
+    return rawFilter
+  }
+  try {
+    return JSON.stringify(rawFilter)
+  } catch {
+    return ""
   }
 }
 
@@ -285,31 +308,4 @@ function formatTimestamp(value?: string) {
     return "-"
   }
   return new Date(value).toLocaleString()
-}
-
-function jobKey(job: AdminJob) {
-  return `${job.queue}:${job.id}`
-}
-
-function readDismissedJobKeys(storageKey?: string) {
-  if (!storageKey || typeof window === "undefined") {
-    return []
-  }
-  try {
-    const raw = window.localStorage.getItem(storageKey)
-    if (!raw) {
-      return []
-    }
-    const parsed = JSON.parse(raw)
-    return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === "string") : []
-  } catch {
-    return []
-  }
-}
-
-function writeDismissedJobKeys(storageKey: string, keys: string[]) {
-  if (typeof window === "undefined") {
-    return
-  }
-  window.localStorage.setItem(storageKey, JSON.stringify(keys))
 }

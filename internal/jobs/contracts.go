@@ -27,6 +27,8 @@ type Monitor interface {
 	List(ctx context.Context, queue string, filter ListFilter) ([]Snapshot, error)
 	Retry(ctx context.Context, queue string, id JobID) error
 	Cancel(ctx context.Context, queue string, id JobID) error
+	Resume(ctx context.Context, queue string, id JobID) error
+	Delete(ctx context.Context, queue string, filter DeleteFilter) (int64, error)
 }
 
 type Registry interface {
@@ -53,4 +55,9 @@ type Snapshot struct {
 
 type ListFilter struct {
 	Limit int64
+}
+
+type DeleteFilter struct {
+	JobName  string
+	Statuses []Status
 }

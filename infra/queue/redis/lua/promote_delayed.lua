@@ -16,17 +16,20 @@ local ids = redis.call("ZRANGEBYSCORE", KEYS[1], "-inf", ARGV[1], "LIMIT", 0, AR
 for _, id in ipairs(ids) do
   local removed = redis.call("ZREM", KEYS[1], id)
   if removed == 1 then
-    local metaKey = KEYS[7] .. id
-    local priority = redis.call("HGET", metaKey, "p")
-    local streamKey = KEYS[3]
-    if priority == "high" then
-      streamKey = KEYS[2]
-    elseif priority == "low" then
-      streamKey = KEYS[4]
+    local current = redis.call("BITFIELD", KEYS[5], "GET", "u3", "#" .. id)
+    if current[1] ~= 7 then
+      local metaKey = KEYS[7] .. id
+      local priority = redis.call("HGET", metaKey, "p")
+      local streamKey = KEYS[3]
+      if priority == "high" then
+        streamKey = KEYS[2]
+      elseif priority == "low" then
+        streamKey = KEYS[4]
+      end
+      redis.call("BITFIELD", KEYS[5], "SET", "u3", "#" .. id, 1)
+      redis.call("HDEL", metaKey, "ra")
+      redis.call("XADD", streamKey, "MAXLEN", "~", ARGV[3], "*", "i", id)
     end
-    redis.call("BITFIELD", KEYS[5], "SET", "u3", "#" .. id, 1)
-    redis.call("HDEL", metaKey, "ra")
-    redis.call("XADD", streamKey, "MAXLEN", "~", ARGV[3], "*", "i", id)
   end
 end
 

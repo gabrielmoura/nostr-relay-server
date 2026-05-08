@@ -61,8 +61,9 @@ func TestQueryEventsSQL_BuildsEventQuery(t *testing.T) {
 	require.Contains(t, query, "kind IN ($4)")
 	require.Contains(t, query, "tagvalues && ARRAY[$5,$6]")
 	require.Contains(t, query, "content_search @@ to_tsquery('portuguese', $7)")
-	require.Contains(t, query, "ORDER BY created_at DESC, id LIMIT $8")
-	require.Equal(t, []any{"id1", "id2", "author1", 1, "val1", "val2", "nostr & relay", 3}, params)
+	require.Contains(t, query, "tag->>1 ILIKE $8")
+	require.Contains(t, query, "ORDER BY created_at DESC, id LIMIT $9")
+	require.Equal(t, []any{"id1", "id2", "author1", 1, "val1", "val2", "nostr & relay", "%nostr relay%", 3}, params)
 }
 
 func TestQueryEventsSQL_BuildsCountQuery(t *testing.T) {

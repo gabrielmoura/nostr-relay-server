@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { Separator } from "@/components/ui/separator"
+import { normalizeFilterIdentifier } from "@/lib/nostr"
 
 export interface NostrFilter {
   ids?: string[]
@@ -51,9 +52,10 @@ export function NostrFilterBuilder({ initialFilter = {}, onChange, title, descri
 
   const addListItem = (field: "kinds" | "authors" | "ids", value: any) => {
     if (value === undefined || value === null || (typeof value === "string" && !value.trim())) return
+    const normalizedValue = typeof value === "string" ? normalizeFilterListValue(field, value) : value
     const current = (filter[field] as any[]) || []
-    if (!current.includes(value)) {
-      updateFilter({ [field]: [...current, value] })
+    if (!current.includes(normalizedValue)) {
+      updateFilter({ [field]: [...current, normalizedValue] })
     }
   }
 
@@ -69,8 +71,9 @@ export function NostrFilterBuilder({ initialFilter = {}, onChange, title, descri
     
     const actualKey = k.startsWith("#") ? k : `#${k}`
     const current = (filter[actualKey] as string[]) || []
-    if (!current.includes(v.trim())) {
-      updateFilter({ [actualKey]: [...current, v.trim()] })
+    const normalizedValue = normalizeTagIdentifier(actualKey, v.trim())
+    if (!current.includes(normalizedValue)) {
+      updateFilter({ [actualKey]: [...current, normalizedValue] })
     }
     if (!key) setInputTagValue("")
   }
@@ -116,6 +119,30 @@ export function NostrFilterBuilder({ initialFilter = {}, onChange, title, descri
   const handleNIPInput = (key: string, value: string) => {
     if (value) {
       addTag(key, value)
+    }
+  }
+
+  const normalizeFilterListValue = (field: "kinds" | "authors" | "ids", value: string) => {
+    if (field === "authors") {
+      return normalizeFilterIdentifier("pubkey", value)
+    }
+    if (field === "ids") {
+      return normalizeFilterIdentifier("event", value)
+    }
+    return value
+  }
+
+  const normalizeTagIdentifier = (tagKey: string, value: string) => {
+    switch (tagKey.replace(/^#/, "")) {
+      case "e":
+      case "q":
+        return normalizeFilterIdentifier("event", value)
+      case "p":
+        return normalizeFilterIdentifier("pubkey", value)
+      case "a":
+        return normalizeFilterIdentifier("address", value)
+      default:
+        return value.trim()
     }
   }
 

@@ -101,7 +101,6 @@ export function SyncPage() {
         </div>
 
         <JobsBoard
-          clearHistoryKey="jobs-history:sync"
           description={t("jobs.sync.description", "Acompanhe sincronizações Negentropy com estado durável, tentativas e falhas terminais.")}
           emptyDescription={t("jobs.sync.emptyDescription", "Nenhuma sincronização foi enfileirada ainda.")}
           emptyTitle={t("jobs.sync.emptyTitle", "Sem sincronizações na fila")}

@@ -90,6 +90,8 @@ Relay selection for event recovery should delegate persistence and editing to th
 | `JobQueueSummary` | Dumb | `totals`, `activeCount`, `deadCount`, `delayedCount` | - |
 | `JobCard` | Dumb | `job`, `onViewDetails`, `onRetry`, `onCancel` | `onViewDetails`, `onRetry`, `onCancel` |
 | `JobDetailsDialog` | Dumb | `job`, `open`, `onOpenChange` | `onOpenChange` |
+| `SyncJobFilterPanel` | Dumb | `job` | - |
+| `SyncJobDiagnosticsPanel` | Dumb | `job` | - |
 | `JobResultPanel` | Dumb | `job` | - |
 | `JobEmptyState` | Dumb | `title`, `description` | - |
 
@@ -98,6 +100,7 @@ Rules:
 - `JobsBoard` is the only smart component in this module.
 - all rendering-only blocks stay dumb and reusable across `/download` and `/sync`.
 - no component in `components/features/jobs/` talks to `fetch` directly.
+- sync-specific detail enrichment is additive: only the modal content branches on `job.job_name === "sync.negentropy"`.
 
 **Parser**: `lib/event-parser.ts` (extracts imeta, media, references from event tags)
 
@@ -196,6 +199,12 @@ Planned route refinements:
 - `download-page.tsx` becomes a smart orchestrator for `DownloadForm` + generic `JobsBoard`
 - `sync-page.tsx` becomes a smart orchestrator for `SyncForm` + generic `JobsBoard`
 - `event-detail-page.tsx` should aggregate labels, reports, replies, responder identities and associated events around the primary event
+
+Additional refinements in scope:
+
+- `NostrFilterBuilder` should normalize hex/NIP-19 input before mutating route state
+- `JobsBoard` should gain explicit `resume`, real backend `clear history`, filter preview, and terminal `reenqueue` affordances where supported
+- `event-detail-page.tsx` should show richer responder cards and moderator identities for community events (`kind:34550`)
 
 ---
 

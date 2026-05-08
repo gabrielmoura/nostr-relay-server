@@ -21,6 +21,13 @@ export type EmbeddedRepost = {
   content: string
 }
 
+export type CommunityMetadata = {
+  d: string
+  description: string
+  image: string
+  moderators: string[]
+}
+
 export function firstTagValue(tags: TagTuple[], key: string): string {
   for (const tag of tags) {
     if (tag[0] === key && tag[1]) {
@@ -179,6 +186,22 @@ export function extractThreadRefs(tags: TagTuple[]): { root: string; reply: stri
   return {
     root: rootTag?.[1] ?? "",
     reply: replyTag?.[1] ?? "",
+  }
+}
+
+export function parseCommunityMetadata(tags: TagTuple[]): CommunityMetadata {
+  const moderators: string[] = []
+  for (const tag of tags) {
+    if (tag[0] === "p" && tag[1] && tag[3] === "moderator") {
+      moderators.push(tag[1])
+    }
+  }
+
+  return {
+    d: firstTagValue(tags, "d"),
+    description: firstTagValue(tags, "description"),
+    image: firstTagValue(tags, "image"),
+    moderators: unique(moderators),
   }
 }
 

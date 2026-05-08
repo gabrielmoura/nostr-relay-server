@@ -135,6 +135,8 @@ func (r *RouterFactory) setupInternalRoutes(app *fiber.App) {
 	admin.Get("/jobs/:jobId", httphandler.JobDetail())
 	admin.Post("/jobs/:jobId/retry", httphandler.RetryJob())
 	admin.Post("/jobs/:jobId/cancel", httphandler.CancelJob())
+	admin.Post("/jobs/:jobId/resume", httphandler.ResumeJob())
+	admin.Delete("/jobs", httphandler.DeleteJobsHistory())
 	admin.Get("/groups", httphandler.ListGroups())
 	admin.Get("/wot/summary", httphandler.WoTSummary())
 	admin.Post("/wot/trusted", httphandler.AddTrustedPubkey())

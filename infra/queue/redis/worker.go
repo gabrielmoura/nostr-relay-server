@@ -12,9 +12,12 @@ import (
 	"github.com/gabrielmoura/nostr-relay-server/infra/metrics"
 	iredis "github.com/gabrielmoura/nostr-relay-server/infra/redis"
 	"github.com/gabrielmoura/nostr-relay-server/internal/jobs"
+	syncjob "github.com/gabrielmoura/nostr-relay-server/internal/sync"
 	goredis "github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 )
+
+const syncRemoteConcurrencyReason = "remote relay concurrency cap reached"
 
 type Worker struct {
 	name       string
@@ -157,6 +160,14 @@ func (w *Worker) handleMessage(ctx context.Context, queueName string, priority j
 		return w.failDead(ctx, queueName, envelope.Name, jobID, streamKey, message.ID, fmt.Errorf("no handler registered for %s", envelope.Name), "")
 	}
 
+	jobPayload, err := handler.Decode(envelope.Payload)
+	if err != nil {
+		return w.failDead(ctx, queueName, envelope.Name, jobID, streamKey, message.ID, err, "")
+	}
+	if deferred, err := w.deferIfRemoteSyncAtCapacity(ctx, queueName, envelope.Name, priority, jobID, streamKey, message.ID, jobPayload); err != nil || deferred {
+		return err
+	}
+
 	now := time.Now().UTC()
 	attemptValue, err := w.scripts.start.Run(ctx, w.client.Raw(), []string{
 		keys.State(),
@@ -168,13 +179,12 @@ func (w *Worker) handleMessage(ctx context.Context, queueName string, priority j
 		metrics.NostrQueueLuaErrorsTotal.WithLabelValues(queueName, "start").Inc()
 		return fmt.Errorf("mark job start: %w", err)
 	}
+	if raw, ok := attemptValue.(int64); ok && raw == -1 {
+		return w.ackCanceled(ctx, queueName, streamKey, message.ID, jobID)
+	}
 	attempts, err := toUint64(attemptValue)
 	if err != nil {
 		return err
-	}
-	jobPayload, err := handler.Decode(envelope.Payload)
-	if err != nil {
-		return w.failDead(ctx, queueName, envelope.Name, jobID, streamKey, message.ID, err, "")
 	}
 
 	metrics.NostrQueueJobsStartedTotal.WithLabelValues(queueName, envelope.Name, w.name).Inc()
@@ -195,12 +205,26 @@ func (w *Worker) handleMessage(ctx context.Context, queueName string, priority j
 	handlerCtx = jobs.WithExecutionState(handlerCtx, executionState)
 
 	started := time.Now()
+	releaseRemote, err := w.acquireRemoteSyncSlot(handlerCtx, queueName, envelope.Name, jobPayload)
+	if err != nil {
+		return w.failDead(ctx, queueName, envelope.Name, jobID, streamKey, message.ID, err, "")
+	}
+	if releaseRemote != nil {
+		defer releaseRemote()
+	}
+
 	err = handler.Handle(handlerCtx, jobPayload)
 	duration := time.Since(started)
 	metrics.NostrQueueJobDurationSeconds.WithLabelValues(queueName, envelope.Name).Observe(duration.Seconds())
 	resultJSON, resultErr := jobs.ResultJSON(handlerCtx)
 	if resultErr != nil {
 		log.Logger.Warn("queue job result marshal failed", zap.String("worker", w.name), zap.String("queue", queueName), zap.Error(resultErr))
+	}
+
+	if canceled, cancelErr := w.jobCanceled(ctx, queueName, jobID); cancelErr != nil {
+		return cancelErr
+	} else if canceled {
+		return w.ackCanceled(ctx, queueName, streamKey, message.ID, jobID)
 	}
 
 	if err == nil {
@@ -241,6 +265,106 @@ func (w *Worker) handleMessage(ctx context.Context, queueName string, priority j
 	metrics.NostrQueueJobsRetriedTotal.WithLabelValues(queueName, envelope.Name).Inc()
 
 	return nil
+}
+
+func (w *Worker) deferIfRemoteSyncAtCapacity(
+	ctx context.Context,
+	queueName string,
+	jobName string,
+	priority jobs.Priority,
+	jobID jobs.JobID,
+	streamKey string,
+	messageID string,
+	jobPayload jobs.Job,
+) (bool, error) {
+	if jobName != (syncjob.QueueJob{}).Name() || w.config.SyncMaxConcurrentPerRemote <= 0 {
+		return false, nil
+	}
+
+	syncJob, ok := jobPayload.(syncjob.QueueJob)
+	if !ok {
+		return false, nil
+	}
+	remoteKey := strings.TrimSpace(strings.ToLower(syncJob.Remote))
+	if remoteKey == "" {
+		return false, nil
+	}
+
+	activeKey := syncRemoteActiveKey(queueName, remoteKey)
+	active, err := w.client.Raw().Get(ctx, activeKey).Int()
+	if err != nil && !errors.Is(err, goredis.Nil) {
+		return false, fmt.Errorf("read sync remote concurrency: %w", err)
+	}
+	if active < w.config.SyncMaxConcurrentPerRemote {
+		return false, nil
+	}
+
+	runAt := time.Now().UTC().Add(w.dispatcher.Backoff(1))
+	keys := NewKeys(queueName)
+	_, err = w.scripts.deferJob.Run(ctx, w.client.Raw(), []string{
+		streamKey,
+		keys.Delayed(),
+		keys.State(),
+		keys.MetricsBucket(time.Now().UTC()),
+		keys.Meta(jobID),
+	}, w.config.ConsumerGroup, messageID, jobID.String(), runAt.UnixMilli(), syncRemoteConcurrencyReason, time.Now().UTC().UnixMilli(), int(w.config.MetricsTTL.Seconds())).Result()
+	if err != nil {
+		metrics.NostrQueueLuaErrorsTotal.WithLabelValues(queueName, "defer_remote_cap").Inc()
+		return false, fmt.Errorf("defer sync job %s: %w", jobID.String(), err)
+	}
+	return true, nil
+}
+
+func (w *Worker) acquireRemoteSyncSlot(ctx context.Context, queueName string, jobName string, jobPayload jobs.Job) (func(), error) {
+	if jobName != (syncjob.QueueJob{}).Name() || w.config.SyncMaxConcurrentPerRemote <= 0 {
+		return nil, nil
+	}
+
+	syncJob, ok := jobPayload.(syncjob.QueueJob)
+	if !ok {
+		return nil, nil
+	}
+	remoteKey := strings.TrimSpace(strings.ToLower(syncJob.Remote))
+	if remoteKey == "" {
+		return nil, nil
+	}
+
+	key := syncRemoteActiveKey(queueName, remoteKey)
+	count, err := w.client.Raw().Incr(ctx, key).Result()
+	if err != nil {
+		return nil, fmt.Errorf("acquire sync remote slot: %w", err)
+	}
+	_ = w.client.Raw().Expire(ctx, key, w.config.DefaultTimeout+time.Minute).Err()
+	if int(count) > w.config.SyncMaxConcurrentPerRemote {
+		_, _ = w.client.Raw().Decr(ctx, key).Result()
+		return nil, fmt.Errorf(syncRemoteConcurrencyReason)
+	}
+
+	return func() {
+		_, _ = w.client.Raw().Decr(context.Background(), key).Result()
+	}, nil
+}
+
+func (w *Worker) jobCanceled(ctx context.Context, queueName string, jobID jobs.JobID) (bool, error) {
+	state, err := w.client.Raw().BitField(ctx, NewKeys(queueName).State(), "GET", "u3", "#"+jobID.String()).Result()
+	if err != nil {
+		return false, fmt.Errorf("read job state: %w", err)
+	}
+	return len(state) > 0 && jobs.Status(state[0]) == jobs.StatusCanceled, nil
+}
+
+func (w *Worker) ackCanceled(ctx context.Context, queueName, streamKey, messageID string, jobID jobs.JobID) error {
+	if err := w.client.Raw().XAck(ctx, streamKey, w.config.ConsumerGroup, messageID).Err(); err != nil {
+		return fmt.Errorf("ack canceled job %s: %w", jobID.String(), err)
+	}
+	if err := w.client.Raw().XDel(ctx, streamKey, messageID).Err(); err != nil {
+		return fmt.Errorf("delete canceled job %s: %w", jobID.String(), err)
+	}
+	return nil
+}
+
+func syncRemoteActiveKey(queueName, remote string) string {
+	return fmt.Sprintf("rq:{%s}:sync:remote:%s:active", queueName, remote)
 }
 
 func (w *Worker) failDead(ctx context.Context, queueName, jobName string, jobID jobs.JobID, streamKey, entryID string, cause error, resultJSON string) error {

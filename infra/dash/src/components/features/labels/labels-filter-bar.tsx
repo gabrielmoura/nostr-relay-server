@@ -28,8 +28,23 @@ export function LabelsFilterBar({ filters, summary, onChange, onReset }: LabelsF
       return
     }
 
-    onChange({ label: normalized })
+    const current = new Set(filters.labels ?? [])
+    current.add(normalized)
+    onChange({ labels: [...current] })
     setCustomLabel("")
+  }
+
+  const selectedLabels = filters.labels ?? []
+
+  const toggleLabel = (label: string) => {
+    const normalized = normalizeLabelValue(label)
+    const current = new Set(selectedLabels)
+    if (current.has(normalized)) {
+      current.delete(normalized)
+    } else {
+      current.add(normalized)
+    }
+    onChange({ labels: [...current] })
   }
 
   return (
@@ -73,10 +88,12 @@ export function LabelsFilterBar({ filters, summary, onChange, onReset }: LabelsF
         <div className="space-y-3 rounded-[calc(var(--radius)-0.25rem)] border border-border bg-muted/20 p-3">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-sm font-medium text-foreground">{t("labels.filters.label", "Label")}</span>
-            {filters.label ? (
-              <button className="cursor-pointer" onClick={() => onChange({ label: undefined })} type="button">
-                <Badge variant={labelBadgeVariant(filters.label)}>{filters.label}</Badge>
-              </button>
+            {selectedLabels.length > 0 ? (
+              selectedLabels.map((label) => (
+                <button className="cursor-pointer" key={label} onClick={() => toggleLabel(label)} type="button">
+                  <Badge variant={labelBadgeVariant(label)}>{label}</Badge>
+                </button>
+              ))
             ) : (
               <Badge variant="muted">{t("labels.filters.noLabelSelected", "Nenhum label selecionado")}</Badge>
             )}
@@ -84,12 +101,12 @@ export function LabelsFilterBar({ filters, summary, onChange, onReset }: LabelsF
 
           <div className="flex flex-wrap gap-2">
             {labelPresets.map((preset) => {
-              const active = filters.label === preset.value
+              const active = selectedLabels.includes(preset.value)
               return (
                 <Button
                   className="h-auto justify-start py-1.5"
                   key={preset.value}
-                  onClick={() => onChange({ label: active ? undefined : preset.value })}
+                  onClick={() => toggleLabel(preset.value)}
                   type="button"
                   variant={active ? "default" : "outline"}
                 >
@@ -103,9 +120,9 @@ export function LabelsFilterBar({ filters, summary, onChange, onReset }: LabelsF
               .filter((value): value is string => Boolean(value) && !labelPresets.some((preset) => preset.value === value))
               .slice(0, 8)
               .map((label) => {
-                const active = filters.label === label
+                const active = selectedLabels.includes(label)
                 return (
-                  <Button key={label} onClick={() => onChange({ label: active ? undefined : label })} size="sm" type="button" variant={active ? "default" : "outline"}>
+                  <Button key={label} onClick={() => toggleLabel(label)} size="sm" type="button" variant={active ? "default" : "outline"}>
                     {label}
                   </Button>
                 )

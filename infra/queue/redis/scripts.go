@@ -29,6 +29,9 @@ var promoteDelayedLua string
 //go:embed lua/cancel.lua
 var cancelLua string
 
+//go:embed lua/defer.lua
+var deferLua string
+
 type Scripts struct {
 	enqueue        *goredis.Script
 	start          *goredis.Script
@@ -37,6 +40,7 @@ type Scripts struct {
 	moveDead       *goredis.Script
 	promoteDelayed *goredis.Script
 	cancel         *goredis.Script
+	deferJob       *goredis.Script
 }
 
 func NewScripts() *Scripts {
@@ -48,6 +52,7 @@ func NewScripts() *Scripts {
 		moveDead:       goredis.NewScript(moveDeadLua),
 		promoteDelayed: goredis.NewScript(promoteDelayedLua),
 		cancel:         goredis.NewScript(cancelLua),
+		deferJob:       goredis.NewScript(deferLua),
 	}
 }
 
@@ -63,6 +68,7 @@ func (s *Scripts) Load(ctx context.Context, client *goredis.Client) error {
 		{name: "move_dead", script: s.moveDead},
 		{name: "promote_delayed", script: s.promoteDelayed},
 		{name: "cancel", script: s.cancel},
+		{name: "defer", script: s.deferJob},
 	}
 
 	for _, loader := range loaders {

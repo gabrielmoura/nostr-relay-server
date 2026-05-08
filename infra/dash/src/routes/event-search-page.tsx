@@ -39,6 +39,7 @@ export function EventSearchPage() {
 
   const results = query.data?.pages.flatMap((page) => page.items) ?? []
   const total = query.data?.pages[0]?.total ?? 0
+  const topKind = aggregatesQuery.data?.kinds?.[0]?.kind
 
   const currentNostrFilter = useMemo(() => eventSearchToNostrFilter(filters), [filters])
 
@@ -72,43 +73,19 @@ export function EventSearchPage() {
         title={t("eventSearch.title", "Busca de Eventos")}
       />
 
-      <div className="flex flex-col gap-6 lg:flex-row items-start">
-        {/* Sidebar: Filters */}
-        <aside className="w-full lg:w-[380px] shrink-0 space-y-4 lg:sticky lg:top-4">
-          <NostrFilterBuilder 
-            initialFilter={currentNostrFilter} 
-            onChange={handleFilterChange}
-            description={t("eventSearch.builderDescription", "Refine sua busca no banco de dados do relay.")}
-          />
-          
-          <Card className="panel-shadow border-primary/5 bg-secondary/5 overflow-hidden">
-            <div className="h-1 bg-gradient-to-r from-primary/20 via-primary/40 to-primary/20" />
-            <CardContent className="p-4 space-y-4">
-               <div className="flex items-center justify-between">
-                 <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">{t("eventSearch.stats", "Metricas do Resultado")}</p>
-                 <Badge variant="muted" className="font-mono text-[10px]">{results.length} / {total.toLocaleString()}</Badge>
-               </div>
-               
-               <div className="grid grid-cols-2 gap-3">
-                 <div className="bg-background/40 p-3 rounded-lg border border-border/50 flex flex-col gap-1">
-                    <span className="text-[10px] text-muted-foreground font-medium">Total Global</span>
-                    <span className="text-lg font-mono font-bold tracking-tight text-primary leading-none">{total.toLocaleString()}</span>
-                 </div>
-                 <div className="bg-background/40 p-3 rounded-lg border border-border/50 flex flex-col gap-1">
-                    <span className="text-[10px] text-muted-foreground font-medium">Em Memória</span>
-                    <span className="text-lg font-mono font-bold tracking-tight text-primary leading-none">{results.length}</span>
-                 </div>
-               </div>
+      <div className="grid gap-3 md:grid-cols-3">
+        <KpiCard label="Total Global" value={total.toLocaleString()} />
+        <KpiCard label="Em Memória" value={results.length.toString()} />
+        <KpiCard label="Kind dominante" value={topKind ? String(topKind) : "-"} />
+      </div>
 
-               <Separator className="opacity-30" />
-               
-               <Button variant="outline" size="sm" className="w-full h-9 text-xs gap-2 border-primary/10 hover:bg-primary/5 transition-colors" disabled={results.length === 0}>
-                  <Download className="size-3.5" />
-                  {t("eventSearch.exportJSON", "Exportar Resultado")}
-               </Button>
-            </CardContent>
-          </Card>
-        </aside>
+      <NostrFilterBuilder 
+        initialFilter={currentNostrFilter} 
+        onChange={handleFilterChange}
+        description={t("eventSearch.builderDescription", "Refine sua busca no banco de dados do relay.")}
+      />
+
+      <div className="flex flex-col gap-6 lg:flex-row items-start">
 
         {/* Main Content: Results */}
         <main className="flex-1 min-w-0 w-full">
@@ -231,5 +208,16 @@ export function EventSearchPage() {
         </DialogContent>
       </Dialog>
     </div>
+  )
+}
+
+function KpiCard({ label, value }: { label: string; value: string }) {
+  return (
+    <Card className="panel-shadow border-primary/5 bg-secondary/5 overflow-hidden">
+      <CardContent className="p-4">
+        <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">{label}</p>
+        <p className="mt-2 text-lg font-mono font-bold tracking-tight text-primary leading-none">{value}</p>
+      </CardContent>
+    </Card>
   )
 }

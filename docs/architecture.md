@@ -134,6 +134,17 @@ The relay already stores `kind:1985` label events in the shared `event` table. T
 - **Feature goal:** timeline view, by-target view, filters, and label creation dialog
 - **NIP coverage:** explicit support for targets `e`, `p`, `a`, `r`, and `t`
 
+## Sync Jobs Operator Drill-down
+
+The queue-backed sync flow exposed in `/panel/sync` must preserve enough backend context for later operator inspection inside the generic jobs modal.
+
+Required backend/frontend contract additions:
+
+- sync payload must preserve the normalized filter exactly as executed, even when the original request omits a filter and the runtime falls back to `[{}]`
+- sync result must preserve structured remote rejection details for failed publish attempts (`event_id`, `reason`, and optional raw message)
+- `last_error` remains the compact board-level summary; the modal becomes the drill-down surface for richer diagnostics
+- no new persistence store is introduced; the existing Redis queue `body` and `result` blobs remain the source of truth
+
 ## Directory Structure
 
 ```
@@ -633,5 +644,12 @@ Current rollout status:
 - `cmd/worker` is available for dedicated operational workers
 - admin sync dispatches to the queue when queue mode is enabled
 - cron scheduler mode dispatches queue jobs when queue mode is enabled; one-shot mode still runs inline for compatibility
+
+Next queue/runtime refinements required by the admin UX:
+
+- sync jobs need a real terminal `canceled` state with explicit operator-driven `resume`
+- job history cleanup must become a backend deletion capability, not only a client-side hidden list
+- sync queue scheduling must enforce a strict but configurable max concurrent negentropy connection count per remote relay
+- sync job payloads/results must preserve normalized filter context for later inspection in the dashboard
 
 See `docs/redis-queue-worker-architecture.md` for the detailed design, incremental rollout plan and compatibility constraints.

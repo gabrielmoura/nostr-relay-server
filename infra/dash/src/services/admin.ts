@@ -1,6 +1,7 @@
 import type {
   AdminPage,
   AdminJob,
+  AdminJobStatus,
   AdminJobsFilters,
   AdminJobsResponse,
   BanPayload,
@@ -95,10 +96,18 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return response.json() as Promise<T>
 }
 
-function buildQuery(search: Record<string, string | number | undefined>) {
+function buildQuery(search: Record<string, string | number | string[] | undefined>) {
   const params = new URLSearchParams()
   for (const [key, value] of Object.entries(search)) {
     if (value === undefined || value === "") {
+      continue
+    }
+    if (Array.isArray(value)) {
+      for (const entry of value) {
+        if (entry !== "") {
+          params.append(key, entry)
+        }
+      }
       continue
     }
     params.set(key, String(value))
@@ -470,8 +479,8 @@ export async function getLabelsPage(filters: AdminLabelsFilters, params: PagePar
   if (filters.namespace) {
     search.set("namespace", filters.namespace)
   }
-  if (filters.label) {
-    search.set("label", filters.label)
+  for (const label of filters.labels ?? []) {
+    search.append("label", label)
   }
   if (filters.target_type) {
     search.set("target_type", filters.target_type)
@@ -494,8 +503,8 @@ export async function getLabelsSummary(filters: AdminLabelsFilters) {
   if (filters.namespace) {
     search.set("namespace", filters.namespace)
   }
-  if (filters.label) {
-    search.set("label", filters.label)
+  for (const label of filters.labels ?? []) {
+    search.append("label", label)
   }
   if (filters.target_type) {
     search.set("target_type", filters.target_type)
@@ -699,10 +708,23 @@ export async function retryJob(jobID: string, queue: string) {
   })
 }
 
+export async function resumeJob(jobID: string, queue: string) {
+  return request<{ ok: boolean; id: string; queue: string }>(`/jobs/${encodeURIComponent(jobID)}/resume`, {
+    method: "POST",
+    body: JSON.stringify({ queue }),
+  })
+}
+
 export async function cancelJob(jobID: string, queue: string) {
   return request<{ ok: boolean; id: string; queue: string }>(`/jobs/${encodeURIComponent(jobID)}/cancel`, {
     method: "POST",
     body: JSON.stringify({ queue }),
+  })
+}
+
+export async function deleteJobsHistory(filters: { job_name: string; queue?: string; statuses?: AdminJobStatus[] }) {
+  return request<{ deleted: number }>(`/jobs${buildQuery({ job_name: filters.job_name, queue: filters.queue, status: filters.statuses })}`, {
+    method: "DELETE",
   })
 }
 

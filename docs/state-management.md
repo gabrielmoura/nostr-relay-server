@@ -267,6 +267,7 @@ Mutation rules:
 - start-sync and start-download invalidate the filtered jobs query immediately
 - retry invalidates the relevant jobs list and selected job detail
 - cancel invalidates the relevant jobs list and selected job detail
+- resume invalidates the relevant jobs list and selected job detail
 - the board should poll only while there are active states (`queued`, `delayed`, `running`)
 
 Recovery rules:
@@ -274,6 +275,9 @@ Recovery rules:
 - query failure -> inline panel with retry action
 - mutation failure -> toast + persistent inline error when action is job-specific
 - selected job dialog must remain open if retry/cancel fails, preserving operator context
+- cancel success for sync must stop future execution until a separate resume mutation is invoked
+- sync detail rendering must prefer `job.result.error` and `job.result.rejections` over `job.last_error`
+- sync filter rendering must prefer `job.result.filter`, then fallback payload sources without mutating stored job data
 
 ### Labels Management Flow (Planned)
 
@@ -334,9 +338,15 @@ Recovery rules:
 Related state notes:
 
 - jobs history clearing on `/download` and `/sync` is view-local unless a future backend deletion endpoint is introduced
+- jobs history clearing should migrate to backend deletion once `DELETE /admin/jobs` is implemented
 - event detail associations may partially load independently (`labels`, `reports`, `reply events`, `reply authors`)
 - sync canceled jobs should transition to a true terminal state; any future return to execution must only happen through an explicit resume mutation
 - `NostrFilterBuilder` should normalize NIP-19 and hex representations into canonical query values before dispatching search state
+- the sync details modal is a derived read-only projection of persisted queue payload/result; it must never invent missing diagnostics client-side
+
+Event-search specific note:
+
+- KPI cards should be rendered before filters so the screen opens with immediate situational context
 
 ### WoT Management Flow
 

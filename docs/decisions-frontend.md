@@ -98,3 +98,64 @@ The generic jobs board now exposes cancel actions on `/sync`, but the observed r
 - ✅ frontend actions map more honestly to backend state
 - ✅ filter and target fields become friendlier to real Nostr workflows
 - ⚠️ backend queue semantics may need changes beyond the dashboard layer
+
+---
+
+## ADR-F007: Expand Operator Inputs and Rich Event Context Instead of Requiring Canonical Raw Data
+
+**Status:** Proposed  
+**Date:** 2026-05-06
+
+### Context
+
+Operators naturally work with copied Nostr identifiers like `npub`, `note`, `nevent`, `nprofile` and `naddr`, not only raw hex. They also need richer context for community events (`kind:34550`) and queued sync work without drilling into raw JSON every time.
+
+### Decision
+
+1. `NostrFilterBuilder` should accept NIP-19 or hex wherever the concept allows both
+2. labels target input keeps normalizing profile/event identifiers before submission
+3. `/events/search` and `/events/$eventId` should render `kind:34550`-specific metadata (`d`, `description`, `image`, moderators)
+4. sync job cards/details should expose the filters used and allow reenqueue/resume paths explicitly
+
+### Reasons
+
+1. **Operator ergonomics:** matches real Nostr workflows
+2. **Moderation speed:** reduces hops to inspect relevant metadata
+3. **Safety:** normalization still preserves canonical backend contracts
+
+### Consequences
+
+- ✅ search, sync and labels inputs become easier to use
+- ✅ community events become more interpretable in moderation flows
+- ✅ job actions become more auditable and explicit
+- ⚠️ frontend adapters and backend contracts must stay tightly aligned on normalization rules
+
+---
+
+## ADR-F008: Sync Job Modal Uses Curated Panels for Filter and Relay Rejections
+
+**Status:** Proposed  
+**Date:** 2026-05-08
+
+### Context
+
+The generic jobs dialog already exposes raw payload/result JSON, but operators reviewing sync failures need two answers immediately: which filter was executed and which relay rejections happened. Requiring manual JSON inspection slows triage and hides important diagnostics in noisy blobs.
+
+### Decision
+
+1. keep the generic dialog shell in `JobsBoard`
+2. add curated sync-only panels inside the modal for executed filter and rejection diagnostics
+3. keep raw payload/result JSON panels as secondary, still-visible debug surfaces
+4. prefer structured backend data from `job.result` over reconstructing meaning from `last_error`
+
+### Reasons
+
+1. **Speed:** the operator sees the important sync context first.
+2. **Safety:** the UI reflects persisted backend truth instead of re-deriving diagnostics heuristically.
+3. **Reuse:** the generic jobs route structure remains intact while only the modal body gains sync-specific branches.
+
+### Consequences
+
+- ✅ `/panel/sync` gets a clearer operational drill-down without a new route
+- ✅ raw JSON remains available for deep debugging
+- ⚠️ sync-specific modal content must stay isolated so `/download` and other jobs do not inherit irrelevant UI noise

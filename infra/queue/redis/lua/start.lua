@@ -8,6 +8,12 @@
 -- ARGV[3] metrics ttl seconds
 
 redis.call("BITFIELD", KEYS[1], "SET", "u3", "#" .. ARGV[1], 2)
+local current = redis.call("BITFIELD", KEYS[1], "GET", "u3", "#" .. ARGV[1])
+if current[1] == 7 then
+  return -1
+end
+
+redis.call("BITFIELD", KEYS[1], "SET", "u3", "#" .. ARGV[1], 2)
 local attempts = redis.call("BITFIELD", KEYS[2], "INCRBY", "u8", "#" .. ARGV[1], 1)
 redis.call("HSET", KEYS[4], "a", attempts[1], "la", ARGV[2], "sa", ARGV[2])
 redis.call("HINCRBY", KEYS[3], "started", 1)

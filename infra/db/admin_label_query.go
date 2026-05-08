@@ -11,7 +11,7 @@ import (
 
 type AdminLabelFilters struct {
 	Namespace  string
-	Label      string
+	Labels     []string
 	TargetType string
 	Target     string
 	Author     string
@@ -145,12 +145,22 @@ func buildAdminLabelsWhere(filters AdminLabelFilters) (string, []any) {
 		)`, len(args)))
 	}
 
-	if filters.Label != "" {
-		args = append(args, strings.ToLower(filters.Label))
-		clauses = append(clauses, fmt.Sprintf(`EXISTS (
-			SELECT 1 FROM jsonb_array_elements(e.tags) tag
-			WHERE tag->>0 = 'l' AND lower(tag->>1) = $%d
-		)`, len(args)))
+	if len(filters.Labels) > 0 {
+		labelClauses := make([]string, 0, len(filters.Labels))
+		for _, label := range filters.Labels {
+			normalized := strings.ToLower(strings.TrimSpace(label))
+			if normalized == "" {
+				continue
+			}
+			args = append(args, normalized)
+			labelClauses = append(labelClauses, fmt.Sprintf(`EXISTS (
+				SELECT 1 FROM jsonb_array_elements(e.tags) tag
+				WHERE tag->>0 = 'l' AND lower(tag->>1) = $%d
+			)`, len(args)))
+		}
+		if len(labelClauses) > 0 {
+			clauses = append(clauses, "("+strings.Join(labelClauses, " OR ")+")")
+		}
 	}
 
 	if filters.Author != "" {

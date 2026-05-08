@@ -55,10 +55,12 @@ import {
   startDownloadEvents,
   retryJob,
   cancelJob,
+  deleteJobsHistory,
   getGroupsPage,
   getWoTSummary,
   addTrustedPubkey,
   removeTrustedPubkey,
+  resumeJob,
 } from "@/services/admin"
 
 const defaultPageSize = 50
@@ -557,6 +559,32 @@ export function useCancelJobMutation() {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["jobs"] }),
         queryClient.invalidateQueries({ queryKey: ["job", payload.jobID, payload.queue] }),
+      ])
+    },
+  })
+}
+
+export function useResumeJobMutation() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ jobID, queue }: { jobID: string; queue: string }) => resumeJob(jobID, queue),
+    onSuccess: async (_, payload) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["jobs"] }),
+        queryClient.invalidateQueries({ queryKey: ["job", payload.jobID, payload.queue] }),
+      ])
+    },
+  })
+}
+
+export function useDeleteJobsHistoryMutation() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: deleteJobsHistory,
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["jobs"] }),
+        queryClient.invalidateQueries({ queryKey: ["job"] }),
       ])
     },
   })

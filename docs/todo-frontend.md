@@ -114,6 +114,17 @@
 - [ ] Fix `/sync` cancel flow so canceled jobs do not auto-resume
 - [ ] Add explicit resume action for canceled sync jobs
 
+### New operator refinements
+- [ ] Make labels filter support multiple simultaneous labels
+- [ ] Replace UI-only job history clearing with backend deletion flow
+- [ ] Show filters used in each sync job card/detail
+- [ ] Show the full normalized filter inside the sync job details modal
+- [ ] Render sync rejection details from `job.result` before falling back to `last_error`
+- [ ] Expose `Reenfileirar` on completed jobs when retry semantics are safe
+- [ ] Render kind `34550` metadata inline in `/events/search`
+- [ ] Reorder `/events/search` as KPIs -> filters -> results
+- [ ] Render moderators and richer reply/responder cards in `/events/$eventId` for community events
+
 
 ---
 

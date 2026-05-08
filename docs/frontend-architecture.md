@@ -215,6 +215,8 @@ routes/
 - `/events/$eventId` should become a richer moderation workspace by combining event detail with labels, reports, reply authors and associated event references
 - `NostrFilterBuilder` should normalize NIP-19 or hex input consistently across search and operational forms
 - canceled sync jobs must remain terminal until an operator explicitly resumes them
+- completed jobs should expose a reenqueue/retry action from the board when the backend already supports safe retry semantics
+- `/events/search` should move KPI cards above filters and surface kind `34550` metadata inline
 
 ## Current known gap
 
@@ -223,6 +225,12 @@ The current sync queue UX exposes `cancel`, but the backend/runtime behavior can
 - preserve `canceled` as a stable terminal state
 - add an explicit `resume` action for canceled jobs
 - keep the frontend board aligned with real backend semantics instead of simulating cancellation locally
+
+For labels, the intended target-value behavior is:
+
+- `pubkey` targets accept `hex`, `npub` and `nprofile`
+- labeling a profile is a first-class supported workflow through `target.type = pubkey`
+- API traffic should remain normalized to canonical hex before submission
 
 ## Planned Relay Workflow Refinement
 
@@ -318,6 +326,8 @@ Instead of adding one more isolated page immediately, the first rollout should i
 - query failures render inline operational panels instead of relying only on toast messages
 - retry/cancel mutations must surface backend `x-request-id` when available through the shared `ApiError`
 - dialogs/drawers remain dumb; mutation and polling logic stays in smart containers/hooks
+- sync detail dialogs must prioritize structured `job.result` diagnostics over raw `job.last_error`
+- the sync modal must render the executed filter in a dedicated panel instead of burying it only inside raw payload JSON
 
 ### React 19 decision
 
@@ -349,6 +359,18 @@ This feature should continue to use **TanStack Query** as the primary server-sta
 Backend responses include `x-request-id` header. Currently not propagated to frontend. Future: capture and display in error messages for traceability.
 
 For the labels workspace this becomes mandatory on mutation failures because operators may need to trace rejected label creation or chained ban actions.
+
+## Sync Modal Refinement
+
+Specific UX rules for the `/sync` details modal:
+
+- keep `JobsBoard` as the only smart component; no new API calls move into dialog leaf components
+- add one dedicated filter panel that prefers parsed `job.result.filter`, then falls back to `job.payload.filter`, `job.payload.request.filter`, or `job.payload.filter_json`
+- add one diagnostic panel for `sync.negentropy` that renders:
+  - aggregated result error message
+  - per-event rejection rows (`event_id`, `reason`)
+  - optional raw relay frame for copy/paste debugging
+- keep the existing generic raw payload/result JSON panels for deep inspection, but make them secondary to the curated sync panels
 
 ## State Management
 

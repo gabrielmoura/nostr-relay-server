@@ -1237,3 +1237,72 @@ The design is:
 - ✅ Existing stored `kind:1985` data becomes immediately visible in the UI.
 - ⚠️ Labels created by the dashboard are authored by the relay admin identity, not by each moderator browser key.
 - ⚠️ JSONB tag extraction queries need dedicated tests to avoid regressions in filtering and aggregation.
+
+---
+
+## ADR-030: Treat Sync Cancellation as Terminal and Add Explicit Resume + Backend History Cleanup
+
+**Status:** Proposed  
+**Date:** 2026-05-06
+
+### Context
+
+The queue-backed admin jobs model now powers `/download` and `/sync`, but two operational gaps remain:
+
+1. canceled sync jobs may resume implicitly later,
+2. history clearing is only a frontend hide operation.
+
+Additionally, negentropy sync work can create excessive remote pressure if multiple jobs target the same relay concurrently.
+
+### Decision
+
+1. sync cancellation becomes a terminal backend state,
+2. resuming a canceled sync job requires an explicit new admin action,
+3. backend job history deletion is exposed for bounded dashboard cleanup,
+4. a strict but configurable per-remote concurrency ceiling is enforced for negentropy jobs,
+5. queued sync jobs preserve their normalized filter payload for inspection and reenqueue flows.
+
+### Reasons
+
+1. **Operational trust:** cancel must mean stop.
+2. **Remote safety:** per-relay concurrency needs a hard cap.
+3. **Auditability:** resume and cleanup become explicit actions.
+4. **Usability:** operators need to inspect filters used by old jobs and reenqueue terminal work safely.
+
+### Consequences
+
+- ✅ `/sync` becomes behaviorally consistent with operator intent
+- ✅ backend and frontend state stop diverging on canceled jobs
+- ✅ remote relays are protected from uncontrolled negentropy fan-out
+- ⚠️ queue monitor/worker semantics need implementation work beyond the dashboard layer
+
+---
+
+## ADR-031: Surface Sync Filter and Structured Relay Rejections in Admin Job Details
+
+**Status:** Proposed  
+**Date:** 2026-05-08
+
+### Context
+
+Operators using `/panel/sync` can already open the generic job modal, but today the modal only shows raw payload/result blobs. In practice, sync failures are often caused by relay-specific `OK ... false ...` responses, such as moderated-community restrictions, and the current UI does not surface the executed filter clearly enough.
+
+### Decision
+
+1. keep the generic job endpoints unchanged at the route level (`GET /admin/jobs`, `GET /admin/jobs/:jobId`)
+2. enrich `sync.negentropy` result payloads with a normalized `filter` field and bounded `rejections[]`
+3. keep `last_error` as a compact summary for list cards, while the modal renders structured diagnostics from `result`
+4. preserve the original serialized `filter_json` in the queued payload for retry/resume compatibility
+
+### Reasons
+
+1. **Operator clarity:** the modal should answer "what filter did we run?" without forcing raw JSON inspection.
+2. **Faster debugging:** structured rejection items reveal which event ids failed and why.
+3. **Low-risk rollout:** reuse the existing Redis queue result blob instead of adding new tables or endpoints.
+
+### Consequences
+
+- ✅ `/panel/sync` gains meaningful drill-down diagnostics
+- ✅ relay-specific rejections become auditable after the job finishes
+- ✅ retry/resume flows keep using the same persisted payload contract
+- ⚠️ sync runtime must cap stored rejection details to avoid unbounded result growth

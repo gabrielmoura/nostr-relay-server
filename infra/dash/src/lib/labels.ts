@@ -4,7 +4,7 @@ export type LabelsRouteView = "timeline" | "targets"
 
 export type LabelsRouteSearch = {
   namespace?: string
-  label?: string
+  labels?: string
   targetType?: AdminLabelTargetType
   target?: string
   q?: string
@@ -65,12 +65,24 @@ export function normalizeLabelsSearch(search: Record<string, unknown>): LabelsRo
   const targetType = typeof search.targetType === "string" ? search.targetType : undefined
   return {
     namespace: typeof search.namespace === "string" && search.namespace ? search.namespace : undefined,
-    label: typeof search.label === "string" && search.label ? search.label : undefined,
+    labels: typeof search.labels === "string" && search.labels ? search.labels : undefined,
     targetType: isLabelTargetType(targetType) ? targetType : undefined,
     target: typeof search.target === "string" && search.target ? search.target : undefined,
     q: typeof search.q === "string" && search.q ? search.q : undefined,
     view,
   }
+}
+
+export function parseLabelsRouteLabels(value?: string) {
+  if (!value) {
+    return []
+  }
+  return value.split(",").map((item) => normalizeLabelValue(item)).filter(Boolean)
+}
+
+export function serializeLabelsRouteLabels(values: string[]) {
+  const normalized = values.map((value) => normalizeLabelValue(value)).filter(Boolean)
+  return normalized.length > 0 ? normalized.join(",") : undefined
 }
 
 export function groupLabelsByTarget(items: AdminLabelEvent[]): GroupedLabelTarget[] {

@@ -510,6 +510,12 @@ Removes a user ban by public key.
 
 Searches stored events by tags and/or full-text search.
 
+Behavior notes:
+
+- identifier-oriented fields should accept both canonical hex and applicable NIP-19 forms in the dashboard query builder
+- full-text search must cover `content` and semantic tag text used by rich events, including community `description` tags on kind `34550`
+- when listing kind `34550`, the admin response should keep enough tag data for the frontend to highlight `d`, `description` and `image`
+
 **Query Parameters:**
 - `q=<text>` - full-text search query
 - `tag=p:value` - tag filter, repeatable
@@ -751,7 +757,7 @@ Returns stored NIP-32 label events (`kind:1985`) for the admin dashboard.
 
 **Query Parameters:**
 - `namespace=<text>` - optional exact `L` namespace filter
-- `label=<text>` - optional exact `l` value filter
+- `label=<text>` - optional exact `l` value filter, repeatable for OR-style multi-label filtering
 - `target_type=<event|pubkey|address|reference|topic>` - optional target type filter
 - `target=<text>` - optional exact target value filter
 - `author=<hex_pubkey>` - optional label author filter
@@ -834,8 +840,13 @@ Creates, signs and stores a NIP-32 label event on behalf of the relay admin surf
 - `namespace` is required
 - at least one `labels[]` value is required
 - `target.type` must be one of `event`, `pubkey`, `address`, `reference`, `topic`
-- `target.value` is required
+- `target.value` is required; dashboard-facing UX may accept NIP-19 (`note`, `nevent`, `npub`, `nprofile`, `naddr`) and normalize before submission
 - `relay_information.priv_key` must be configured so the relay can sign the event
+
+Profile-labeling note:
+
+- labeling a profile/identity is supported through `target.type = "pubkey"`
+- the admin UX should accept `hex`, `npub` and `nprofile` for this target type
 
 **Response:**
 ```json
@@ -1067,6 +1078,31 @@ Current response compatibility is preserved, but queue-backed execution should a
 }
 ```
 
+Operational requirements for queued sync jobs:
+
+- the persisted payload/result must include the normalized filter used by the job so `/sync` can display it later
+- the sync detail response must expose the exact filter used plus structured rejection diagnostics when remote relays answer `OK ... false ...`
+- each remote relay must have a strict but configurable cap for concurrent negentropy jobs targeting that same relay
+- canceling a sync job must move it to a true terminal `canceled` state instead of allowing implicit auto-resume
+
+#### `POST /admin/jobs/:jobId/resume`
+
+Explicitly resumes a previously canceled operational job when the job type supports resume semantics.
+
+Initial scope:
+
+- `sync.negentropy`
+
+#### `DELETE /admin/jobs`
+
+Deletes job history from the backend for the specified operational slice instead of only hiding cards in the UI.
+
+**Query Parameters:**
+- `job_name=<name>` - required for bounded cleanup from dashboard screens (`download.events`, `sync.negentropy`)
+- `status=<status>` - optional, repeatable; if omitted the backend may default to terminal states only
+
+This endpoint is intended for history cleanup, not for deleting active/running jobs.
+
 #### `GET /admin/jobs/:jobId`
 
 Generic operational job detail endpoint planned for the dashboard and operator tooling.
@@ -1086,9 +1122,33 @@ Response shape:
   "finished_at": null,
   "run_at": null,
   "last_error": "",
-  "summary": null
+  "payload": {
+    "remote": "wss://relay.damus.io",
+    "direction": "up",
+    "filter_json": "[{\"kinds\":[1]}]"
+  },
+  "result": {
+    "remote": "wss://relay.damus.io",
+    "direction": "up",
+    "status": "failed",
+    "filter": [{"kinds":[1]}],
+    "error": "remote relay rejected 2 event(s)",
+    "rejections": [
+      {
+        "event_id": "d9b70849564dc07fe78d35ac38f372d59b6e14e983ff8a3b22a581bd07db5ce1",
+        "reason": "blocked: please use a dedicated relay for moderated communities",
+        "raw": "[\"OK\",\"d9b70849564dc07fe78d35ac38f372d59b6e14e983ff8a3b22a581bd07db5ce1\",false,\"blocked: please use a dedicated relay for moderated communities\"]"
+      }
+    ]
+  }
 }
 ```
+
+Interpretation rules for `/panel/sync`:
+
+- the modal must prefer `result.filter` over `payload.filter_json` when both exist
+- the modal must prefer `result.rejections` and `result.error` over the compact `last_error`
+- `last_error` still powers the compact job card and list-level warning badge
 
 #### `POST /admin/jobs/:jobId/retry`
 

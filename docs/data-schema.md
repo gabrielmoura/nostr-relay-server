@@ -335,9 +335,14 @@ Recommended label-query access patterns:
 
 - `WHERE kind = 1985`
 - exact namespace filter through `L`
-- exact label filter through `l`
+- repeated label filters through `l` with OR semantics for dashboard multi-select UX
 - exact target filter through `e` / `p` / `a` / `r` / `t`
 - aggregation by namespace, label, and target type for dashboard counters
+
+Profile-labeling support:
+
+- labels targeting identities use the existing `p` tag model
+- dashboard input may arrive as `npub` or `nprofile`, but storage/query remain canonical hex pubkeys in the event tags
 
 ### Count Queries
 
@@ -471,6 +476,47 @@ Stored in `rq:{queue}:state` with `BITFIELD` using 3 bits per sequential id.
 - payload stays in STRING to avoid large Hash memory overhead.
 - per-job Hash data must remain compact; no large JSON blobs in Hash fields.
 - all queue keys for the same logical queue share one Redis hash tag (`{queue}`) to keep Lua multi-key operations cluster-safe.
+
+### Sync Job Payload and Result Shape
+
+For `sync.negentropy`, the Redis `body` and `result` blobs are the audit surface consumed by `/panel/sync`.
+
+Recommended payload subset:
+
+```json
+{
+  "remote": "wss://relay.example.com",
+  "direction": "up",
+  "public_key": "",
+  "filter_json": "[{\"kinds\":[1],\"authors\":[\"..."]}]",
+  "timeout_seconds": 30
+}
+```
+
+Recommended result subset:
+
+```json
+{
+  "remote": "wss://relay.example.com",
+  "direction": "up",
+  "status": "failed",
+  "filter": [{"kinds":[1],"authors":["..."]}],
+  "error": "remote relay rejected 2 event(s)",
+  "rejections": [
+    {
+      "event_id": "d9b708...",
+      "reason": "blocked: please use a dedicated relay for moderated communities",
+      "raw": "[\"OK\",\"d9b708...\",false,\"blocked: please use a dedicated relay for moderated communities\"]"
+    }
+  ]
+}
+```
+
+Notes:
+
+- `filter_json` keeps the original serialized request for requeue compatibility.
+- `result.filter` stores the normalized parsed filter used at runtime so the UI does not need to reverse-engineer it.
+- `result.rejections` is bounded, human-readable diagnostic data; `meta.e` keeps only the compact `last_error` summary.
 
 ### Configuration
 

@@ -85,6 +85,10 @@ type adminJobMutationRequest struct {
 	Queue string `json:"queue"`
 }
 
+type adminJobDeleteResponse struct {
+	Deleted int64 `json:"deleted"`
+}
+
 func NegentropySync() fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		var req NegentropySyncRequest
@@ -306,6 +310,61 @@ func CancelJob() fiber.Handler {
 	}
 }
 
+func ResumeJob() fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		service := jobcore.Default()
+		if service == nil || service.Monitor == nil {
+			return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"error": "job runtime is not initialized"})
+		}
+
+		jobID, err := jobcore.ParseJobID(c.Params("jobId"))
+		if err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		}
+
+		queueName, err := resolveAdminJobQueue(c)
+		if err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		}
+
+		if err := service.Monitor.Resume(c.UserContext(), queueName, jobID); err != nil {
+			return internalServerError(c, err)
+		}
+
+		return c.JSON(fiber.Map{"ok": true, "id": jobID.String(), "queue": queueName})
+	}
+}
+
+func DeleteJobsHistory() fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		service := jobcore.Default()
+		if service == nil || service.Monitor == nil {
+			return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"error": "job runtime is not initialized"})
+		}
+
+		jobName := strings.TrimSpace(c.Query("job_name"))
+		if jobName == "" {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "job_name is required"})
+		}
+
+		statuses := parseAdminJobStatuses(c.Request().URI().QueryArgs().PeekMulti("status"))
+		if len(statuses) == 0 {
+			statuses = []jobcore.Status{jobcore.StatusSucceeded, jobcore.StatusFailed, jobcore.StatusDead, jobcore.StatusCanceled}
+		}
+
+		var deleted int64
+		for _, queueName := range adminJobQueues(strings.TrimSpace(c.Query("queue"))) {
+			count, err := service.Monitor.Delete(c.UserContext(), queueName, jobcore.DeleteFilter{JobName: jobName, Statuses: statuses})
+			if err != nil {
+				return internalServerError(c, err)
+			}
+			deleted += count
+		}
+
+		return c.JSON(adminJobDeleteResponse{Deleted: deleted})
+	}
+}
+
 func adminJobFromSnapshot(snapshot jobcore.Snapshot) AdminJob {
 	item := AdminJob{
 		ID:          snapshot.ID.String(),
@@ -404,6 +463,23 @@ func resolveAdminJobQueue(c *fiber.Ctx) (string, error) {
 		return "", fmt.Errorf("queue is required")
 	}
 	return queueName, nil
+}
+
+func parseAdminJobStatuses(values [][]byte) []jobcore.Status {
+	statuses := make([]jobcore.Status, 0, len(values))
+	for _, raw := range values {
+		switch strings.TrimSpace(string(raw)) {
+		case jobcore.StatusSucceeded.String():
+			statuses = append(statuses, jobcore.StatusSucceeded)
+		case jobcore.StatusFailed.String():
+			statuses = append(statuses, jobcore.StatusFailed)
+		case jobcore.StatusDead.String():
+			statuses = append(statuses, jobcore.StatusDead)
+		case jobcore.StatusCanceled.String():
+			statuses = append(statuses, jobcore.StatusCanceled)
+		}
+	}
+	return statuses
 }
 
 func ListGroups() fiber.Handler {

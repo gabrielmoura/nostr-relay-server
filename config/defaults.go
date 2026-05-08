@@ -128,6 +128,7 @@ func setDefaults(export bool) {
 	viper.SetDefault("jobs.download.priority", "normal")
 	viper.SetDefault("jobs.sync.queue", "admin")
 	viper.SetDefault("jobs.sync.priority", "normal")
+	viper.SetDefault("jobs.sync.max_concurrent_per_remote", 1)
 	viper.SetDefault("jobs.cron.queue", "cron")
 	viper.SetDefault("jobs.cron.priority", "normal")
 

@@ -99,8 +99,15 @@ func addSearchCondition(conditions *[]string, params *[]any, search string) {
 	}
 	terms := strings.Fields(search)
 	tsQuery := strings.Join(terms, " & ")
-	*conditions = append(*conditions, "content_search @@ to_tsquery('portuguese', ?)")
+	*conditions = append(*conditions, `(
+		content_search @@ to_tsquery('portuguese', ?)
+		OR EXISTS (
+			SELECT 1 FROM jsonb_array_elements(tags) tag
+			WHERE lower(tag->>0) = 'description' AND tag->>1 ILIKE ?
+		)
+	)`)
 	*params = append(*params, tsQuery)
+	*params = append(*params, "%"+search+"%")
 }
 
 func addDeletionCondition(conditions *[]string, fakeDeletion bool) {

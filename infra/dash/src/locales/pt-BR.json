@@ -201,7 +201,8 @@
       "details": "Detalhes",
       "retry": "Reenfileirar",
       "cancel": "Cancelar",
-      "clearHistory": "Limpar histórico"
+      "clearHistory": "Limpar histórico",
+      "resume": "Retomar"
     },
     "status": {
       "unknown": "desconhecido",
@@ -847,7 +848,9 @@
     "noLabels": "Nenhum label associado a este evento.",
     "reports": "Reports",
     "noReports": "Nenhum report associado a este evento.",
-    "replyEvents": "Eventos de resposta"
+    "replyEvents": "Eventos de resposta",
+    "moderators": "Moderadores",
+    "showImage": "Exibir imagem"
   },
   "nostrFilterBuilder": {
     "tagTooltips": {

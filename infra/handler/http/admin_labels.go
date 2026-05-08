@@ -140,11 +140,17 @@ func CreateLabel() fiber.Handler {
 func adminLabelFiltersFromRequest(c *fiber.Ctx) (dbmodel.AdminLabelFilters, error) {
 	filters := dbmodel.AdminLabelFilters{
 		Namespace:  strings.TrimSpace(c.Query("namespace")),
-		Label:      strings.TrimSpace(c.Query("label")),
 		TargetType: strings.TrimSpace(c.Query("target_type")),
 		Target:     strings.TrimSpace(c.Query("target")),
 		Author:     strings.TrimSpace(c.Query("author")),
 		Query:      strings.TrimSpace(c.Query("q")),
+	}
+	for _, rawLabel := range c.Request().URI().QueryArgs().PeekMulti("label") {
+		label := strings.TrimSpace(string(rawLabel))
+		if label == "" {
+			continue
+		}
+		filters.Labels = append(filters.Labels, label)
 	}
 
 	if filters.TargetType != "" {
@@ -163,8 +169,8 @@ func adminLabelFiltersFromRequest(c *fiber.Ctx) (dbmodel.AdminLabelFilters, erro
 		filters.Author = normalizedAuthor
 	}
 
-	if filters.Target != "" && filters.TargetType == "pubkey" {
-		normalizedTarget, err := normalizePublicKey(filters.Target)
+	if filters.Target != "" && filters.TargetType != "" {
+		normalizedTarget, err := normalizeAdminLabelTargetValue(filters.TargetType, filters.Target)
 		if err != nil {
 			return dbmodel.AdminLabelFilters{}, err
 		}
@@ -197,11 +203,9 @@ func buildAdminLabelEvent(req adminCreateLabelRequest, now time.Time) (*nostr.Ev
 	if targetValue == "" {
 		return nil, fmt.Errorf("target value is required")
 	}
-	if targetType == "pubkey" {
-		targetValue, err = normalizePublicKey(targetValue)
-		if err != nil {
-			return nil, err
-		}
+	targetValue, err = normalizeAdminLabelTargetValue(targetType, targetValue)
+	if err != nil {
+		return nil, err
 	}
 
 	tags := nostr.Tags{{"L", namespace}}
@@ -234,6 +238,19 @@ func buildAdminLabelEvent(req adminCreateLabelRequest, now time.Time) (*nostr.Ev
 		Tags:      tags,
 		Content:   strings.TrimSpace(req.Comment),
 	}, nil
+}
+
+func normalizeAdminLabelTargetValue(targetType string, targetValue string) (string, error) {
+	switch targetType {
+	case "pubkey":
+		return normalizePublicKey(targetValue)
+	case "event":
+		return normalizeEventID(targetValue)
+	case "address":
+		return normalizeAddressValue(targetValue)
+	default:
+		return targetValue, nil
+	}
 }
 
 func normalizeAdminLabelTargetType(value string) (string, error) {

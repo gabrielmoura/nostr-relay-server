@@ -28,7 +28,7 @@ export function parseCSV(value?: string): string[] {
 
 export function parseSearchToFilters(search: EventSearchRouteSearch): EventSearchFilters {
   const parsedKinds = parseCSV(search.kinds)
-    .map((value) => Number(value))
+    .map((value) => Number(value.replace(/^"|"$/g, "")))
     .filter((value) => !Number.isNaN(value))
 
   const parsedTags = parseCSV(search.tags).map((value) => {
@@ -107,6 +107,11 @@ export function eventHeadline(eventItem: EventRecord): string {
     const title = tagValue(eventItem, "title")
     const dTag = tagValue(eventItem, "d")
     return title || dTag || "(lista sem titulo)"
+  }
+  if (eventItem.kind === 34550) {
+    const dTag = tagValue(eventItem, "d")
+    const description = tagValue(eventItem, "description")
+    return dTag || description || "(comunidade sem descricao)"
   }
   return eventItem.content || "(sem conteudo textual)"
 }

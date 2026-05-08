@@ -9,24 +9,25 @@ import (
 )
 
 type RuntimeConfig struct {
-	ConsumerGroup      string
-	WorkerCount        int
-	BlockTimeout       time.Duration
-	BatchSize          int64
-	MaxLenApprox       int64
-	BodyTTL            time.Duration
-	ResultTTL          time.Duration
-	MetricsTTL         time.Duration
-	ReclaimIdle        time.Duration
-	ReclaimBatchSize   int64
-	PromoteBatchSize   int64
-	PromoteInterval    time.Duration
-	RecentJobsLimit    int64
-	DefaultQueue       string
-	DefaultTimeout     time.Duration
-	DefaultMaxAttempts uint8
-	RetryPolicy        jobs.RetryPolicy
-	WorkerWindow       time.Duration
+	ConsumerGroup              string
+	WorkerCount                int
+	BlockTimeout               time.Duration
+	BatchSize                  int64
+	MaxLenApprox               int64
+	BodyTTL                    time.Duration
+	ResultTTL                  time.Duration
+	MetricsTTL                 time.Duration
+	ReclaimIdle                time.Duration
+	ReclaimBatchSize           int64
+	PromoteBatchSize           int64
+	PromoteInterval            time.Duration
+	RecentJobsLimit            int64
+	DefaultQueue               string
+	DefaultTimeout             time.Duration
+	DefaultMaxAttempts         uint8
+	SyncMaxConcurrentPerRemote int
+	RetryPolicy                jobs.RetryPolicy
+	WorkerWindow               time.Duration
 }
 
 func NewRuntimeConfig(redisCfg config.RedisQueueConfig, jobsCfg config.JobsConfig) (RuntimeConfig, error) {
@@ -41,22 +42,23 @@ func NewRuntimeConfig(redisCfg config.RedisQueueConfig, jobsCfg config.JobsConfi
 	}
 
 	return RuntimeConfig{
-		ConsumerGroup:      redisCfg.ConsumerGroup,
-		WorkerCount:        redisCfg.WorkerCount,
-		BlockTimeout:       time.Duration(redisCfg.BlockMS) * time.Millisecond,
-		BatchSize:          maxInt64(redisCfg.BatchSize, 1),
-		MaxLenApprox:       maxInt64(redisCfg.MaxLenApprox, 1),
-		BodyTTL:            time.Duration(maxInt(redisCfg.BodyTTLSeconds, 1)) * time.Second,
-		ResultTTL:          time.Duration(maxInt(redisCfg.ResultTTLSeconds, 1)) * time.Second,
-		MetricsTTL:         time.Duration(maxInt(redisCfg.MetricsTTLSeconds, 1)) * time.Second,
-		ReclaimIdle:        time.Duration(maxInt(redisCfg.ReclaimIdleSeconds, 1)) * time.Second,
-		ReclaimBatchSize:   maxInt64(redisCfg.ReclaimBatchSize, 1),
-		PromoteBatchSize:   maxInt64(redisCfg.PromoteBatchSize, 1),
-		PromoteInterval:    time.Duration(maxInt(redisCfg.PromoteIntervalMS, 1)) * time.Millisecond,
-		RecentJobsLimit:    maxInt64(redisCfg.RecentJobsListLimit, 1),
-		DefaultQueue:       jobsCfg.DefaultQueue,
-		DefaultTimeout:     time.Duration(maxInt(jobsCfg.DefaultTimeoutSeconds, 1)) * time.Second,
-		DefaultMaxAttempts: uint8(jobsCfg.DefaultMaxAttempts),
+		ConsumerGroup:              redisCfg.ConsumerGroup,
+		WorkerCount:                redisCfg.WorkerCount,
+		BlockTimeout:               time.Duration(redisCfg.BlockMS) * time.Millisecond,
+		BatchSize:                  maxInt64(redisCfg.BatchSize, 1),
+		MaxLenApprox:               maxInt64(redisCfg.MaxLenApprox, 1),
+		BodyTTL:                    time.Duration(maxInt(redisCfg.BodyTTLSeconds, 1)) * time.Second,
+		ResultTTL:                  time.Duration(maxInt(redisCfg.ResultTTLSeconds, 1)) * time.Second,
+		MetricsTTL:                 time.Duration(maxInt(redisCfg.MetricsTTLSeconds, 1)) * time.Second,
+		ReclaimIdle:                time.Duration(maxInt(redisCfg.ReclaimIdleSeconds, 1)) * time.Second,
+		ReclaimBatchSize:           maxInt64(redisCfg.ReclaimBatchSize, 1),
+		PromoteBatchSize:           maxInt64(redisCfg.PromoteBatchSize, 1),
+		PromoteInterval:            time.Duration(maxInt(redisCfg.PromoteIntervalMS, 1)) * time.Millisecond,
+		RecentJobsLimit:            maxInt64(redisCfg.RecentJobsListLimit, 1),
+		DefaultQueue:               jobsCfg.DefaultQueue,
+		DefaultTimeout:             time.Duration(maxInt(jobsCfg.DefaultTimeoutSeconds, 1)) * time.Second,
+		DefaultMaxAttempts:         uint8(jobsCfg.DefaultMaxAttempts),
+		SyncMaxConcurrentPerRemote: maxInt(jobsCfg.Sync.MaxConcurrentPerRemote, 1),
 		RetryPolicy: jobs.RetryPolicy{
 			BaseDelay: time.Duration(maxInt(jobsCfg.RetryBaseDelayMS, 1)) * time.Millisecond,
 			MaxDelay:  time.Duration(maxInt(jobsCfg.RetryMaxDelayMS, 1)) * time.Millisecond,

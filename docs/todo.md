@@ -191,6 +191,14 @@
 - [ ] Add metrics assertions for queue depth, retries and worker activity
 - [ ] Document rollout and fallback strategy
 
+### 35.6: Sync queue hardening and operator controls
+- [ ] Add terminal cancel semantics for `sync.negentropy`
+- [ ] Add explicit resume action for canceled sync jobs
+- [ ] Add backend history cleanup endpoint for dashboard job boards
+- [ ] Add configurable per-remote negentropy concurrency cap
+- [ ] Persist normalized filter context in sync job payload/result for admin inspection
+- [ ] Persist structured relay rejection details in sync job result for admin inspection
+
 ## Phase 18: Testing 🔄 IN PROGRESS
 
 - [ ] Unit tests for policies
@@ -235,6 +243,7 @@
 - [ ] Add `infra/db/admin_query.go` aggregations for labels summary
 - [ ] Add `GET /admin/labels`
 - [ ] Add `GET /admin/labels/summary`
+- [ ] Support repeated `label=` query params for multi-label filtering
 
 ### 37.3: Backend write path
 - [ ] Add request validation for label creation payloads
@@ -247,6 +256,11 @@
 - [ ] Add labels service methods, types and TanStack Query hooks
 - [ ] Add timeline and by-target management views
 - [ ] Add label creation dialog with optional pubkey ban chaining
+
+### 37.5: Admin search/detail enrichment
+- [ ] Extend event search UX to highlight kind `34550` metadata (`d`, `description`, `image`)
+- [ ] Include semantic `description` tags in full-text event search
+- [ ] Enrich event detail with moderators, richer replies and community metadata
 
 ---
 

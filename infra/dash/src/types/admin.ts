@@ -91,6 +91,7 @@ export type AdminJobsFilters = {
   queue?: string
   job_name?: string
   status?: AdminJobStatus | ""
+  statuses?: AdminJobStatus[]
   limit?: number
 }
 
@@ -354,7 +355,7 @@ export type AdminLabelsSummary = {
 
 export type AdminLabelsFilters = {
   namespace?: string
-  label?: string
+  labels?: string[]
   target_type?: AdminLabelTargetType | ""
   target?: string
   author?: string

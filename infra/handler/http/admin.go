@@ -1113,6 +1113,10 @@ func buildAdminFilter(c *fiber.Ctx) nostr.Filter {
 			continue
 		}
 		key := strings.TrimPrefix(pieces[0], "#")
+		if normalized, err := normalizeTagQueryValue(key, pieces[1]); err == nil {
+			tags[key] = append(tags[key], normalized)
+			continue
+		}
 		tags[key] = append(tags[key], pieces[1])
 	}
 
@@ -1139,6 +1143,10 @@ func buildAdminFilter(c *fiber.Ctx) nostr.Filter {
 		search = normalized
 	}
 	if eventIDPattern.MatchString(search) {
+		filter := nostr.Filter{IDs: []string{search}, Authors: normalizedAuthors, Kinds: parseKinds(queryArgs.PeekMulti("kind")), Tags: tags, Limit: adminLimit(c)}
+		return filter
+	}
+	if publicKeyPattern.MatchString(search) {
 		normalizedAuthors = append(normalizedAuthors, search)
 		search = ""
 	}
@@ -1309,6 +1317,78 @@ func normalizePublicKey(value string) (string, error) {
 		}
 		return pubkey, nil
 	}
+	if strings.HasPrefix(value, "nprofile") {
+		prefix, decoded, err := nip19.Decode(value)
+		if err != nil {
+			return "", fmt.Errorf("invalid nprofile: %w", err)
+		}
+		if prefix != "nprofile" {
+			return "", fmt.Errorf("invalid public key prefix")
+		}
+		profile, ok := decoded.(nostr.ProfilePointer)
+		if !ok || profile.PublicKey == "" {
+			return "", fmt.Errorf("invalid nprofile payload")
+		}
+		return profile.PublicKey, nil
+	}
+	return value, nil
+}
+
+func normalizeEventID(value string) (string, error) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return "", fmt.Errorf("missing event id")
+	}
+	if strings.HasPrefix(value, "note") {
+		prefix, decoded, err := nip19.Decode(value)
+		if err != nil {
+			return "", fmt.Errorf("invalid note: %w", err)
+		}
+		if prefix != "note" {
+			return "", fmt.Errorf("invalid event id prefix")
+		}
+		id, ok := decoded.(string)
+		if !ok || id == "" {
+			return "", fmt.Errorf("invalid note payload")
+		}
+		return id, nil
+	}
+	if strings.HasPrefix(value, "nevent") {
+		prefix, decoded, err := nip19.Decode(value)
+		if err != nil {
+			return "", fmt.Errorf("invalid nevent: %w", err)
+		}
+		if prefix != "nevent" {
+			return "", fmt.Errorf("invalid event id prefix")
+		}
+		eventPtr, ok := decoded.(nostr.EventPointer)
+		if !ok || eventPtr.ID == "" {
+			return "", fmt.Errorf("invalid nevent payload")
+		}
+		return eventPtr.ID, nil
+	}
+	return value, nil
+}
+
+func normalizeAddressValue(value string) (string, error) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return "", fmt.Errorf("missing address value")
+	}
+	if strings.HasPrefix(value, "naddr") {
+		prefix, decoded, err := nip19.Decode(value)
+		if err != nil {
+			return "", fmt.Errorf("invalid naddr: %w", err)
+		}
+		if prefix != "naddr" {
+			return "", fmt.Errorf("invalid address prefix")
+		}
+		entityPtr, ok := decoded.(nostr.EntityPointer)
+		if !ok || entityPtr.PublicKey == "" {
+			return "", fmt.Errorf("invalid naddr payload")
+		}
+		return fmt.Sprintf("%d:%s:%s", entityPtr.Kind, entityPtr.PublicKey, entityPtr.Identifier), nil
+	}
 	return value, nil
 }
 
@@ -1317,10 +1397,26 @@ func normalizeSearchQuery(value string) (string, error) {
 	if value == "" {
 		return "", nil
 	}
-	if strings.HasPrefix(value, "npub") {
+	if strings.HasPrefix(value, "npub") || strings.HasPrefix(value, "nprofile") {
 		return normalizePublicKey(value)
 	}
+	if strings.HasPrefix(value, "note") || strings.HasPrefix(value, "nevent") {
+		return normalizeEventID(value)
+	}
 	return value, nil
+}
+
+func normalizeTagQueryValue(key string, value string) (string, error) {
+	switch strings.TrimSpace(strings.TrimPrefix(key, "#")) {
+	case "e", "q":
+		return normalizeEventID(value)
+	case "p":
+		return normalizePublicKey(value)
+	case "a":
+		return normalizeAddressValue(value)
+	default:
+		return value, nil
+	}
 }
 
 func formatUnix(value int64) string {
@@ -1559,7 +1655,10 @@ func extractHashtags(event *nostr.Event) []string {
 }
 
 var imageURLPattern = regexp.MustCompile(`https?://[^\s"'<>]+\.(?:png|jpg|jpeg|gif|webp|avif)`)
-var eventIDPattern = regexp.MustCompile(`^[a-f0-9]{64}$`)
+var (
+	eventIDPattern   = regexp.MustCompile(`^[a-f0-9]{64}$`)
+	publicKeyPattern = regexp.MustCompile(`^[a-f0-9]{64}$`)
+)
 
 func extractImageURLs(event *nostr.Event) []string {
 	matches := imageURLPattern.FindAllString(event.Content, -1)

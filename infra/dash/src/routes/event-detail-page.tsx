@@ -7,6 +7,7 @@ import { useTranslation } from "react-i18next"
 import { BanUserDialog } from "@/components/features/ban-user-dialog"
 import { PageHeader } from "@/components/shared/page-header"
 import { ErrorPanel, LoadingPanel } from "@/components/shared/state-panels"
+import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   EventContentWarnings,
@@ -25,10 +26,11 @@ import {
   LinksAndQuotes,
 } from "@/components/features/event-detail/nostr-references"
 import { EventDetailErrorState } from "@/components/features/event-detail/event-detail-error-state"
+import { UserAvatarChip } from "@/components/shared/user-avatar-chip"
 import { Badge } from "@/components/ui/badge"
-import { useEventDetailSuspense, useEventReports, useInfiniteEventSearch, useInfiniteLabels } from "@/hooks/use-admin-data"
+import { useEventDetailSuspense, useEventReports, useInfiniteEventSearch, useInfiniteLabels, useUser } from "@/hooks/use-admin-data"
 import { labelBadgeVariant } from "@/lib/labels"
-import { firstTagValue, parseImetaResources, parseEventRefTags, parseEmbeddedRepost, tagValues, REACTION_KIND, REPOST_KINDS, LIST_KIND, unique } from "@/lib/event-parser"
+import { firstTagValue, parseCommunityMetadata, parseImetaResources, parseEventRefTags, parseEmbeddedRepost, tagValues, REACTION_KIND, REPOST_KINDS, LIST_KIND, unique } from "@/lib/event-parser"
 import { shortenId } from "@/lib/utils"
 
 type EventDetailBoundaryProps = {
@@ -74,6 +76,7 @@ function EventDetailPageContent({ eventID }: { eventID: string }) {
   const alt = firstTagValue(tags, "alt")
   const eventD = firstTagValue(tags, "d")
   const publishedAt = firstTagValue(tags, "published_at")
+  const community = event.kind === 34550 ? parseCommunityMetadata(tags) : null
 
   const topicTags = unique([...detail.hashtags, ...tagValues(tags, "t")])
   const eRefs = unique(tagValues(tags, "e"))
@@ -104,6 +107,7 @@ function EventDetailPageContent({ eventID }: { eventID: string }) {
     const reply = replyEvents.find((item) => item.pubkey === pubkey)
     return { pubkey, reply }
   })
+  const moderators = community?.moderators ?? []
 
   return (
     <div className="space-y-6">
@@ -132,6 +136,8 @@ function EventDetailPageContent({ eventID }: { eventID: string }) {
             <EventMetadata event={event} author={detail.author} kindLabel={kindLabel} />
             <EventContentWarnings contentWarning={contentWarning} />
             <EventStructuredData alt={alt} createdAt={event.created_at} eventD={eventD} publishedAt={publishedAt} summary={summary} title={title} />
+
+            {community ? <CommunityMetadataCard dTag={community.d} description={community.description} image={community.image} /> : null}
 
             <p className="max-w-full overflow-hidden whitespace-pre-wrap break-all rounded-[calc(var(--radius)-0.2rem)] border border-border bg-muted/50 p-4 text-sm leading-relaxed text-foreground">
               {event.content || t("eventDetail.noTextContent")}
@@ -196,19 +202,20 @@ function EventDetailPageContent({ eventID }: { eventID: string }) {
             <CardTitle>{t("eventDetail.responders", "Usuários que responderam")}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            {respondingUsers.length > 0 ? respondingUsers.map((user) => (
-              <div className="flex items-center justify-between gap-3 rounded-[calc(var(--radius)-0.25rem)] border border-border p-3" key={user.pubkey}>
-                <div>
-                  <p className="text-sm font-medium text-foreground">{shortenId(user.pubkey, 16, 6)}</p>
-                  <p className="text-xs text-muted-foreground">{t("eventDetail.replyCount", { count: replyEvents.filter((item) => item.pubkey === user.pubkey).length, defaultValue: `${replyEvents.filter((item) => item.pubkey === user.pubkey).length} resposta(s)` })}</p>
-                </div>
-                <Link className="text-sm text-primary underline underline-offset-2" params={{ pubkey: user.pubkey }} to="/users/$pubkey">
-                  {t("eventDetail.openUser", "Abrir usuário")}
-                </Link>
-              </div>
-            )) : <p className="text-sm text-muted-foreground">{t("eventDetail.noResponders", "Nenhuma resposta indexada para este evento.")}</p>}
+            {respondingUsers.length > 0 ? respondingUsers.map((user) => <ResponderCard key={user.pubkey} pubkey={user.pubkey} replyCount={replyEvents.filter((item) => item.pubkey === user.pubkey).length} />) : <p className="text-sm text-muted-foreground">{t("eventDetail.noResponders", "Nenhuma resposta indexada para este evento.")}</p>}
           </CardContent>
         </Card>
+
+        {moderators.length > 0 ? (
+          <Card>
+            <CardHeader>
+              <CardTitle>{t("eventDetail.moderators", "Usuários moderadores")}</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {moderators.map((pubkey) => <ResponderCard key={pubkey} pubkey={pubkey} />)}
+            </CardContent>
+          </Card>
+        ) : null}
 
         <Card>
           <CardHeader>
@@ -257,18 +264,56 @@ function EventDetailPageContent({ eventID }: { eventID: string }) {
           <CardContent className="space-y-3">
             {replyEvents.map((reply) => (
               <div className="flex items-center justify-between gap-3 rounded-[calc(var(--radius)-0.25rem)] border border-border p-3" key={reply.id}>
-                <div>
+                <div className="space-y-1">
                   <p className="text-sm font-medium text-foreground">kind {reply.kind}</p>
+                  <p className="line-clamp-2 text-sm text-muted-foreground">{reply.content || t("eventDetail.noTextContent")}</p>
                   <p className="text-xs text-muted-foreground">{shortenId(reply.pubkey, 16, 6)}</p>
+                  {reply.tags.some((tag) => tag[0] === "image") ? (
+                    <a className="text-xs text-primary underline underline-offset-2" href={reply.tags.find((tag) => tag[0] === "image")?.[1]} rel="noreferrer" target="_blank">
+                      {t("eventDetail.showImage", "Exibir imagem")}
+                    </a>
+                  ) : null}
                 </div>
                 <Link className="text-sm text-primary underline underline-offset-2" params={{ eventId: reply.id }} to="/events/$eventId">
                   {t("eventDetail.openEvent", "Abrir evento")}
                 </Link>
               </div>
             ))}
+            {repliesQuery.hasNextPage ? (
+              <Button onClick={() => void repliesQuery.fetchNextPage()} type="button" variant="outline">
+                {repliesQuery.isFetchingNextPage ? t("labels.timeline.loadingMore", "Carregando...") : t("labels.timeline.loadMore", "Carregar mais")}
+              </Button>
+            ) : null}
           </CardContent>
         </Card>
       ) : null}
+    </div>
+  )
+}
+
+function CommunityMetadataCard({ dTag, description, image }: { dTag: string; description: string; image: string }) {
+  return (
+    <div className="rounded-[calc(var(--radius)-0.2rem)] border border-emerald-500/20 bg-emerald-500/5 p-4 space-y-3">
+      {dTag ? <p className="text-sm font-semibold text-foreground">d: {dTag}</p> : null}
+      {description ? <p className="whitespace-pre-wrap text-sm text-muted-foreground">{description}</p> : null}
+      {image ? <img alt={dTag || "community image"} className="max-h-60 rounded border border-border object-cover" src={image} /> : null}
+    </div>
+  )
+}
+
+function ResponderCard({ pubkey, replyCount }: { pubkey: string; replyCount?: number }) {
+  const { t } = useTranslation()
+  const userQuery = useUser(pubkey)
+  const user = userQuery.data
+
+  return (
+    <div className="rounded-[calc(var(--radius)-0.25rem)] border border-border p-3">
+      {user ? <UserAvatarChip compact subtitle={replyCount ? t("eventDetail.replyCount", { count: replyCount, defaultValue: `${replyCount} resposta(s)` }) : undefined} user={user} /> : <p className="text-sm text-muted-foreground">{shortenId(pubkey, 16, 6)}</p>}
+      <div className="mt-3 flex justify-end">
+        <Link className="text-sm text-primary underline underline-offset-2" params={{ pubkey }} to="/users/$pubkey">
+          {t("eventDetail.openUser", "Abrir usuário")}
+        </Link>
+      </div>
     </div>
   )
 }
