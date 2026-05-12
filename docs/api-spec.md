@@ -534,7 +534,7 @@ Behavior notes:
 - full-text search must cover `content` and semantic tag text used by rich events, including community `description` tags on kind `34550`
 - when listing kind `34550`, the admin response should keep enough tag data for the frontend to highlight `d`, `description` and `image`
 - when Redis is enabled, the endpoint uses read-through response caching keyed by the normalized filter, `limit`, and `offset`
-- relay startup proactively warms the default first page payload for `limit=50` and `offset=0`
+- the dedicated `cron` process proactively warms the default first page payload for `limit=50` and `offset=0`
 
 **Query Parameters:**
 - `q=<text>` - full-text search query
@@ -637,7 +637,7 @@ Behavior notes:
 
 - aggregates are computed server-side from SQL-first grouped queries instead of loading all matched events into application memory
 - when Redis is enabled, the endpoint uses read-through response caching keyed by the normalized filter
-- relay startup proactively warms the default empty-filter aggregate payload
+- the dedicated `cron` process proactively warms the default empty-filter aggregate payload
 
 **Response:**
 ```json
@@ -660,7 +660,7 @@ Behavior notes:
 
 - timeline buckets are computed server-side from SQL-first grouped queries instead of iterating over all matched events in Go
 - when Redis is enabled, the endpoint uses read-through response caching keyed by the normalized filter plus `bucket`
-- relay startup proactively warms the default empty-filter timeline payloads for both `bucket=day` and `bucket=hour`
+- the dedicated `cron` process proactively warms the default empty-filter timeline payloads for both `bucket=day` and `bucket=hour`
 
 **Response:**
 ```json

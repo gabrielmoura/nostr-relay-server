@@ -148,19 +148,19 @@ The internal admin dashboard depends on three read-heavy endpoints that are quer
 - **Search page path:** paginated search remains backed by the existing `event` table query flow, but gains a dedicated Redis response cache for normalized admin filters plus `limit` and `offset`.
 - **Aggregate path:** aggregates stop loading the whole result set into Go memory; counts and trends move to SQL-first queries in `infra/db`.
 - **Timeline path:** timeline buckets stop being computed by iterating over all matched events in Go; bucketed counts move to SQL-first queries in `infra/db`.
-- **Warm startup cache:** when Redis is enabled, relay startup precomputes and stores the default dashboard payloads for the first page, aggregates, and timeline so the SPA does not pay the cold-start query cost.
+- **Cron-only warm cache:** when Redis is enabled, the dedicated `cron` process precomputes and stores the default dashboard payloads for the first page, aggregates, and timeline. The HTTP server no longer performs this warmup during `server` startup.
 - **Invalidation model:** admin search cache keys follow the existing Redis query version invalidation strategy so writes that already invalidate event query cache also evict warmed admin search payloads.
 
-### Warmed default payloads at startup
+### Warmed default payloads in cron mode
 
-The server warms these default admin dashboard reads during startup:
+The `nrserver cron` process warms these default admin dashboard reads when it starts:
 
 - `/admin/events/search?limit=50&offset=0`
 - `/admin/events/search/aggregates`
 - `/admin/events/search/timeline?bucket=day`
 - `/admin/events/search/timeline?bucket=hour`
 
-This warm set is intentionally small and deterministic. Arbitrary filtered queries continue to use read-through Redis caching on demand.
+This warm set is intentionally small and deterministic. Arbitrary filtered queries continue to use read-through Redis caching on demand. The dashboard may still observe a cold first fetch when the cron process has not run yet or when a filter combination has not been warmed before.
 
 ## Sync Jobs Operator Drill-down
 

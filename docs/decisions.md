@@ -1303,7 +1303,7 @@ Refactor the admin HTTP surface in two coordinated steps:
 1. **Transport decomposition**: keep shared admin helpers in small common files and move users, NIP-05, event search, reports, import/fetch, and shared mappers into focused files so no admin transport file exceeds 300 lines
 2. **SQL-first aggregates**: replace Go-side full-scan aggregate and timeline computation with dedicated grouped queries in `infra/db`
 3. **Read-through Redis cache**: cache normalized admin search page, aggregates, and timeline responses with versioned invalidation compatible with existing event query cache invalidation
-4. **Startup warming**: precompute and store the default dashboard payloads during relay boot when Redis is enabled
+4. **Cron-mode warming**: precompute and store the default dashboard payloads only from the dedicated `cron` process when Redis is enabled
 
 ### Reasons
 
@@ -1314,11 +1314,11 @@ Refactor the admin HTTP surface in two coordinated steps:
 
 ### Consequences
 
-- ✅ faster default admin dashboard load after relay boot
+- ✅ faster default admin dashboard load after cron warmup runs
 - ✅ lower DB and application CPU cost for aggregates and timeline
 - ✅ smaller admin HTTP files with clearer responsibilities
 - ✅ cache invalidation stays aligned with the existing Redis query version model
-- ⚠️ startup does a bounded amount of extra work to warm default payloads
+- ⚠️ cold dashboard reads can still happen before the cron process warms the cache
 - ⚠️ arbitrary uncached filters still pay a first-hit database cost before entering the cache
 
 **Status:** Proposed  

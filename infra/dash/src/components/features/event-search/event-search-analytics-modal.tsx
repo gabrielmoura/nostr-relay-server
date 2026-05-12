@@ -1,4 +1,4 @@
-import { BarChart3, Calendar, Database, Users, Hash, TrendingUp } from "lucide-react"
+import { BarChart3, Calendar, Clock3, Database, Hash, TrendingUp, Users } from "lucide-react"
 import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 
@@ -68,6 +68,25 @@ export function EventSearchAnalyticsModal({
 
         <div className="flex-1 overflow-auto px-6 py-5">
           <div className="space-y-6">
+            <div className="rounded-xl border border-orange-200/70 bg-orange-50/80 px-4 py-3 text-sm text-orange-900 shadow-sm dark:border-orange-500/20 dark:bg-orange-500/10 dark:text-orange-100">
+              <div className="flex items-start gap-3">
+                <div className="mt-0.5 rounded-full bg-orange-500/15 p-1.5 text-orange-700 dark:text-orange-200">
+                  <Clock3 className="size-4" />
+                </div>
+                <div className="space-y-1">
+                  <p className="font-semibold">
+                    {t("eventSearch.analyticsWarmupTitle", "Alguns dados podem demorar um pouco para aparecer")}
+                  </p>
+                  <p className="text-xs leading-relaxed text-orange-800/90 dark:text-orange-100/80">
+                    {t(
+                      "eventSearch.analyticsWarmupMessage",
+                      "Os dados completos desta análise estão sendo tratados por um processo em segundo plano. Em cenários frios ou logo após mudanças no cache, parte das métricas pode levar alguns instantes para ser exibida.",
+                    )}
+                  </p>
+                </div>
+              </div>
+            </div>
+
             <EventSearchAnalyticsKpiStrip aggregates={aggregates} />
 
             <Tabs onValueChange={(value) => setActiveTab(value as EventSearchAnalyticsTab)} value={activeTab} className="space-y-4">

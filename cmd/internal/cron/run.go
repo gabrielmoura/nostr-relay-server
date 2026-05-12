@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/gabrielmoura/nostr-relay-server/config"
+	"github.com/gabrielmoura/nostr-relay-server/infra/cache"
+	httphandler "github.com/gabrielmoura/nostr-relay-server/infra/handler/http"
 	"github.com/gabrielmoura/nostr-relay-server/infra/log"
 	redisqueue "github.com/gabrielmoura/nostr-relay-server/infra/queue/redis"
 	"github.com/gabrielmoura/nostr-relay-server/infra/redis"
@@ -52,10 +54,20 @@ func Run(options *Options) error {
 	if err := db.Init(mainCtx); err != nil {
 		return fmt.Errorf("init database: %w", err)
 	}
-	if useQueueExecution() {
+	if config.Cfg.Redis.Enabled {
 		if err := redis.Init(&config.Cfg.Redis); err != nil {
 			return fmt.Errorf("init redis: %w", err)
 		}
+		if err := cache.Init(); err != nil {
+			return fmt.Errorf("init cache: %w", err)
+		}
+		warmupCtx, cancelWarmup := context.WithTimeout(mainCtx, 15*time.Second)
+		if err := httphandler.WarmAdminSearchCache(warmupCtx); err != nil {
+			log.Logger.Warn("admin search cache warmup failed", zap.Error(err))
+		}
+		cancelWarmup()
+	}
+	if useQueueExecution() {
 		queueRuntime, err := redisqueue.NewRuntime(redis.GetClient(), config.Cfg.Redis.Queue, config.Cfg.Jobs)
 		if err != nil {
 			return fmt.Errorf("init queue runtime: %w", err)

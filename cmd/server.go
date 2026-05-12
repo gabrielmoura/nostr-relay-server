@@ -3,12 +3,10 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"time"
 
 	croncmd "github.com/gabrielmoura/nostr-relay-server/cmd/internal/cron"
 	"github.com/gabrielmoura/nostr-relay-server/config"
 	"github.com/gabrielmoura/nostr-relay-server/infra/cache"
-	httphandler "github.com/gabrielmoura/nostr-relay-server/infra/handler/http"
 	"github.com/gabrielmoura/nostr-relay-server/infra/handler/listener"
 	"github.com/gabrielmoura/nostr-relay-server/infra/ingestion"
 	"github.com/gabrielmoura/nostr-relay-server/infra/metrics"
@@ -83,14 +81,6 @@ func runServer(cmd *cobra.Command, args []string) {
 			if err := db.InitPreparedStatements(mainCtx, db.Pool); err != nil {
 				log.Logger.Warn("Prepared statements initialization failed, continuing without them", zap.Error(err))
 			}
-		}
-
-		if cache.IsEnabled() {
-			warmupCtx, cancelWarmup := context.WithTimeout(mainCtx, 15*time.Second)
-			if err := httphandler.WarmAdminSearchCache(warmupCtx); err != nil {
-				log.Logger.Warn("admin search cache warmup failed", zap.Error(err))
-			}
-			cancelWarmup()
 		}
 
 		// Canal para capturar sinais do sistema
