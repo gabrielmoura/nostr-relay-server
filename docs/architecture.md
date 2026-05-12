@@ -151,6 +151,16 @@ The internal admin dashboard depends on three read-heavy endpoints that are quer
 - **Cron-only warm cache:** when Redis is enabled, the dedicated `cron` process precomputes and stores the default dashboard payloads for the first page, aggregates, and timeline. The HTTP server no longer performs this warmup during `server` startup.
 - **Invalidation model:** admin search cache keys follow the existing Redis query version invalidation strategy so writes that already invalidate event query cache also evict warmed admin search payloads.
 
+### DB and cache package refactor
+
+The `infra/db` and `infra/cache` packages now carry both transport-facing query paths and cross-cutting cache helpers. The next refactor keeps the package APIs stable but decomposes oversized files by responsibility:
+
+- `infra/db/admin_query.go` splits into admin event search, profile/admin user lookup, bans, event reports, and reported-event analytics files
+- `infra/db/event_query.sql.go` splits into event writes, event reads/query cache, retention/cleanup, and streaming/export files
+- `infra/cache/cache.go` splits into base Redis access, query cache versioning, profile/ban/event helpers, counters, and NIP-05 document caching files
+
+This decomposition is structural only: callers should keep importing the same packages and methods while the internals become smaller, easier to test, and easier to review for SQL and Redis correctness.
+
 ### Warmed default payloads in cron mode
 
 The `nrserver cron` process warms these default admin dashboard reads when it starts:

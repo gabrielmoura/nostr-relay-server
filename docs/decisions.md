@@ -1321,6 +1321,39 @@ Refactor the admin HTTP surface in two coordinated steps:
 - ⚠️ cold dashboard reads can still happen before the cron process warms the cache
 - ⚠️ arbitrary uncached filters still pay a first-hit database cost before entering the cache
 
+---
+
+## ADR-033: Decompose Oversized DB and Redis Cache Files
+
+**Status:** Proposed  
+**Date:** 2026-05-12
+
+### Context
+
+After the admin HTTP split, the main remaining oversized backend files are concentrated in `infra/db/admin_query.go`, `infra/db/event_query.sql.go`, and `infra/cache/cache.go`. They mix unrelated concerns such as event writes, streaming, admin analytics, profile lookup, query cache versioning, counters, and document caching. This hurts reviewability and makes it harder to audit SQL and Redis behavior for correctness and performance.
+
+### Decision
+
+Refactor these files by responsibility while keeping the existing package-level API stable:
+
+1. split `infra/db/admin_query.go` into focused admin query files
+2. split `infra/db/event_query.sql.go` into focused event read/write/query-cache files
+3. split `infra/cache/cache.go` into focused Redis helper files with shared timeout and TTL helpers
+
+### Reasons
+
+1. **Maintainability:** files over 300 lines are hiding multiple concerns
+2. **Database clarity:** SQL-heavy methods become easier to review in smaller groups
+3. **Redis correctness:** TTL, key naming, and query-version invalidation logic become easier to audit
+4. **Low-risk change:** public methods and callers remain unchanged
+
+### Consequences
+
+- ✅ smaller files with clearer concern boundaries
+- ✅ easier auditing of parameterized SQL and row handling
+- ✅ easier auditing of Redis TTL and key-version behavior
+- ⚠️ more files in `infra/db` and `infra/cache`
+
 **Status:** Proposed  
 **Date:** 2026-05-08
 
