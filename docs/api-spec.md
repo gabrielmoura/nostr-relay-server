@@ -9,6 +9,24 @@ The Nostr Relay Server exposes two HTTP servers:
 
 If `admin_token` is configured, all `/admin/*` endpoints require header `X-Admin-Token: <token>`.
 
+## Event Visualization Contracts
+
+The admin dashboard event visualization work depends on the existing admin event payload already exposing enough raw protocol material to derive media and protocol-specific summaries in the frontend.
+
+Frontend assumptions for `/panel/events/search` and `/panel/events/$eventId`:
+
+- `event.kind`, `event.content`, `event.tags`, `event.id`, `event.pubkey`, `event.created_at` are always available
+- `event.tags` may include `alt`, `imeta`, `e`, `a`, `p`, `k`, `relay`, `r`, `url`, `image`, `m`, `title`, `summary`, `d`
+- `EventDetail.image_urls` is a backend-provided convenience list, but the frontend still treats `imeta` and textual URLs as canonical fallback sources
+
+Interpretation rules documented from Nostr specifications used by the frontend:
+
+- `kind:6` -> NIP-18 repost
+- `kind:4550` -> NIP-72 community approval
+- `kind:10050` -> NIP-51/NIP-17 DM relay list
+
+No new backend endpoint is required for the first visual refinement. Optional future enrichment may add a backend helper for referenced-event snippets if the `@nostrify/*` read layer proves insufficient or too slow.
+
 ## WebSocket Protocol (NIP-01)
 
 All Nostr communication happens over WebSocket using JSON messages.
@@ -515,6 +533,8 @@ Behavior notes:
 - identifier-oriented fields should accept both canonical hex and applicable NIP-19 forms in the dashboard query builder
 - full-text search must cover `content` and semantic tag text used by rich events, including community `description` tags on kind `34550`
 - when listing kind `34550`, the admin response should keep enough tag data for the frontend to highlight `d`, `description` and `image`
+- when Redis is enabled, the endpoint uses read-through response caching keyed by the normalized filter, `limit`, and `offset`
+- relay startup proactively warms the default first page payload for `limit=50` and `offset=0`
 
 **Query Parameters:**
 - `q=<text>` - full-text search query
@@ -613,6 +633,12 @@ Returns aggregation metrics for current event search filters.
 
 **Query Parameters:** same as `GET /admin/events/search`
 
+Behavior notes:
+
+- aggregates are computed server-side from SQL-first grouped queries instead of loading all matched events into application memory
+- when Redis is enabled, the endpoint uses read-through response caching keyed by the normalized filter
+- relay startup proactively warms the default empty-filter aggregate payload
+
 **Response:**
 ```json
 {
@@ -629,6 +655,12 @@ Returns timeline buckets for current event search filters.
 
 **Query Parameters:** same as `GET /admin/events/search`, plus:
 - `bucket=<hour|day>` - timeline granularity (default: `hour`)
+
+Behavior notes:
+
+- timeline buckets are computed server-side from SQL-first grouped queries instead of iterating over all matched events in Go
+- when Redis is enabled, the endpoint uses read-through response caching keyed by the normalized filter plus `bucket`
+- relay startup proactively warms the default empty-filter timeline payloads for both `bucket=day` and `bucket=hour`
 
 **Response:**
 ```json
@@ -750,6 +782,40 @@ Lists reported target events (NIP-56 kind `1984`) with moderation-friendly metad
   "last_reported_at": "2026-03-25T13:49:01Z",
   "report_types": ["spam", "malware"]
 }
+
+### `GET /admin/events/reported/summary`
+
+Returns global moderation analytics for NIP-56 reports, computed from the full filtered dataset on the server and **not** from the paginated list slice.
+
+**Query Parameters:** same filtering parameters accepted by `GET /admin/events/reported`, except pagination.
+
+**Response:**
+```json
+{
+  "total_events": 120,
+  "total_reports": 364,
+  "unique_target_authors": 42,
+  "timeline": [
+    {"bucket": "2026-05-01", "count": 18},
+    {"bucket": "2026-05-02", "count": 27}
+  ],
+  "report_types": [
+    {"name": "spam", "count": 140},
+    {"name": "impersonation", "count": 58}
+  ],
+  "top_authors": [
+    {"pubkey": "...", "display_name": "Alice", "count": 31}
+  ],
+  "top_targets": [
+    {"target_event_id": "...", "count": 22}
+  ]
+}
+```
+
+Frontend rule:
+
+- KPI and charts on `/panel/events/reported` must consume this summary endpoint when total-server analytics are required
+- the virtualized list remains a separate paginated drill-down surface
 
 ### `GET /admin/labels`
 

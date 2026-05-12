@@ -10,6 +10,27 @@ import (
 )
 
 func BuildQuery(filter nostr.Filter, cfg *config.RelayConfig, doCount bool) (string, []any, error) {
+	whereClause, params := BuildWhereClause(filter, cfg)
+
+	var builder strings.Builder
+	if doCount {
+		builder.WriteString("SELECT COUNT(*) FROM event WHERE ")
+	} else {
+		builder.WriteString("SELECT id, pubkey, created_at, kind, tags, content, sig FROM event WHERE ")
+	}
+	builder.WriteString(whereClause)
+
+	if !doCount {
+		builder.WriteString(" ORDER BY created_at DESC, id")
+	}
+
+	builder.WriteString(" LIMIT ?")
+	params = append(params, filter.Limit)
+
+	return sqlx.Rebind(sqlx.BindType("postgres"), builder.String()), params, nil
+}
+
+func BuildWhereClause(filter nostr.Filter, cfg *config.RelayConfig) (string, []any) {
 	conditions := make([]string, 0, 8)
 	params := make([]any, 0, 8)
 
@@ -22,25 +43,10 @@ func BuildQuery(filter nostr.Filter, cfg *config.RelayConfig, doCount bool) (str
 	addDeletionCondition(&conditions, cfg.FakeDeletion)
 
 	if len(conditions) == 0 {
-		conditions = append(conditions, "true")
+		return "true", params
 	}
 
-	var builder strings.Builder
-	if doCount {
-		builder.WriteString("SELECT COUNT(*) FROM event WHERE ")
-	} else {
-		builder.WriteString("SELECT id, pubkey, created_at, kind, tags, content, sig FROM event WHERE ")
-	}
-	builder.WriteString(strings.Join(conditions, " AND "))
-
-	if !doCount {
-		builder.WriteString(" ORDER BY created_at DESC, id")
-	}
-
-	builder.WriteString(" LIMIT ?")
-	params = append(params, filter.Limit)
-
-	return sqlx.Rebind(sqlx.BindType("postgres"), builder.String()), params, nil
+	return strings.Join(conditions, " AND "), params
 }
 
 func addIDsCondition(conditions *[]string, params *[]any, ids []string) {

@@ -62,27 +62,48 @@ type SyncSession struct {
 	closed         bool
 	reqQueue       [][]string
 	currentReqIDs  []string
+
+	 rejections   []RejectionInfo
 }
 
 func Sync(cf *ConfSync) {
-	// Setup básico
+	var result SyncResult
+	executeSync(cf, &result)
+	if result.Error != nil {
+		log.Logger.Error("Sync process finished with error", zap.Error(result.Error))
+		return
+	}
+	log.Logger.Info("Sync completed successfully")
+}
+
+type SyncResult struct {
+	Error       error
+	Filter      []any
+	Rejections  []RejectionInfo
+}
+
+func Execute(ctx context.Context, cf *ConfSync) error {
+	var result SyncResult
+	err := executeSyncWithResult(ctx, cf, &result)
+	if err != nil {
+		return err
+	}
+	return result.Error
+}
+
+func executeSync(cf *ConfSync, result *SyncResult) {
 	if err := setupEnvironment(); err != nil {
-		fmt.Printf("Setup error: %v\n", err)
+		result.Error = fmt.Errorf("setup error: %w", err)
 		return
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	go handleGracefulShutdown(cancel)
 
-	if err := Execute(ctx, cf); err != nil {
-		log.Logger.Error("Sync process finished with error", zap.Error(err))
-		return
-	}
-
-	log.Logger.Info("Sync completed successfully")
+	result.Error = executeSyncWithResult(ctx, cf, result)
 }
 
-func Execute(ctx context.Context, cf *ConfSync) error {
+func executeSyncWithResult(ctx context.Context, cf *ConfSync, result *SyncResult) error {
 	if cf == nil {
 		return fmt.Errorf("sync config cannot be nil")
 	}
@@ -117,18 +138,48 @@ func Execute(ctx context.Context, cf *ConfSync) error {
 			)
 		}
 
-		if err := runSingleSync(ctx, &runCfg); err != nil {
-			if len(filters) > 1 {
-				return fmt.Errorf("filter segment %d failed: %w", i+1, err)
-			}
-			return err
+		segResult, err := runSingleSyncWithResult(ctx, &runCfg)
+		if err != nil {
+			return fmt.Errorf("filter segment %d failed: %w", i+1, err)
 		}
+		if segResult != nil {
+			if len(result.Filter) == 0 && len(segResult.Filter) > 0 {
+				result.Filter = segResult.Filter
+			}
+			result.Rejections = append(result.Rejections, segResult.Rejections...)
+		}
+	}
+
+	if len(result.Filter) == 0 && len(filters) > 0 {
+		result.Filter = filtersToAny(filters)
 	}
 
 	return nil
 }
 
+func filtersToAny(filters []nostr.Filter) []any {
+	result := make([]any, len(filters))
+	for i, f := range filters {
+		result[i] = f
+	}
+	return result
+}
+
+type RejectionInfo struct {
+	EventID string `json:"event_id"`
+	Reason  string `json:"reason"`
+	Raw     string `json:"raw,omitempty"`
+}
+
 func runSingleSync(ctx context.Context, cf *ConfSync) error {
+	res, err := runSingleSyncWithResult(ctx, cf)
+	if err != nil {
+		return err
+	}
+	return res.Error
+}
+
+func runSingleSyncWithResult(ctx context.Context, cf *ConfSync) (*SyncResult, error) {
 	runCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -162,10 +213,13 @@ func runSingleSync(ctx context.Context, cf *ConfSync) error {
 	)
 
 	if err := session.Run(); err != nil {
-		return err
+		return nil, err
 	}
 
-	return nil
+	return &SyncResult{
+		Filter:     filtersToAny(session.LocalFilters),
+		Rejections: session.getRejections(),
+	}, nil
 }
 
 func (s *SyncSession) Run() error {
@@ -609,9 +663,24 @@ func (s *SyncSession) handleOK(rawMsg []json.NoCopyRawMessage) {
 	_ = json.Unmarshal(rawMsg[3], &reason)
 	log.Logger.Warn("Remote rejected EVENT", zap.String("id", eventID), zap.String("reason", reason))
 
+	rawJSON, _ := json.Marshal(rawMsg)
+	s.recordRejection(eventID, reason, string(rawJSON))
+
 	if err := s.tryFinalize(); err != nil {
 		log.Logger.Warn("Failed to finalize sync", zap.Error(err))
 	}
+}
+
+func (s *SyncSession) recordRejection(eventID, reason, raw string) {
+	s.rejections = append(s.rejections, RejectionInfo{
+		EventID: eventID,
+		Reason:  reason,
+		Raw:     raw,
+	})
+}
+
+func (s *SyncSession) getRejections() []RejectionInfo {
+	return s.rejections
 }
 
 func (s *SyncSession) handleEvent(rawMsg []json.NoCopyRawMessage) error {

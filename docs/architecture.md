@@ -134,6 +134,34 @@ The relay already stores `kind:1985` label events in the shared `event` table. T
 - **Feature goal:** timeline view, by-target view, filters, and label creation dialog
 - **NIP coverage:** explicit support for targets `e`, `p`, `a`, `r`, and `t`
 
+## Admin Event Search Hot Path
+
+The internal admin dashboard depends on three read-heavy endpoints that are queried together by the SPA:
+
+- `GET /admin/events/search`
+- `GET /admin/events/search/aggregates`
+- `GET /admin/events/search/timeline`
+
+### Planned backend shape
+
+- **Transport split:** `infra/handler/http/admin.go` stops being the single admin transport file and is split by concern while preserving the same route surface.
+- **Search page path:** paginated search remains backed by the existing `event` table query flow, but gains a dedicated Redis response cache for normalized admin filters plus `limit` and `offset`.
+- **Aggregate path:** aggregates stop loading the whole result set into Go memory; counts and trends move to SQL-first queries in `infra/db`.
+- **Timeline path:** timeline buckets stop being computed by iterating over all matched events in Go; bucketed counts move to SQL-first queries in `infra/db`.
+- **Warm startup cache:** when Redis is enabled, relay startup precomputes and stores the default dashboard payloads for the first page, aggregates, and timeline so the SPA does not pay the cold-start query cost.
+- **Invalidation model:** admin search cache keys follow the existing Redis query version invalidation strategy so writes that already invalidate event query cache also evict warmed admin search payloads.
+
+### Warmed default payloads at startup
+
+The server warms these default admin dashboard reads during startup:
+
+- `/admin/events/search?limit=50&offset=0`
+- `/admin/events/search/aggregates`
+- `/admin/events/search/timeline?bucket=day`
+- `/admin/events/search/timeline?bucket=hour`
+
+This warm set is intentionally small and deterministic. Arbitrary filtered queries continue to use read-through Redis caching on demand.
+
 ## Sync Jobs Operator Drill-down
 
 The queue-backed sync flow exposed in `/panel/sync` must preserve enough backend context for later operator inspection inside the generic jobs modal.

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/gabrielmoura/nostr-relay-server/config"
@@ -27,6 +28,85 @@ type ReportedEventSummary struct {
 	ReportCount   int64    `json:"report_count"`
 	LastReported  int64    `json:"last_reported"`
 	ReportTypes   []string `json:"report_types"`
+}
+
+type ReportedTimelinePoint struct {
+	Bucket string `json:"bucket"`
+	Count  int64  `json:"count"`
+}
+
+type ReportedTypeCount struct {
+	Name  string `json:"name"`
+	Count int64  `json:"count"`
+}
+
+type ReportedAuthorCount struct {
+	Pubkey string `json:"pubkey"`
+	Count  int64  `json:"count"`
+}
+
+type ReportedTargetCount struct {
+	TargetEventID string `json:"target_event_id"`
+	Count         int64  `json:"count"`
+}
+
+type ReportedEventsFilters struct {
+	Query         string
+	ReportType    string
+	TargetPubkey  string
+	TargetEventID string
+	Since         int64
+	Until         int64
+}
+
+type ReportedEventsSummary struct {
+	TotalEvents         int64                   `json:"total_events"`
+	TotalReports        int64                   `json:"total_reports"`
+	UniqueTargetAuthors int64                   `json:"unique_target_authors"`
+	Timeline            []ReportedTimelinePoint `json:"timeline"`
+	ReportTypes         []ReportedTypeCount     `json:"report_types"`
+	TopAuthors          []ReportedAuthorCount   `json:"top_authors"`
+	TopTargets          []ReportedTargetCount   `json:"top_targets"`
+}
+
+type EventKindAggregate struct {
+	Kind  int   `json:"kind"`
+	Count int64 `json:"count"`
+}
+
+type EventAuthorAggregate struct {
+	Pubkey      string `json:"pubkey"`
+	DisplayName string `json:"display_name,omitempty"`
+	Count       int64  `json:"count"`
+}
+
+type EventTagAggregate struct {
+	Tag   string `json:"tag"`
+	Count int64  `json:"count"`
+}
+
+type EventTrendAggregate struct {
+	TopTagMonth      string `json:"top_tag_month,omitempty"`
+	TopTagMonthCount int64  `json:"top_tag_month_count,omitempty"`
+	TopTagYear       string `json:"top_tag_year,omitempty"`
+	TopTagYearCount  int64  `json:"top_tag_year_count,omitempty"`
+	PeakMonth        string `json:"peak_month,omitempty"`
+	PeakMonthCount   int64  `json:"peak_month_count,omitempty"`
+	PeakYear         string `json:"peak_year,omitempty"`
+	PeakYearCount    int64  `json:"peak_year_count,omitempty"`
+}
+
+type EventTimelinePoint struct {
+	TS    int64 `json:"ts"`
+	Count int64 `json:"count"`
+}
+
+type EventAggregates struct {
+	Total      int64                  `json:"total"`
+	Kinds      []EventKindAggregate   `json:"kinds"`
+	TopAuthors []EventAuthorAggregate `json:"top_authors"`
+	TopTags    []EventTagAggregate    `json:"top_tags"`
+	Trends     EventTrendAggregate    `json:"trends"`
 }
 
 const countAllEvents = `-- name: CountAllEvents :one
@@ -90,6 +170,197 @@ func (q *Queries) QueryEventsWindow(ctx context.Context, filter nostr.Filter, of
 	}
 
 	return events, total, nil
+}
+
+func (q *Queries) GetEventAggregates(ctx context.Context, filter nostr.Filter) (EventAggregates, error) {
+	filter = helper.NormalizeFilter(&config.Cfg.Relay, filter)
+	whereClause, params := helper.BuildWhereClause(filter, &config.Cfg.Relay)
+
+	total, err := q.CountEvents(ctx, filter)
+	if err != nil {
+		return EventAggregates{}, err
+	}
+
+	aggregates := EventAggregates{Total: total}
+
+	kindsSQL := fmt.Sprintf(`
+SELECT kind, COUNT(*) AS count
+FROM event
+WHERE %s
+GROUP BY kind
+ORDER BY count DESC, kind ASC
+LIMIT 8;`, whereClause)
+
+	kindRows, err := q.db.Query(ctx, kindsSQL, params...)
+	if err != nil {
+		return EventAggregates{}, err
+	}
+	defer kindRows.Close()
+	for kindRows.Next() {
+		var item EventKindAggregate
+		if err := kindRows.Scan(&item.Kind, &item.Count); err != nil {
+			return EventAggregates{}, err
+		}
+		aggregates.Kinds = append(aggregates.Kinds, item)
+	}
+
+	authorsSQL := fmt.Sprintf(`
+SELECT event.pubkey,
+       COALESCE(NULLIF(profiles.display_name, ''), NULLIF(profiles.name, ''), event.pubkey) AS display_name,
+       COUNT(*) AS count
+FROM event
+LEFT JOIN profiles ON profiles.public_key = event.pubkey
+WHERE %s
+GROUP BY event.pubkey, profiles.display_name, profiles.name
+ORDER BY count DESC, event.pubkey ASC
+LIMIT 8;`, whereClause)
+
+	authorRows, err := q.db.Query(ctx, authorsSQL, params...)
+	if err != nil {
+		return EventAggregates{}, err
+	}
+	defer authorRows.Close()
+	for authorRows.Next() {
+		var item EventAuthorAggregate
+		if err := authorRows.Scan(&item.Pubkey, &item.DisplayName, &item.Count); err != nil {
+			return EventAggregates{}, err
+		}
+		aggregates.TopAuthors = append(aggregates.TopAuthors, item)
+	}
+
+	tagsSQL := fmt.Sprintf(`
+SELECT LOWER(BTRIM(tag->>1)) AS tag, COUNT(*) AS count
+FROM event
+CROSS JOIN LATERAL jsonb_array_elements(tags) AS tag
+WHERE %s
+  AND jsonb_typeof(tag) = 'array'
+  AND jsonb_array_length(tag) >= 2
+  AND tag->>0 = 't'
+  AND BTRIM(tag->>1) <> ''
+GROUP BY LOWER(BTRIM(tag->>1))
+ORDER BY count DESC, tag ASC
+LIMIT 12;`, whereClause)
+
+	tagRows, err := q.db.Query(ctx, tagsSQL, params...)
+	if err != nil {
+		return EventAggregates{}, err
+	}
+	defer tagRows.Close()
+	for tagRows.Next() {
+		var item EventTagAggregate
+		if err := tagRows.Scan(&item.Tag, &item.Count); err != nil {
+			return EventAggregates{}, err
+		}
+		aggregates.TopTags = append(aggregates.TopTags, item)
+	}
+
+	trendsSQL := fmt.Sprintf(`
+WITH filtered AS (
+    SELECT created_at, tags
+    FROM event
+    WHERE %s
+),
+month_tags AS (
+    SELECT to_char(to_timestamp(created_at), 'YYYY-MM') AS period,
+           LOWER(BTRIM(tag->>1)) AS tag,
+           COUNT(*) AS count
+    FROM filtered
+    CROSS JOIN LATERAL jsonb_array_elements(tags) AS tag
+    WHERE jsonb_typeof(tag) = 'array'
+      AND jsonb_array_length(tag) >= 2
+      AND tag->>0 = 't'
+      AND BTRIM(tag->>1) <> ''
+    GROUP BY period, LOWER(BTRIM(tag->>1))
+    ORDER BY count DESC, period ASC, tag ASC
+    LIMIT 1
+),
+year_tags AS (
+    SELECT to_char(to_timestamp(created_at), 'YYYY') AS period,
+           LOWER(BTRIM(tag->>1)) AS tag,
+           COUNT(*) AS count
+    FROM filtered
+    CROSS JOIN LATERAL jsonb_array_elements(tags) AS tag
+    WHERE jsonb_typeof(tag) = 'array'
+      AND jsonb_array_length(tag) >= 2
+      AND tag->>0 = 't'
+      AND BTRIM(tag->>1) <> ''
+    GROUP BY period, LOWER(BTRIM(tag->>1))
+    ORDER BY count DESC, period ASC, tag ASC
+    LIMIT 1
+),
+month_counts AS (
+    SELECT to_char(to_timestamp(created_at), 'YYYY-MM') AS period,
+           COUNT(*) AS count
+    FROM filtered
+    GROUP BY period
+    ORDER BY count DESC, period ASC
+    LIMIT 1
+),
+year_counts AS (
+    SELECT to_char(to_timestamp(created_at), 'YYYY') AS period,
+           COUNT(*) AS count
+    FROM filtered
+    GROUP BY period
+    ORDER BY count DESC, period ASC
+    LIMIT 1
+)
+SELECT COALESCE((SELECT period || ' · ' || tag FROM month_tags), '') AS top_tag_month,
+       COALESCE((SELECT count FROM month_tags), 0) AS top_tag_month_count,
+       COALESCE((SELECT period || ' · ' || tag FROM year_tags), '') AS top_tag_year,
+       COALESCE((SELECT count FROM year_tags), 0) AS top_tag_year_count,
+       COALESCE((SELECT period FROM month_counts), '') AS peak_month,
+       COALESCE((SELECT count FROM month_counts), 0) AS peak_month_count,
+       COALESCE((SELECT period FROM year_counts), '') AS peak_year,
+       COALESCE((SELECT count FROM year_counts), 0) AS peak_year_count;`, whereClause)
+
+	if err := q.db.QueryRow(ctx, trendsSQL, params...).Scan(
+		&aggregates.Trends.TopTagMonth,
+		&aggregates.Trends.TopTagMonthCount,
+		&aggregates.Trends.TopTagYear,
+		&aggregates.Trends.TopTagYearCount,
+		&aggregates.Trends.PeakMonth,
+		&aggregates.Trends.PeakMonthCount,
+		&aggregates.Trends.PeakYear,
+		&aggregates.Trends.PeakYearCount,
+	); err != nil {
+		return EventAggregates{}, err
+	}
+
+	return aggregates, nil
+}
+
+func (q *Queries) GetEventTimeline(ctx context.Context, filter nostr.Filter, bucket string) ([]EventTimelinePoint, error) {
+	filter = helper.NormalizeFilter(&config.Cfg.Relay, filter)
+	whereClause, params := helper.BuildWhereClause(filter, &config.Cfg.Relay)
+
+	step := int64(3600)
+	if strings.EqualFold(strings.TrimSpace(bucket), "day") {
+		step = 86400
+	}
+
+	timelineSQL := fmt.Sprintf(`
+SELECT (created_at / %s) * %s AS ts, COUNT(*) AS count
+FROM event
+WHERE %s
+GROUP BY ts
+ORDER BY ts ASC;`, strconv.FormatInt(step, 10), strconv.FormatInt(step, 10), whereClause)
+
+	rows, err := q.db.Query(ctx, timelineSQL, params...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	points := make([]EventTimelinePoint, 0, 32)
+	for rows.Next() {
+		var item EventTimelinePoint
+		if err := rows.Scan(&item.TS, &item.Count); err != nil {
+			return nil, err
+		}
+		points = append(points, item)
+	}
+
+	return points, nil
 }
 
 const getProfileByPublicKey = `-- name: GetProfileByPublicKey :one
@@ -501,32 +772,46 @@ func (q *Queries) GetReportsForEvent(ctx context.Context, eventID string, limit 
 
 var reportTypeValidator = regexp.MustCompile(`^(nudity|malware|profanity|illegal|spam|impersonation|other)$`)
 
-const getReportedEventsCountBase = `
-SELECT COUNT(*)
+const getReportedEventsRawBase = `
+SELECT
+  e.id,
+  e.content,
+  e.created_at,
+  (
+    SELECT tag->>1
+    FROM jsonb_array_elements(e.tags) tag
+    WHERE tag->>0 = 'e'
+    LIMIT 1
+  ) AS target_event_id,
+  (
+    SELECT tag->>1
+    FROM jsonb_array_elements(e.tags) tag
+    WHERE tag->>0 = 'p'
+    LIMIT 1
+  ) AS target_pubkey,
+  (
+    SELECT tag->>2
+    FROM jsonb_array_elements(e.tags) tag
+    WHERE tag->>0 IN ('e', 'p', 'x')
+      AND COALESCE(tag->>2, '') <> ''
+    LIMIT 1
+  ) AS report_type
+FROM event e
+WHERE e.kind = 1984
+`
+
+const getReportedEventsFilteredBase = `
+SELECT
+  id,
+  content,
+  created_at,
+  target_event_id,
+  target_pubkey,
+  report_type
 FROM (
-  SELECT target_event_id
-  FROM (
-    SELECT
-      e.id,
-      e.content,
-      e.created_at,
-      (
-        SELECT tag->>1
-        FROM jsonb_array_elements(e.tags) tag
-        WHERE tag->>0 = 'e'
-        LIMIT 1
-      ) AS target_event_id,
-      (
-        SELECT tag->>2
-        FROM jsonb_array_elements(e.tags) tag
-        WHERE tag->>0 IN ('e', 'p', 'x')
-          AND COALESCE(tag->>2, '') <> ''
-        LIMIT 1
-      ) AS report_type
-    FROM event e
-    WHERE e.kind = 1984
-  ) raw_reports
-  WHERE target_event_id IS NOT NULL
+` + getReportedEventsRawBase + `
+) raw_reports
+WHERE target_event_id IS NOT NULL
 `
 
 const getReportedEventsListBase = `
@@ -540,64 +825,58 @@ SELECT
   MAX(created_at) AS last_reported,
   ARRAY_REMOVE(ARRAY_AGG(DISTINCT report_type), NULL) AS report_types
 FROM (
-  SELECT
-    e.id,
-    e.content,
-    e.created_at,
-    (
-      SELECT tag->>1
-      FROM jsonb_array_elements(e.tags) tag
-      WHERE tag->>0 = 'e'
-      LIMIT 1
-    ) AS target_event_id,
-    (
-      SELECT tag->>1
-      FROM jsonb_array_elements(e.tags) tag
-      WHERE tag->>0 = 'p'
-      LIMIT 1
-    ) AS target_pubkey,
-    (
-      SELECT tag->>2
-      FROM jsonb_array_elements(e.tags) tag
-      WHERE tag->>0 IN ('e', 'p', 'x')
-        AND COALESCE(tag->>2, '') <> ''
-      LIMIT 1
-    ) AS report_type
-  FROM event e
-  WHERE e.kind = 1984
-) raw_reports
+` + getReportedEventsFilteredBase + `
+) filtered_reports
 WHERE target_event_id IS NOT NULL
 `
 
-func appendReportedEventsFilters(base string, args []any, query string, reportType string) (string, []any) {
-	query = strings.TrimSpace(query)
+func appendReportedEventsFilters(base string, args []any, filters ReportedEventsFilters) (string, []any) {
+	query := strings.TrimSpace(filters.Query)
 	if query != "" {
 		args = append(args, "%"+query+"%")
 		idx := len(args)
 		base += fmt.Sprintf(" AND (target_event_id ILIKE $%d OR target_pubkey ILIKE $%d OR content ILIKE $%d)", idx, idx, idx)
 	}
 
-	if reportTypeValidator.MatchString(reportType) {
-		args = append(args, reportType)
+	if reportTypeValidator.MatchString(filters.ReportType) {
+		args = append(args, filters.ReportType)
 		base += fmt.Sprintf(" AND report_type = $%d", len(args))
+	}
+
+	if value := strings.TrimSpace(filters.TargetPubkey); value != "" {
+		args = append(args, value)
+		base += fmt.Sprintf(" AND target_pubkey = $%d", len(args))
+	}
+
+	if value := strings.TrimSpace(filters.TargetEventID); value != "" {
+		args = append(args, value)
+		base += fmt.Sprintf(" AND target_event_id = $%d", len(args))
+	}
+
+	if filters.Since > 0 {
+		args = append(args, filters.Since)
+		base += fmt.Sprintf(" AND created_at >= $%d", len(args))
+	}
+
+	if filters.Until > 0 {
+		args = append(args, filters.Until)
+		base += fmt.Sprintf(" AND created_at <= $%d", len(args))
 	}
 
 	return base, args
 }
 
-func (q *Queries) GetReportedEvents(ctx context.Context, query string, reportType string, limit int, offset int) ([]ReportedEventSummary, int64, error) {
-	countSQL, countArgs := appendReportedEventsFilters(getReportedEventsCountBase, []any{}, query, reportType)
-	countSQL += `
-  GROUP BY target_event_id
-) grouped_reports;
-`
+func (q *Queries) GetReportedEvents(ctx context.Context, filters ReportedEventsFilters, limit int, offset int) ([]ReportedEventSummary, int64, error) {
+	countSQL, countArgs := appendReportedEventsFilters(getReportedEventsFilteredBase, []any{}, filters)
+	countSQL = `SELECT COUNT(DISTINCT target_event_id) FROM (` + countSQL + `
+) grouped_reports;`
 
 	var total int64
 	if err := q.db.QueryRow(ctx, countSQL, countArgs...).Scan(&total); err != nil {
 		return nil, 0, err
 	}
 
-	listSQL, listArgs := appendReportedEventsFilters(getReportedEventsListBase, []any{}, query, reportType)
+	listSQL, listArgs := appendReportedEventsFilters(getReportedEventsListBase, []any{}, filters)
 	listArgs = append(listArgs, limit, offset)
 	listSQL += fmt.Sprintf(`
 GROUP BY target_event_id
@@ -620,4 +899,114 @@ LIMIT $%d OFFSET $%d;`, len(listArgs)-1, len(listArgs))
 	}
 
 	return items, total, nil
+}
+
+func (q *Queries) GetReportedEventsSummary(ctx context.Context, filters ReportedEventsFilters) (ReportedEventsSummary, error) {
+	groupedSQL, groupedArgs := appendReportedEventsFilters(getReportedEventsListBase, []any{}, filters)
+	summarySQL := `WITH grouped_reports AS (` + groupedSQL + `
+GROUP BY target_event_id
+)
+SELECT
+  COUNT(*) AS total_events,
+  COALESCE(SUM(report_count), 0) AS total_reports,
+  COUNT(DISTINCT NULLIF(target_pubkey, '')) AS unique_target_authors
+FROM grouped_reports;
+`
+
+	var summary ReportedEventsSummary
+	if err := q.db.QueryRow(ctx, summarySQL, groupedArgs...).Scan(&summary.TotalEvents, &summary.TotalReports, &summary.UniqueTargetAuthors); err != nil {
+		return ReportedEventsSummary{}, err
+	}
+
+	timelineSQL := `WITH grouped_reports AS (` + groupedSQL + `
+GROUP BY target_event_id
+)
+SELECT to_char(to_timestamp(last_reported), 'YYYY-MM-DD') AS bucket, COALESCE(SUM(report_count), 0) AS count
+FROM grouped_reports
+GROUP BY bucket
+ORDER BY bucket ASC;
+`
+
+	timelineRows, err := q.db.Query(ctx, timelineSQL, groupedArgs...)
+	if err != nil {
+		return ReportedEventsSummary{}, err
+	}
+	defer timelineRows.Close()
+	for timelineRows.Next() {
+		var item ReportedTimelinePoint
+		if err := timelineRows.Scan(&item.Bucket, &item.Count); err != nil {
+			return ReportedEventsSummary{}, err
+		}
+		summary.Timeline = append(summary.Timeline, item)
+	}
+
+	rawSQL, rawArgs := appendReportedEventsFilters(getReportedEventsFilteredBase, []any{}, filters)
+	typesSQL := `WITH filtered_reports AS (` + rawSQL + `
+)
+SELECT report_type AS name, COUNT(*) AS count
+FROM filtered_reports
+WHERE report_type IS NOT NULL AND report_type <> ''
+GROUP BY report_type
+ORDER BY count DESC, name ASC;
+`
+
+	typeRows, err := q.db.Query(ctx, typesSQL, rawArgs...)
+	if err != nil {
+		return ReportedEventsSummary{}, err
+	}
+	defer typeRows.Close()
+	for typeRows.Next() {
+		var item ReportedTypeCount
+		if err := typeRows.Scan(&item.Name, &item.Count); err != nil {
+			return ReportedEventsSummary{}, err
+		}
+		summary.ReportTypes = append(summary.ReportTypes, item)
+	}
+
+	authorsSQL := `WITH filtered_reports AS (` + rawSQL + `
+)
+SELECT target_pubkey AS pubkey, COUNT(*) AS count
+FROM filtered_reports
+WHERE target_pubkey IS NOT NULL AND target_pubkey <> ''
+GROUP BY target_pubkey
+ORDER BY count DESC, pubkey ASC
+LIMIT 8;
+`
+
+	authorRows, err := q.db.Query(ctx, authorsSQL, rawArgs...)
+	if err != nil {
+		return ReportedEventsSummary{}, err
+	}
+	defer authorRows.Close()
+	for authorRows.Next() {
+		var item ReportedAuthorCount
+		if err := authorRows.Scan(&item.Pubkey, &item.Count); err != nil {
+			return ReportedEventsSummary{}, err
+		}
+		summary.TopAuthors = append(summary.TopAuthors, item)
+	}
+
+	targetsSQL := `WITH grouped_reports AS (` + groupedSQL + `
+GROUP BY target_event_id
+)
+SELECT target_event_id, report_count AS count
+FROM grouped_reports
+ORDER BY report_count DESC, target_event_id ASC
+LIMIT 8;
+`
+
+	targetRows, err := q.db.Query(ctx, targetsSQL, groupedArgs...)
+	if err != nil {
+		return ReportedEventsSummary{}, err
+	}
+	defer targetRows.Close()
+	for targetRows.Next() {
+		var item ReportedTargetCount
+		if err := targetRows.Scan(&item.TargetEventID, &item.Count); err != nil {
+			return ReportedEventsSummary{}, err
+		}
+		summary.TopTargets = append(summary.TopTargets, item)
+	}
+
+	return summary, nil
 }

@@ -21,10 +21,12 @@ func (QueueJob) Name() string {
 }
 
 type QueueJobResult struct {
-	Remote    string `json:"remote"`
-	Direction string `json:"direction"`
-	Status    string `json:"status"`
-	Error     string `json:"error,omitempty"`
+	Remote      string            `json:"remote"`
+	Direction   string            `json:"direction"`
+	Status      string            `json:"status"`
+	Error       string            `json:"error,omitempty"`
+	Filter      []any             `json:"filter,omitempty"`
+	Rejections  []RejectionInfo `json:"rejections,omitempty"`
 }
 
 func RegisterQueueHandlers(registry *jobcore.MemoryRegistry) error {
@@ -41,13 +43,21 @@ func RegisterQueueHandlers(registry *jobcore.MemoryRegistry) error {
 			return err
 		}
 
-		runErr := Execute(ctx, cfg)
-		result := QueueJobResult{Remote: job.Remote, Direction: job.Direction, Status: "succeeded"}
-		if runErr != nil {
+		var syncResult SyncResult
+		executeSync(cfg, &syncResult)
+
+		result := QueueJobResult{
+			Remote:      job.Remote,
+			Direction:   job.Direction,
+			Status:      "succeeded",
+			Filter:      syncResult.Filter,
+			Rejections:  syncResult.Rejections,
+		}
+		if syncResult.Error != nil {
 			result.Status = "failed"
-			result.Error = runErr.Error()
+			result.Error = syncResult.Error.Error()
 		}
 		_ = jobcore.SetResult(ctx, result)
-		return runErr
+		return syncResult.Error
 	})
 }

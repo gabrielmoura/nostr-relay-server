@@ -110,6 +110,7 @@ func (r *RouterFactory) setupInternalRoutes(app *fiber.App) {
 	admin.Get("/events/search/aggregates", httphandler.SearchEventsAggregates())
 	admin.Get("/events/search/timeline", httphandler.SearchEventsTimeline())
 	admin.Get("/events/reported", httphandler.ReportedEvents())
+	admin.Get("/events/reported/summary", httphandler.ReportedEventsSummary())
 	admin.Get("/labels", httphandler.LabelsList())
 	admin.Get("/labels/summary", httphandler.LabelsSummary())
 	admin.Post("/labels", httphandler.CreateLabel())

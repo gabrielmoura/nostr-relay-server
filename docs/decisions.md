@@ -1280,6 +1280,47 @@ Additionally, negentropy sync work can create excessive remote pressure if multi
 
 ## ADR-031: Surface Sync Filter and Structured Relay Rejections in Admin Job Details
 
+---
+
+## ADR-032: Split Admin HTTP Handlers and Warm Redis Cache for Admin Search
+
+**Status:** Proposed  
+**Date:** 2026-05-12
+
+### Context
+
+`infra/handler/http/admin.go` grew into a monolithic transport file with nearly two thousand lines. At the same time, the admin SPA issues three coupled event-search reads on page load, and the aggregate/timeline endpoints currently rebuild their payloads by loading whole event result sets into Go memory. Under real data volume this pushes latency above two seconds and can trigger dashboard timeouts.
+
+### Decision
+
+Refactor the admin HTTP surface in two coordinated steps:
+
+1. split `infra/handler/http/admin.go` into smaller files by concern while keeping the same package and route contracts
+2. move admin event search hot paths to Redis-backed response caching plus SQL-first aggregate and timeline queries
+
+### Detailed shape
+
+1. **Transport decomposition**: keep shared admin helpers in small common files and move users, NIP-05, event search, reports, import/fetch, and shared mappers into focused files so no admin transport file exceeds 300 lines
+2. **SQL-first aggregates**: replace Go-side full-scan aggregate and timeline computation with dedicated grouped queries in `infra/db`
+3. **Read-through Redis cache**: cache normalized admin search page, aggregates, and timeline responses with versioned invalidation compatible with existing event query cache invalidation
+4. **Startup warming**: precompute and store the default dashboard payloads during relay boot when Redis is enabled
+
+### Reasons
+
+1. **Latency**: the dashboard needs hot responses for its default load path
+2. **Memory efficiency**: aggregate and timeline handlers should not materialize all matching events in Go
+3. **Maintainability**: the admin HTTP transport must stop being a single oversized file
+4. **Low-risk evolution**: route contracts stay stable while internals become cheaper and easier to test
+
+### Consequences
+
+- ✅ faster default admin dashboard load after relay boot
+- ✅ lower DB and application CPU cost for aggregates and timeline
+- ✅ smaller admin HTTP files with clearer responsibilities
+- ✅ cache invalidation stays aligned with the existing Redis query version model
+- ⚠️ startup does a bounded amount of extra work to warm default payloads
+- ⚠️ arbitrary uncached filters still pay a first-hit database cost before entering the cache
+
 **Status:** Proposed  
 **Date:** 2026-05-08
 
