@@ -129,6 +129,10 @@
       "viewEvent": "Ver evento",
       "banPubkey": "Banir pubkey"
     },
+    "analytics": {
+      "trigger": "Análises",
+      "title": "Análises dos labels"
+    },
     "create": {
       "trigger": "Criar label",
       "title": "Criar label NIP-32",
@@ -696,6 +700,15 @@
     "timelineEmptyTitle": "Timeline vazia",
     "timelineEmptyDescription": "Sem pontos para os filtros atuais.",
     "eventsCount": "{{count}} eventos",
+    "analyticsButton": "Análises",
+    "analyticsTimelineButton": "Timeline",
+    "analyticsModalTitle": "Análises da busca",
+    "analyticsAggregates": "Agregados",
+    "analyticsTimeline": "Timeline",
+    "analyticsOverviewTab": "Visão geral",
+    "analyticsAudienceTab": "Autores e tags",
+    "analyticsTrendsTab": "Tendências",
+    "openAuthor": "abrir",
     "jsonTitle": "Evento JSON",
     "jsonDescription": "Inspeção técnica do envelope do evento em formato formatado.",
     "importTitle": "Importar eventos JSONL",
@@ -791,6 +804,7 @@
     "noTextContent": "Sem conteudo textual.",
     "eventImageAlt": "Imagem do evento",
     "videoPlayer": "Player de video",
+    "loadVideo": "Carregar video",
     "mediaUrlsImeta": "Media URLs (imeta)",
     "repostedEvent": "Evento repostado",
     "openOriginalFullscreen": "Abrir evento original",

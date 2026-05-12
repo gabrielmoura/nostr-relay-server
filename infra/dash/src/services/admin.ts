@@ -24,6 +24,7 @@ import type {
   NIP05Identity,
   NIP05IdentityPayload,
   EventReportsResponse,
+  ReportedEventsSummary,
   EventTimeline,
   AdminLabelEvent,
   AdminLabelsFilters,
@@ -462,16 +463,52 @@ export async function getEventReports(eventID: string, params: PageParams) {
   return request<EventReportsResponse>(`/events/${eventID}/reports?limit=${params.limit}&offset=${params.offset}`)
 }
 
-export async function getReportedEventsPage(query: string, type: string, params: PageParams) {
+export async function getReportedEventsPage(filters: { query: string; type: string; target_pubkey?: string; target_event_id?: string; since?: number; until?: number }, params: PageParams) {
   const search = new URLSearchParams({ limit: String(params.limit), offset: String(params.offset) })
-  if (query) {
-    search.set("q", query)
+  if (filters.query) {
+    search.set("q", filters.query)
   }
-  if (type) {
-    search.set("type", type)
+  if (filters.type && filters.type !== "all") {
+    search.set("type", filters.type)
+  }
+  if (filters.target_pubkey) {
+    search.set("target_pubkey", filters.target_pubkey)
+  }
+  if (filters.target_event_id) {
+    search.set("target_event_id", filters.target_event_id)
+  }
+  if (filters.since) {
+    search.set("since", String(filters.since))
+  }
+  if (filters.until) {
+    search.set("until", String(filters.until))
   }
 
   return request<AdminPage<ReportedEventItem>>(`/events/reported?${search.toString()}`)
+}
+
+export async function getReportedEventsSummary(filters: { query: string; type: string; target_pubkey?: string; target_event_id?: string; since?: number; until?: number }) {
+  const search = new URLSearchParams()
+  if (filters.query) {
+    search.set("q", filters.query)
+  }
+  if (filters.type && filters.type !== "all") {
+    search.set("type", filters.type)
+  }
+  if (filters.target_pubkey) {
+    search.set("target_pubkey", filters.target_pubkey)
+  }
+  if (filters.target_event_id) {
+    search.set("target_event_id", filters.target_event_id)
+  }
+  if (filters.since) {
+    search.set("since", String(filters.since))
+  }
+  if (filters.until) {
+    search.set("until", String(filters.until))
+  }
+
+  return request<ReportedEventsSummary>(`/events/reported/summary${search.toString() ? `?${search.toString()}` : ""}`)
 }
 
 export async function getLabelsPage(filters: AdminLabelsFilters, params: PageParams) {

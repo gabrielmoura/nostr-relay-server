@@ -19,6 +19,16 @@ export type EmbeddedRepost = {
   kind: number
   pubkey: string
   content: string
+  tags: TagTuple[]
+  created_at?: number
+}
+
+export type EventMediaAsset = {
+  url: string
+  type: "image" | "video"
+  mimeType?: string
+  alt?: string
+  source: "fallback" | "imeta" | "tag" | "content"
 }
 
 export type CommunityMetadata = {
@@ -26,6 +36,19 @@ export type CommunityMetadata = {
   description: string
   image: string
   moderators: string[]
+}
+
+export type CommunityApprovalSummary = {
+  communityRef: string
+  approvedEventId: string
+  approvedKind?: number
+  postAuthor: string
+}
+
+export type AddressPointer = {
+  kind: number
+  pubkey: string
+  identifier: string
 }
 
 export function firstTagValue(tags: TagTuple[], key: string): string {
@@ -113,33 +136,135 @@ export function isVideoURL(url: string): boolean {
   return /\.(mp4|webm|ogg|mov|m3u8)(\?|$)/i.test(url)
 }
 
+export function inferMediaType(url: string, mimeType?: string): "image" | "video" | null {
+  if (mimeType) {
+    if (mimeType.startsWith("image/")) return "image"
+    if (mimeType.startsWith("video/")) return "video"
+  }
+
+  if (isVideoURL(url)) return "video"
+  if (isImageURL(url)) return "image"
+  return null
+}
+
+export function collectAltTexts(tags: TagTuple[]): string[] {
+  return unique([firstTagValue(tags, "alt"), ...parseImetaResources(tags).altTexts])
+}
+
+export function parseAddressPointer(value: string): AddressPointer | null {
+  const [kindValue, pubkey, ...identifierParts] = value.split(":")
+  const kind = Number(kindValue)
+  const identifier = identifierParts.join(":")
+
+  if (Number.isNaN(kind) || !pubkey || !identifier) {
+    return null
+  }
+
+  return {
+    kind,
+    pubkey,
+    identifier,
+  }
+}
+
+export function parseCommunityAddressTag(tags: TagTuple[]): AddressPointer | null {
+  const communityTag = tags.find((tag) => (tag[0] === "a" || tag[0] === "A") && tag[1]?.startsWith("34550:"))
+  if (!communityTag?.[1]) {
+    return null
+  }
+
+  return parseAddressPointer(communityTag[1])
+}
+
+export function communityDisplayNameFromAddress(value: string): string {
+  return parseAddressPointer(value)?.identifier || value
+}
+
+export function communityNameFromTags(tags: TagTuple[]): string {
+  const name = firstTagValue(tags, "name")
+  if (name) {
+    return name
+  }
+
+  const dTag = firstTagValue(tags, "d")
+  if (dTag) {
+    return dTag
+  }
+
+  const communityAddress = parseCommunityAddressTag(tags)
+  return communityAddress?.identifier || ""
+}
+
+export function collectMediaAssets(tags: TagTuple[], content: string, fallbackImages: string[] = []): EventMediaAsset[] {
+  const assets = new Map<string, EventMediaAsset>()
+  const imeta = parseImetaResources(tags)
+
+  for (const img of fallbackImages) {
+    assets.set(img, { url: img, type: "image", source: "fallback" })
+  }
+
+  for (const tag of tags) {
+    if (tag[0] !== "imeta") {
+      continue
+    }
+
+    let url = ""
+    let mimeType = ""
+    let alt = ""
+
+    for (const item of tag.slice(1)) {
+      if (item.startsWith("url ")) url = item.slice(4).trim()
+      if (item.startsWith("m ")) mimeType = item.slice(2).trim()
+      if (item.startsWith("alt ")) alt = item.slice(4).trim()
+      if (!url && item.startsWith("image ")) url = item.slice(6).trim()
+    }
+
+    if (!url) {
+      continue
+    }
+
+    const type = inferMediaType(url, mimeType)
+    if (!type) {
+      continue
+    }
+
+    assets.set(url, {
+      url,
+      type,
+      mimeType: mimeType || undefined,
+      alt: alt || undefined,
+      source: "imeta",
+    })
+  }
+
+  for (const url of [...imeta.imageURLs, ...parseMediaURLsFromTags(tags), ...extractURLsFromText(content || "")]) {
+    const type = inferMediaType(url)
+    if (!type) {
+      continue
+    }
+
+    if (!assets.has(url)) {
+      assets.set(url, {
+        url,
+        type,
+        source: extractURLsFromText(content || "").includes(url) ? "content" : "tag",
+      })
+    }
+  }
+
+  return Array.from(assets.values())
+}
+
 export function collectMediaForEvent(event: EventRecord, fallbackImages: string[]): { images: string[]; videos: string[] } {
   const images = new Set<string>()
   const videos = new Set<string>()
 
-  for (const img of fallbackImages) {
-    images.add(img)
-  }
-
-  const imeta = parseImetaResources(event.tags as TagTuple[])
-  for (const img of imeta.imageURLs) {
-    images.add(img)
-  }
-
-  const candidateURLs = [
-    ...imeta.mediaURLs,
-    ...parseMediaURLsFromTags(event.tags as TagTuple[]),
-    ...extractURLsFromText(event.content || ""),
-  ]
-
-  for (const url of candidateURLs) {
-    if (isVideoURL(url)) {
-      videos.add(url)
+  for (const asset of collectMediaAssets(event.tags as TagTuple[], event.content || "", fallbackImages)) {
+    if (asset.type === "video") {
+      videos.add(asset.url)
       continue
     }
-    if (isImageURL(url)) {
-      images.add(url)
-    }
+    images.add(asset.url)
   }
 
   return {
@@ -153,18 +278,21 @@ export function pickVideoURL(urls: string[]): string {
   return preferred ?? urls[0] ?? ""
 }
 
-export function parseEmbeddedRepost(content: string, kind: number): EmbeddedRepost | null {
-  if (kind !== 6 && kind !== 16) {
-    return null
-  }
-
+export function parseEmbeddedEvent(content: string): EmbeddedRepost | null {
   const trimmed = content.trim()
   if (!trimmed.startsWith("{")) {
     return null
   }
 
   try {
-    const parsed = JSON.parse(trimmed) as { id?: unknown; kind?: unknown; pubkey?: unknown; content?: unknown }
+    const parsed = JSON.parse(trimmed) as {
+      id?: unknown
+      kind?: unknown
+      pubkey?: unknown
+      content?: unknown
+      tags?: unknown
+      created_at?: unknown
+    }
     if (typeof parsed.id !== "string") {
       return null
     }
@@ -174,10 +302,20 @@ export function parseEmbeddedRepost(content: string, kind: number): EmbeddedRepo
       kind: typeof parsed.kind === "number" ? parsed.kind : -1,
       pubkey: typeof parsed.pubkey === "string" ? parsed.pubkey : "",
       content: typeof parsed.content === "string" ? parsed.content : "",
+      tags: Array.isArray(parsed.tags) ? parsed.tags.filter((tag): tag is string[] => Array.isArray(tag) && tag.every((item) => typeof item === "string")) : [],
+      created_at: typeof parsed.created_at === "number" ? parsed.created_at : undefined,
     }
   } catch {
     return null
   }
+}
+
+export function parseEmbeddedRepost(content: string, kind: number): EmbeddedRepost | null {
+  if (kind !== 6 && kind !== 16) {
+    return null
+  }
+
+  return parseEmbeddedEvent(content)
 }
 
 export function extractThreadRefs(tags: TagTuple[]): { root: string; reply: string } {
@@ -205,6 +343,26 @@ export function parseCommunityMetadata(tags: TagTuple[]): CommunityMetadata {
   }
 }
 
+export function parseCommunityApproval(tags: TagTuple[]): CommunityApprovalSummary {
+  const aTag = tags.find((tag) => tag[0] === "a" && tag[1]?.startsWith("34550:"))
+  const eTag = tags.find((tag) => tag[0] === "e")
+  const kTag = tags.find((tag) => tag[0] === "k")
+  const pTag = tags.find((tag) => tag[0] === "p")
+
+  return {
+    communityRef: aTag?.[1] ?? "",
+    approvedEventId: eTag?.[1] ?? "",
+    approvedKind: kTag?.[1] ? Number(kTag[1]) : undefined,
+    postAuthor: pTag?.[1] ?? "",
+  }
+}
+
+export function parseDMRelays(tags: TagTuple[]): string[] {
+  return tags.filter((tag) => tag[0] === "relay" && tag[1]).map((tag) => tag[1] as string)
+}
+
+export const COMMUNITY_APPROVAL_KIND = 4550
+export const DM_RELAY_KIND = 10050
 export const VIDEO_KINDS = [21, 22, 34235]
 export const IMAGE_KIND = 20
 export const REPOST_KINDS = [6, 16]

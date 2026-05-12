@@ -32,6 +32,7 @@ import {
   importEventsFiles,
   getEventDetail,
   getEventReports,
+  getReportedEventsSummary,
   getEventSearchAggregates,
   getEventSearchTimeline,
   getBannedUsersPage,
@@ -153,12 +154,19 @@ export function useEventReports(eventID: string) {
   })
 }
 
-export function useInfiniteReportedEvents(query: string, type: string) {
+export function useInfiniteReportedEvents(filters: { query: string; type: string; target_pubkey?: string; target_event_id?: string; since?: number; until?: number }) {
   return useInfiniteQuery({
     initialPageParam: 0,
-    queryKey: ["reported-events", query, type],
-    queryFn: ({ pageParam }) => getReportedEventsPage(query, type, { limit: defaultPageSize, offset: pageParam }),
+    queryKey: ["reported-events", filters],
+    queryFn: ({ pageParam }) => getReportedEventsPage(filters, { limit: defaultPageSize, offset: pageParam }),
     getNextPageParam: (lastPage) => (lastPage.has_more ? lastPage.offset + lastPage.items.length : undefined),
+  })
+}
+
+export function useReportedEventsSummary(filters: { query: string; type: string; target_pubkey?: string; target_event_id?: string; since?: number; until?: number }) {
+  return useQuery({
+    queryKey: ["reported-events-summary", filters],
+    queryFn: () => getReportedEventsSummary(filters),
   })
 }
 

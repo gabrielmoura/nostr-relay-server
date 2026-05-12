@@ -1,11 +1,9 @@
 import { ExternalLink } from "lucide-react"
 import { useTranslation } from "react-i18next"
 
-import { Badge } from "@/components/ui/badge"
-import { EventImageGrid } from "./event-image-grid"
 import { EventVideoPlayer } from "./event-video-player"
-import { parseImetaResources, parseMediaURLsFromTags, pickVideoURL, VIDEO_KINDS } from "@/lib/event-parser"
-import { unique } from "@/lib/event-parser"
+import { MediaCarousel } from "./media-carousel"
+import { collectAltTexts, collectMediaAssets, parseImetaResources } from "@/lib/event-parser"
 import type { TagTuple } from "@/lib/event-parser"
 
 interface EventMediaProps {
@@ -15,17 +13,28 @@ interface EventMediaProps {
   kind: number
 }
 
+import type { MediaItem } from "./media-carousel"
+
 export function EventMedia({ content, tags, imageURLs, kind }: EventMediaProps) {
   const { t } = useTranslation()
   const imeta = parseImetaResources(tags)
-  const mediaURLs = unique([...imeta.mediaURLs, ...parseMediaURLsFromTags(tags)])
-  const videoURL = VIDEO_KINDS.includes(kind) ? pickVideoURL(mediaURLs) : null
-  const videoPoster = imageURLs[0] ?? ""
+  const altTexts = collectAltTexts(tags)
+  const assets = collectMediaAssets(tags, content, imageURLs)
+  const mediaURLs = assets.map((asset) => asset.url)
+  const videoPoster = assets.find((asset) => asset.type === "image")?.url ?? imageURLs[0] ?? ""
+  const unifiedMedia: MediaItem[] = assets.map((asset) => ({ type: asset.type, url: asset.url, alt: asset.alt || altTexts[0] }))
 
   return (
     <>
-      {imageURLs.length > 0 && <EventImageGrid urls={imageURLs} />}
-      {videoURL && <EventVideoPlayer poster={videoPoster} url={videoURL} />}
+      {unifiedMedia.length > 1 ? (
+        <MediaCarousel poster={videoPoster} media={unifiedMedia} />
+      ) : unifiedMedia.length === 1 ? (
+        unifiedMedia[0]!.type === "video" ? (
+          <EventVideoPlayer poster={videoPoster} url={unifiedMedia[0]!.url} />
+        ) : (
+          <img alt={unifiedMedia[0]!.alt || t("eventDetail.eventImageAlt")} className="max-h-[60vh] w-full rounded-md border border-border object-contain" src={unifiedMedia[0]!.url} />
+        )
+      ) : null}
       {mediaURLs.length > 0 && (
         <div className="space-y-2 rounded-[calc(var(--radius)-0.2rem)] border border-border bg-muted/20 p-4">
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">{t("eventDetail.mediaUrlsImeta")}</p>
@@ -43,6 +52,7 @@ export function EventMedia({ content, tags, imageURLs, kind }: EventMediaProps) 
               </a>
             ))}
           </div>
+          {altTexts.length > 0 ? <p className="break-words text-xs text-muted-foreground">{t("eventDetail.altPrefix")} {altTexts.join(" | ")}</p> : null}
         </div>
       )}
     </>

@@ -13,7 +13,9 @@ import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { Separator } from "@/components/ui/separator"
+import { normalizeGeohashInput } from "@/lib/geohash"
 import { normalizeFilterIdentifier } from "@/lib/nostr"
+import { useGeohashSearchStore } from "@/stores/geohash-search-store"
 
 export interface NostrFilter {
   ids?: string[]
@@ -36,6 +38,7 @@ interface NostrFilterBuilderProps {
 export function NostrFilterBuilder({ initialFilter = {}, onChange, title, description }: NostrFilterBuilderProps) {
   const { t } = useTranslation()
   const [filter, setFilter] = useState<NostrFilter>(initialFilter)
+  const addRecentGeohash = useGeohashSearchStore((state) => state.addRecent)
 
   // Local states for inputs
   const [inputKind, setInputKind] = useState("")
@@ -74,6 +77,9 @@ export function NostrFilterBuilder({ initialFilter = {}, onChange, title, descri
     const normalizedValue = normalizeTagIdentifier(actualKey, v.trim())
     if (!current.includes(normalizedValue)) {
       updateFilter({ [actualKey]: [...current, normalizedValue] })
+    }
+    if (actualKey === "#g") {
+      addRecentGeohash(normalizedValue)
     }
     if (!key) setInputTagValue("")
   }
@@ -141,6 +147,8 @@ export function NostrFilterBuilder({ initialFilter = {}, onChange, title, descri
         return normalizeFilterIdentifier("pubkey", value)
       case "a":
         return normalizeFilterIdentifier("address", value)
+      case "g":
+        return normalizeGeohashInput(value)
       default:
         return value.trim()
     }

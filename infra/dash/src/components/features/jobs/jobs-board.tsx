@@ -207,6 +207,8 @@ export function JobsBoard({ title, description, filters, emptyTitle, emptyDescri
 
 function JobDialogContent({ job, loading }: { job: AdminJob; loading?: boolean }) {
   const { t } = useTranslation()
+  const isSyncJob = job.job_name === "sync.negentropy"
+
   return (
     <div className="space-y-4">
       {loading ? <Skeleton className="h-24 w-full" /> : null}
@@ -214,10 +216,98 @@ function JobDialogContent({ job, loading }: { job: AdminJob; loading?: boolean }
         <Stat label={t("jobs.card.startedAt", "Iniciado em")} value={formatTimestamp(job.started_at)} />
         <Stat label={t("jobs.card.finishedAt", "Finalizado em")} value={formatTimestamp(job.finished_at)} />
       </div>
+      {isSyncJob && (job.result?.filter || job.result?.filter_json || job.payload?.filter_json) ? (
+        <SyncJobFilterPanel job={job} />
+      ) : null}
+      {isSyncJob && (job.result?.rejections || job.result?.error || job.last_error) ? (
+        <SyncJobDiagnosticsPanel job={job} />
+      ) : null}
       <div className="grid gap-4 lg:grid-cols-2">
         <JsonPanel content={job.payload} title={t("jobs.dialog.payload", "Payload")}/>
         <JsonPanel content={job.result} title={t("jobs.dialog.result", "Resultado")}/>
       </div>
+    </div>
+  )
+}
+
+function SyncJobFilterPanel({ job }: { job: AdminJob }) {
+  const { t } = useTranslation()
+  const result = job.result as { filter?: unknown[]; filter_json?: string } | undefined
+  const payload = job.payload as { filter_json?: string } | undefined
+
+  const filterData = result?.filter ?? result?.filter_json ?? payload?.filter_json ?? null
+
+  if (!filterData) {
+    return null
+  }
+
+  const filterDisplay = typeof filterData === "string" 
+    ? filterData 
+    : JSON.stringify(filterData, null, 2)
+
+  return (
+    <div className="rounded-[calc(var(--radius)-0.25rem)] border border-border/70 bg-card/50 p-4 space-y-2">
+      <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
+        {t("jobs.dialog.syncFilter", "Filtro executado")}
+      </p>
+      <pre className="max-h-[30vh] overflow-auto rounded-[calc(var(--radius)-0.25rem)] border border-border/50 bg-muted/30 p-3 text-xs text-foreground font-mono">
+        {filterDisplay}
+      </pre>
+    </div>
+  )
+}
+
+function SyncJobDiagnosticsPanel({ job }: { job: AdminJob }) {
+  const { t } = useTranslation()
+  const result = job.result as { 
+    error?: string
+    rejections?: Array<{ event_id: string; reason: string; raw?: string }>
+  } | undefined
+
+  const errorMessage = result?.error ?? job.last_error
+  const rejections = result?.rejections
+
+  if (!errorMessage && !rejections?.length) {
+    return null
+  }
+
+  return (
+    <div className="rounded-[calc(var(--radius)-0.25rem)] border border-destructive/30 bg-destructive/5 p-4 space-y-3">
+      <p className="text-xs uppercase tracking-[0.14em] text-destructive font-medium">
+        {t("jobs.dialog.syncDiagnostics", "Diagnósticos de erro")}
+      </p>
+      
+      {errorMessage ? (
+        <div className="flex items-start gap-2">
+          <p className="text-sm text-destructive">{errorMessage}</p>
+        </div>
+      ) : null}
+
+      {rejections && rejections.length > 0 ? (
+        <div className="space-y-2">
+          <p className="text-xs text-muted-foreground">
+            {t("jobs.dialog.rejectedEvents", "Eventos rejeitados")} ({rejections.length})
+          </p>
+          <div className="max-h-[30vh] overflow-auto rounded border border-destructive/20 bg-background/50">
+            <table className="w-full text-xs">
+              <thead className="bg-muted/50 sticky top-0">
+                <tr className="text-left">
+                  <th className="px-2 py-1 font-medium text-muted-foreground">Event ID</th>
+                  <th className="px-2 py-1 font-medium text-muted-foreground">Reason</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rejections.map((r, i) => (
+                  <tr key={i} className="border-t border-border/50">
+                    <td className="px-2 py-1 font-mono text-foreground break-all">{r.event_id?.slice(0, 16)}...</td>
+                    <td className="px-2 py-1 text-foreground">{r.reason}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }

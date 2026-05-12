@@ -218,6 +218,288 @@ routes/
 - completed jobs should expose a reenqueue/retry action from the board when the backend already supports safe retry semantics
 - `/events/search` should move KPI cards above filters and surface kind `34550` metadata inline
 
+## Planned Rich Event Visualization
+
+### Scope
+
+This refinement targets:
+
+- `/panel/events/search`
+- `/panel/events/$eventId`
+- `components/features/event-detail/*`
+- `components/features/event-search/*`
+
+### Product goal
+
+Operators should understand media-heavy and non-text events without opening raw JSON.
+
+Required interpretation rules from the current relay domain:
+
+- `kind:6` must be rendered as a repost of the referenced event from NIP-18.
+- `kind:4550` must be rendered as a NIP-72 community approval, highlighting community pointer, approved event, approved kind and embedded approved payload when present.
+- `kind:10050` must be rendered as a NIP-51/NIP-17 DM relay list, prioritizing relay badges and counts over empty content.
+- any event displayed as `(sem conteudo textual)` must append its `alt` tag when present, using the exact operator-facing pattern `(sem conteudo textual) ${alt}`.
+- `kind:1111` should expose the associated community name or identifier when an `a`/`A` tag points to a `kind:34550` community.
+- when the associated community can be resolved, `/panel/events/search` should also show the community thumbnail and a visible community-context badge.
+- when the event is `kind:1111` and belongs to a community, `/panel/events/search` should keep the community indicator and also render a compact preview of its textual content plus associated tags when present.
+- media-only events must render media from `imeta`, `r`, `url`, content URL and recognized MIME metadata instead of showing only raw links.
+
+### Visual direction
+
+Using `ui-ux-pro-max`, preserve the existing admin dashboard language and apply these feature-specific rules:
+
+- data-dense moderation layout, not a marketing layout
+- compact semantic cards for protocol-specific kinds
+- `kind:4550` in `/panel/events/search` should surface richer moderation context than a generic badge-only summary
+- community-aware events in `/panel/events/search` should render one compact context strip with thumbnail + semantic badge before the protocol-specific body
+- `K:1111` in `/panel/events/search` should expose a tooltip with the event-kind description sourced from NIP-22 / kind metadata
+- constrained media containers with `min-w-0`, `overflow-hidden` and capped viewport heights to prevent page blowout
+- carousel only when there is more than one asset of the same post context
+- video should be click-to-load in search results to avoid auto-heavy rendering in long lists
+- keep light/dark contrast high and avoid layout shifts on hover
+
+### Component strategy
+
+Route containers remain smart:
+
+- `routes/event-search-page.tsx`
+- `routes/event-detail-page.tsx`
+
+Feature visual blocks remain dumb or near-dumb:
+
+- `EventSearchItem`
+- `EventMedia`
+- `MediaCarousel`
+- `CommunityApprovalCard`
+- `DMRelayListCard`
+- new protocol cards and media summary blocks where needed
+
+Light adapters and parsers live in `lib/`:
+
+- extend `event-parser.ts` for MIME-aware media extraction, alt fallback rules and specialized protocol summaries
+- keep route components responsible for query orchestration only
+
+### `@nostrify/*` usage plan
+
+The dashboard already depends on `@nostrify/nostrify` and `@nostrify/react` but does not consume them yet.
+
+Planned usage:
+
+- add a small Nostr provider boundary near the app root or event feature boundary
+- use `@nostrify/react` hooks to resolve referenced events and author context needed by richer repost/community visualization without coupling UI components to raw websocket logic
+- keep admin REST endpoints as the primary source of truth for indexed data; `@nostrify/*` is an auxiliary read layer for protocol-native enrichments only
+
+This preserves the service-first admin architecture while finally using the installed Nostr client stack in a controlled way.
+
+### Layout safety rules for `/panel/events/$eventId`
+
+- `PanelGroup` panels must allow shrinking but all inner content containers must use `min-w-0`
+- long identifiers, URLs and tags must render with `break-all` or `truncate` depending on context
+- media panels must cap height around viewport units and avoid unconstrained width growth
+- multi-card sections below the split panel must use responsive grids that collapse cleanly on narrow widths
+- no event content block may force horizontal scroll on the page
+- protocol cards, metadata chips and nested preview blocks must not create horizontal overflow for long `a`, `e`, `p`, relay and media URLs, including the current problematic detail case `/panel/events/625b9578996ccccd0cc381b7f133a4dba94f3a7aae8851a6734f3870a24c6621`
+
+## Planned Event Search Analytics Modal
+
+### Scope
+
+This refinement targets:
+
+- `/panel/events/search`
+- `routes/event-search-page.tsx`
+- new `components/features/event-search/*` analytical modal blocks
+
+### Product goal
+
+Operators need a dedicated analytical surface for event search without leaving the main search route. The route should expose a button that opens a modal and renders event-search charts related to the current active filters.
+
+The modal should answer:
+
+- top-line KPI values for the current filtered relay dataset
+- dominant kinds in the current filtered relay dataset
+- event activity over time with month/year-visible labels
+- most active authors, including resolved display names when possible
+- most common tags
+- trend-oriented insights such as top tag in the month/year when the aggregate contract supports them
+
+### Visual direction
+
+Using `ui-ux-pro-max`, the modal should feel like a compact operations analytics workspace:
+
+- opened from a clear button in the page header actions
+- analytical cards arranged in a dense modal grid
+- KPI strip should sit at the top of the modal before the charts
+- reuse `recharts` components already aligned to the dashboard language
+- keep charts compact and readable inside the modal; no oversized hero charts
+- preserve the existing search route as the primary surface and keep the modal as a drill-in analytics layer
+- clicking a kind or tag in the modal should refine the modal charts to the chosen selection
+- author surfaces in the modal should support both filtering and navigation to the user detail route
+
+### Component strategy
+
+Smart orchestration stays in `routes/event-search-page.tsx`.
+
+New dumb modal-focused components may include:
+
+- `EventSearchAnalyticsModal`
+- `EventSearchAnalyticsSummary`
+- `EventSearchAnalyticsKpiStrip`
+- `EventSearchTopAuthorsChart`
+- `EventSearchTopTagsChart`
+- reuse of existing `EventSearchAggregates` and `EventSearchTimeline` where possible
+
+### State strategy
+
+- modal open/close can remain local route state
+- analytics data continues to come from TanStack Query hooks already tied to the active search filters
+- the modal should support a relay-overview mode where aggregates are not interpreted as list-local counters
+- the modal should support opening on a specific initial analytical tab when triggered by the route
+- if the modal later gains persisted view preferences, they can move into the existing Zustand global UI layer
+
+### Reported events routing strategy
+
+The `/panel/events/reported` route must now be URL-driven through TanStack Router.
+
+Rules:
+
+- `q`, `type`, `targetEventId`, `targetPubkey`, `since` and `until` should be reflected in route search params
+- chart-driven filtering must update the URL, not only local/global UI state
+- restoring the URL must restore the moderation slice exactly
+
+### Labels analytics modal strategy
+
+`/panel/labels` should expose a secondary analytics modal with KPIs and Recharts-based charts derived from `labels/summary`.
+
+Goals:
+
+- keep `LabelsWorkspace` primary for operations
+- open analytics on demand from a header action
+- surface namespace, label and target-type distributions without leaving the route
+
+## Planned Report Analytics Workspace
+
+### Scope
+
+This refinement targets the existing moderation route:
+
+- `/panel/events/reported`
+- `routes/reported-events-page.tsx`
+- new `components/features/reported-events/*`
+
+### Product goal
+
+Operators should move from a report list with static KPI cards to an analytical moderation workspace that answers these questions immediately:
+
+- how many reported events and total report events exist in the current filter slice
+- which report types dominate the current dataset
+- when report activity spikes over time
+- which authors or targets accumulate the most moderation pressure
+
+The protocol context comes from NIP-56 (`kind:1984`) and should be treated as moderation telemetry, not only as individual row items.
+
+### Visual direction
+
+Using `ui-ux-pro-max`, the reports page should stay inside the existing admin dashboard language and become a compact analytics screen:
+
+- KPI strip built with `recharts`, not plain static cards
+- one trend chart for report volume over time
+- one categorical chart for report types
+- optional author/target concentration chart when the dataset is large enough
+- filters stay above charts so every chart reflects the active moderation slice
+- charts must remain compact, readable and responsive, not marketing-sized hero graphics
+
+### Component strategy
+
+Smart route/container:
+
+- `routes/reported-events-page.tsx`
+- optional `ReportedEventsWorkspace` smart orchestrator if the route becomes too dense
+
+Dumb analytical components:
+
+- `ReportedEventsKpiStrip`
+- `ReportedEventsTrendChart`
+- `ReportedEventsTypeChart`
+- `ReportedEventsTopAuthorsChart`
+- `ReportedEventsSummaryCard`
+
+Existing list and modal behavior remain, but become secondary drill-down surfaces below the analytics summary.
+
+### API strategy
+
+The reports analytics workspace now requires **global server-backed aggregates**.
+
+The list route and the analytics route must be separated conceptually:
+
+- `/admin/events/reported` continues to return paginated target rows for the virtualized list
+- a new summary endpoint must return analytics computed from the full filtered dataset on the server, independent of the currently loaded list slice
+
+Planned summary endpoint:
+
+- `GET /admin/events/reported/summary`
+
+The dashboard must not derive KPI or chart totals from the virtualized list when global moderation telemetry is required.
+
+### Global state strategy
+
+This refinement also introduces a lightweight global client-state layer using:
+
+- `zustand`
+- `immer`
+- persistence/sync via `localStorage`
+
+Planned use cases:
+
+- reports dashboard filters and chart-driven drill-down state
+- persisted analytics view preferences
+- reusable geohash search input state if promoted beyond one route
+- media/player preferences that belong to the operator session, not a single component subtree
+
+Rules:
+
+- TanStack Query remains the source of truth for server state
+- Zustand stores only global UI/session state
+- persistence is explicit and scoped; do not dump entire fetched datasets into localStorage
+
+### Geohash search strategy
+
+The dashboard now also needs geohash-aware search support using `ngeohash`.
+
+First-pass scope:
+
+- normalize geohash input for search/filter workflows
+- decode geohash labels for operator context where useful
+- support exact geohash search and prefix-based grouping when the route domain allows the Nostr `g` tag
+
+This aligns with the Nostr `g` tag used by NIP-52 and other location-aware events.
+
+### Video player strategy
+
+The current native `<video>` rendering path should be upgraded to:
+
+- `@vidstack/react`
+- `hls.js`
+- `dashjs`
+
+Goals:
+
+- support progressive video plus HLS/DASH manifests in one operator-grade player
+- preserve lazy load behavior in search results
+- keep the player wrapper dumb and driven by parsed media metadata
+- maintain layout safety and avoid autoplay-heavy behavior in virtualized contexts
+- keep Vidstack debug/log output enabled while this player migration is being verified in the admin dashboard
+
+### Search analytics modal strategy
+
+The search analytics modal must reflect the current **full filtered relay dataset**, not only the items loaded in the virtualized list.
+
+Rules:
+
+- KPI values at the top of the modal must come from server-backed aggregates
+- modal charts must be tied to the same aggregate/timeline sources already computed for the full filtered dataset
+- `loadedItems` from the current virtualized list may be shown only as a secondary local indicator, never as the primary global total
+
 ## Current known gap
 
 The current sync queue UX exposes `cancel`, but the backend/runtime behavior can still let a canceled item resume automatically later. The intended fix is:

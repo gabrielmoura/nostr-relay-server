@@ -131,6 +131,106 @@ const { data, isLoading, error } = useEvent(id);
 | `success` | Event loaded |
 | `repost` | Displaying reposted event |
 
+### Rich Event Visualization State Flow
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│              Search + Detail Media Interpretation            │
+├──────────────────────────────────────────────────────────────┤
+│                                                              │
+│  Admin event payload                                          │
+│       │                                                      │
+│       ├── tags / content / image_urls                        │
+│       ├── alt tag                                            │
+│       └── kind                                               │
+│              │                                               │
+│              ▼                                               │
+│  event-parser.ts                                             │
+│       │                                                      │
+│       ├── parseImetaResources()                              │
+│       ├── collectMediaForEvent()                             │
+│       ├── parseCommunityApproval()                           │
+│       ├── parseDMRelays()                                    │
+│       └── parseEmbeddedRepost()                              │
+│              │                                               │
+│              ▼                                               │
+│  UI decision layer                                           │
+│       │                                                      │
+│       ├── no textual content -> append alt                   │
+│       ├── one image -> render image                          │
+│       ├── many images -> carousel                            │
+│       ├── one video -> click-to-load preview                 │
+│       ├── mixed media -> carousel                            │
+│       ├── kind 4550 -> community approval card               │
+│       ├── kind 6 -> repost card                              │
+│       ├── kind 10050 -> DM relay list card                   │
+│       └── kind 1111 + community a-tag -> community context + preview │
+│                                                              │
+└──────────────────────────────────────────────────────────────┘
+```
+
+Additional local UI state:
+
+| State | Location | Purpose |
+|-------|----------|---------|
+| `videoLoaded` | `EventSearchItem`, `EventVideoPlayer`, carousel item | Defers expensive video rendering until operator intent |
+| `selectedSlide` | `MediaCarousel` | Keeps carousel indicators and panel context aligned |
+| `detailPanelSizes` | resizable panel state if persisted later | Optional operator preference for left/right split |
+
+Server-state enrichment plan:
+
+- primary event data remains sourced from the internal admin API
+- optional referenced-event enrichment may be fetched through `@nostrify/react` queries when protocol cards need extra context not indexed by the admin payload
+- optional community-address enrichment may be fetched through `@nostrify/react` queries when search rows need community name/image from `kind:34550`
+- failures in this enrichment path must degrade to existing id-based cards, never block the main detail page
+
+Error recovery rules:
+
+- media parse failure falls back to link list, not blank UI
+- referenced-event fetch failure falls back to event id and tag metadata
+- invalid embedded repost JSON falls back to plain content rendering
+- community-name resolution failure for `kind:1111` falls back to the raw `a` tag identifier, not an empty community field
+- community-image resolution failure still preserves the community badge and textual label
+- user-name resolution failure in search rows falls back to pubkey shortening, not blank author labels
+
+### Event Search Analytics Modal Flow
+
+### Event Search Analytics Modal Flow
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│              Event Search Analytics Modal Flow               │
+├──────────────────────────────────────────────────────────────┤
+│                                                              │
+│  Active route search filters                                 │
+│       │                                                      │
+│       ├── useEventSearchAggregates(filters)                  │
+│       └── useEventSearchTimeline(filters, bucket)            │
+│              │                                               │
+│              ▼                                               │
+│  header button toggles analytics modal                       │
+│       │ optionally passes initial analytical tab             │
+│              │                                               │
+│              ▼                                               │
+│  modal renders KPI strip + analytical charts for full filtered dataset │
+│       │                                                      │
+│       ├── click kind/tag refines modal dataset               │
+│       ├── click author may filter and/or navigate            │
+│       └── trends tab summarizes month/year tag leaders       │
+│                                                              │
+└──────────────────────────────────────────────────────────────┘
+```
+
+States:
+
+| State | Meaning |
+|-------|---------|
+| `closed` | modal hidden |
+| `open-loading` | modal open while charts are loading |
+| `open-success` | modal open with server-backed aggregates/timeline data |
+| `open-error` | modal open with retry surface |
+| `open-tabbed` | modal open on a specific requested analytical tab |
+
 ### Ban User Flow
 
 ```
@@ -214,6 +314,78 @@ States:
 | `running` | Backend job still processing relay pages |
 | `completed` | Backend finished with summary counters |
 | `failed` | Backend returned terminal error message |
+
+### Reported Events Analytics Flow
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│               Reported Events Analytics Flow                 │
+├──────────────────────────────────────────────────────────────┤
+│                                                              │
+│  Filter state: query + reportType                            │
+│       │                                                      │
+│       ▼                                                      │
+│  useInfiniteReportedEvents(query, type)                      │
+│       │                                                      │
+│       ├── paginated list rows                                 │
+│       │                                                      │
+│       └── useReportedEventsSummary(query, type)               │
+│               │                                               │
+│               ▼                                               │
+│          full filtered server aggregates                      │
+│       │                                                      │
+│       ▼                                                      │
+│  dumb Recharts components                                    │
+│       │                                                      │
+│       ├── KPI strip                                          │
+│       ├── trend chart                                        │
+│       ├── type chart                                         │
+│       ├── top-authors chart                                  │
+│       └── top-targets chart                                  │
+│                                                              │
+└──────────────────────────────────────────────────────────────┘
+```
+
+States:
+
+| State | Meaning |
+|-------|---------|
+| `loading` | first moderation slice still loading |
+| `success` | list + analytics derived from server-backed summary |
+| `empty` | no reported events for the current filter |
+| `error` | `/admin/events/reported` failed |
+
+Recovery rules:
+
+- if chart aggregation fails locally, the route should still show the reported-event list
+- if a single chart has no usable data, render an empty analytical card instead of failing the page
+
+### Global UI State Flow
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│                 Global UI State with Zustand                 │
+├──────────────────────────────────────────────────────────────┤
+│                                                              │
+│  Route / feature action                                      │
+│       │                                                      │
+│       ▼                                                      │
+│  zustand store action                                         │
+│       │ uses immer for immutable updates                     │
+│       ▼                                                      │
+│  persisted slice sync to localStorage                        │
+│       │                                                      │
+│       └── restored on app boot / feature mount              │
+│                                                              │
+└──────────────────────────────────────────────────────────────┘
+```
+
+Rules:
+
+- store only global UI/session intent
+- never persist raw reported-event pages
+- chart selections may update both store state and route/query state when appropriate
+- when a route is declared URL-driven, route search params are the canonical source for restorable filter state
 
 Persistence rules:
 

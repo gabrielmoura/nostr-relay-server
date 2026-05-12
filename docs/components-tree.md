@@ -60,13 +60,23 @@ Located in `infra/dash/src/components/shared/`
 | `EventMedia` | Dumb | `event` | - |
 | `EventImageGrid` | Dumb | `images` | - |
 | `EventVideoPlayer` | Dumb | `src`, `poster` | - |
+| `MediaCarousel` | Dumb | `media`, `poster`, `altTexts?`, `lazyVideo` | `onSlideChange?` |
 | `EventRepostCard` | Dumb | `repostedEvent` | - |
 | `ReactionTargetEvent` | Dumb | `targetEvent` | - |
 | `EventListItems` | Dumb | `events`, `onEventClick` | `onEventClick` |
+| `CommunityApprovalCard` | Dumb | `communityRef`, `approvedEventId`, `approvedKind`, `postAuthor`, `approvedEvent?` | - |
+| `DMRelayListCard` | Dumb | `relays` | - |
 | `NostrReferences` | Dumb | `event` | - |
 | `ListRefSyncCard` | Smart | `listId`, `onSync`, `onClose` | `onSync`, `onClose`, `onRelaySelect` |
 | `RelaySearchModal` | Smart | `open`, `onClose` | `onSelect` |
 | `EventDetailErrorState` | Dumb | `error`, `onRetry` | `onRetry` |
+
+Planned additions for rich-event work:
+
+- `EventKindSummaryCard` (Dumb): shared summary surface for empty-text protocol events.
+- `EventMediaPreview` (Dumb): chooses single image, single video gate, or carousel.
+- `EventMediaStatsCard` (Dumb): counts images, videos, MIME types and alt labels for operators.
+- `EventReferencedContext` (Smart or near-smart): fetches minimal referenced event context through `@nostrify/react` when admin payload does not already include it.
 
 Relay selection for event recovery should delegate persistence and editing to the shared `RelayListModal` storage workflow.
 
@@ -115,8 +125,73 @@ Rules:
 | `EventSearchAggregates` | Dumb | `counts`, `kinds` | - |
 | `EventSearchTimeline` | Smart | `events`, `onLoadMore` | `onLoadMore` |
 | `EventImportModal` | Smart | `open`, `onClose` | `onImport` |
+| `EventSearchAnalyticsModal` | Dumb | `open`, `onOpenChange`, `initialTab`, `aggregates`, `timeline`, `isLoading`, `isError`, `onRetry` | `onOpenChange`, `onRetry` |
+| `EventSearchAnalyticsKpiStrip` | Dumb | `metrics` | - |
+| `EventSearchTopAuthorsChart` | Dumb | `items` | `onBarSelect?` |
+| `EventSearchTopTagsChart` | Dumb | `items` | `onSliceSelect?` |
+
+For the current refinement, the event-search analytics modal also needs:
+
+- a relay-overview interpretation of KPIs, not only list-local counters
+- click-driven kind/tag filtering inside the modal
+- author rows/bars that can both filter and navigate to the user detail page
+- a trends tab for month/year-oriented tag summaries when backed by aggregates
+
+Planned additions for list rendering:
+
+- `EventSearchCommunityContext` (Dumb): compact context strip with community thumbnail, semantic badge and resolved community label.
+- `EventSearchMediaInline` (Dumb): compact single-image, single-video-gate or compact carousel preview.
+- `EventSearchKindBadgeRow` (Dumb): semantic badges for `kind:6`, `kind:4550`, `kind:10050`, `kind:20`, `kind:21`, `kind:31234` and list kinds.
+- `EventSearchProtocolCard` (Dumb): protocol-specific miniature card used when text content is empty or secondary.
+
+Additional event-search refinements now required:
+
+- `EventSearchCommunityPostPreview` (Dumb): textual preview + associated tags for `kind:1111` community posts.
+- `EventKindTooltip` (Dumb): tooltip wrapper for `K:*` badges using NIP-derived descriptions.
+- `EventReferenceCopyBadge` (Dumb): click-to-copy badge for event references using NIP-19 when applicable.
+
+For the current refinement, `EventSearchCommunityContext` must include:
+
+- resolved community thumbnail when available
+- visible semantic badge such as `Post da comunidade` or `Aprovacao da comunidade`
+- community name or identifier fallback
 
 **Parser**: `lib/event-search.ts` (transforms API response to display data)
+
+---
+
+### Reported Events (`components/features/reported-events/`) - Planned refinement
+
+| Component | Type | Props | Events |
+|-----------|------|-------|--------|
+| `ReportedEventsKpiStrip` | Dumb | `metrics` | - |
+| `ReportedEventsTrendChart` | Dumb | `points`, `isEmpty` | `onPointSelect?` |
+| `ReportedEventsTypeChart` | Dumb | `items`, `isEmpty` | `onSliceSelect?` |
+| `ReportedEventsTopAuthorsChart` | Dumb | `items`, `isEmpty` | `onBarSelect?` |
+| `ReportedEventsTopTargetsChart` | Dumb | `items`, `isEmpty` | `onBarSelect?` |
+| `ReportedEventsFilters` | Dumb | `query`, `reportType`, `onQueryChange`, `onTypeChange` | `onQueryChange`, `onTypeChange` |
+| `ReportedEventsWorkspace` | Smart | `initialQuery?`, `initialType?` | `onSelectEvent`, `onRetry` |
+
+Rules:
+
+- the route or `ReportedEventsWorkspace` is the only smart orchestrator
+- all chart blocks remain dumb and receive pre-aggregated props from the server-backed summary query
+- `recharts` usage stays isolated to the analytical components
+- the event list and the reports modal remain drill-down surfaces under the analytical summary layer
+
+### Global State (`stores/`) - Planned
+
+| Store | Type | Purpose |
+|-------|------|---------|
+| `reported-events-store` | Smart infra | Global filter state, chart selections and persisted analytics preferences |
+| `media-player-store` | Smart infra | Session-level video/player preferences and safe persisted UI flags |
+| `geohash-search-store` | Smart infra | Geohash input normalization and optional persisted recent values |
+
+Rules:
+
+- stores hold global UI/session state only
+- server datasets remain in TanStack Query
+- stores use `zustand` with `immer` and explicit `localStorage` persistence
 
 ---
 
@@ -156,6 +231,7 @@ Rules:
 | Component | Type | Props | Events |
 |-----------|------|-------|--------|
 | `LabelsWorkspace` | Smart | `initialFilters?` | `onCreateLabel`, `onBanPubkey`, `onFilterChange` |
+| `LabelsAnalyticsModal` | Dumb | `open`, `onOpenChange`, `summary` | `onOpenChange` |
 | `LabelsHelpDialog` | Dumb | `open`, `onOpenChange` | `onOpenChange` |
 | `LabelsStatsStrip` | Dumb | `summary` | - |
 | `LabelsFilterBar` | Dumb | `filters`, `namespaces`, `labels`, `onChange` | `onChange`, `onReset` |
@@ -205,6 +281,7 @@ Additional refinements in scope:
 - `NostrFilterBuilder` should normalize hex/NIP-19 input before mutating route state
 - `JobsBoard` should gain explicit `resume`, real backend `clear history`, filter preview, and terminal `reenqueue` affordances where supported
 - `event-detail-page.tsx` should show richer responder cards and moderator identities for community events (`kind:34550`)
+- `event-search-page.tsx` and `event-detail-page.tsx` should share one media interpretation model so image/video/alt behavior stays consistent across search and detail views
 
 ---
 

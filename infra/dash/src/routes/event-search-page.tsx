@@ -1,8 +1,9 @@
 import { useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
-import { RefreshCw, Download, Filter, Database, Calendar, Search, Plus, LayoutGrid, BarChart3 } from "lucide-react"
+import { RefreshCw, Download, Filter, Database, Calendar, Search, Plus, LayoutGrid, BarChart3, ChartColumn } from "lucide-react"
 import { useSearch, useNavigate } from "@tanstack/react-router"
 
+import { EventSearchAnalyticsModal } from "@/components/features/event-search/event-search-analytics-modal"
 import { PageHeader } from "@/components/shared/page-header"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -29,12 +30,23 @@ export function EventSearchPage() {
   
   const [selectedEventJson, setSelectedEventJson] = useState<string | null>(null)
   const [isImportModalOpen, setIsImportModalOpen] = useState(false)
+  const [isAnalyticsModalOpen, setIsAnalyticsModalOpen] = useState(false)
+  const [analyticsInitialTab, setAnalyticsInitialTab] = useState<"overview" | "timeline" | "audience">("overview")
+  const [analyticsKind, setAnalyticsKind] = useState<number | null>(null)
+  const [analyticsTag, setAnalyticsTag] = useState<string | null>(null)
+  const [analyticsAuthor, setAnalyticsAuthor] = useState<string | null>(null)
   
   const filters = useMemo(() => parseSearchToFilters(search), [search])
+  const modalFilters = useMemo(() => ({
+    ...filters,
+    kinds: analyticsKind !== null ? [analyticsKind] : filters.kinds,
+    authors: analyticsAuthor ? [analyticsAuthor] : filters.authors,
+    tags: analyticsTag ? [...filters.tags.filter((tag) => !tag.startsWith("t:")), `t:${analyticsTag}`] : filters.tags,
+  }), [analyticsAuthor, analyticsKind, analyticsTag, filters])
   
   const query = useInfiniteEventSearch(filters)
-  const aggregatesQuery = useEventSearchAggregates(filters)
-  const timelineQuery = useEventSearchTimeline(filters, "day")
+  const aggregatesQuery = useEventSearchAggregates(modalFilters)
+  const timelineQuery = useEventSearchTimeline(modalFilters, "day")
   const importMutation = useImportEventsMutation()
 
   const results = query.data?.pages.flatMap((page) => page.items) ?? []
@@ -59,6 +71,14 @@ export function EventSearchPage() {
       <PageHeader
         actions={
           <div className="flex items-center gap-2">
+             <Button onClick={() => { setAnalyticsKind(null); setAnalyticsTag(null); setAnalyticsAuthor(null); setAnalyticsInitialTab("overview"); setIsAnalyticsModalOpen(true) }} size="sm" variant="outline" className="h-9 rounded-md border-primary/20 hover:bg-primary/5 hover:text-primary transition-all">
+               <ChartColumn className="mr-2 size-4" />
+               {t("eventSearch.analyticsButton", "Análises")}
+             </Button>
+            <Button onClick={() => { setAnalyticsKind(null); setAnalyticsTag(null); setAnalyticsAuthor(null); setAnalyticsInitialTab("timeline"); setIsAnalyticsModalOpen(true) }} size="sm" variant="outline" className="h-9 rounded-md border-primary/20 hover:bg-primary/5 hover:text-primary transition-all">
+              <Calendar className="mr-2 size-4" />
+              {t("eventSearch.analyticsTimelineButton", "Timeline")}
+            </Button>
             <Button onClick={() => setIsImportModalOpen(true)} size="sm" variant="outline" className="h-9 rounded-md border-primary/20 hover:bg-primary/5 hover:text-primary transition-all">
               <Plus className="mr-2 size-4" />
               {t("eventSearch.import", "Importar")}
@@ -152,11 +172,11 @@ export function EventSearchPage() {
               <Card className="panel-shadow border-primary/5 bg-card/50 backdrop-blur-sm overflow-hidden">
                 <div className="h-1 bg-gradient-to-r from-emerald-500/20 via-emerald-500/40 to-emerald-500/20" />
                 <CardContent className="p-6">
-                  <EventSearchAggregates 
-                    data={aggregatesQuery.data} 
-                    isLoading={aggregatesQuery.isLoading} 
-                    isError={aggregatesQuery.isError}
-                    onRetry={() => void aggregatesQuery.refetch()}
+                    <EventSearchAggregates 
+                     data={aggregatesQuery.data} 
+                     isLoading={aggregatesQuery.isLoading} 
+                     isError={aggregatesQuery.isError}
+                     onRetry={() => void aggregatesQuery.refetch()}
                   />
                 </CardContent>
               </Card>
@@ -185,6 +205,23 @@ export function EventSearchPage() {
         isPending={importMutation.isPending} 
         importResult={importMutation.data?.files ?? []}
         onImport={async (files) => { await importMutation.mutateAsync(files) }} 
+      />
+
+      <EventSearchAnalyticsModal
+        aggregates={aggregatesQuery.data}
+        initialTab={analyticsInitialTab}
+        isAggregatesError={aggregatesQuery.isError}
+        isAggregatesLoading={aggregatesQuery.isLoading}
+        isTimelineError={timelineQuery.isError}
+        isTimelineLoading={timelineQuery.isLoading}
+        onOpenChange={setIsAnalyticsModalOpen}
+        onAuthorSelect={(pubkey) => { setAnalyticsAuthor(pubkey); setAnalyticsInitialTab("audience") }}
+        onKindSelect={(kind) => { setAnalyticsKind(kind); setAnalyticsInitialTab("overview") }}
+        onRetryAggregates={() => void aggregatesQuery.refetch()}
+        onRetryTimeline={() => void timelineQuery.refetch()}
+        onTagSelect={(tag) => { setAnalyticsTag(tag); setAnalyticsInitialTab("audience") }}
+        open={isAnalyticsModalOpen}
+        timeline={timelineQuery.data}
       />
 
       <Dialog open={!!selectedEventJson} onOpenChange={(open) => !open && setSelectedEventJson(null)}>

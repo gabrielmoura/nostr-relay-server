@@ -1,4 +1,5 @@
 import type { EventRecord, EventSearchFilters } from "@/types/admin"
+import { communityDisplayNameFromAddress, parseCommunityAddressTag } from "@/lib/event-parser"
 
 export const defaultFilters: EventSearchFilters = {
   query: "",
@@ -102,7 +103,16 @@ export function tagValue(eventItem: EventRecord, key: string): string {
   return tag?.[1] ?? ""
 }
 
+import { shortenId } from "@/lib/utils"
+
 export function eventHeadline(eventItem: EventRecord): string {
+  if (!eventItem.content || !eventItem.content.trim()) {
+    const alt = tagValue(eventItem, "alt")
+    if (alt) {
+      return `(sem conteudo textual) ${alt}`
+    }
+  }
+
   if (eventItem.kind === 30003) {
     const title = tagValue(eventItem, "title")
     const dTag = tagValue(eventItem, "d")
@@ -113,7 +123,37 @@ export function eventHeadline(eventItem: EventRecord): string {
     const description = tagValue(eventItem, "description")
     return dTag || description || "(comunidade sem descricao)"
   }
-  return eventItem.content || "(sem conteudo textual)"
+  if (eventItem.kind === 4550) {
+    const aTag = tagValue(eventItem, "a")
+    return aTag ? `Aprovação de post na comunidade ${aTag.split(":")[2] || aTag}` : "Aprovação de post na comunidade"
+  }
+  if (eventItem.kind === 6) {
+    const eTag = tagValue(eventItem, "e")
+    return eTag ? `Repost de ${shortenId(eTag, 8, 4)}` : "Repost"
+  }
+  if (eventItem.kind === 10050) {
+    const relays = eventItem.tags.filter((tag) => tag[0] === "relay" && tag[1])
+    return `DM Relays (${relays.length} relays)`
+  }
+  if (eventItem.kind === 1111) {
+    const communityRef = parseCommunityAddressTag(eventItem.tags)
+    if (communityRef) {
+      return `Post da comunidade ${communityRef.identifier}`
+    }
+  }
+  if (!eventItem.content || !eventItem.content.trim()) {
+    return "(sem conteudo textual)"
+  }
+  return eventItem.content
+}
+
+export function eventCommunityLabel(eventItem: EventRecord): string {
+  const communityRef = parseCommunityAddressTag(eventItem.tags)
+  if (!communityRef) {
+    return ""
+  }
+
+  return communityRef.identifier || communityDisplayNameFromAddress(`${communityRef.kind}:${communityRef.pubkey}:${communityRef.identifier}`)
 }
 
 export interface NostrFilter {

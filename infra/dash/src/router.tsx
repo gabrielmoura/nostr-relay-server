@@ -14,6 +14,7 @@ import { UserDetailPage } from "@/routes/user-detail-page"
 import { NIP05Page } from "@/routes/nip05-page"
 import { NIP86Page } from "@/routes/nip86-page"
 import { LabelsPage } from "@/routes/labels-page"
+import { normalizeReportedEventsSearch } from "@/lib/reported-events"
 import { UserSearchPage } from "@/routes/user-search-page"
 import { SyncPage } from "@/routes/sync-page"
 import { DownloadPage } from "@/routes/download-page"
@@ -104,6 +105,7 @@ const eventDetailRoute = createRoute({
 const reportedEventsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/events/reported",
+  validateSearch: (search: Record<string, unknown>) => normalizeReportedEventsSearch(search),
   component: ReportedEventsPage,
 })
 

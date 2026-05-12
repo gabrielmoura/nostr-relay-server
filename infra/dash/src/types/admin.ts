@@ -260,6 +260,7 @@ export type EventAggregateKind = {
 
 export type EventAggregateAuthor = {
   pubkey: string
+  display_name?: string
   count: number
 }
 
@@ -273,6 +274,16 @@ export type EventAggregates = {
   kinds: EventAggregateKind[]
   top_authors: EventAggregateAuthor[]
   top_tags: EventAggregateTag[]
+  trends?: {
+    top_tag_month?: string
+    top_tag_month_count?: number
+    top_tag_year?: string
+    top_tag_year_count?: number
+    peak_month?: string
+    peak_month_count?: number
+    peak_year?: string
+    peak_year_count?: number
+  }
 }
 
 export type EventTimelinePoint = {
@@ -315,6 +326,46 @@ export type ReportedEventItem = {
   last_reported_at?: string
   report_types: string[]
   target_event?: EventRecord
+}
+
+export type ReportedEventsTimelinePoint = {
+  bucket: string
+  count: number
+}
+
+export type ReportedEventsTypeCount = {
+  name: string
+  count: number
+}
+
+export type ReportedEventsAuthorCount = {
+  pubkey: string
+  display_name?: string
+  count: number
+}
+
+export type ReportedEventsTargetCount = {
+  target_event_id: string
+  count: number
+}
+
+export type ReportedEventsSummary = {
+  total_events: number
+  total_reports: number
+  unique_target_authors: number
+  timeline: ReportedEventsTimelinePoint[]
+  report_types: ReportedEventsTypeCount[]
+  top_authors: ReportedEventsAuthorCount[]
+  top_targets: ReportedEventsTargetCount[]
+}
+
+export type ReportedEventsFilters = {
+  query: string
+  type: string
+  target_pubkey?: string
+  target_event_id?: string
+  since?: number
+  until?: number
 }
 
 export type AdminLabelTargetType = "event" | "pubkey" | "address" | "reference" | "topic"

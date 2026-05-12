@@ -1,8 +1,13 @@
 import { useState } from "react"
-import { Link } from "@tanstack/react-router"
+import { Link, useNavigate, useSearch } from "@tanstack/react-router"
 import { useTranslation } from "react-i18next"
 
 import { BanUserDialog } from "@/components/features/ban-user-dialog"
+import { ReportedEventsKpiStrip } from "@/components/features/reported-events/reported-events-kpi-strip"
+import { ReportedEventsTopAuthorsChart } from "@/components/features/reported-events/reported-events-top-authors-chart"
+import { ReportedEventsTopTargetsChart } from "@/components/features/reported-events/reported-events-top-targets-chart"
+import { ReportedEventsTrendChart } from "@/components/features/reported-events/reported-events-trend-chart"
+import { ReportedEventsTypeChart } from "@/components/features/reported-events/reported-events-type-chart"
 import { PageHeader } from "@/components/shared/page-header"
 import { EmptyPanel, ErrorPanel, LoadingPanel } from "@/components/shared/state-panels"
 import { VirtualizedList } from "@/components/shared/virtualized-list"
@@ -12,38 +17,57 @@ import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { useEventReports, useInfiniteReportedEvents } from "@/hooks/use-admin-data"
+import { useEventReports, useInfiniteReportedEvents, useReportedEventsSummary } from "@/hooks/use-admin-data"
+import { buildReportedKpiMetrics } from "@/lib/reported-events-analytics"
+import { reportedEventsFiltersToSearch, reportedEventsSearchToFilters, type ReportedEventsRouteSearch } from "@/lib/reported-events"
 import { formatDateTime, shortenId } from "@/lib/utils"
 
 const reportTypeOptions = ["all", "spam", "nudity", "malware", "profanity", "illegal", "impersonation", "other"] as const
 
 export function ReportedEventsPage() {
   const { t } = useTranslation()
-  const [query, setQuery] = useState("")
-  const [reportType, setReportType] = useState<(typeof reportTypeOptions)[number]>("all")
+  const navigate = useNavigate({ from: "/events/reported" })
+  const search = useSearch({ from: "/events/reported" })
   const [selectedEventID, setSelectedEventID] = useState<string | null>(null)
+  const filters = reportedEventsSearchToFilters(search)
+  const selectedChart = filters.target_event_id ? "target" : filters.target_pubkey ? "author" : filters.since || filters.until ? "timeline" : filters.type !== "all" ? "type" : null
 
-  const reportedQuery = useInfiniteReportedEvents(query, reportType === "all" ? "" : reportType)
+  const reportedQuery = useInfiniteReportedEvents(filters)
+  const summaryQuery = useReportedEventsSummary(filters)
   const pages = reportedQuery.data?.pages ?? []
   const items = pages.flatMap((page) => page.items)
   const total = pages[0]?.total ?? 0
-  const totalReports = items.reduce((acc, item) => acc + item.report_count, 0)
-  const uniqueAuthors = new Set(items.map((item) => item.target_author?.pubkey).filter(Boolean)).size
-  const topType = mostCommon(items.flatMap((item) => item.report_types))
+  const summary = summaryQuery.data
+  const metrics = summary ? buildReportedKpiMetrics(summary) : []
 
   const reportsQuery = useEventReports(selectedEventID ?? "")
   const reports = reportsQuery.data?.pages.flatMap((page) => page.items) ?? []
 
+  const patchFilters = (patch: Partial<typeof filters>) => {
+    const next = { ...filters, ...patch }
+    void navigate({ search: (_previous: ReportedEventsRouteSearch) => reportedEventsFiltersToSearch(next) })
+  }
+
+  const clearChartSelection = () => {
+    void navigate({
+      search: (_previous: ReportedEventsRouteSearch) => reportedEventsFiltersToSearch({
+        ...filters,
+        type: "all",
+        target_event_id: undefined,
+        target_pubkey: undefined,
+        since: undefined,
+        until: undefined,
+      }),
+    })
+  }
+
   return (
     <div className="space-y-6">
-      <PageHeader
-        description={t("reported.description")}
-        title={t("reported.title")}
-      />
+      <PageHeader description={t("reported.description")} title={t("reported.title")} />
 
       <div className="grid gap-3 lg:grid-cols-[2fr_1fr]">
-        <Input onChange={(event) => setQuery(event.target.value)} placeholder={t("reported.searchPlaceholder")} value={query} />
-        <Select onValueChange={(value) => setReportType((reportTypeOptions as readonly string[]).includes(value) ? (value as (typeof reportTypeOptions)[number]) : "all")} value={reportType}>
+        <Input onChange={(event) => patchFilters({ query: event.target.value })} placeholder={t("reported.searchPlaceholder")} value={filters.query} />
+        <Select onValueChange={(value) => patchFilters({ type: (reportTypeOptions as readonly string[]).includes(value) ? value : "all" })} value={filters.type}>
           <SelectTrigger>
             <SelectValue placeholder={t("reported.typePlaceholder")} />
           </SelectTrigger>
@@ -55,15 +79,39 @@ export function ReportedEventsPage() {
         </Select>
       </div>
 
-      <div className="grid gap-3 md:grid-cols-3">
-        <KpiCard label={t("reported.kpis.events", "Eventos reportados")} value={String(total)} />
-        <KpiCard label={t("reported.kpis.reports", "Reports acumulados")} value={String(totalReports)} />
-        <KpiCard label={t("reported.kpis.topType", "Tipo dominante")} value={topType || t("reported.notAvailable")} helper={t("reported.kpis.uniqueAuthors", { count: uniqueAuthors, defaultValue: `${uniqueAuthors} autores distintos` })} />
-      </div>
+      {selectedChart ? (
+        <div className="flex items-center justify-between rounded-[calc(var(--radius)-0.25rem)] border border-primary/15 bg-primary/5 px-3 py-2 text-sm text-muted-foreground">
+          <span>{t("reported.charts.activeFilter", "Filtro de gráfico aplicado")}: {selectedChart}</span>
+          <Button onClick={clearChartSelection} size="sm" variant="outline">{t("reported.charts.clearFilter", "Limpar filtro")}</Button>
+        </div>
+      ) : null}
 
       {reportedQuery.isLoading && items.length === 0 ? <LoadingPanel label={t("reported.loading")} /> : null}
       {reportedQuery.isError ? <ErrorPanel description={t("reported.errorDescription")} onRetry={() => void reportedQuery.refetch()} title={t("reported.errorTitle")} /> : null}
+      {summaryQuery.isError ? <ErrorPanel description={t("reported.charts.summaryError", "Não foi possível carregar os agregados globais do servidor.")} onRetry={() => void summaryQuery.refetch()} title={t("reported.charts.summaryErrorTitle", "Falha nos gráficos")} /> : null}
       {!reportedQuery.isLoading && !reportedQuery.isError && items.length === 0 ? <EmptyPanel description={t("reported.emptyDescription")} title={t("reported.emptyTitle")} /> : null}
+
+      {summary ? (
+        <>
+          <ReportedEventsKpiStrip metrics={metrics} />
+
+          <div className="grid gap-4 xl:grid-cols-3">
+            <div className="xl:col-span-2">
+              <ReportedEventsTrendChart onBucketSelect={(bucket) => {
+                const start = new Date(`${bucket}T00:00:00Z`)
+                const end = new Date(`${bucket}T23:59:59Z`)
+                patchFilters({ since: Math.floor(start.getTime() / 1000), until: Math.floor(end.getTime() / 1000) })
+              }} points={summary.timeline} />
+            </div>
+            <ReportedEventsTypeChart items={summary.report_types} onTypeSelect={(type) => patchFilters({ type })} />
+          </div>
+
+          <div className="grid gap-4 xl:grid-cols-2">
+            <ReportedEventsTopAuthorsChart items={summary.top_authors.map((item) => ({ pubkey: item.pubkey, name: item.display_name || item.pubkey, count: item.count }))} onAuthorSelect={(pubkey) => patchFilters({ target_pubkey: pubkey })} />
+            <ReportedEventsTopTargetsChart items={summary.top_targets} onTargetSelect={(eventID) => patchFilters({ target_event_id: eventID })} />
+          </div>
+        </>
+      ) : null}
 
       {items.length > 0 ? (
         <VirtualizedList
@@ -87,12 +135,8 @@ export function ReportedEventsPage() {
                     )}
                     {item.target_author?.nip05 ? <Badge variant="muted">{item.target_author.nip05}</Badge> : null}
                   </div>
-                  <p className="break-all text-xs text-muted-foreground">
-                    nevent: {item.target_nevent || t("reported.notAvailable")}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {t("reported.createdAt")}: {item.target_created_at ? formatDateTime(item.target_created_at) : t("reported.notIndexed")} · {t("reported.lastReport")}: {formatDateTime(item.last_reported)}
-                  </p>
+                  <p className="break-all text-xs text-muted-foreground">nevent: {item.target_nevent || t("reported.notAvailable")}</p>
+                  <p className="text-xs text-muted-foreground">{t("reported.createdAt")}: {item.target_created_at ? formatDateTime(item.target_created_at) : t("reported.notIndexed")} · {t("reported.lastReport")}: {formatDateTime(item.last_reported)}</p>
                   <div className="flex flex-wrap gap-2">
                     <Badge variant="danger">{item.report_count} reports</Badge>
                     {item.report_types.map((type) => (
@@ -137,9 +181,7 @@ export function ReportedEventsPage() {
                     <Avatar className="size-8" name={report.reporter_display_name || report.reporter_pubkey} src={report.reporter_picture} />
                     <div className="min-w-0">
                       <p className="truncate text-sm font-medium text-foreground">{report.reporter_display_name || t("reported.userNoName")}</p>
-                      <p className="truncate text-xs text-muted-foreground">
-                        {shortenId(report.reporter_npub || report.reporter_pubkey, 14, 4)}
-                      </p>
+                      <p className="truncate text-xs text-muted-foreground">{shortenId(report.reporter_npub || report.reporter_pubkey, 14, 4)}</p>
                     </div>
                   </div>
                   <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
@@ -149,9 +191,7 @@ export function ReportedEventsPage() {
                 </div>
                 <p className="mt-2 text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">{t("reported.reason")}</p>
                 <p className="mt-1 text-sm text-foreground">{report.content || t("reported.noComment")}</p>
-                <p className="mt-2 text-xs text-muted-foreground">
-                  Report event: {shortenId(report.report_event_id, 12, 4)}
-                </p>
+                <p className="mt-2 text-xs text-muted-foreground">Report event: {shortenId(report.report_event_id, 12, 4)}</p>
               </div>
             ))}
             {!reportsQuery.isLoading && reports.length === 0 ? <EmptyPanel description={t("reported.modalEmptyDescription")} title={t("reported.emptyTitle")} /> : null}
@@ -160,22 +200,4 @@ export function ReportedEventsPage() {
       </Dialog>
     </div>
   )
-}
-
-function KpiCard({ label, value, helper }: { label: string; value: string; helper?: string }) {
-  return (
-    <div className="rounded-[calc(var(--radius)-0.25rem)] border border-border bg-card px-4 py-4 panel-shadow">
-      <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">{label}</p>
-      <p className="mt-2 font-heading text-2xl text-foreground">{value}</p>
-      {helper ? <p className="mt-1 text-xs text-muted-foreground">{helper}</p> : null}
-    </div>
-  )
-}
-
-function mostCommon(values: string[]) {
-  const counts = new Map<string, number>()
-  for (const value of values) {
-    counts.set(value, (counts.get(value) ?? 0) + 1)
-  }
-  return [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? ""
 }

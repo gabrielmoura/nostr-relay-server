@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react"
-import { CircleHelp, Plus } from "lucide-react"
+import { BarChart3, CircleHelp, Plus } from "lucide-react"
 import { useTranslation } from "react-i18next"
 
+import { LabelsAnalyticsModal } from "@/components/features/labels/labels-analytics-modal"
 import { CreateLabelDialog } from "@/components/features/labels/create-label-dialog"
 import { LabelsHelpDialog } from "@/components/features/labels/labels-help-dialog"
 import { LabelsFilterBar } from "@/components/features/labels/labels-filter-bar"
@@ -29,6 +30,7 @@ export function LabelsWorkspace({ filters, view, onFiltersChange, onResetFilters
   const { t } = useTranslation()
   const [dialogOpen, setDialogOpen] = useState(false)
   const [helpOpen, setHelpOpen] = useState(false)
+  const [analyticsOpen, setAnalyticsOpen] = useState(false)
 
   const labelsQuery = useInfiniteLabels(filters)
   const summaryQuery = useLabelsSummary(filters)
@@ -52,6 +54,10 @@ export function LabelsWorkspace({ filters, view, onFiltersChange, onResetFilters
             <Button onClick={() => setHelpOpen(true)} type="button" variant="outline">
               <CircleHelp className="size-4" />
               {t("labels.help.trigger", "Ajuda")}
+            </Button>
+            <Button onClick={() => setAnalyticsOpen(true)} type="button" variant="outline">
+              <BarChart3 className="size-4" />
+              {t("labels.analytics.trigger", "Análises")}
             </Button>
             <Button onClick={() => setDialogOpen(true)}>
               <Plus className="size-4" />
@@ -117,6 +123,7 @@ export function LabelsWorkspace({ filters, view, onFiltersChange, onResetFilters
 
       <CreateLabelDialog onOpenChange={setDialogOpen} open={dialogOpen} />
       <LabelsHelpDialog onOpenChange={setHelpOpen} open={helpOpen} />
+      <LabelsAnalyticsModal onOpenChange={setAnalyticsOpen} open={analyticsOpen} summary={summaryQuery.data} />
     </div>
   )
 }

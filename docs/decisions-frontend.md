@@ -1,5 +1,40 @@
 # Frontend Decisions
 
+## ADR-F009: Rich Event Visualization Uses Protocol-Aware Cards and One Shared Media Interpreter
+
+**Status:** Proposed  
+**Date:** 2026-05-08
+
+### Context
+
+The admin dashboard already exposes event search and event detail, but many Nostr events are media-first or protocol-descriptive rather than text-first. Today the operator often sees empty content, raw links or large unconstrained media blocks. This is especially problematic for `kind:6`, `kind:4550`, `kind:10050`, NIP-68 picture posts and text notes with multiple media assets in `imeta`.
+
+The project already includes `react-resizable-panels`, `recharts`, `embla-carousel-react`, `@nostrify/nostrify` and `@nostrify/react`, but the event visualization flow does not fully exploit them yet.
+
+### Decision
+
+1. keep the existing route structure for `/panel/events/search` and `/panel/events/$eventId`
+2. centralize media extraction and protocol summaries in `lib/event-parser.ts`
+3. use protocol-aware visual cards for `kind:6`, `kind:4550` and `kind:10050`
+4. use direct render for a single image and carousel for multiple images or mixed media in the same post context
+5. keep videos lazy in search results via click-to-load previews
+6. use `@nostrify/react` only for optional read enrichment of referenced events, not as the primary admin data source
+
+### Reasons
+
+1. **Operator speed:** empty-text events become readable without raw JSON inspection.
+2. **Consistency:** search and detail stop interpreting media differently.
+3. **Safety:** lazy video rendering avoids heavy feeds and noisy autoplay behavior.
+4. **Architecture fit:** the admin API remains authoritative while Nostr-native enrichment stays isolated.
+
+### Consequences
+
+- ✅ better moderation ergonomics for community approvals, reposts and DM relay lists
+- ✅ shared parser logic reduces duplicated heuristics across components
+- ✅ event detail becomes more resilient against overflow and media blowout
+- ⚠️ frontend complexity in media parsing increases and must stay well-contained in adapters
+- ⚠️ `@nostrify/*` enrichment must remain optional so detail pages still work when remote lookups fail
+
 ## ADR-F004: Generic Operational Jobs Board Reuses Existing Routes
 
 **Status:** Proposed  
@@ -159,3 +194,151 @@ The generic jobs dialog already exposes raw payload/result JSON, but operators r
 - ✅ `/panel/sync` gets a clearer operational drill-down without a new route
 - ✅ raw JSON remains available for deep debugging
 - ⚠️ sync-specific modal content must stay isolated so `/download` and other jobs do not inherit irrelevant UI noise
+
+---
+
+## ADR-F009: Event Search Headlines Must Stay Operator-Explicit and Community-Aware
+
+**Status:** Proposed  
+**Date:** 2026-05-08
+
+### Context
+
+The first rich-event refinement improved media and protocol cards, but operators still need stricter textual cues in search results. Two gaps remain important in moderation workflows:
+
+1. empty-text events must visibly preserve the exact `(sem conteudo textual) ${alt}` pattern when `alt` exists
+2. NIP-72/NIP-22 community-related events should expose the associated community context, especially `kind:4550` approvals and `kind:1111` posts/replies tagged with a `34550:*` community address
+
+There is also a known residual horizontal overflow case on `/panel/events/$eventId` for some long protocol payloads.
+
+### Decision
+
+1. keep the explicit `(sem conteudo textual) ${alt}` headline pattern for empty-text events
+2. enrich `kind:4550` search cards with more community moderation context
+3. resolve the associated community identifier/name for `kind:1111` when an `a`/`A` tag targets `kind:34550`
+4. harden detail-page protocol cards and wrappers against residual horizontal overflow
+
+### Reasons
+
+1. **Moderation clarity:** operators need to identify non-text events quickly without opening JSON.
+2. **Community context:** NIP-72 workflows are much easier to understand when the community is visible inline.
+3. **Layout safety:** long protocol identifiers must never break the admin page structure.
+
+### Consequences
+
+- ✅ search results become more explicit for empty-text and community-scoped events
+- ✅ `kind:1111` community posts gain meaningful inline context
+- ✅ detail pages are more resilient to long identifiers and protocol payloads
+- ⚠️ community resolution may sometimes rely on fallback identifiers when richer metadata is unavailable
+
+For the current follow-up, community-aware list rows should also expose a visible badge and thumbnail when resolved, because text-only context proved too subtle for operators in dense search results.
+
+---
+
+## ADR-F010: Reported Events Route Becomes an Analytics-First Moderation Workspace
+
+**Status:** Proposed  
+**Date:** 2026-05-08
+
+### Context
+
+The current `/panel/events/reported` route already exposes filters, a KPI trio and a list of reported targets, but the KPI layer is static and visually secondary. Operators need faster pattern recognition around NIP-56 report pressure, report types and time spikes without reading each list row.
+
+The frontend already ships `recharts`, so the route can be upgraded without adding a new charting dependency.
+
+### Decision
+
+1. keep the existing `/panel/events/reported` route
+2. turn it into an analytics-first moderation workspace
+3. replace the static KPI strip with Recharts-based compact KPI cards
+4. add at least two analytical charts in the first pass:
+   - report volume trend over time
+   - report type distribution
+5. keep the existing list and modal as drill-down layers below the analytics section
+
+### Reasons
+
+1. **Operator speed:** anomalies and dominant report categories become visible immediately.
+2. **Low-risk change:** preserves the current route and service contracts.
+3. **Architectural fit:** aggregation can be derived client-side from the current fetched moderation slice.
+
+### Consequences
+
+- ✅ moderation telemetry becomes readable at a glance
+- ✅ `recharts` is used for real operational value, not decorative charts
+- ✅ current row-level workflow remains intact
+- ⚠️ first-pass analytics are based on the fetched slice, not a dedicated full-dataset aggregate endpoint
+
+---
+
+## ADR-F011: Reports Analytics, Geohash Search and Media UX Need Shared Global UI State
+
+**Status:** Proposed  
+**Date:** 2026-05-08
+
+### Context
+
+The dashboard now needs three cross-cutting capabilities that no longer fit comfortably as isolated local state:
+
+1. chart-driven filters and persisted view preferences on `/panel/events/reported`
+2. geohash-aware search state for Nostr `g` tags
+3. richer media-player behavior across event search/detail flows
+
+At the same time, the reports charts must reflect global server totals, not only the currently loaded list slice.
+
+### Decision
+
+1. introduce `zustand` + `immer` for global UI/session stores with scoped `localStorage` sync
+2. keep TanStack Query for server state and add a dedicated `/admin/events/reported/summary` query for global charts
+3. adopt `ngeohash` for geohash normalization and operator-facing geohash search features
+4. replace the plain `<video>` path with `@vidstack/react` using `hls.js` and `dashjs` for richer stream support
+
+### Reasons
+
+1. **Consistency:** chart interactions and persisted preferences should survive route churn.
+2. **Correctness:** moderation charts must match full-server totals, not viewport or virtualized slice size.
+3. **Extensibility:** geohash and richer video playback become reusable capabilities instead of one-off hacks.
+
+### Consequences
+
+- ✅ reports analytics can become globally correct and interactively filterable
+- ✅ global UI state becomes explicit and reusable
+- ✅ geohash and richer media support align the dashboard better with Nostr protocol domains
+- ⚠️ adds new dependencies and requires strict discipline to keep server state out of Zustand stores
+
+---
+
+## ADR-F012: Event Search Analytics Stay in a Modal Instead of Expanding the Main Route Permanently
+
+**Status:** Proposed  
+**Date:** 2026-05-08
+
+### Context
+
+`/panel/events/search` already exposes search filters, KPIs, result list, aggregates and timeline tabs. Operators now want a dedicated button that opens a modal containing charts related to the current active search filters.
+
+### Decision
+
+1. keep `/panel/events/search` as the main operational route
+2. add a header action button to open an analytics modal
+3. reuse existing event-search analytical queries and Recharts components where practical
+4. keep the modal as a secondary drill-in workspace instead of permanently expanding the base page layout
+
+### Reasons
+
+1. **Low-risk UX change:** preserves the current route structure and list workflow.
+2. **Reusability:** existing aggregates/timeline logic can be reused.
+3. **Operator speed:** charts become accessible immediately without navigating away from the current search context.
+
+### Consequences
+
+- ✅ event-search analytics become more discoverable
+- ✅ the route remains focused on search + results by default
+- ✅ implementation can stay compact and incremental
+- ⚠️ the route now has two analytics entry patterns (tabs and modal) that must remain visually coherent
+
+For the next refinement, the modal should gain its own top-line KPI strip, additional charts and tab targeting so it feels like a real analytical workspace rather than a thin wrapper around existing panels.
+
+For the current follow-up, the modal must also treat server-backed event-search aggregates as authoritative totals, while the search list remains only a virtualized drill-down projection.
+
+For the next refinement, `/panel/events/reported` becomes explicitly URL-driven, so chart interactions must synchronize with route search params instead of living only in persisted UI state.
