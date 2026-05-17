@@ -930,6 +930,79 @@ Or use the `Makefile` targets:
 * `make windows`
 * `make windows32`
 
+### Docker image
+
+The repository includes a multi-stage `Dockerfile` that builds:
+
+* the embedded admin panel from `infra/dash`
+* the `nrserver` Go binary from `cmd/nrserver`
+* a minimal non-root runtime image
+
+Build the image:
+
+```bash
+docker build -t nostr-relay-server:local .
+```
+
+### Docker runtime requirements
+
+The container expects a valid `conf.yaml` at runtime.
+
+At minimum, review and configure:
+
+* `db.postgres_uri`
+* `port`
+* `relay_information.url`
+* `relay_information.canonical_url`
+* `admin_token` if you expose the internal admin API or panel
+* `redis.*` only if Redis is enabled in your environment
+
+By default the runtime looks for `conf.yaml` in the working directory, so the simplest container workflow is to mount it into `/app/conf.yaml`.
+
+### Run the container
+
+Example using the default documented ports:
+
+```bash
+docker run --rm \
+  -p 9090:9090 \
+  -p 9091:9091 \
+  -v "$PWD/conf.yaml:/app/conf.yaml:ro" \
+  nostr-relay-server:local
+```
+
+If `port` in `conf.yaml` is changed, remember that:
+
+* the external relay listens on `port`
+* the internal admin server listens on `port + 1`
+
+### Run schema preparation with Docker
+
+You can use the same image for operational commands such as `seed`:
+
+```bash
+docker run --rm \
+  -v "$PWD/conf.yaml:/app/conf.yaml:ro" \
+  nostr-relay-server:local seed
+```
+
+### Validate the container
+
+After startup, validate the main endpoints that match your configuration:
+
+```bash
+curl -i -H "Accept: application/nostr+json" http://localhost:9090/
+curl -i http://localhost:9090/.well-known/nostr.json
+curl -i http://localhost:9091/metrics
+curl -i http://localhost:9091/panel
+```
+
+Notes:
+
+* `GET /` without the Nostr `Accept` header returns `426 Upgrade Required`, which is expected for the public relay endpoint
+* the admin SPA is served from `/panel` on the internal server
+* static panel assets are embedded into the Go binary during the Docker build
+
 ---
 
 ## FAQ

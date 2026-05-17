@@ -10,6 +10,7 @@
 **/.DS_Store
 **/.env
 **/.env.*
+conf.yaml
 postgres_password.txt
 **/*.log
 
@@ -41,3 +42,14 @@ coverage/
 **/dist
 **/build
 **/coverage
+
+# Documentation and local-only project files
+docs/
+README.md
+CONTRIBUTING.md
+install.md
+Docker_Tor.md
+docker-compose*.yml
+admin-panel.pen
+session-*.md
+TO_FIX.TXT
