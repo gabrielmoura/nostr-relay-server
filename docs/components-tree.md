@@ -186,12 +186,16 @@ Rules:
 | `reported-events-store` | Smart infra | Global filter state, chart selections and persisted analytics preferences |
 | `media-player-store` | Smart infra | Session-level video/player preferences and safe persisted UI flags |
 | `geohash-search-store` | Smart infra | Geohash input normalization and optional persisted recent values |
+| `relay-presets-store` | Smart infra | Shared relay preset persistence replacing raw `localStorage` helpers |
+| `blossom-operator-store` | Smart infra | Persisted Blossom UI preferences and IndexedDB-backed mirror history |
 
 Rules:
 
 - stores hold global UI/session state only
 - server datasets remain in TanStack Query
-- stores use `zustand` with `immer` and explicit `localStorage` persistence
+- stores use `zustand` with `immer`
+- small stores persist to `localStorage`
+- larger append-oriented operator history may persist through an IndexedDB storage adapter
 
 ---
 
@@ -356,3 +360,54 @@ routes/
 ```
 
 Routes should not import directly from `ui/` unless for very specific use cases. Prefer feature components as the interface.
+
+---
+
+## Planned Blossom Feature Module
+
+| Component | Type | Props | Events |
+|-----------|------|-------|--------|
+| `BlossomWorkspace` | Smart | `initialTab?`, `initialFilters?` | `onFilterChange`, `onSelectObject`, `onSelectUser` |
+| `BlossomPlansPage` | Smart | `initialPlanId?` | `onCreatePlan`, `onEditPlan`, `onDeletePlan`, `onAssignPlan` |
+| `BlossomPolicyPage` | Smart | - | `onPolicyModeChange` |
+| `BlossomReviewPage` | Smart | `initialFilters?` | `onApprove`, `onDelete`, `onSelectObject` |
+| `BlossomReportsPage` | Smart | `initialFilters?` | `onResolve`, `onSelectObject` |
+| `BlossomAuditPage` | Smart | `initialFilters?` | `onFilterChange` |
+| `BlossomKpiStrip` | Dumb | `summary` | - |
+| `BlossomAlertRail` | Dumb | `alerts` | `onSelectAlert?` |
+| `BlossomFiltersBar` | Dumb | `filters`, `mimeOptions`, `extensionOptions`, `onChange` | `onChange`, `onReset` |
+| `BlossomMimeCombobox` | Dumb | `value`, `options`, `onChange` | `onChange` |
+| `BlossomUserFilter` | Dumb | `value`, `onChange` | `onChange` |
+| `BlossomViewToggle` | Dumb | `view`, `onChange` | `onChange` |
+| `BlossomObjectsTable` | Dumb | `items`, `selectedHashes`, `onToggleSelection`, `onSelectObject` | `onToggleSelection`, `onSelectObject` |
+| `BlossomObjectsGrid` | Dumb | `items`, `selectedHashes`, `onToggleSelection`, `onSelectObject` | `onToggleSelection`, `onSelectObject` |
+| `BlossomBulkActionsBar` | Smart | `selectedHashes`, `onCompleted` | `onApprove`, `onDelete`, `onRequeue` |
+| `BlossomObjectSheet` | Smart | `hash`, `open`, `onOpenChange` | `onDelete`, `onReprocess`, `onCopyUrl`, `onCopyBlossomId` |
+| `BlossomAnalyticsDialog` | Smart | `open`, `onOpenChange` | `onRetry`, `onSelectSegment` |
+| `BlossomReviewQueue` | Smart | `filters?` | `onApprove`, `onDelete`, `onSelectObject` |
+| `PolicySummaryCard` | Dumb | `mode` | `onOpenPolicyRoute` |
+| `BlossomPlanModal` | Dumb | `open`, `plan?`, `saving` | `onSave`, `onOpenChange` |
+| `BlossomDeletePlanModal` | Dumb | `open`, `planName`, `deleting` | `onConfirm`, `onOpenChange` |
+| `BlossomAssignPlanModal` | Smart | `open`, `planId`, `planName` | `onAssign`, `onSearch`, `onOpenChange` |
+| `BlossomStorageHelpTooltip` | Dumb | `unit`, `scope` | - |
+| `BlossomWhitelistEditor` | Smart | `record?`, `onSaved` | `onSaved` |
+| `BlossomUsersTable` | Smart | `items`, `policyMode`, `sortBy`, `sortDir` | `onSortChange`, `onWhitelistToggle`, `onPurge` |
+| `BlossomUserSheet` | Smart | `pubkey`, `open`, `onOpenChange` | `onPurge`, `onQuotaSave` |
+| `BlossomMirrorPanel` | Smart | `onSubmitted` | `onSubmitted` |
+| `BlossomWorkersBoard` | Dumb | `jobs`, `onRefresh` | `onRefresh`, `onSelectJob` |
+| `BlossomWorkersDialog` | Smart | `open`, `onOpenChange`, `filters?` | `onRefresh`, `onSelectJob` |
+| `BlossomReportsTable` | Dumb | `items`, `onSelectReport`, `onResolve` | `onSelectReport`, `onResolve` |
+| `BlossomReportSheet` | Smart | `reportId`, `open`, `onOpenChange` | `onResolve`, `onSelectObject` |
+| `BlossomAuditTable` | Dumb | `items`, `filters`, `onChange` | `onChange` |
+
+Rules:
+
+- `BlossomWorkspace` is the main smart orchestrator for route-level queries and tab state.
+- `BlossomPlansPage` is a focused child route dedicated to named plans, modal CRUD and user-plan association.
+- `BlossomPolicyPage` owns the exclusive upload-mode selector and removes policy editing from the plans screen.
+- `BlossomReviewPage`, `BlossomReportsPage` and `BlossomAuditPage` are child routes used to reduce density on the main Blossom hub.
+- drawers/sheets own their drill-down query or mutation orchestration when it meaningfully isolates complexity.
+- thumbnails, badges, metadata rows, KPI cards and audit rows remain dumb.
+- modal overlays (`BlossomWorkersDialog`, `BlossomAnalyticsDialog`) are smart because they own short-lived query orchestration.
+- the users table is smart because sorting, infinite pagination and conditional columns depend on server state.
+- destructive controls (`hard-delete`, `purge`) must always flow through confirmation UI.

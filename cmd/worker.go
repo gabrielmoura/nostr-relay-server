@@ -13,6 +13,7 @@ import (
 	"github.com/gabrielmoura/nostr-relay-server/infra/metrics"
 	redisqueue "github.com/gabrielmoura/nostr-relay-server/infra/queue/redis"
 	"github.com/gabrielmoura/nostr-relay-server/infra/redis"
+	internalblossom "github.com/gabrielmoura/nostr-relay-server/internal/blossom"
 	"github.com/gabrielmoura/nostr-relay-server/internal/db"
 	"github.com/gabrielmoura/nostr-relay-server/internal/down"
 	jobcore "github.com/gabrielmoura/nostr-relay-server/internal/jobs"
@@ -63,6 +64,9 @@ func runWorker(_ *cobra.Command, _ []string) {
 		cobra.CheckErr(err)
 	}
 	if err := syncjob.RegisterQueueHandlers(runtime.Registry()); err != nil {
+		cobra.CheckErr(err)
+	}
+	if err := internalblossom.RegisterQueueHandlers(runtime.Registry()); err != nil {
 		cobra.CheckErr(err)
 	}
 	if err := croncmd.RegisterQueueHandlers(runtime.Registry()); err != nil {

@@ -50,20 +50,24 @@ type SyncSession struct {
 
 	LocalFilters []nostr.Filter
 	OpenFilter   any
+	OpenMsg      []any
 	SubID        string
 	ReqSub       string
 
 	Reconciler  *negentropyv2.Reconciler
 	LocalEvents []*nostr.Event
 
-	syncDone       bool
-	pendingUploads int
-	pendingReq     bool
-	closed         bool
-	reqQueue       [][]string
-	currentReqIDs  []string
+	syncDone        bool
+	negOpenAccepted bool
+	authRetriedOpen bool
+	pendingUploads  int
+	pendingReq      bool
+	closed          bool
+	reqQueue        [][]string
+	currentReqIDs   []string
+	pendingAuthOK   map[string]struct{}
 
-	 rejections   []RejectionInfo
+	rejections []RejectionInfo
 }
 
 func Sync(cf *ConfSync) {
@@ -77,9 +81,9 @@ func Sync(cf *ConfSync) {
 }
 
 type SyncResult struct {
-	Error       error
-	Filter      []any
-	Rejections  []RejectionInfo
+	Error      error
+	Filter     []any
+	Rejections []RejectionInfo
 }
 
 func Execute(ctx context.Context, cf *ConfSync) error {
@@ -202,6 +206,7 @@ func runSingleSyncWithResult(ctx context.Context, cf *ConfSync) (*SyncResult, er
 		LocalFilters:      cf.LocalFilter,
 		SubID:             util.GenChallenge(),
 		ReqSub:            newReqSubID(),
+		pendingAuthOK:     map[string]struct{}{},
 	}
 
 	log.Logger.Info("Initializing Sync Process",
@@ -278,6 +283,7 @@ func (s *SyncSession) Run() error {
 	if err != nil {
 		return fmt.Errorf("failed to build OPEN message: %w", err)
 	}
+	s.OpenMsg = openMsg
 
 	if err := s.sendMessage(openMsg); err != nil {
 		return fmt.Errorf("failed to send OPEN message: %w", err)
@@ -348,6 +354,8 @@ func (s *SyncSession) listenLoop() error {
 				if !s.matchSubID(rawMsg, s.SubID) {
 					continue
 				}
+				s.negOpenAccepted = true
+				s.authRetriedOpen = false
 
 				log.Logger.Info("Processing Message Type", zap.String("type", msgType))
 				if err := s.handleNegMsg(rawMsg); err != nil {
@@ -371,6 +379,12 @@ func (s *SyncSession) listenLoop() error {
 				if len(rawMsg) > 2 {
 					json.Unmarshal(rawMsg[2], &reason)
 				}
+				if s.shouldIgnoreAuthRequired(reason) {
+					log.Logger.Info("Ignoring auth-required NEG-ERR while AUTH retry is in flight",
+						zap.String("reason", reason),
+					)
+					continue
+				}
 				return fmt.Errorf("SERVER ERROR (NEG-ERR): %s", reason)
 			case ng.MsgClose:
 				if !s.matchSubID(rawMsg, s.SubID) {
@@ -379,8 +393,14 @@ func (s *SyncSession) listenLoop() error {
 
 				log.Logger.Info("Remote sent NEG-CLOSE. Sync finished.")
 				return nil
+			case "AUTH":
+				if err := s.handleAuthChallenge(rawMsg); err != nil {
+					return fmt.Errorf("handle AUTH error: %w", err)
+				}
 			case "OK":
-				s.handleOK(rawMsg)
+				if err := s.handleOK(rawMsg); err != nil {
+					return fmt.Errorf("handle OK error: %w", err)
+				}
 			case "EVENT":
 				if err := s.handleEvent(rawMsg); err != nil {
 					log.Logger.Warn("Failed handling EVENT", zap.Error(err))
@@ -633,9 +653,32 @@ func (s *SyncSession) matchSubID(rawMsg []json.NoCopyRawMessage, expected string
 	return true
 }
 
-func (s *SyncSession) handleOK(rawMsg []json.NoCopyRawMessage) {
+func (s *SyncSession) handleOK(rawMsg []json.NoCopyRawMessage) error {
 	if len(rawMsg) < 4 {
-		return
+		return nil
+	}
+
+	var eventID string
+	if err := json.Unmarshal(rawMsg[1], &eventID); err != nil {
+		return nil
+	}
+
+	if s.takePendingAuthOK(eventID) {
+		var accepted bool
+		if err := json.Unmarshal(rawMsg[2], &accepted); err != nil {
+			return nil
+		}
+		if !accepted {
+			var reason string
+			_ = json.Unmarshal(rawMsg[3], &reason)
+			if reason == "" {
+				reason = "failed to authenticate with remote relay"
+			}
+			return fmt.Errorf("remote relay rejected AUTH event: %s", reason)
+		}
+
+		log.Logger.Info("Remote relay accepted AUTH event", zap.String("event_id", eventID))
+		return nil
 	}
 
 	if s.pendingUploads > 0 {
@@ -647,19 +690,17 @@ func (s *SyncSession) handleOK(rawMsg []json.NoCopyRawMessage) {
 		if err := s.tryFinalize(); err != nil {
 			log.Logger.Warn("Failed to finalize sync", zap.Error(err))
 		}
-		return
+		return nil
 	}
 
 	if accepted {
 		if err := s.tryFinalize(); err != nil {
 			log.Logger.Warn("Failed to finalize sync", zap.Error(err))
 		}
-		return
+		return nil
 	}
 
-	var eventID string
 	var reason string
-	_ = json.Unmarshal(rawMsg[1], &eventID)
 	_ = json.Unmarshal(rawMsg[3], &reason)
 	log.Logger.Warn("Remote rejected EVENT", zap.String("id", eventID), zap.String("reason", reason))
 
@@ -669,6 +710,72 @@ func (s *SyncSession) handleOK(rawMsg []json.NoCopyRawMessage) {
 	if err := s.tryFinalize(); err != nil {
 		log.Logger.Warn("Failed to finalize sync", zap.Error(err))
 	}
+
+	return nil
+}
+
+func (s *SyncSession) handleAuthChallenge(rawMsg []json.NoCopyRawMessage) error {
+	if len(rawMsg) < 2 {
+		return errors.New("invalid AUTH format")
+	}
+
+	var challenge string
+	if err := json.Unmarshal(rawMsg[1], &challenge); err != nil {
+		return fmt.Errorf("invalid AUTH challenge: %w", err)
+	}
+
+	privKey := strings.TrimSpace(config.Cfg.RelayInformation.PrivKey)
+	if privKey == "" {
+		return errors.New("remote relay requested AUTH but relay_information.priv_key is not configured")
+	}
+
+	evt := nostr.Event{
+		CreatedAt: nostr.Now(),
+		Kind:      22242,
+		Tags: nostr.Tags{
+			{"relay", s.RemoteURL},
+			{"challenge", challenge},
+		},
+	}
+	if err := evt.Sign(privKey); err != nil {
+		return fmt.Errorf("sign AUTH event: %w", err)
+	}
+
+	s.pendingAuthOK[evt.ID] = struct{}{}
+	if err := s.sendMessage([]any{"AUTH", evt}); err != nil {
+		delete(s.pendingAuthOK, evt.ID)
+		return fmt.Errorf("send AUTH event: %w", err)
+	}
+
+	if !s.negOpenAccepted && !s.authRetriedOpen && len(s.OpenMsg) > 0 {
+		s.authRetriedOpen = true
+		if err := s.sendMessage(s.OpenMsg); err != nil {
+			return fmt.Errorf("retry NEG-OPEN after AUTH: %w", err)
+		}
+	}
+
+	return nil
+}
+
+func (s *SyncSession) takePendingAuthOK(eventID string) bool {
+	if len(s.pendingAuthOK) == 0 {
+		return false
+	}
+	if _, ok := s.pendingAuthOK[eventID]; !ok {
+		return false
+	}
+	delete(s.pendingAuthOK, eventID)
+	return true
+}
+
+func (s *SyncSession) shouldIgnoreAuthRequired(reason string) bool {
+	if reason == "" {
+		return false
+	}
+	if len(s.pendingAuthOK) == 0 && !s.authRetriedOpen {
+		return false
+	}
+	return strings.HasPrefix(strings.ToLower(reason), "auth-required:")
 }
 
 func (s *SyncSession) recordRejection(eventID, reason, raw string) {
@@ -745,6 +852,12 @@ func (s *SyncSession) handleClosed(rawMsg []json.NoCopyRawMessage) error {
 
 	if subID != s.ReqSub {
 		if subID == s.SubID {
+			if s.shouldIgnoreAuthRequired(reason) {
+				log.Logger.Info("Ignoring auth-required CLOSED for negentropy subscription while AUTH retry is in flight",
+					zap.String("reason", reason),
+				)
+				return nil
+			}
 			return fmt.Errorf("negentropy subscription closed by relay: %s", reason)
 		}
 		log.Logger.Debug("Ignoring CLOSED for unrelated subscription",

@@ -1,5 +1,29 @@
 import type {
   AdminPage,
+  BlossomAuditFilters,
+  BlossomAuditRecord,
+  BlossomAnalytics,
+  BlossomBulkReviewPayload,
+  BlossomBulkReviewResponse,
+  BlossomObjectDetail,
+  BlossomObjectsFilters,
+  BlossomOverview,
+  BlossomPlanAssignment,
+  BlossomPlanAssignResponse,
+  BlossomPlan,
+  BlossomPlansResponse,
+  BlossomPolicy,
+  BlossomReportRecord,
+  BlossomReportsFilters,
+  BlossomResolveReportPayload,
+  BlossomUserDetail,
+  BlossomUserRecord,
+  BlossomUsersFilters,
+  BlossomWhitelistPayload,
+  BlossomMirrorPayload,
+  BlossomMirrorResponse,
+  BlossomWorkerRecord,
+  BlossomWorkersFilters,
   AdminJob,
   AdminJobStatus,
   AdminJobsFilters,
@@ -47,6 +71,7 @@ import { env } from "@/lib/env"
 import { buildNpubLike, formatCount, toTitleCase } from "@/lib/utils"
 import { toNevent, toNote, toNprofile, toNpub } from "@/lib/nostr"
 import { mockConnections, mockEvents, mockUsers, seedBannedUsers } from "@/mocks/admin"
+import { blossomMockAnalytics, blossomMockAudit, blossomMockObjects, blossomMockOverview, blossomMockPlans, blossomMockPolicy, blossomMockReports, blossomMockUsers, blossomMockWorkers } from "@/mocks/blossom"
 
 export class ApiError extends Error {
   status?: number
@@ -130,6 +155,18 @@ function fallbackPage<T>(items: T[], limit: number, offset: number): AdminPage<T
 
 function isMockEnabled() {
   return env.mockOnFailure
+}
+
+function shouldUseBlossomFallback(error: unknown) {
+  if (isMockEnabled()) {
+    return true
+  }
+
+  if (error instanceof ApiError) {
+    return error.status === 404 || error.status === 501 || error.status === 503
+  }
+
+  return false
 }
 
 function normalizeProfile(input: Record<string, unknown>): UserProfile {
@@ -784,4 +821,357 @@ export async function removeTrustedPubkey(pubkey: string) {
   return request<{ pubkey: string; removed: boolean }>(`/wot/trusted/${pubkey}`, {
     method: "DELETE",
   })
+}
+
+function filterBlossomObjects(items: BlossomObjectDetail[], filters: BlossomObjectsFilters) {
+  return items.filter((item) => {
+    if (filters.sha256 && item.hash !== filters.sha256.trim()) {
+      return false
+    }
+    if (filters.mime_type && item.mime_type !== filters.mime_type) {
+      return false
+    }
+    if (filters.extension && item.extension !== filters.extension) {
+      return false
+    }
+    if (filters.review_state && item.review_state !== filters.review_state) {
+      return false
+    }
+    if (filters.pubkey && item.uploader_pubkey !== filters.pubkey.trim()) {
+      return false
+    }
+    if (filters.uploader_q) {
+      const uploaderNeedle = filters.uploader_q.toLowerCase()
+      if (!item.uploader_pubkey.toLowerCase().includes(uploaderNeedle)) {
+        return false
+      }
+    }
+    if (filters.q) {
+      const needle = filters.q.toLowerCase()
+      const haystack = [item.hash, item.uploader_pubkey, item.mime_type, item.extension, item.review_state].join(" ").toLowerCase()
+      if (!haystack.includes(needle)) {
+        return false
+      }
+    }
+    return true
+  })
+}
+
+function filterBlossomReports(items: BlossomReportRecord[], filters: BlossomReportsFilters) {
+  return items.filter((item) => {
+    if (filters.report_type && item.report_type !== filters.report_type) {
+      return false
+    }
+    if (filters.status && item.status !== filters.status) {
+      return false
+    }
+    if (filters.object_hash && item.object_hash !== filters.object_hash.trim()) {
+      return false
+    }
+    if (filters.q) {
+      const needle = filters.q.toLowerCase()
+      const haystack = [item.object_hash, item.reporter_pubkey, item.target_event_id, item.target_pubkey, item.reason, item.report_type].filter(Boolean).join(" ").toLowerCase()
+      if (!haystack.includes(needle)) {
+        return false
+      }
+    }
+    return true
+  })
+}
+
+function filterBlossomUsers(items: BlossomUserDetail[], filters: BlossomUsersFilters) {
+  if (!filters.q) {
+    return items
+  }
+  const needle = filters.q.toLowerCase()
+  return items.filter((item) => [item.pubkey, item.notes].filter(Boolean).join(" ").toLowerCase().includes(needle))
+}
+
+function filterBlossomAudit(items: BlossomAuditRecord[], filters: BlossomAuditFilters) {
+  if (!filters.q) {
+    return items
+  }
+  const needle = filters.q.toLowerCase()
+  return items.filter((item) => [item.action, item.target_id, item.target_type, item.actor_pubkey].join(" ").toLowerCase().includes(needle))
+}
+
+export async function getBlossomOverview() {
+  try {
+    return await request<BlossomOverview>("/blossom/overview")
+  } catch (error) {
+    if (!shouldUseBlossomFallback(error)) {
+      throw error
+    }
+    return blossomMockOverview
+  }
+}
+
+export async function getBlossomPolicy() {
+  try {
+    return await request<BlossomPolicy>("/blossom/policy")
+  } catch (error) {
+    if (!shouldUseBlossomFallback(error)) {
+      throw error
+    }
+    return blossomMockPolicy
+  }
+}
+
+export async function updateBlossomPolicy(payload: BlossomPolicy) {
+  try {
+    return await request<BlossomPolicy>("/blossom/policy", {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    })
+  } catch (error) {
+    if (!shouldUseBlossomFallback(error)) {
+      throw error
+    }
+    return payload
+  }
+}
+
+export async function getBlossomPlans(scope?: string) {
+  try {
+    return await request<BlossomPlansResponse>(`/blossom/plans${buildQuery({ scope })}`)
+  } catch (error) {
+    if (!shouldUseBlossomFallback(error)) {
+      throw error
+    }
+    return { items: scope ? blossomMockPlans.filter((item) => item.scope === scope) : blossomMockPlans }
+  }
+}
+
+export async function upsertBlossomPlan(payload: BlossomPlan) {
+  try {
+    return await request<BlossomPlan>("/blossom/plans", {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    })
+  } catch (error) {
+    if (!shouldUseBlossomFallback(error)) {
+      throw error
+    }
+    return payload
+  }
+}
+
+export async function deleteBlossomPlan(id: string) {
+  try {
+    return await request<{ ok: boolean; id: string }>(`/blossom/plans/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+    })
+  } catch (error) {
+    if (!shouldUseBlossomFallback(error)) {
+      throw error
+    }
+    return { ok: true, id }
+  }
+}
+
+export async function assignBlossomPlan(payload: { plan_id: string; pubkey: string }) {
+  try {
+    return await request<BlossomPlanAssignResponse>(`/blossom/plans/${encodeURIComponent(payload.plan_id)}/assign`, {
+      method: "POST",
+      body: JSON.stringify({ pubkey: payload.pubkey }),
+    })
+  } catch (error) {
+    if (!shouldUseBlossomFallback(error)) {
+      throw error
+    }
+    return { ok: true, plan_id: payload.plan_id, pubkey: payload.pubkey }
+  }
+}
+
+export async function unassignBlossomPlan(payload: { plan_id: string; pubkey: string }) {
+  try {
+    return await request<{ ok: boolean; plan_id: string; pubkey: string }>(`/blossom/plans/${encodeURIComponent(payload.plan_id)}/assign/${encodeURIComponent(payload.pubkey)}`, {
+      method: "DELETE",
+    })
+  } catch (error) {
+    if (!shouldUseBlossomFallback(error)) {
+      throw error
+    }
+    return { ok: true, plan_id: payload.plan_id, pubkey: payload.pubkey }
+  }
+}
+
+export async function getBlossomPlanAssignments(planId: string) {
+	return request<{ items: BlossomPlanAssignment[] }>(`/blossom/plans/${encodeURIComponent(planId)}/assignments`)
+}
+
+export async function getBlossomObjects(filters: BlossomObjectsFilters, params: PageParams) {
+  try {
+    return await request<AdminPage<BlossomObjectDetail>>(`/blossom/objects${buildQuery({ ...filters, limit: params.limit, offset: params.offset })}`)
+  } catch (error) {
+    if (!shouldUseBlossomFallback(error)) {
+      throw error
+    }
+    return fallbackPage(filterBlossomObjects(blossomMockObjects, filters), params.limit, params.offset)
+  }
+}
+
+export async function getBlossomObjectDetail(hash: string) {
+  try {
+    return await request<BlossomObjectDetail>(`/blossom/objects/${encodeURIComponent(hash)}`)
+  } catch (error) {
+    if (!shouldUseBlossomFallback(error)) {
+      throw error
+    }
+    const item = blossomMockObjects.find((entry) => entry.hash === hash)
+    if (!item) {
+      throw error
+    }
+    return item
+  }
+}
+
+export async function reviewBlossomObjects(payload: BlossomBulkReviewPayload) {
+  try {
+    return await request<BlossomBulkReviewResponse>("/blossom/objects/bulk-review", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    })
+  } catch (error) {
+    if (!shouldUseBlossomFallback(error)) {
+      throw error
+    }
+    return { ok: true, updated: payload.hashes.length }
+  }
+}
+
+export async function getBlossomUsers(filters: BlossomUsersFilters, params: PageParams) {
+  try {
+    return await request<AdminPage<BlossomUserRecord>>(`/blossom/users${buildQuery({ ...filters, limit: params.limit, offset: params.offset })}`)
+  } catch (error) {
+    if (!shouldUseBlossomFallback(error)) {
+      throw error
+    }
+    return fallbackPage(filterBlossomUsers(blossomMockUsers, filters), params.limit, params.offset)
+  }
+}
+
+export async function getBlossomUserDetail(pubkey: string) {
+  try {
+    return await request<BlossomUserDetail>(`/blossom/users/${encodeURIComponent(pubkey)}`)
+  } catch (error) {
+    if (!shouldUseBlossomFallback(error)) {
+      throw error
+    }
+    const item = blossomMockUsers.find((entry) => entry.pubkey === pubkey)
+    if (!item) {
+      throw error
+    }
+    return item
+  }
+}
+
+export async function upsertBlossomWhitelistEntry(payload: BlossomWhitelistPayload) {
+  try {
+    return await request<BlossomWhitelistPayload>("/blossom/users/whitelist", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    })
+  } catch (error) {
+    if (!shouldUseBlossomFallback(error)) {
+      throw error
+    }
+    return payload
+  }
+}
+
+export async function purgeBlossomUser(pubkey: string) {
+  try {
+    return await request<{ ok: boolean; pubkey: string }>(`/blossom/users/${encodeURIComponent(pubkey)}/purge`, {
+      method: "POST",
+    })
+  } catch (error) {
+    if (!shouldUseBlossomFallback(error)) {
+      throw error
+    }
+    return { ok: true, pubkey }
+  }
+}
+
+export async function createBlossomMirrorJob(payload: BlossomMirrorPayload) {
+  try {
+    return await request<BlossomMirrorResponse>("/blossom/mirror", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    })
+  } catch (error) {
+    if (!shouldUseBlossomFallback(error)) {
+      throw error
+    }
+    return { ok: true, job_id: "mirror-mock-001", status: "queued" }
+  }
+}
+
+export async function getBlossomWorkers(filters: BlossomWorkersFilters = {}) {
+  try {
+    return await request<BlossomWorkerRecord[]>(`/blossom/workers${buildQuery(filters)}`)
+  } catch (error) {
+    if (!shouldUseBlossomFallback(error)) {
+      throw error
+    }
+    return blossomMockWorkers.filter((item) => {
+      if (filters.status && item.status !== filters.status) {
+        return false
+      }
+      if (filters.job_type && item.job_type !== filters.job_type) {
+        return false
+      }
+      if (filters.target_hash && item.target_hash !== filters.target_hash) {
+        return false
+      }
+      return true
+    })
+  }
+}
+
+export async function getBlossomReports(filters: BlossomReportsFilters, params: PageParams) {
+  try {
+    return await request<AdminPage<BlossomReportRecord>>(`/blossom/reports${buildQuery({ ...filters, limit: params.limit, offset: params.offset })}`)
+  } catch (error) {
+    if (!shouldUseBlossomFallback(error)) {
+      throw error
+    }
+    return fallbackPage(filterBlossomReports(blossomMockReports, filters), params.limit, params.offset)
+  }
+}
+
+export async function resolveBlossomReport(payload: BlossomResolveReportPayload) {
+  try {
+    return await request<{ ok: boolean; id: string; status: string }>(`/blossom/reports/${encodeURIComponent(payload.id)}/resolve`, {
+      method: "POST",
+      body: JSON.stringify({ status: payload.status, note: payload.note }),
+    })
+  } catch (error) {
+    if (!shouldUseBlossomFallback(error)) {
+      throw error
+    }
+    return { ok: true, id: payload.id, status: payload.status }
+  }
+}
+
+export async function getBlossomAnalytics() {
+  try {
+    return await request<BlossomAnalytics>("/blossom/analytics")
+  } catch (error) {
+    if (!shouldUseBlossomFallback(error)) {
+      throw error
+    }
+    return blossomMockAnalytics
+  }
+}
+
+export async function getBlossomAudit(filters: BlossomAuditFilters, params: PageParams) {
+  try {
+    return await request<AdminPage<BlossomAuditRecord>>(`/blossom/audit${buildQuery({ ...filters, limit: params.limit, offset: params.offset })}`)
+  } catch (error) {
+    if (!shouldUseBlossomFallback(error)) {
+      throw error
+    }
+    return fallbackPage(filterBlossomAudit(blossomMockAudit, filters), params.limit, params.offset)
+  }
 }

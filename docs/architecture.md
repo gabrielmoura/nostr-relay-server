@@ -268,6 +268,7 @@ nostr-relay-server/
 - `pkg/negentropy` provides relay-facing message handlers and protocol wiring.
 - `pkg/negentropyV2` provides reconciliation engine, cache abstraction, and session management.
 - Handler layer delegates `NEG-OPEN` / `NEG-MSG` / `NEG-CLOSE` orchestration to V2 services.
+- Optional `negentropy_auth` enforcement lives at the websocket boundary and binds a Negentropy session to the authenticated relay pubkey.
 - Cache backend is selected by runtime capabilities (Redis when enabled, memory fallback otherwise).
 
 ## Flow: Negentropy Synchronization
@@ -434,6 +435,19 @@ Client WebSocket
   - PostgreSQL via `pgx` for authoritative moderation state
 - On `blockip`, persist the block, invalidate the hot cache entry, and actively disconnect matching live websocket sessions.
 - Preserve the current internal `/admin/*` token-based panel; NIP-86 is an additional external admin protocol, not a replacement.
+
+## Optional Marmot MIP-00 Module
+
+- Marmot `MIP-00` support should be an opt-in module with a dedicated `marmot.mip00` config block and no behavior changes when disabled.
+- The phase 1 scope is relay-side only: recognize, validate, store and query Marmot `kind:30443` KeyPackage events plus `kind:10051` relay-list events.
+- No new storage model is required in phase 1; the shared `event` table remains authoritative.
+- Existing replaceable/addressable ingestion semantics should be reused instead of introducing Marmot-specific persistence flows.
+- Validation should stay Nostr-level in the first increment: required tags, tag values, relay URL shapes and payload-size boundaries. MLS payload parsing is explicitly deferred behind a future strict mode.
+- The recommended integration points are:
+  - config wiring in `config/*`
+  - event validation in `internal/policies`
+  - no new query transport or admin surface
+- The module must not advertise MIP support as a NIP in `supported_nips`; any operator-visible compatibility claim belongs in project documentation instead of the NIP-11 numeric list.
 
 ## Helper Package Design
 
@@ -691,3 +705,56 @@ Next queue/runtime refinements required by the admin UX:
 - sync job payloads/results must preserve normalized filter context for later inspection in the dashboard
 
 See `docs/redis-queue-worker-architecture.md` for the detailed design, incremental rollout plan and compatibility constraints.
+
+## Planned Blossom Admin Workspace
+
+The relay already exposes the public Blossom/NIP-96 surface (`POST|PUT /upload`, `GET|HEAD /blob/:id`, `GET /list/:pubkey`) and stores minimal object metadata in the `objects` table. The next operational step is a first-class internal management workspace for media governance, optimization and storage control.
+
+### Backend shape
+
+- **Internal admin transport:** new `/admin/blossom/*` endpoints only; the browser does not call public Blossom routes directly for management operations
+- **Public protocol expansion:** keep `POST|PUT /upload` and `GET|HEAD /blob/:id`; add `PUT /mirror`, `PUT /media`, and `HEAD /media` for BUD-04/BUD-05 flows
+- **Blossom auth model:** public mutating Blossom routes (`PUT /upload`, `PUT /mirror`, `PUT /media`, `PUT /report`) require a signed Blossom authorization event `kind:24242` per BUD-11, validated before any expensive work starts
+- **Queue model:** all mirror, optimize, thumbnail, blurhash, purge and cleanup work runs through the existing Redis-backed jobs runtime; HTTP handlers only enqueue and inspect state
+- **Mirror safety:** `PUT /mirror` never performs the remote download inline; the handler validates the request/auth envelope, enqueues a job, and the worker streams the remote body while computing SHA-256, rejecting any mismatch before persistence
+- **Media processing:** `PUT /media` persists the original blob first, returns its canonical descriptor immediately, and enqueues heavy optimization work; background workers use `ffmpeg`/`ffprobe` via `os/exec` for audio/video, `imaging` for image resizing, and Blurhash generation after derivative files are materialized
+- **Optimization scope:** the current BUD-05 rollout is configuration-driven. Default posture: metadata extraction enabled, Blurhash enabled, image thumbnails enabled, video thumbnails disabled, HLS/MPEG-DASH disabled
+- **Configuration model:** media optimization flags live under `store.media_processing.*` so operators can tune CPU/storage pressure without changing route behavior
+- **Metadata enrichment:** the same asynchronous extraction pipeline used by BUD-05 is the only source allowed to populate rich NIP-94 tags for uploads and mirrored files
+- **Auditability:** critical administrative mutations are persisted and also emitted as Nostr audit events compatible with `kind:24242`
+- **Moderation coupling:** the review queue consumes NIP-56 reports plus AI flags, but final accept/delete actions remain explicit operator decisions
+- **Upload policy:** one effective Blossom server policy controls `mandatory_review`, `enabled_users`, or `free` upload mode plus default quota plans
+- **Named plan catalog:** the admin backend also manages named Blossom plans so operators can reuse quota presets and switch defaults without editing raw byte values repeatedly
+- **Canonical download URL:** blob links prefer `/blob/<sha256>.<ext>` when the extension is known, while keeping plain-hash lookup valid
+- **Observability:** Blossom HTTP handlers emit dedicated Prometheus request, latency and error metrics with normalized route labels and categorized auth/policy failures
+
+### Frontend shape
+
+- **Route:** `/blossom` inside `infra/dash`
+- **Child route:** `/blossom/plans` for deep plan/quota configuration
+- **Child routes:** `/blossom/review`, `/blossom/reports`, `/blossom/audit` for lower-level moderation and audit surfaces
+- **Workspace model:** the main route becomes a lighter operational hub for KPIs, file browser, quotas, mirroring, worker monitor and drill-down links
+- **Navigation model:** operators keep only the high-frequency sections in the main route; lower-frequency moderation/audit sections move into child routes
+- **Primary drill-down:** selecting a file opens a right-side inspection sheet with NIP-94 tags, technical metadata, EXIF/privacy state and quick actions
+- **Fast overlays:** a header `Workers` button opens a workers modal, and an `Analytics` action opens charts without forcing a tab change
+- **Configuration drill-down:** operators move into the plans screen when they need richer plan modeling, default assignments, quotas by scope and explanatory help content
+- **Moderation drill-down:** operators move into dedicated review/reports/audit screens when they need deeper inspection; `review` only appears when manual review is enabled
+
+### Data flow summary
+
+1. uploads resolve the effective server policy, validate upload permission/quota, then persist the source object and initial metadata row
+2. optimization/mirroring jobs enrich derivatives, blurhash and technical metadata asynchronously
+3. `PUT /media` stores the original object, dispatches one optimization job, and immediately returns a descriptor for the original hash
+4. BUD-05 workers compute as much metadata as possible from the original upload, logging recoverable extraction failures and continuing with partial enrichment when needed
+5. Depending on configuration, BUD-05 workers generate image thumbnails, video thumbnails, optimized WebP/poster derivatives, Blurhash and optional streaming manifests, then regenerate canonical NIP-94 tags
+6. BUD-09 reports persist review-signal rows keyed by blob hash and feed the admin reports tab
+7. admin reads aggregate relational metadata through `/admin/blossom/*`
+8. destructive actions (`hard-delete`, `purge`) enqueue jobs and append audit entries before physical deletion
+
+### Constraints
+
+- no new browser-side signer is introduced
+- no long-running FFmpeg/image work happens inside request handlers
+- exact SHA-256 remains the canonical object identity for list/search/mirroring
+- EXIF/GPS policy is enforced before an object becomes broadly visible in the admin library
+- the optional file extension in blob URLs must never change the canonical hash lookup semantics

@@ -162,6 +162,9 @@ func (p Policies) validateStorageEvent(ctx context.Context, evt *nostr.Event) (b
 	if reject, reason := p.rejectEventsWithBase64Media(evt); reject {
 		return true, reason
 	}
+	if reject, reason := p.validateMarmotMIP00Event(evt); reject {
+		return true, reason
+	}
 	if reject, reason := p.validateWhitelistBlacklist(evt); reject {
 		return true, reason
 	}

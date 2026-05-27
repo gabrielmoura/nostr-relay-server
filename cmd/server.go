@@ -16,6 +16,7 @@ import (
 	"github.com/gabrielmoura/nostr-relay-server/infra/redis"
 	"github.com/gabrielmoura/nostr-relay-server/infra/stream"
 	"github.com/gabrielmoura/nostr-relay-server/internal/bootstrap"
+	internalblossom "github.com/gabrielmoura/nostr-relay-server/internal/blossom"
 	"github.com/gabrielmoura/nostr-relay-server/internal/db"
 	"github.com/gabrielmoura/nostr-relay-server/internal/down"
 	"github.com/gabrielmoura/nostr-relay-server/internal/groups"
@@ -99,6 +100,9 @@ func runServer(cmd *cobra.Command, args []string) {
 				}
 				if err := syncjob.RegisterQueueHandlers(queueRuntime.Registry()); err != nil {
 					log.Logger.Fatal("failed to register sync queue handlers", zap.Error(err))
+				}
+				if err := internalblossom.RegisterQueueHandlers(queueRuntime.Registry()); err != nil {
+					log.Logger.Fatal("failed to register blossom queue handlers", zap.Error(err))
 				}
 				if err := croncmd.RegisterQueueHandlers(queueRuntime.Registry()); err != nil {
 					log.Logger.Fatal("failed to register cron queue handlers", zap.Error(err))

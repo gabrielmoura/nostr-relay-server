@@ -538,3 +538,300 @@ export type AdminWoTSummaryResponse = {
   trusted_pubkeys: string[]
   last_computed_at?: string
 }
+
+export type BlossomTab = "overview" | "library" | "users" | "workers"
+
+export type BlossomLibraryView = "table" | "grid"
+
+export type BlossomReviewState = "ready" | "flagged" | "pending_review" | "approved" | "deleted"
+
+export type BlossomExifStatus = "pending" | "clean" | "stripped" | "rejected"
+
+export type BlossomAlert = {
+  level: "info" | "warning" | "danger"
+  code: string
+  message: string
+}
+
+export type BlossomMetricSummary = {
+  used_bytes: number
+  free_bytes: number
+  used_percent: number
+}
+
+export type BlossomObjectsSummary = {
+  total: number
+  flagged: number
+  pending_review: number
+}
+
+export type BlossomTrafficSummary = {
+  monthly_ingress_bytes: number
+  monthly_egress_bytes: number
+}
+
+export type BlossomUsersSummary = {
+  active: number
+  whitelisted: number
+}
+
+export type BlossomWorkersSummary = {
+  running: number
+  failed: number
+}
+
+export type BlossomOverview = {
+  storage: BlossomMetricSummary
+  objects: BlossomObjectsSummary
+  traffic: BlossomTrafficSummary
+  users: BlossomUsersSummary
+  workers: BlossomWorkersSummary
+  policy?: BlossomPolicy
+  alerts: BlossomAlert[]
+}
+
+export type BlossomPolicyMode = "mandatory_review" | "enabled_users" | "free"
+
+export const POLICY_MODE_LABELS: Record<BlossomPolicyMode, string> = {
+  mandatory_review: "Revisao obrigatoria",
+  enabled_users: "Somente habilitados",
+  free: "Livre",
+}
+
+export type BlossomPolicy = {
+  mode: BlossomPolicyMode
+  default_storage_quota_bytes?: number
+  default_egress_quota_bytes?: number
+  enabled_user_default_storage_quota_bytes?: number
+  enabled_user_default_egress_quota_bytes?: number
+  updated_at?: string
+}
+
+export type BlossomPlanScope = "free" | "enabled_users"
+
+export const BLOSSOM_PLAN_SCOPE_LABELS: Record<BlossomPlanScope, string> = {
+  free: "Livre",
+  enabled_users: "Somente habilitados",
+}
+
+export type BlossomPlan = {
+  id: string
+  name: string
+  scope: BlossomPlanScope
+  storage_quota_bytes?: number
+  egress_quota_bytes?: number
+  description?: string
+  is_default: boolean
+  updated_at?: string
+}
+
+export type BlossomPlansResponse = {
+  items: BlossomPlan[]
+}
+
+export type BlossomPlanAssignPayload = {
+  pubkey: string
+}
+
+export type BlossomPlanAssignResponse = {
+  ok: boolean
+  plan_id: string
+  pubkey: string
+}
+
+export type BlossomPlanAssignment = {
+  plan_id: string
+  pubkey: string
+  display_name?: string
+  picture?: string
+  npub?: string
+  assigned_by: string
+  assigned_at: string
+}
+
+export type BlossomObjectRecord = {
+  hash: string
+  uploader_pubkey: string
+  mime_type: string
+  extension: string
+  size: number
+  created_at: string
+  width?: number
+  height?: number
+  duration_ms?: number
+  bitrate_kbps?: number
+  blurhash?: string
+  thumbnail_url?: string
+  direct_url: string
+  optimized_url?: string
+  review_state: BlossomReviewState
+  exif_status: BlossomExifStatus
+  gps_detected: boolean
+  download_count: number
+  last_downloaded_at?: string
+}
+
+export type BlossomObjectDetail = BlossomObjectRecord & {
+  ingress_bytes: number
+  egress_bytes: number
+  mirrors: string[]
+  flag_reason?: string
+  nip94_tags: Record<string, string>
+  blossom_id?: string
+  report_count?: number
+}
+
+export type BlossomObjectsFilters = {
+  q?: string
+  sha256?: string
+  mime_type?: string
+  extension?: string
+  review_state?: BlossomReviewState | ""
+  pubkey?: string
+  uploader_q?: string
+}
+
+export type BlossomBulkReviewAction = "approve" | "hard_delete" | "requeue_optimization"
+
+export type BlossomBulkReviewPayload = {
+  hashes: string[]
+  action: BlossomBulkReviewAction
+  reason?: string
+}
+
+export type BlossomBulkReviewResponse = {
+  ok: boolean
+  updated: number
+}
+
+export type BlossomUserRecord = {
+  pubkey: string
+  display_name?: string
+  picture?: string
+  npub?: string
+  object_count: number
+  storage_used_bytes: number
+  storage_quota_bytes?: number
+  monthly_egress_bytes: number
+  egress_quota_bytes?: number
+  enabled: boolean
+  last_upload_at?: string
+  notes?: string
+}
+
+export type BlossomUsersFilters = {
+  q?: string
+  sort_by?: string
+  sort_dir?: "asc" | "desc"
+}
+
+export type BlossomUserDetail = BlossomUserRecord & {
+  files: BlossomObjectRecord[]
+}
+
+export type BlossomWhitelistPayload = {
+  pubkey: string
+  enabled: boolean
+  storage_quota_bytes?: number
+  egress_quota_bytes?: number
+  notes?: string
+}
+
+export type BlossomMirrorPayload = {
+  source_url: string
+  expected_sha256: string
+}
+
+export type BlossomMirrorResponse = {
+  ok: boolean
+  job_id: string
+  status: string
+}
+
+export type BlossomWorkerRecord = {
+  job_id: string
+  job_type: string
+  status: AdminJobStatus
+  target_hash?: string
+  detail: string
+  progress_label?: string
+  created_at: string
+  updated_at: string
+}
+
+export type BlossomWorkersFilters = {
+  status?: AdminJobStatus | ""
+  job_type?: string
+  target_hash?: string
+}
+
+export type BlossomReportStatus = "open" | "dismissed" | "actioned"
+
+export type BlossomReportRecord = {
+  id: string
+  event_id: string
+  object_hash: string
+  reporter_pubkey: string
+  reporter_npub?: string
+  target_event_id?: string
+  target_pubkey?: string
+  report_type?: string
+  reason?: string
+  status: BlossomReportStatus
+  resolved_by?: string
+  resolved_note?: string
+  created_at?: string
+  resolved_at?: string
+}
+
+export type BlossomReportsFilters = {
+  q?: string
+  report_type?: string
+  status?: BlossomReportStatus | ""
+  object_hash?: string
+}
+
+export type BlossomResolveReportPayload = {
+  id: string
+  status: Exclude<BlossomReportStatus, "open">
+  note?: string
+}
+
+export type BlossomCountByValue = {
+  name: string
+  count: number
+}
+
+export type BlossomAnalytics = {
+  reports: {
+    total: number
+    open: number
+    resolved: number
+    by_type: BlossomCountByValue[]
+    by_status: BlossomCountByValue[]
+  }
+  objects: {
+    by_mime: BlossomCountByValue[]
+    by_review_state: BlossomCountByValue[]
+  }
+  workers: {
+    by_status: BlossomCountByValue[]
+    by_type: BlossomCountByValue[]
+  }
+}
+
+export type BlossomAuditRecord = {
+  id: string
+  actor_pubkey: string
+  action: string
+  target_type: string
+  target_id: string
+  created_at: string
+  request_id?: string
+  nostr_event_id?: string
+  payload?: Record<string, string>
+}
+
+export type BlossomAuditFilters = {
+  q?: string
+}

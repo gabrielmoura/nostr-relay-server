@@ -13,6 +13,18 @@ func BlobHandler(c *fiber.Ctx) error {
 	return store.BlobHandler(c)
 }
 
+func ReportHandler(c *fiber.Ctx) error {
+	return store.ReportHandler(c)
+}
+
+func MirrorHandler(c *fiber.Ctx) error {
+	return store.MirrorHandler(c)
+}
+
+func MediaHandler(c *fiber.Ctx) error {
+	return store.MediaHandler(c)
+}
+
 func ListHandler(c *fiber.Ctx) error {
 	return store.ListHandler(c)
 }

@@ -56,6 +56,42 @@ type ReportedEventsSummary struct {
 	TopTargets          []ReportedTargetCount   `json:"top_targets"`
 }
 
+type BlossomReportRow struct {
+	ID             int64
+	EventID        string
+	ObjectHash     string
+	ReporterPubkey string
+	TargetEventID  string
+	TargetPubkey   string
+	ReportType     string
+	Reason         string
+	Status         string
+	ResolvedBy     string
+	ResolvedNote   string
+	CreatedAt      sql.NullTime
+	ResolvedAt     sql.NullTime
+}
+
+type BlossomReportFilters struct {
+	Query      string
+	ReportType string
+	Status     string
+	ObjectHash string
+}
+
+type BlossomCountByValue struct {
+	Name  string
+	Count int64
+}
+
+type BlossomReportSummary struct {
+	TotalReports    int64
+	OpenReports     int64
+	ResolvedReports int64
+	ByType          []BlossomCountByValue
+	ByStatus        []BlossomCountByValue
+}
+
 type EventKindAggregate struct {
 	Kind  int   `json:"kind"`
 	Count int64 `json:"count"`

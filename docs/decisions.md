@@ -1380,3 +1380,257 @@ Operators using `/panel/sync` can already open the generic job modal, but today 
 - ✅ relay-specific rejections become auditable after the job finishes
 - ✅ retry/resume flows keep using the same persisted payload contract
 - ⚠️ sync runtime must cap stored rejection details to avoid unbounded result growth
+
+## ADR-037: Negentropy Authentication Uses the Relay Identity Instead of the Admin Identity
+
+**Status:** Proposed  
+**Date:** 2026-05-26
+
+### Context
+
+The relay already supports NIP-42 for websocket authentication and can run relay-to-relay Negentropy synchronization. We need an operator-controlled way to restrict Negentropy sessions without introducing a second signing secret path just for sync.
+
+Two candidate identities already exist:
+
+1. `admin_pubkey`, used for operator-facing management APIs such as NIP-86.
+2. `relay_information.pub_key`, the runtime relay identity that can already be derived from and signed with `relay_information.priv_key`.
+
+### Decision
+
+Use `relay_information.pub_key` as the sole authorized pubkey when `negentropy_auth=true`.
+
+### Reasons
+
+1. **Operational fit:** relay-to-relay sync is a relay function, so the relay identity is the least surprising principal.
+2. **Secret minimization:** the process already owns `relay_information.priv_key`; reusing it avoids introducing an additional admin private key secret just for Negentropy auth.
+3. **Trust separation:** `admin_pubkey` remains dedicated to management authorization semantics instead of becoming an overloaded transport identity.
+
+### Consequences
+
+- ✅ the sync CLI can authenticate against protected remote relays using existing runtime key material
+- ✅ the websocket gate stays aligned with the relay's published identity
+- ⚠️ operators must configure `relay_information.priv_key` whenever they expect outbound sync authentication to work
+
+## ADR-034: Blossom Operations Use a Dedicated Internal Admin Workspace and Queue-Backed Media Pipeline
+
+**Status:** Proposed  
+**Date:** 2026-05-12
+
+### Context
+
+The relay already supports public Blossom/NIP-96 uploads and blob delivery, but operational control is still minimal: there is no paginated media browser, no first-class review queue, no uploader quota management, no BUD-04 mirroring workflow, and no durable audit trail for destructive media actions.
+
+At the same time, the repository already has the pieces needed for a safe rollout: internal `/admin/*` transport, Redis-backed background jobs, object metadata persistence, and an embedded React admin dashboard.
+
+### Decision
+
+Implement Blossom management as one coordinated backend feature set behind the internal admin surface.
+
+1. add `/admin/blossom/*` endpoints for overview, objects, review queue, uploader quotas, workers and audit reads
+2. keep heavy media work out of request handlers and run it through the existing queue runtime
+3. add public BUD-oriented endpoints `PUT /mirror`, `PUT /media` and `HEAD /media`
+4. enrich object metadata with blurhash, derivatives, EXIF/privacy state, NIP-94 tags and usage counters
+5. mirror critical admin actions into relational audit rows and Nostr `kind:24242` events
+
+### Reasons
+
+1. **Operational safety:** FFmpeg/image processing and purges must be asynchronous and observable.
+2. **Protocol fit:** BUD-04, BUD-05 and BUD-08 map naturally onto the existing Blossom object model plus background jobs.
+3. **Moderation clarity:** reported or AI-flagged files need a dedicated queue instead of overloading generic event moderation.
+4. **Traceability:** storage deletions, purges and quota changes are high-risk actions and need durable audit evidence.
+
+### Consequences
+
+- ✅ the dashboard can manage media without calling public upload routes as an operator API
+- ✅ SHA-256 remains the canonical identity across list, mirror and optimization flows
+- ✅ derivative generation becomes observable through the same queue model already used elsewhere
+- ⚠️ schema growth is non-trivial and needs careful migration sequencing around existing `objects` rows
+- ⚠️ mirroring and media optimization increase disk and CPU pressure, so quotas and retention policies must ship together
+
+---
+
+## ADR-036: Blossom Plans Use a Dedicated Child Configuration Screen and Publish Route-Level Prometheus Metrics
+
+**Status:** Proposed  
+**Date:** 2026-05-25
+
+### Context
+
+The main Blossom workspace is already dense: browsing, review, users, workers, reports and analytics. Adding detailed quota-plan creation directly into the primary tab set would overload the route and bury important configuration UX behind generic form fields.
+
+At the same time, Blossom now behaves like a standalone HTTP subsystem and needs explicit Prometheus visibility beyond the generic upload/download counters, especially for rejected or unauthenticated requests.
+
+### Decision
+
+1. add a dedicated child screen `/blossom/plans` for named plans, default assignments and quota modeling
+2. keep the main `/blossom` route operational, and treat plans as a configuration drill-down
+3. add Blossom-specific Prometheus counters and latency histograms with normalized route labels
+4. categorize Blossom HTTP errors so auth and policy failures are visible independently from generic 5xx failures
+
+### Reasons
+
+1. **UX clarity:** plan design needs more explanation and editing space than a compact policy card can offer.
+2. **Operator safety:** named plans reduce repeated raw-byte editing and accidental misconfiguration.
+3. **Observability:** unauthenticated/rejected Blossom traffic is operationally important and should be queryable in Prometheus.
+
+### Consequences
+
+- ✅ the main workspace stays focused on operations, while deep quota modeling gets its own space
+- ✅ MB/GB explanatory affordances can be designed without compromising the main route density
+- ✅ Blossom auth failures become measurable, not just log-visible
+- ⚠️ the backend needs an additional plan catalog surface instead of only one singleton policy record
+
+---
+
+## ADR-035: Blossom Upload Policy Is Runtime-Managed with Mode-Specific Default Quotas
+
+**Status:** Proposed  
+**Date:** 2026-05-15
+
+### Context
+
+The Blossom server now needs three operator-selectable behaviors:
+
+1. every upload must be approved before public visibility
+2. only enabled users may upload
+3. free uploads for any authenticated user
+
+At the same time, quota handling must be different depending on the selected mode. Free mode needs a default per-user plan or unlimited behavior, while enabled-user mode needs a different default plan plus optional per-pubkey overrides.
+
+### Decision
+
+Implement one effective Blossom server policy persisted behind the admin API.
+
+1. keep per-pubkey overrides in `blossom_pubkey_quotas`
+2. add a singleton policy record for upload mode and default plans
+3. evaluate policy on every upload and mirror ingestion
+4. when the mode is `mandatory_review`, new uploads start blocked until explicit admin approval
+
+### Reasons
+
+1. **Operator control:** the admin UI needs to change upload behavior without redeploying config files.
+2. **Predictability:** per-mode defaults are easier to reason about than hard-coding mixed quota rules.
+3. **Safety:** `mandatory_review` needs a first-class enforcement point, not only a UI convention.
+
+### Consequences
+
+- ✅ upload authorization and quota evaluation become explicit and inspectable
+- ✅ free-mode and allowlist-mode can have different default plans
+- ✅ moderation-required mode can safely accept uploads without immediately publishing them
+- ⚠️ uploads now depend on one additional policy lookup path
+- ⚠️ object approval must clear any temporary public-download block consistently
+
+---
+
+## ADR-036: BUD-04 Mirroring and BUD-08 Metadata Stay Queue-Backed and Extraction-Driven
+
+**Status:** Proposed  
+**Date:** 2026-05-16
+
+### Context
+
+The relay needs public `PUT /mirror` support, but remote downloads are untrusted and can stall the HTTP worker, inflate memory use or be abused for SSRF-style traffic amplification if performed inline. At the same time, mirrored files and locally optimized files must expose one canonical NIP-94 metadata shape instead of accumulating ad hoc JSON fragments over time.
+
+### Decision
+
+1. `PUT /mirror` only validates the signed Blossom authorization event (`kind:24242`) and request payload, then enqueues background work
+2. the mirror worker performs the remote fetch and computes SHA-256 over the full body before any local persistence
+3. a hash mismatch aborts the job and leaves no stored object behind
+4. BUD-08 `nip94_tags` are generated only from extracted media facts produced by the BUD-05 routine, for both uploads and mirrored files
+5. mirror/source URLs are persisted separately in `mirrors` and projected into repeated NIP-94 `fallback` tags during regeneration
+
+### Reasons
+
+1. **Abuse resistance:** queueing avoids tying remote fetch latency to public HTTP request latency.
+2. **Correctness:** full-stream SHA-256 validation is the canonical acceptance gate for BUD-04.
+3. **Consistency:** one regeneration path prevents drift between upload, mirror and media optimization metadata.
+4. **Operational visibility:** failures and retries stay observable through the existing worker monitor.
+
+### Consequences
+
+- ✅ public mirroring reuses the current queue runtime instead of adding a parallel executor
+- ✅ NIP-94 output becomes deterministic across uploads, mirrors and derivatives
+- ✅ mirror origin URLs remain available without polluting canonical blob identity
+- ⚠️ the public BUD-04 route returns an asynchronous queued response instead of a fully materialized descriptor in the first HTTP round-trip
+
+---
+
+## ADR-037: BUD-05 Uses Immediate Original Persistence Plus Queue-Backed Optimization
+
+**Status:** Proposed  
+**Date:** 2026-05-16
+
+### Context
+
+BUD-05 requires `PUT /media` and `HEAD /media`, plus heavy media processing such as image conversion, thumbnailing, blurhash generation and audio/video metadata extraction. Running these operations inline in the HTTP handler would increase latency, risk request timeouts and make abuse amplification easy.
+
+### Decision
+
+1. `PUT /media` stores the original uploaded body immediately and returns its blob descriptor in the first response
+2. all heavy optimization steps run in the existing background jobs runtime against the stored original hash
+3. `HEAD /media` uses the original hash as the canonical probe key and exposes derivative readiness through headers
+4. audio/video inspection uses `ffprobe` and derivative generation uses `ffmpeg` via `os/exec`
+5. image resizing and fallback transforms use `github.com/disintegration/imaging` in the first rollout to avoid adding a mandatory native `libvips` dependency
+6. media worker features are toggled by explicit runtime flags under `store.media_processing`
+7. defaults favor metadata extraction and lightweight preview UX (`blurhash` and image thumbnails on), while heavier video thumbnails and streaming manifests start disabled
+
+### Reasons
+
+1. **Latency control:** clients get a fast response with the stored canonical hash while heavy work continues asynchronously.
+2. **Operational safety:** one queue model keeps retries, failures and worker visibility consistent with mirror jobs.
+3. **Deployment pragmatism:** `imaging` avoids forcing `libvips` on every environment while still covering thumbnail generation and image fallback operations.
+4. **Operational control:** media processing cost varies widely; feature flags must let operators disable expensive steps per environment.
+5. **Protocol consistency:** the original object remains the anchor for later mirror and NIP-94 distribution flows.
+
+### Consequences
+
+- ✅ `PUT /media` becomes a trusted upload+optimize surface aligned with BUD-05
+- ✅ image and video metadata feed the existing BUD-08 regeneration flow
+- ✅ `HEAD /media` becomes a cheap readiness probe for clients and the dashboard
+- ✅ operators can trade CPU/storage cost against richer derivatives without changing client contracts
+- ⚠️ optimized derivatives may lag behind the first successful `PUT /media` response
+- ⚠️ production environments that want HLS/DASH must provision `ffmpeg` binaries and enable the feature explicitly
+
+---
+
+## ADR-038: Optional Marmot MIP-00 Relay Module
+
+**Status:** Proposed  
+**Date:** 2026-05-20
+
+### Context
+
+The relay already stores arbitrary Nostr events and already implements generic replaceable and addressable semantics. Marmot `MIP-00` requires support for `kind:30443` KeyPackage events and `kind:10051` relay-list events, but most of the full protocol remains a client-side MLS responsibility.
+
+We need an implementation path that is disabled by default, highly configurable, small in scope, and honest about the level of compatibility it provides.
+
+### Decision
+
+Implement Marmot `MIP-00` as an **optional relay-side module** with configuration-first activation and phased validation depth.
+
+The design is:
+
+1. Add a new `marmot` config block with nested `mip00` toggles.
+2. Keep phase 1 storage in the existing `event` table.
+3. Reuse the current addressable replacement path for `kind:30443` and replaceable behavior for `kind:10051`.
+4. Add a focused event validator in `internal/policies` for `kind:30443`, `kind:10051`, and optional legacy `kind:443`.
+5. Start with `basic` validation only: required tags, allowed values, relay URL shape, and payload bounds.
+6. Reserve `strict` validation for a later phase that can parse MLS payloads and verify `KeyPackageRef` plus credential identity.
+
+### Reasons
+
+1. **Docs-first compatibility**: the project can describe exactly what it supports before introducing any code or external claims.
+2. **Low-risk integration**: the relay already has the correct storage and replacement primitives.
+3. **Operational safety**: disabled mode remains inert and existing relays do not change behavior accidentally.
+4. **Pragmatism**: relay-side validation should stay at the Nostr boundary until the project adopts a mature MLS dependency.
+5. **Future evolution**: the config model leaves room for later `MIP-01` to `MIP-03` work without prematurely coupling the relay core to MLS internals.
+
+### Consequences
+
+- ✅ Minimal first implementation surface: config, policies, tests, docs
+- ✅ No database migration required for phase 1
+- ✅ Honest compatibility statement: relay-aware `MIP-00`, not full Marmot
+- ⚠️ `strict` mode cannot be claimed until a reliable MLS parser/validator exists in Go for this project
+- ⚠️ Optional legacy `kind:443` support increases compatibility surface and should stay off by default
+
+---

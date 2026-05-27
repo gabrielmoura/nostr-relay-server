@@ -63,6 +63,19 @@
 - [ ] Review and finalize `docs/components-tree.md`
 - [ ] Review and finalize `docs/state-management.md`
 
+### Rich Event Visualization
+- [ ] Extend `lib/event-parser.ts` with one shared media interpretation model for search and detail
+- [ ] Add alt-aware headline fallback so `(sem conteudo textual)` always appends the `alt` tag when present in list rendering
+- [ ] Interpret `kind:4550` visually in `/panel/events/search` and `/panel/events/$eventId` using NIP-72 semantics
+- [ ] Interpret `kind:6` visually as repost context even when embedded content is absent
+- [ ] Interpret `kind:10050` visually as DM relay list with badges and counts instead of empty content emphasis
+- [ ] Render one image directly and multiple images as carousel in event detail
+- [ ] Render one video as click-to-load preview in search results when inferred from `imeta` MIME or URL
+- [ ] Add carousel support for multi-video or mixed-media posts in kinds `1`, `20`, NIP-68 picture-first flows and NIP-51 list-related media previews when multiple assets are present
+- [ ] Prevent `/panel/events/$eventId` content from overflowing horizontally by enforcing `min-w-0`, capped media sizes and wrapped identifier blocks
+- [ ] Introduce `@nostrify/react` enrichment path for referenced event context without replacing admin REST as the main source
+- [ ] Verify `pnpm build` for `infra/dash`
+
 ### NIP-86 Dashboard Extension
 - [ ] Add NIP-86 dashboard information architecture to docs
 - [ ] Define new internal admin service endpoints consumed by the SPA
@@ -124,6 +137,58 @@
 - [ ] Render kind `34550` metadata inline in `/events/search`
 - [ ] Reorder `/events/search` as KPIs -> filters -> results
 - [ ] Render moderators and richer reply/responder cards in `/events/$eventId` for community events
+
+### Event Search Analytics Modal
+- [ ] Add a button in `/events/search` to open an analytics modal
+- [ ] Add an analytics modal that renders charts related to the current event-search filters
+- [ ] Reuse or adapt existing Recharts-based event aggregates and timeline components inside the modal
+- [ ] Keep the list route primary and the modal secondary as a drill-in analytics surface
+- [ ] Add KPI strip at the top of the event-search analytics modal
+- [ ] Add dedicated top-authors and top-tags charts inside the modal
+- [ ] Allow opening the modal with a specific initial analytical tab
+- [ ] Ensure modal KPIs/charts reflect full filtered relay totals, not only the virtualized list items
+- [ ] Add click-driven kind/tag filtering inside the event-search analytics modal
+- [ ] Show month/year in timeline labels
+- [ ] Make active authors in the modal filterable and navigable to the user detail route
+- [ ] Add a trends tab with month/year tag highlights when supported by current aggregates
+
+### Event Search Community and Kind UX
+- [ ] Render community post preview + associated tags for `kind:1111` rows in `/events/search`
+- [ ] Add NIP-based tooltip to `K:1111` badge in `/events/search`
+- [ ] Make event-reference copy badges use NIP-19 when copying applicable event identifiers
+- [ ] Show resolved user display name in search rows when available for linked authors
+- [ ] Enable Vidstack logs during dashboard verification
+- [ ] Render the approved event below the `CommunityApprovalCard` on `kind:4550` detail pages
+
+### Reported Events Analytics
+- [ ] Refactor `/events/reported` into analytics-first layout
+- [ ] Replace static KPI cards with a Recharts-based KPI strip
+- [ ] Add report-volume trend chart using the fetched report slice
+- [ ] Add report-type distribution chart using NIP-56 types
+- [ ] Add top authors or top targets chart for moderation concentration
+- [ ] Keep reported-event list and drill-down modal below the analytics summary
+- [ ] Verify `pnpm build` for `infra/dash`
+
+### Reported Events Global Analytics
+- [ ] Add server-backed `/admin/events/reported/summary` contract for totals independent of virtualized list length
+- [ ] Add typed frontend service + hook for reports summary query
+- [ ] Refactor reports analytics to consume summary data instead of the loaded list slice
+- [ ] Add chart-click filtering interactions for type, timeline and concentration charts
+- [ ] Add top-targets chart alongside top-authors chart
+- [ ] Add semantic chart colors for NIP-56 report types
+- [ ] Make `/events/reported` filters URL-driven with TanStack Router search params
+- [ ] Ensure `type=nudity` and other moderation filters work end-to-end without backend SQL errors
+
+### Labels Analytics Modal
+- [ ] Add analytics modal entry action in `/labels`
+- [ ] Render KPIs and Recharts-based charts inside the labels modal using labels summary data
+
+### Global State and Media Platform
+- [ ] Add `zustand` + `immer` for global UI stores with scoped localStorage persistence
+- [ ] Add persisted reports analytics store for chart selections and view preferences
+- [ ] Add `ngeohash` support for geohash-aware searches using Nostr `g` tags
+- [ ] Replace native video rendering with `@vidstack/react` + `hls.js` + `dashjs`
+- [ ] Preserve lazy-load behavior for video previews in virtualized/search contexts
 
 
 ---
@@ -213,3 +278,43 @@ Expected: No TypeScript errors, no ESLint errors.
 - Use composition over configuration
 - Avoid over-engineering: create abstractions only when they reduce complexity
 - Document any new patterns in `docs/`
+
+## Blossom Admin Workspace
+
+- [ ] Add Blossom information architecture to docs and confirm route/endpoint naming
+- [ ] Add `/blossom` route in `router.tsx`
+- [ ] Add navigation entry in `components/layout/app-shell.tsx`
+- [ ] Extend `types/admin.ts` with Blossom overview, object, review, user, quota, worker and audit contracts
+- [ ] Extend types/contracts with Blossom policy, analytics, reports and BUD-10 identifiers
+- [ ] Extend `services/admin.ts` with typed Blossom queries and mutations, preserving `x-request-id`
+- [ ] Add TanStack Query hooks for Blossom overview, objects, review queue, users, workers and audit
+- [ ] Add hooks for Blossom policy, reports and analytics
+- [ ] Create `components/features/blossom/` smart/dumb split
+- [ ] Implement KPI strip and alert rail
+- [ ] Implement object browser with table/grid toggle, exact SHA-256 search and uploader identity filter
+- [ ] Replace MIME select with editable combobox behavior
+- [ ] Implement right-side inspection sheet with NIP-94 metadata and quick actions
+- [ ] Add `Copiar Blossom ID` action using BUD-10 format
+- [ ] Implement review queue with bulk approve/hard-delete/reprocess actions
+- [ ] Implement policy/settings card for upload mode and default plans
+- [ ] Add drill-down link from `/blossom` to `/blossom/plans`
+- [ ] Implement `/blossom/plans` child route with stronger UI/UX for named plans and quotas
+- [ ] Add plan summary strip, plan grid and detailed editor pane
+- [ ] Add storage help tooltip beside MB/GB fields with explicit explanatory copy
+- [ ] Implement whitelist/quota editor and uploader table
+- [ ] Implement uploader detail sheet with destructive purge action
+- [ ] Implement mirror submission panel and live workers board
+- [ ] Make the header `Workers` button open a workers modal
+- [ ] Implement Blossom analytics modal with charts and KPI summaries
+- [ ] Implement BUD-09 reports tab and drill-down
+- [ ] Implement immutable audit table
+- [ ] Add i18n copy for all Blossom states, tabs, errors and destructive confirmations
+- [ ] Verify `pnpm build` for `infra/dash`
+
+## Persistence Normalization
+
+- [ ] Document current `localStorage` usage and classify by relevance
+- [ ] Keep existing `zustand` persisted stores where they already fit compact UI state
+- [ ] Replace manual relay preset `localStorage` helpers with a dedicated persisted `zustand` store
+- [ ] Add a small IndexedDB storage adapter for larger client-side operator history when relevant
+- [ ] Persist Blossom mirror submission history in IndexedDB-backed client state if the UI exposes history/retry value

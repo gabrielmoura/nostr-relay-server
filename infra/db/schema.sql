@@ -40,7 +40,7 @@ CREATE INDEX
     NOT EXISTS content_search_idx ON event USING gin ( content_search );
 CREATE INDEX IF NOT EXISTS idx_event_created_at_id ON event (created_at, id);
 -- Tabela para armazenar perfis
-CREATE TABLE profiles (
+CREATE TABLE IF NOT EXISTS profiles (
                           ID BIGSERIAL PRIMARY KEY,
                           public_key VARCHAR(64) NOT NULL UNIQUE CHECK ( length(public_key) = 64 ),
                           NAME TEXT NOT NULL,
@@ -70,11 +70,11 @@ CREATE INDEX IF NOT EXISTS idx_nip05_identities_public_key ON nip05_identities (
 CREATE INDEX IF NOT EXISTS idx_nip05_identities_name ON nip05_identities (name);
 
 -- Índices para a tabela profiles
-CREATE INDEX idx_profiles_name ON profiles ( NAME );
-CREATE INDEX idx_profiles_nip05 ON profiles ( nip05 );
-CREATE INDEX idx_profiles_display_name ON profiles ( display_name );
+CREATE INDEX IF NOT EXISTS idx_profiles_name ON profiles ( NAME );
+CREATE INDEX IF NOT EXISTS idx_profiles_nip05 ON profiles ( nip05 );
+CREATE INDEX IF NOT EXISTS idx_profiles_display_name ON profiles ( display_name );
 -- Tabela para armazenar usuários banidos
-CREATE TABLE banned_users (
+CREATE TABLE IF NOT EXISTS banned_users (
                                ID BIGSERIAL PRIMARY KEY,
                                user_id BIGINT NOT NULL REFERENCES profiles ( ID ) ON DELETE CASCADE,
                                reason TEXT NOT NULL,
@@ -84,12 +84,12 @@ CREATE TABLE banned_users (
 );
 ALTER TABLE banned_users ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW();
 -- Índices para a tabela banned_users
-CREATE INDEX idx_banned_users_user_id ON banned_users ( user_id );
-CREATE INDEX idx_banned_users_id ON banned_users ( ID );
+CREATE INDEX IF NOT EXISTS idx_banned_users_user_id ON banned_users ( user_id );
+CREATE INDEX IF NOT EXISTS idx_banned_users_id ON banned_users ( ID );
 CREATE INDEX IF NOT EXISTS idx_banned_users_created_at ON banned_users ( created_at DESC );
 
 -- Table para armazenar metadados de arquivos
-CREATE TABLE objects (
+CREATE TABLE IF NOT EXISTS objects (
                          hash VARCHAR ( 64 ) NOT NULL PRIMARY KEY,
                          created_at TIMESTAMP WITH TIME ZONE NOT NULL,
                          mime_type VARCHAR ( 255 ),
@@ -101,8 +101,121 @@ CREATE TABLE objects (
                          tags JSONB
 );
 -- Índices para a tabela objects
-CREATE INDEX idx_objects_mime_type ON objects ( mime_type );
-CREATE INDEX idx_objects_blocked ON objects ( blocked );
+CREATE INDEX IF NOT EXISTS idx_objects_mime_type ON objects ( mime_type );
+CREATE INDEX IF NOT EXISTS idx_objects_blocked ON objects ( blocked );
+
+CREATE TABLE IF NOT EXISTS blossom_objects_admin (
+    hash VARCHAR(64) PRIMARY KEY REFERENCES objects(hash) ON DELETE CASCADE,
+    extension VARCHAR(32) NOT NULL DEFAULT '',
+    width INTEGER,
+    height INTEGER,
+    duration_ms BIGINT,
+    bitrate_kbps INTEGER,
+    blurhash TEXT,
+    thumbnail_hash VARCHAR(64),
+    optimized_hash VARCHAR(64),
+    hls_manifest_hash VARCHAR(64),
+    processing_status VARCHAR(24) NOT NULL DEFAULT 'pending',
+    processing_error TEXT,
+    exif_status VARCHAR(24) NOT NULL DEFAULT 'pending',
+    gps_detected BOOLEAN NOT NULL DEFAULT FALSE,
+    last_downloaded_at TIMESTAMPTZ,
+    download_count BIGINT NOT NULL DEFAULT 0,
+    ingress_bytes BIGINT NOT NULL DEFAULT 0,
+    egress_bytes BIGINT NOT NULL DEFAULT 0,
+    review_state VARCHAR(24) NOT NULL DEFAULT 'ready',
+    flag_reason TEXT,
+    nip94_tags JSONB NOT NULL DEFAULT '[]'::jsonb,
+    mirrors JSONB NOT NULL DEFAULT '[]'::jsonb,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE blossom_objects_admin ADD COLUMN IF NOT EXISTS hls_manifest_hash VARCHAR(64);
+ALTER TABLE blossom_objects_admin ADD COLUMN IF NOT EXISTS processing_status VARCHAR(24) NOT NULL DEFAULT 'pending';
+ALTER TABLE blossom_objects_admin ADD COLUMN IF NOT EXISTS processing_error TEXT;
+ALTER TABLE blossom_objects_admin ALTER COLUMN nip94_tags SET DEFAULT '[]'::jsonb;
+
+CREATE INDEX IF NOT EXISTS idx_blossom_objects_admin_review_state ON blossom_objects_admin (review_state, updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_blossom_objects_admin_extension ON blossom_objects_admin (extension);
+CREATE INDEX IF NOT EXISTS idx_blossom_objects_admin_last_downloaded_at ON blossom_objects_admin (last_downloaded_at);
+
+CREATE TABLE IF NOT EXISTS blossom_pubkey_quotas (
+    pubkey VARCHAR(64) PRIMARY KEY,
+    enabled BOOLEAN NOT NULL DEFAULT TRUE,
+    storage_quota_bytes BIGINT,
+    egress_quota_bytes BIGINT,
+    notes TEXT,
+    created_by VARCHAR(64) NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS blossom_server_policy (
+    id SMALLINT PRIMARY KEY,
+    mode VARCHAR(24) NOT NULL,
+    default_storage_quota_bytes BIGINT,
+    default_egress_quota_bytes BIGINT,
+    enabled_user_default_storage_quota_bytes BIGINT,
+    enabled_user_default_egress_quota_bytes BIGINT,
+    updated_by VARCHAR(64) NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS blossom_plans (
+    id VARCHAR(64) PRIMARY KEY,
+    name VARCHAR(120) NOT NULL,
+    scope VARCHAR(24) NOT NULL,
+    storage_quota_bytes BIGINT,
+    egress_quota_bytes BIGINT,
+    description TEXT,
+    is_default BOOLEAN NOT NULL DEFAULT FALSE,
+    updated_by VARCHAR(64) NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_blossom_plans_scope ON blossom_plans (scope, is_default, updated_at DESC);
+
+CREATE TABLE IF NOT EXISTS blossom_plan_assignments (
+    pubkey VARCHAR(64) PRIMARY KEY,
+    plan_id VARCHAR(64) NOT NULL REFERENCES blossom_plans(id) ON DELETE CASCADE,
+    assigned_by VARCHAR(64) NOT NULL,
+    assigned_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS blossom_review_reports (
+    id BIGSERIAL PRIMARY KEY,
+    event_id VARCHAR(64) NOT NULL,
+    object_hash VARCHAR(64) NOT NULL REFERENCES objects(hash) ON DELETE CASCADE,
+    reporter_pubkey VARCHAR(64) NOT NULL,
+    target_event_id VARCHAR(64),
+    target_pubkey VARCHAR(64),
+    report_type VARCHAR(64),
+    reason TEXT,
+    status VARCHAR(24) NOT NULL DEFAULT 'open',
+    resolved_by VARCHAR(64),
+    resolved_note TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    resolved_at TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS idx_blossom_review_reports_object_hash ON blossom_review_reports (object_hash, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_blossom_review_reports_status ON blossom_review_reports (status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_blossom_review_reports_event_id ON blossom_review_reports (event_id);
+
+CREATE TABLE IF NOT EXISTS blossom_audit_log (
+    id BIGSERIAL PRIMARY KEY,
+    actor_pubkey VARCHAR(64) NOT NULL,
+    action VARCHAR(64) NOT NULL,
+    target_type VARCHAR(32) NOT NULL,
+    target_id TEXT NOT NULL,
+    request_id TEXT,
+    payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+    nostr_event_id VARCHAR(64),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_blossom_audit_log_created_at ON blossom_audit_log (created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_blossom_audit_log_action ON blossom_audit_log (action, created_at DESC);
 
 
 

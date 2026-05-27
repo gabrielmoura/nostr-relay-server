@@ -21,6 +21,13 @@ import { DownloadPage } from "@/routes/download-page"
 import { GroupsPage } from "@/routes/groups-page"
 import { WoTPage } from "@/routes/wot-page"
 import { EventSearchRouteSearch } from "@/lib/event-search"
+import { BlossomPage } from "@/routes/blossom-page"
+import { BlossomPlansPage } from "@/routes/blossom-plans-page"
+import { BlossomPolicyPage } from "@/routes/blossom-policy-page"
+import { BlossomReviewPage } from "@/routes/blossom-review-page"
+import { BlossomReportsPage } from "@/routes/blossom-reports-page"
+import { BlossomAuditPage } from "@/routes/blossom-audit-page"
+import { normalizeBlossomSearch, type BlossomRouteSearch } from "@/lib/blossom"
 import { normalizeLabelsSearch, type LabelsRouteSearch } from "@/lib/labels"
 
 const rootRoute = createRootRoute({
@@ -116,6 +123,43 @@ const labelsRoute = createRoute({
   component: LabelsPage,
 })
 
+const blossomRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/blossom",
+  validateSearch: (search: Record<string, unknown>): BlossomRouteSearch => normalizeBlossomSearch(search),
+  component: BlossomPage,
+})
+
+const blossomPlansRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/blossom/plans",
+  component: BlossomPlansPage,
+})
+
+const blossomPolicyRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/blossom/policy",
+  component: BlossomPolicyPage,
+})
+
+const blossomReviewRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/blossom/review",
+  component: BlossomReviewPage,
+})
+
+const blossomReportsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/blossom/reports",
+  component: BlossomReportsPage,
+})
+
+const blossomAuditRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/blossom/audit",
+  component: BlossomAuditPage,
+})
+
 const streamStatusRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/stream",
@@ -159,6 +203,12 @@ const routeTree = rootRoute.addChildren([
   eventSearchRoute,
   reportedEventsRoute,
   labelsRoute,
+  blossomRoute,
+  blossomPlansRoute,
+  blossomPolicyRoute,
+  blossomReviewRoute,
+  blossomReportsRoute,
+  blossomAuditRoute,
   streamStatusRoute,
   eventDetailRoute,
   syncRoute,

@@ -419,6 +419,35 @@ var (
 		},
 		[]string{"cache", "result"},
 	)
+	NostrMarmotMIP00EventsTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "nostr_marmot_mip00_events_total",
+			Help: "Total Marmot MIP-00 relevant events by kind and validation result.",
+		},
+		[]string{"kind", "result"},
+	)
+	NostrBlossomHTTPRequestTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "nostr_blossom_http_requests_total",
+			Help: "Total Blossom HTTP requests by normalized route and method.",
+		},
+		[]string{"route", "method"},
+	)
+	NostrBlossomHTTPRequestDurationSeconds = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "nostr_blossom_http_request_duration_seconds",
+			Help:    "Blossom HTTP request latency by normalized route and method.",
+			Buckets: prometheus.DefBuckets,
+		},
+		[]string{"route", "method"},
+	)
+	NostrBlossomHTTPErrorsTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "nostr_blossom_http_errors_total",
+			Help: "Total Blossom HTTP errors by route, method, category and status code.",
+		},
+		[]string{"route", "method", "category", "status"},
+	)
 )
 
 func RegisterMetrics() {
@@ -484,6 +513,7 @@ func RegisterMetrics() {
 		NostrNIP29InvitesConsumedTotal,
 		NostrNIP29ProcessingSeconds,
 		NostrNIP29CacheTotal,
+		NostrMarmotMIP00EventsTotal,
 		NostrQueueJobsEnqueuedTotal,
 		NostrQueueJobsStartedTotal,
 		NostrQueueJobsSucceededTotal,
@@ -499,6 +529,9 @@ func RegisterMetrics() {
 		NostrQueueRedisErrorsTotal,
 		NostrQueueLuaErrorsTotal,
 		NostrQueueReclaimsTotal,
+		NostrBlossomHTTPRequestTotal,
+		NostrBlossomHTTPRequestDurationSeconds,
+		NostrBlossomHTTPErrorsTotal,
 	)
 
 }

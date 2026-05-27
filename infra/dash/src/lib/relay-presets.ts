@@ -1,3 +1,5 @@
+import { useRelayPresetsStore } from "@/stores/relay-presets-store"
+
 const relayStoragePrefix = "nrserver.relays"
 
 export const commonRelayPresets = [
@@ -29,27 +31,9 @@ export function relayStorageKey(scope: string) {
 }
 
 export function readRelayStorage(scope: string, fallback: string[] = commonRelayPresets) {
-  if (typeof window === "undefined") {
-    return normalizeRelayList(fallback)
-  }
-  const stored = window.localStorage.getItem(relayStorageKey(scope))
-  if (!stored) {
-    return normalizeRelayList(fallback)
-  }
-  try {
-    const parsed = JSON.parse(stored)
-    if (!Array.isArray(parsed)) {
-      return normalizeRelayList(fallback)
-    }
-    return normalizeRelayList(parsed.map(String))
-  } catch {
-    return normalizeRelayList(fallback)
-  }
+  return normalizeRelayList(useRelayPresetsStore.getState().getScopeRelays(relayStorageKey(scope), normalizeRelayList(fallback)))
 }
 
 export function writeRelayStorage(scope: string, relays: string[]) {
-  if (typeof window === "undefined") {
-    return
-  }
-  window.localStorage.setItem(relayStorageKey(scope), JSON.stringify(normalizeRelayList(relays)))
+  useRelayPresetsStore.getState().setScopeRelays(relayStorageKey(scope), normalizeRelayList(relays))
 }

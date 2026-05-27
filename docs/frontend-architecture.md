@@ -162,6 +162,30 @@ All API calls should go through a service layer:
 
 Currently, API calls already flow through `services/admin.ts` for most dashboard paths. New NIP-86-facing admin features should continue to use this service-first pattern.
 
+## Persistence Strategy
+
+Current dashboard persistence survey (`infra/dash/src`):
+
+- `zustand` + `localStorage` already back:
+  - `stores/media-player-store.ts`
+  - `stores/geohash-search-store.ts`
+  - `stores/reported-events-store.ts`
+- manual `localStorage` is still used in `lib/relay-presets.ts`
+- i18n language detection also uses `localStorage`, which should remain external to app-state stores
+
+Decision for the next refinement:
+
+- keep **small UI/session preferences** in `zustand` persisted to `localStorage`
+- migrate **manual relay preset persistence** into a dedicated `zustand` store instead of raw helper writes
+- use **IndexedDB** only for operator data that is materially larger or benefits from structured client-side caching/history, such as Blossom mirror submission history or larger route-scoped cached drafts
+- do **not** move TanStack Query server-state into `localStorage` persistence by default
+
+Practical rule:
+
+- `localStorage`: booleans, small arrays, route/workspace preferences, recent compact identifiers
+- `IndexedDB`: larger lists, structured operator history, recoverable drafts that may outgrow safe `localStorage` usage
+- URL state: active filters that should remain shareable/bookmarkable
+
 ## Planned NIP-86 Feature Modules
 
 New feature components should be grouped under:
@@ -787,3 +811,116 @@ import { EventCard } from '@/components/features/event-detail/event-card';
 import { parseEvent } from '@/lib/event-parser';
 import type { Event } from '@/lib/types';
 ```
+
+## Planned Blossom Admin Workspace
+
+### Product goal
+
+- give operators one dense operational route for media inventory, review, quotas, mirroring, worker health and audit trail
+- preserve the current admin visual language instead of introducing a separate product shell
+- make media-heavy workflows legible with thumbnails, blurhash placeholders and a side inspection drawer
+- add fast-access overlays for workers and analytics without forcing a tab switch
+- expose BUD-09 blob reports as a first-class moderation surface
+- add a deeper plans/quotas management screen for default plans and named quota presets
+- move `review`, `reports` and `audit` into lower-level child screens so the main Blossom route stays lighter
+
+### Visual direction
+
+Using `ui-ux-pro-max`, keep the current compact admin palette and apply these route-specific rules:
+
+- **Pattern:** analytics-first operational dashboard with media drill-down
+- **Layout:** KPI strip -> alert rail -> filter/policy bar -> compact hub tabs -> child-route drill-downs -> side inspection sheet + modal overlays
+- **Views:** table/list for dense auditing and optional thumbnail grid for browsing
+- **Accessibility:** all icon-only actions need labels; quick actions must stay keyboard accessible; danger actions require confirmation
+- **Performance:** grid previews use reserved aspect ratios, lazy thumbnails and blurhash-first placeholders to avoid layout shift
+
+For the dedicated plans screen, apply a more focused configuration UX while preserving the dashboard language:
+
+- **Pattern:** configuration cockpit with plan cards + detailed editor panel
+- **Layout:** summary rail -> default mode selector -> plan grid -> sticky detail form
+- **Hierarchy:** named plans first, low-level byte values second
+- **Tooltip rule:** storage size fields show a help icon with a tooltip explaining MB/GB meaning and default-plan consequences
+- **Interactions:** quick duplicate/edit/set-default actions, explicit empty/unlimited states, strong destructive confirmations for deletion
+
+### API strategy
+
+The SPA continues to call only the internal admin API via `services/admin.ts`.
+
+Planned service functions:
+
+- `getBlossomOverview()`
+- `getBlossomPolicy()`
+- `updateBlossomPolicy(payload)`
+- `getBlossomPlans()`
+- `upsertBlossomPlan(payload)`
+- `deleteBlossomPlan(id)`
+- `getBlossomObjects(filters)`
+- `getBlossomObjectDetail(hash)`
+- `reviewBlossomObjects(payload)`
+- `getBlossomUsers(filters)`
+- `getBlossomUserDetail(pubkey)`
+- `upsertBlossomWhitelistEntry(payload)`
+- `purgeBlossomUser(pubkey)`
+- `createBlossomMirrorJob(payload)`
+- `getBlossomWorkers(filters)`
+- `getBlossomReports(filters)`
+- `resolveBlossomReport(payload)`
+- `getBlossomAnalytics(filters?)`
+- `getBlossomAudit(filters)`
+
+### Suggested module split
+
+```text
+components/features/blossom/
+  blossom-workspace.tsx
+  blossom-plans-page.tsx
+  blossom-review-page.tsx
+  blossom-reports-page.tsx
+  blossom-audit-page.tsx
+  blossom-kpi-strip.tsx
+  blossom-alert-rail.tsx
+  blossom-filters-bar.tsx
+  blossom-view-toggle.tsx
+  blossom-objects-table.tsx
+  blossom-objects-grid.tsx
+  blossom-object-sheet.tsx
+  blossom-analytics-dialog.tsx
+  blossom-review-queue.tsx
+  blossom-bulk-actions-bar.tsx
+  blossom-users-table.tsx
+  blossom-plan-modal.tsx
+  blossom-delete-plan-modal.tsx
+  blossom-assign-plan-modal.tsx
+  blossom-mirror-panel.tsx
+  blossom-workers-board.tsx
+  blossom-workers-dialog.tsx
+  blossom-reports-table.tsx
+  blossom-report-sheet.tsx
+  blossom-audit-table.tsx
+```
+
+Planned route:
+
+```text
+routes/
+  blossom-page.tsx
+  blossom-plans-page.tsx
+  blossom-policy-page.tsx
+  blossom-review-page.tsx
+  blossom-reports-page.tsx
+  blossom-audit-page.tsx
+```
+
+Interaction rules for this follow-up:
+
+- the header `Workers` button opens `BlossomWorkersDialog` even when the current tab is not `workers`
+- the MIME filter becomes an editable combobox: operators can pick a known MIME or type an arbitrary MIME string
+- the uploader filter accepts name, display name, `nip05`, `npub`, or hex pubkey and remains URL-driven
+- `BlossomObjectSheet` gets a `Copiar Blossom ID` action that emits a BUD-10 URI
+- `BlossomAnalyticsDialog` shows charts and operational summaries without replacing the main tabbed workspace
+- `reports`, `audit` and `review` become lower-level Blossom routes linked from the main workspace instead of living in the primary tab strip
+- `review` navigation is only rendered when the effective Blossom policy indicates manual review is enabled
+- plans/quotas configuration becomes a lower-level route under Blossom, linked from the main workspace as a drill-down instead of another heavy top-level tab
+- the overview tab shows only a read-only policy summary with a link to `/blossom/policy`
+- `BlossomUsersTable` owns TanStack Table state, backend sorting and `@tanstack/react-virtual` pagination
+- `/blossom/plans` no longer embeds policy controls; it is dedicated to plan catalog, modal CRUD and plan-to-user association

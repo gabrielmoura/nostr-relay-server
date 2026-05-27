@@ -11,6 +11,7 @@ type Config struct {
 	AppEnv           string                   `json:"app_env" yaml:"app_env" mapstructure:"app_env"`
 	AdminToken       string                   `json:"admin_token" yaml:"admin_token" mapstructure:"admin_token"`
 	AdminPubKey      string                   `json:"admin_pubkey" yaml:"admin_pubkey" mapstructure:"admin_pubkey"`
+	Marmot           MarmotConfig             `json:"marmot" yaml:"marmot" mapstructure:"marmot"`
 	Ws               WsConfig                 `json:"ws" yaml:"ws" mapstructure:"ws"`
 	Security         SecurityConfig           `json:"security" yaml:"security" mapstructure:"security"`
 	Anon             Anon                     `json:"anon" yaml:"anon" mapstructure:"anon"`
@@ -23,6 +24,7 @@ type Config struct {
 	Cron             CronConfig               `json:"cron" yaml:"cron" mapstructure:"cron"`
 	Stream           WsStreamConfig           `json:"stream" yaml:"stream" mapstructure:"stream"`
 	EnableNegentropy bool                     `json:"enable_negentropy" yaml:"enable_negentropy" mapstructure:"enable_negentropy"`
+	NegentropyAuth   bool                     `json:"negentropy_auth" yaml:"negentropy_auth" mapstructure:"negentropy_auth"`
 	NIP86            NIP86Config              `json:"nip86" yaml:"nip86" mapstructure:"nip86"`
 	Store            StoreConfig              `json:"store" yaml:"store" mapstructure:"store"`
 	NIP29            NIP29Config              `json:"nip29" yaml:"nip29" mapstructure:"nip29"`
@@ -41,13 +43,41 @@ type WoTConfig struct {
 }
 
 type StoreConfig struct {
-	Enabled             bool     `json:"enabled" yaml:"enabled" mapstructure:"enabled"`
-	APIPath             string   `json:"api_path" yaml:"api_path" mapstructure:"api_path"`
-	MediaPath           string   `json:"media_path" yaml:"media_path" mapstructure:"media_path"`
-	AcceptedMimetypes   []string `json:"accepted_mimetypes" yaml:"accepted_mimetypes" mapstructure:"accepted_mimetypes"`
-	AllowAdultContent   bool     `json:"allow_adult_content" yaml:"allow_adult_content" mapstructure:"allow_adult_content"`
-	AllowViolentContent bool     `json:"allow_violent_content" yaml:"allow_violent_content" mapstructure:"allow_violent_content"`
-	Names               []string `json:"names" yaml:"names" mapstructure:"names"`
+	Enabled             bool                       `json:"enabled" yaml:"enabled" mapstructure:"enabled"`
+	APIPath             string                     `json:"api_path" yaml:"api_path" mapstructure:"api_path"`
+	MediaPath           string                     `json:"media_path" yaml:"media_path" mapstructure:"media_path"`
+	AcceptedMimetypes   []string                   `json:"accepted_mimetypes" yaml:"accepted_mimetypes" mapstructure:"accepted_mimetypes"`
+	AllowAdultContent   bool                       `json:"allow_adult_content" yaml:"allow_adult_content" mapstructure:"allow_adult_content"`
+	AllowViolentContent bool                       `json:"allow_violent_content" yaml:"allow_violent_content" mapstructure:"allow_violent_content"`
+	Names               []string                   `json:"names" yaml:"names" mapstructure:"names"`
+	MediaProcessing     StoreMediaProcessingConfig `json:"media_processing" yaml:"media_processing" mapstructure:"media_processing"`
+}
+
+type StoreMediaProcessingConfig struct {
+	Enabled          bool                             `json:"enabled" yaml:"enabled" mapstructure:"enabled"`
+	ExtractMetadata  bool                             `json:"extract_metadata" yaml:"extract_metadata" mapstructure:"extract_metadata"`
+	GenerateBlurhash bool                             `json:"generate_blurhash" yaml:"generate_blurhash" mapstructure:"generate_blurhash"`
+	Image            StoreMediaProcessingImageConfig  `json:"image" yaml:"image" mapstructure:"image"`
+	Video            StoreMediaProcessingVideoConfig  `json:"video" yaml:"video" mapstructure:"video"`
+	Streaming        StoreMediaProcessingStreamConfig `json:"streaming" yaml:"streaming" mapstructure:"streaming"`
+}
+
+type StoreMediaProcessingImageConfig struct {
+	GenerateThumbnail bool `json:"generate_thumbnail" yaml:"generate_thumbnail" mapstructure:"generate_thumbnail"`
+	GenerateWebP      bool `json:"generate_webp" yaml:"generate_webp" mapstructure:"generate_webp"`
+	MaxWidth          int  `json:"max_width" yaml:"max_width" mapstructure:"max_width"`
+	ThumbnailMaxWidth int  `json:"thumbnail_max_width" yaml:"thumbnail_max_width" mapstructure:"thumbnail_max_width"`
+}
+
+type StoreMediaProcessingVideoConfig struct {
+	GenerateThumbnail  bool `json:"generate_thumbnail" yaml:"generate_thumbnail" mapstructure:"generate_thumbnail"`
+	GeneratePosterWebP bool `json:"generate_poster_webp" yaml:"generate_poster_webp" mapstructure:"generate_poster_webp"`
+	ThumbnailMaxWidth  int  `json:"thumbnail_max_width" yaml:"thumbnail_max_width" mapstructure:"thumbnail_max_width"`
+}
+
+type StoreMediaProcessingStreamConfig struct {
+	EnableHLS  bool `json:"enable_hls" yaml:"enable_hls" mapstructure:"enable_hls"`
+	EnableDASH bool `json:"enable_dash" yaml:"enable_dash" mapstructure:"enable_dash"`
 }
 
 type WsStreamConfig struct {
@@ -302,6 +332,36 @@ type NIP86Config struct {
 	Enabled           bool `json:"enabled" yaml:"enabled" mapstructure:"enabled"`
 	AuthWindowSeconds int  `json:"auth_window_seconds" yaml:"auth_window_seconds" mapstructure:"auth_window_seconds"`
 	CacheTTLSeconds   int  `json:"cache_ttl_seconds" yaml:"cache_ttl_seconds" mapstructure:"cache_ttl_seconds"`
+}
+
+type MarmotConfig struct {
+	Enabled bool              `json:"enabled" yaml:"enabled" mapstructure:"enabled"`
+	MIP00   MarmotMIP00Config `json:"mip00" yaml:"mip00" mapstructure:"mip00"`
+}
+
+type MarmotMIP00Config struct {
+	Enabled                  bool   `json:"enabled" yaml:"enabled" mapstructure:"enabled"`
+	AcceptKind30443          bool   `json:"accept_kind_30443" yaml:"accept_kind_30443" mapstructure:"accept_kind_30443"`
+	AcceptKind10051          bool   `json:"accept_kind_10051" yaml:"accept_kind_10051" mapstructure:"accept_kind_10051"`
+	AcceptLegacyKind443      bool   `json:"accept_legacy_kind_443" yaml:"accept_legacy_kind_443" mapstructure:"accept_legacy_kind_443"`
+	ValidationMode           string `json:"validation_mode" yaml:"validation_mode" mapstructure:"validation_mode"`
+	RequireITag              bool   `json:"require_i_tag" yaml:"require_i_tag" mapstructure:"require_i_tag"`
+	RequireBase64EncodingTag bool   `json:"require_base64_encoding_tag" yaml:"require_base64_encoding_tag" mapstructure:"require_base64_encoding_tag"`
+	RequireRelaysTag         bool   `json:"require_relays_tag" yaml:"require_relays_tag" mapstructure:"require_relays_tag"`
+	RequireMLSExtensions     bool   `json:"require_mls_extensions" yaml:"require_mls_extensions" mapstructure:"require_mls_extensions"`
+	RequireMLSProposals      bool   `json:"require_mls_proposals" yaml:"require_mls_proposals" mapstructure:"require_mls_proposals"`
+	RequireWSRelayURLs       bool   `json:"require_ws_relay_urls" yaml:"require_ws_relay_urls" mapstructure:"require_ws_relay_urls"`
+	MaxRelaysPerEvent        int    `json:"max_relays_per_event" yaml:"max_relays_per_event" mapstructure:"max_relays_per_event"`
+	MaxContentSizeBytes      int    `json:"max_content_size_bytes" yaml:"max_content_size_bytes" mapstructure:"max_content_size_bytes"`
+	AdvertiseInRelayDocument bool   `json:"advertise_in_relay_document" yaml:"advertise_in_relay_document" mapstructure:"advertise_in_relay_document"`
+}
+
+func (cfg MarmotMIP00Config) NormalizedValidationMode() string {
+	mode := strings.ToLower(strings.TrimSpace(cfg.ValidationMode))
+	if mode == "" {
+		return "basic"
+	}
+	return mode
 }
 
 var Cfg *Config

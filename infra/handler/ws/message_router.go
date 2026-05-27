@@ -82,6 +82,9 @@ func handleNegOpen(ws *dto.WsServer, data dto.Data) string {
 	if !config.Cfg.EnableNegentropy {
 		return "Negentropy is not enabled"
 	}
+	if reason := requireNegentropyAuth(ws, "", false); reason != "" {
+		return reason
+	}
 	if err := negentropy.HandleNegOpen(ws, data); err != nil {
 		return err.Error()
 	}
@@ -92,6 +95,13 @@ func handleNegMsg(ws *dto.WsServer, data dto.Data) string {
 	metrics.NostrNegentropyCounter.WithLabelValues(dto.TypeNegMsg).Inc()
 	if !config.Cfg.EnableNegentropy {
 		return "Negentropy is not enabled"
+	}
+	subID, err := decodeNegentropySubID(data)
+	if err != nil {
+		return err.Error()
+	}
+	if reason := requireNegentropyAuth(ws, subID, true); reason != "" {
+		return reason
 	}
 	if err := negentropy.HandleNegMsg(ws, data); err != nil {
 		return err.Error()
@@ -104,6 +114,13 @@ func handleNegHave(ws *dto.WsServer, data dto.Data) string {
 	if !config.Cfg.EnableNegentropy {
 		return "Negentropy is not enabled"
 	}
+	subID, err := decodeNegentropySubID(data)
+	if err != nil {
+		return err.Error()
+	}
+	if reason := requireNegentropyAuth(ws, subID, true); reason != "" {
+		return reason
+	}
 	if err := negentropy.HandleNegHave(ws, data); err != nil {
 		return err.Error()
 	}
@@ -114,6 +131,13 @@ func handleNegNeed(ws *dto.WsServer, data dto.Data) string {
 	metrics.NostrNegentropyCounter.WithLabelValues(dto.TypeNegNeed).Inc()
 	if !config.Cfg.EnableNegentropy {
 		return "Negentropy is not enabled"
+	}
+	subID, err := decodeNegentropySubID(data)
+	if err != nil {
+		return err.Error()
+	}
+	if reason := requireNegentropyAuth(ws, subID, true); reason != "" {
+		return reason
 	}
 	if err := negentropy.HandleNegNeed(ws, data); err != nil {
 		return err.Error()
@@ -129,16 +153,56 @@ func handleNegErr(_ *dto.WsServer, data dto.Data) string {
 	return ""
 }
 
-func handleNegClose(_ *dto.WsServer, data dto.Data) string {
+func handleNegClose(ws *dto.WsServer, data dto.Data) string {
 	metrics.NostrNegentropyCounter.WithLabelValues(dto.TypeNegClose).Inc()
 	if !config.Cfg.EnableNegentropy {
 		return "Negentropy is not enabled"
+	}
+	return handleProtectedNegClose(ws, data)
+}
+
+func handleProtectedNegClose(ws *dto.WsServer, data dto.Data) string {
+	subID, err := decodeNegentropySubID(data)
+	if err != nil {
+		return err.Error()
+	}
+	if reason := requireNegentropyAuth(ws, subID, true); reason != "" {
+		return reason
 	}
 	if err := negentropy.HandleNegClose(data); err != nil {
 		return err.Error()
 	}
 	if len(data) > 1 {
 		log.Logger.Debug("Negentropy close", zap.Any("data", data[1]))
+	}
+	return ""
+}
+
+func decodeNegentropySubID(data dto.Data) (string, error) {
+	if len(data) < 2 {
+		return "", fmt.Errorf("invalid negentropy message format")
+	}
+
+	var subID string
+	if err := json.Unmarshal(data[1], &subID); err != nil {
+		return "", fmt.Errorf("invalid negentropy subscription id")
+	}
+
+	return subID, nil
+}
+
+func requireNegentropyAuth(ws *dto.WsServer, subID string, checkSessionOwner bool) string {
+	if config.Cfg == nil || !config.Cfg.NegentropyAuth {
+		return ""
+	}
+	if ws == nil || ws.Authed == "" {
+		return "auth-required: negentropy requires authentication"
+	}
+	if ws.Authed != config.Cfg.NegentropyAuthorizedPubKey() {
+		return "restricted: negentropy is only available to the relay identity"
+	}
+	if checkSessionOwner && subID != "" && !negentropy.SessionOwnedBy(subID, ws.Authed) {
+		return "restricted: negentropy session is bound to a different authenticated pubkey"
 	}
 	return ""
 }

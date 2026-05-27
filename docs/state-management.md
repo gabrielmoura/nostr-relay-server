@@ -49,6 +49,29 @@ const searchParams = useSearch({ from: '/events/search' });
 const { data, isLoading, error } = useEvent(id);
 ```
 
+### 4. Persisted Client State
+
+The dashboard already mixes URL state, local component state and persisted browser state.
+
+Survey of current persisted state in `infra/dash/src`:
+
+- `useMediaPlayerStore` -> `zustand` + `localStorage`
+- `useGeohashSearchStore` -> `zustand` + `localStorage`
+- `useReportedEventsStore` -> `zustand` + `localStorage`
+- `relay-presets.ts` -> manual `localStorage`
+
+Target normalization:
+
+- **Zustand + localStorage** for compact UI preferences and small recent-value lists
+- **Zustand + IndexedDB-backed storage adapter** for larger operator artifacts where write volume or payload size justifies it
+- **Raw localStorage helpers should be phased out** in favor of explicit stores so persistence shape is typed and centralized
+
+Planned relevant uses:
+
+- relay preset lists -> dedicated persisted store instead of manual helper
+- Blossom workspace preferences -> persisted store when they are not already URL-driven
+- Blossom mirror submission history -> IndexedDB-backed store because it is append-oriented and may grow over time
+
 ---
 
 ## Feature State Flows
@@ -718,3 +741,114 @@ await waitFor(() => {
 3. **Optimistic UI**: Add for mutations
 4. **Error Tracking**: Integrate Sentry for production errors
 5. **x-request-id**: Propagate from API responses to error UI
+
+## Planned Blossom Workspace State Flow
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│                    Blossom Workspace Flow                    │
+├──────────────────────────────────────────────────────────────┤
+│                                                              │
+│  route /blossom + URL search params                          │
+│       │                                                      │
+│       ├── tab, view, sha256, mime_type, extension            │
+│       ├── review_state, pubkey, uploader_q                   │
+│       ├── report_type, report_status, worker_status          │
+│       └── limit, offset                                      │
+│       ▼                                                      │
+│  BlossomWorkspace (Smart)                                    │
+│       │                                                      │
+│       ├── useBlossomOverview()                               │
+│       ├── useBlossomPolicy()                                 │
+│       ├── useBlossomObjects(filters)                         │
+│       ├── useBlossomWorkers(filters)                         │
+│       ├── no heavy reports/audit/review table by default     │
+│       ├── useBlossomAnalytics() when modal opens             │
+│       └── conditionally: useBlossomAudit/useBlossomUsers     │
+│              │                                               │
+│              ▼                                               │
+│  view composition                                            │
+│       ├── KPI strip + alerts                                 │
+│       ├── policy card + editable filters                     │
+│       ├── object table or thumbnail grid                     │
+	│       ├── user quota table                                   │
+	│       ├── mirror/worker monitor                              │
+	│       ├── links to child review/reports/audit screens        │
+	│       ├── workers modal                                      │
+	│       └── analytics modal                                    │
+│                                                              │
+└──────────────────────────────────────────────────────────────┘
+```
+
+States:
+
+| State | Meaning |
+|-------|---------|
+| `loading` | primary overview/object query in flight |
+| `success-table` | object browser loaded in table mode |
+| `success-grid` | object browser loaded in grid mode |
+| `empty` | no objects/reports/users match active filters |
+| `error` | one or more primary admin Blossom queries failed |
+| `drawer-open` | object or user inspection sheet open |
+| `workers-modal-open` | quick worker inspection overlay open |
+| `analytics-modal-open` | server-backed analytics overlay open |
+
+### Blossom mutations and recovery
+
+| Mutation | Strategy | Recovery |
+|----------|----------|----------|
+| bulk approve/delete | TanStack Query mutation, no optimistic delete | invalidate overview, objects, review queue and audit |
+| policy update | mutation from dedicated subroute with exclusive radio selection | invalidate overview, policy, users and object queries |
+| plan create/update/delete | mutation driven by modal draft state | invalidate policy, plans, overview and audit |
+| plan assignment | mutation from search modal | invalidate users, overview and audit |
+| purge user | mutation + confirmation dialog | keep sheet open on error and preserve typed reason |
+| quota/whitelist save | mutation with local form state preservation | inline field errors and retry |
+| mirror request | mutation creates background job | invalidate workers and audit, show pending state immediately |
+| report resolution | mutation from reports tab/sheet | invalidate reports, overview and audit |
+| force optimization | mutation enqueues job | invalidate object detail and workers |
+
+Error recovery rules:
+
+- thumbnail or blurhash failure falls back to MIME badge + fixed placeholder, not broken image UI
+- object detail fetch failure does not clear current list selection; the sheet shows retry
+- audit and workers errors remain local panels when the library view is otherwise usable
+- workers modal failure must preserve the last successful snapshot if available and show manual refresh
+- analytics modal failure must degrade to retry UI instead of blocking the main workspace
+- destructive mutation failures must surface `requestId` when available so operators can correlate backend logs
+- custom MIME filter input remains controlled by URL state; invalid or uncommon MIME strings are treated as exact filters, not client-side validation errors
+
+### Blossom Plans Subscreen Flow
+
+```text
+route /blossom/plans
+	-> useBlossomPlans()
+	-> local modal state (create/edit, delete confirm, assign)
+	-> mutate save/delete/assign
+	-> invalidate plans + users + policy + overview
+```
+
+UI state rules:
+
+- unsaved editor fields stay local to each modal, not global store state
+- user search inside the assignment modal is debounced and powered by the existing `/users/search` endpoint
+- the plans screen does not edit policy state anymore; policy lives in `/blossom/policy`
+
+### Blossom Review / Reports / Audit Child Flows
+
+```text
+route /blossom/review
+  -> gated by useBlossomPolicy()
+  -> if review disabled, render unavailable state
+  -> else useBlossomObjects(review filters) + review mutations
+
+route /blossom/reports
+  -> useBlossomReports(filters)
+  -> object drill-down still uses BlossomObjectSheet
+
+route /blossom/audit
+  -> useBlossomAudit(filters)
+```
+
+Visibility rule:
+
+- `review` child navigation is rendered only when the effective policy mode requires manual review

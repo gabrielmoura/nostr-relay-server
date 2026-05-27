@@ -42,10 +42,14 @@ var (
 	started    bool
 	startMutex sync.Mutex
 
-	statsBatchProcessed atomic.Int64
-	statsEventsInserted atomic.Int64
-	statsDuplicates     atomic.Int64
-	statsErrors         atomic.Int64
+	statsBatchProcessed   atomic.Int64
+	statsEventsInserted   atomic.Int64
+	statsDuplicates       atomic.Int64
+	statsErrors           atomic.Int64
+	queryFirstStoredEvent = firstEvent
+	deleteStoredEventByID = func(ctx context.Context, id, deletedBy string) error {
+		return db.DbQueries.DeleteEvent(ctx, id, deletedBy)
+	}
 )
 
 type worker struct {
@@ -289,12 +293,12 @@ func prepareEventForStorage(ctx context.Context, evt *nostr.Event) error {
 	}
 
 	if nostr.IsReplaceableKind(evt.Kind) {
-		previous, err := firstEvent(ctx, nostr.Filter{Authors: []string{evt.PubKey}, Kinds: []int{evt.Kind}})
+		previous, err := queryFirstStoredEvent(ctx, nostr.Filter{Authors: []string{evt.PubKey}, Kinds: []int{evt.Kind}})
 		if err != nil {
 			return err
 		}
 		if previous != nil && isOlder(previous, evt) {
-			if err := db.DbQueries.DeleteEvent(ctx, previous.ID, evt.ID); err != nil {
+			if err := deleteStoredEventByID(ctx, previous.ID, evt.ID); err != nil {
 				return err
 			}
 		}
@@ -303,12 +307,12 @@ func prepareEventForStorage(ctx context.Context, evt *nostr.Event) error {
 	if nostr.IsAddressableKind(evt.Kind) {
 		d := evt.Tags.GetFirst([]string{"d", ""})
 		if d != nil {
-			previous, err := firstEvent(ctx, nostr.Filter{Authors: []string{evt.PubKey}, Kinds: []int{evt.Kind}, Tags: nostr.TagMap{"d": []string{d.Value()}}})
+			previous, err := queryFirstStoredEvent(ctx, nostr.Filter{Authors: []string{evt.PubKey}, Kinds: []int{evt.Kind}, Tags: nostr.TagMap{"d": []string{d.Value()}}})
 			if err != nil {
 				return err
 			}
 			if previous != nil && isOlder(previous, evt) {
-				if err := db.DbQueries.DeleteEvent(ctx, previous.ID, evt.ID); err != nil {
+				if err := deleteStoredEventByID(ctx, previous.ID, evt.ID); err != nil {
 					return err
 				}
 			}

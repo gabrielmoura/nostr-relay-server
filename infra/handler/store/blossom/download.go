@@ -15,28 +15,45 @@ import (
 )
 
 func BlobHandler(c *fiber.Ctx) error {
+	startedAt := time.Now()
+	statusCode := fiber.StatusOK
+	errorCategory := ""
+	defer func() {
+		observeBlossomRequest("/blob/:id", c.Method(), startedAt)
+		if statusCode >= 400 {
+			observeBlossomError("/blob/:id", c.Method(), statusCode, errorCategory)
+		}
+	}()
+
 	if c.Method() != fiber.MethodHead && c.Method() != fiber.MethodGet {
+		statusCode = fiber.StatusMethodNotAllowed
+		errorCategory = "invalid_method"
 		return c.Status(fiber.StatusMethodNotAllowed).SendString("Invalid request method")
 	}
 
-	id := c.Params("id") // Assumindo rota "/blob/:id"
+	id := normalizeBlobID(c.Params("id"))
 	if id == "" {
+		statusCode = fiber.StatusBadRequest
+		errorCategory = "invalid_request"
 		return c.Status(fiber.StatusBadRequest).SendString("Invalid file ID")
 	}
 
 	filePath := filepath.Join(blobPath, id)
-	if c.Method() == fiber.MethodHead {
-		if _, err := os.Stat(filePath); err != nil {
-			return c.SendStatus(fiber.StatusNotFound)
-		}
-		return c.SendStatus(fiber.StatusOK)
-	}
 
 	o, err := db.DbQueries.GetObjectByHash(c.UserContext(), id)
 	if err != nil {
+		statusCode = fiber.StatusNotFound
+		errorCategory = "not_found"
+		return c.Status(fiber.StatusNotFound).SendString("File not found")
+	}
+	if o.Hash == "" {
+		statusCode = fiber.StatusNotFound
+		errorCategory = "not_found"
 		return c.Status(fiber.StatusNotFound).SendString("File not found")
 	}
 	if o.Blocked && o.BlockedByReason == "" {
+		statusCode = fiber.StatusForbidden
+		errorCategory = "policy_denied"
 		return c.Status(fiber.StatusForbidden).SendString("File is blocked")
 	}
 	if !o.ExpiresAt.IsZero() && time.Now().After(o.ExpiresAt) {
@@ -48,37 +65,52 @@ func BlobHandler(c *fiber.Ctx) error {
 				log.Logger.Error("Failed to remove object", zap.Error(err), zap.String("id", id))
 			}
 		}()
+		statusCode = fiber.StatusGone
+		errorCategory = "not_found"
 		return c.Status(fiber.StatusGone).SendString("File has expired")
 	}
 	if o.BlockedByReason != "" {
+		statusCode = fiber.StatusUnavailableForLegalReasons
+		errorCategory = "policy_denied"
 		return c.Status(fiber.StatusUnavailableForLegalReasons).SendString(o.BlockedByReason)
 	}
 	metrics.DownloadCounter.Inc()
+	_ = db.DbQueries.RecordBlossomDownload(c.UserContext(), id, o.Size, time.Now().UTC())
 
 	file, err := os.Open(filePath)
 	if err != nil {
+		statusCode = fiber.StatusNotFound
+		errorCategory = "not_found"
 		return c.Status(fiber.StatusNotFound).SendString("File not found")
 	}
 	defer file.Close()
 
 	fileInfo, err := file.Stat()
 	if err != nil {
+		statusCode = fiber.StatusInternalServerError
+		errorCategory = "internal"
 		return c.Status(fiber.StatusInternalServerError).SendString("Unable to retrieve file info")
 	}
 
 	// Suporte a Range Requests
 	r, err := c.Range(int(fileInfo.Size()))
 	if err != nil && c.Get("Range") != "" {
+		statusCode = fiber.StatusRequestedRangeNotSatisfiable
+		errorCategory = "range_invalid"
 		return c.Status(fiber.StatusRequestedRangeNotSatisfiable).SendString("Invalid range")
 	}
 
 	c.Set("Cache-Control", "public, max-age=31536000, immutable")
-	//c.Type(o.MimeType)
 	c.Set("Content-Type", o.MimeType)
+	c.Set("Accept-Ranges", "bytes")
 	c.Set("Last-Modified", o.CreatedAt.Format(http.TimeFormat))
+	c.Set("Content-Length", fmt.Sprintf("%d", fileInfo.Size()))
+
+	if c.Method() == fiber.MethodHead {
+		return c.SendStatus(fiber.StatusOK)
+	}
 
 	if len(r.Ranges) == 0 {
-		c.Set("Content-Length", fmt.Sprintf("%d", fileInfo.Size()))
 		return c.Status(fiber.StatusOK).SendFile(filePath, false)
 	}
 
@@ -93,6 +125,8 @@ func BlobHandler(c *fiber.Ctx) error {
 
 	data := make([]byte, length)
 	if _, err := sectionReader.Read(data); err != nil && err != io.EOF {
+		statusCode = fiber.StatusInternalServerError
+		errorCategory = "internal"
 		return c.Status(fiber.StatusInternalServerError).SendString("Error reading file section")
 	}
 

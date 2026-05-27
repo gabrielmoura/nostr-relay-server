@@ -152,6 +152,34 @@
 - [ ] Deployment guide
 - [ ] Troubleshooting guide
 
+## Phase 38: Marmot MIP-00 Relay Support
+
+### 38.1: Docs and design
+- [x] Document Marmot `MIP-00` scope and relay responsibilities
+- [x] Add ADR for optional `marmot.mip00` module
+- [x] Define config surface and validation modes
+- [x] Define phase 1 compatibility boundary: relay-aware, not MLS-complete
+
+### 38.2: Planned implementation
+- [x] Add `marmot` and `mip00` config structs and defaults
+- [x] Validate contradictory or unsupported `marmot.mip00` settings during config load
+- [x] Add policy validator for `kind:30443`
+- [x] Add policy validator for `kind:10051`
+- [x] Gate optional legacy `kind:443` support behind config
+- [x] Add deterministic rejection reasons for Marmot validation failures
+- [x] Add explicit `marmot_mip00` Prometheus counters for accepted and rejected relevant events
+
+### 38.3: Planned verification
+- [x] Add tests for disabled mode preserving generic relay behavior
+- [x] Add tests for valid `kind:30443` and `kind:10051` events in `basic` mode
+- [x] Add tests for required-tag rejection paths
+- [x] Add tests for invalid relay URL rejection
+- [x] Add tests proving existing addressable replacement semantics cover `kind:30443`
+
+### 38.4: Deferred kinds outside current phase
+- [ ] Decide whether `444` and `445` will stay generic relay kinds or gain explicit Marmot module treatment
+- [ ] Decide whether `447`, `448`, `449`, and `10050` should become part of a future MIP-05 module instead of `mip00`
+
 ## Phase 34: Cron Consolidation
 
 - [x] Refactor `cron` command to configuration-driven scheduler
@@ -192,6 +220,9 @@
 - [ ] Document rollout and fallback strategy
 
 ### 35.6: Sync queue hardening and operator controls
+- [x] Add `negentropy_auth` config and bind Negentropy auth to `relay_information.pub_key`
+- [x] Gate websocket `NEG-*` messages with NIP-42 when `negentropy_auth=true`
+- [x] Teach sync CLI to answer remote `AUTH` challenges with `relay_information.priv_key`
 - [ ] Add terminal cancel semantics for `sync.negentropy`
 - [ ] Add explicit resume action for canceled sync jobs
 - [ ] Add backend history cleanup endpoint for dashboard job boards
@@ -258,9 +289,55 @@
 - [ ] Add label creation dialog with optional pubkey ban chaining
 
 ### 37.5: Admin search/detail enrichment
+
+## Phase 38: Admin Event Search Refactor and Cache Warmup
+
+### 38.1: Docs and contract
+- [ ] Document admin event-search hot path refactor in architecture and API docs
+- [ ] Record ADR for admin handler split plus warmed Redis cache strategy
+
+### 38.2: Transport split
+- [ ] Split `infra/handler/http/admin.go` into focused admin transport files with shared helpers
+- [ ] Keep each resulting admin HTTP file under 300 lines
+
+### 38.3: Query optimization
+- [ ] Add SQL-first aggregate query methods for `/admin/events/search/aggregates`
+- [ ] Add SQL-first timeline query methods for `/admin/events/search/timeline`
+- [ ] Keep existing `/admin/events/search` contract while adding normalized response cache keys for paginated pages
+
+### 38.4: Redis cache and warmup
+- [ ] Add Redis-backed response cache helpers for admin search, aggregates, and timeline payloads
+- [ ] Warm the default admin dashboard event-search payloads only in cron mode when Redis is enabled
+- [ ] Reuse event-query invalidation semantics so event writes evict warmed admin search payloads
+
+### 38.5: Validation
+- [ ] Verify the three admin search endpoints keep the same response contracts
+- [ ] Run focused tests for cache hit/miss behavior and startup warmup flow
 - [ ] Extend event search UX to highlight kind `34550` metadata (`d`, `description`, `image`)
 - [ ] Include semantic `description` tags in full-text event search
 - [ ] Enrich event detail with moderators, richer replies and community metadata
+
+## Phase 39: DB and Redis Cache File Decomposition
+
+### 39.1: Docs and boundary definition
+- [ ] Document the `infra/db` and `infra/cache` structural split plan
+- [ ] Record ADR for oversized DB and Redis cache file decomposition
+
+### 39.2: Admin DB queries
+- [ ] Split `infra/db/admin_query.go` into focused files with max 300 lines each
+- [ ] Preserve existing exported query methods and response structs
+
+### 39.3: Event DB queries
+- [ ] Split `infra/db/event_query.sql.go` into focused files with max 300 lines each
+- [ ] Keep query-cache behavior, prepared statement routing, and event read/write contracts unchanged
+
+### 39.4: Redis cache helpers
+- [ ] Split `infra/cache/cache.go` into focused files with max 300 lines each
+- [ ] Centralize shared Redis timeout and TTL helpers to reduce duplication
+
+### 39.5: Validation
+- [ ] Run focused backend tests for `infra/db` and `infra/cache`
+- [ ] Verify cache invalidation and query cache behavior remain compatible
 
 ---
 
@@ -591,3 +668,57 @@
 - [ ] Add deterministic normalization tests
 - [ ] Add hash stability tests
 - [ ] Improve SQL generation assertions
+
+---
+
+## Phase 39: Blossom Admin Workspace and BUD Compliance
+
+### 39.1: Documentation and contracts
+- [x] Document `/admin/blossom/*` endpoint contracts and BUD-04/BUD-05/BUD-08 public routes
+- [x] Record the queue-backed Blossom processing architecture and EXIF/privacy policy
+- [x] Finalize data model for enriched object metadata, quotas, review queue and audit log
+- [x] Document Blossom upload policy modes, default plans, BUD-09 report ingestion and BUD-10 IDs
+- [ ] Document named plan management and Blossom Prometheus metrics
+
+### 39.2: Backend read path
+- [ ] Add paginated `GET /admin/blossom/objects` with exact SHA-256 search and MIME/extension filters
+- [ ] Add `GET /admin/blossom/objects/:hash` detail contract
+- [ ] Add `GET /admin/blossom/overview` KPI and alert summary
+- [ ] Add `GET /admin/blossom/policy` and `GET /admin/blossom/analytics`
+- [ ] Add `GET /admin/blossom/plans`
+- [ ] Add `GET /admin/blossom/users` and `GET /admin/blossom/users/:pubkey`
+- [ ] Add `GET /admin/blossom/reports`
+- [ ] Add `GET /admin/blossom/workers` and `GET /admin/blossom/audit`
+
+### 39.3: Backend mutation and processing
+- [ ] Add `POST /admin/blossom/objects/bulk-review` for approve, hard-delete and requeue actions
+- [ ] Add approval unblock flow for `mandatory_review` uploads
+- [ ] Add whitelist/quota mutation endpoints for uploader pubkeys
+- [ ] Add `PUT /admin/blossom/policy` for effective mode/default plan management
+- [ ] Add `PUT /admin/blossom/plans` and `DELETE /admin/blossom/plans/:id`
+- [ ] Add `POST /admin/blossom/users/:pubkey/purge`
+- [ ] Add `PUT /mirror` with strict SHA-256 verification and background download execution
+- [ ] Validate Blossom auth `kind:24242` for `PUT /mirror` using BUD-11 `upload` semantics (`t`, `expiration`, optional `server`, required `x`)
+- [ ] Add `PUT /report` for BUD-09 blob reports
+- [x] Add `PUT /media` and `HEAD /media` with derivative status inspection
+- [x] Integrate FFmpeg, image processing and blurhash generation in workers
+- [x] Persist original `PUT /media` payloads first, then enqueue optimization jobs keyed by canonical hash
+- [x] Expose `HEAD /media` readiness headers from persisted derivative state
+- [x] Add runtime flags for optional BUD-05 steps (metadata extraction, blurhash, image thumbnails, video thumbnails, HLS, DASH)
+- [x] Enable real HLS/DASH generation only when explicitly configured
+- [ ] Emit relational and Nostr `kind:24242` audit records for critical mutations
+- [ ] Add Prometheus metrics for Blossom requests, latency and categorized errors
+
+### 39.4: Enforcement and cleanup
+- [ ] Enforce EXIF/GPS stripping or rejection before object publication
+- [ ] Track per-pubkey storage and monthly egress usage
+- [ ] Enforce mode-aware quota validation for `free` and `enabled_users`
+- [ ] Prefer extension-bearing `/blob/<sha256>.<ext>` URLs when extension is known
+- [ ] Add automatic cleanup policies for idle or orphaned objects
+- [ ] Persist BUD-08 NIP-94 metadata enrichment after mirror/media processing
+- [ ] Regenerate `nip94_tags` as ordered NIP-94 tag tuples from extracted media facts instead of storing partial JSON maps
+
+### 39.5: Validation
+- [ ] Add handler tests for admin Blossom routes and policy failures
+- [ ] Add queue/worker integration coverage for mirror and optimize jobs
+- [ ] Add migration tests for enriched Blossom metadata tables

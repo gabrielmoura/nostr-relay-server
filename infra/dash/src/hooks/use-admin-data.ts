@@ -4,6 +4,17 @@ import type {
   AdminJobsFilters,
   AdminLabelsFilters,
   BanPayload,
+  BlossomAuditFilters,
+  BlossomPlan,
+  BlossomPolicy,
+  BlossomBulkReviewPayload,
+  BlossomObjectsFilters,
+  BlossomReportsFilters,
+  BlossomResolveReportPayload,
+  BlossomUsersFilters,
+  BlossomWhitelistPayload,
+  BlossomMirrorPayload,
+  BlossomWorkersFilters,
   CreateAdminLabelPayload,
   EventSearchFilters,
   NIP86ReasonPayload,
@@ -14,10 +25,23 @@ import {
   banUser,
   banNIP86Event,
   blockNIP86IP,
+  createBlossomMirrorJob,
   deleteNIP05Identity,
   disconnectConnection,
   fetchEventFromRelays,
   createLabel,
+  getBlossomAnalytics,
+  getBlossomAudit,
+  getBlossomObjectDetail,
+  getBlossomObjects,
+  getBlossomOverview,
+  getBlossomPlanAssignments,
+  getBlossomPlans,
+  getBlossomPolicy,
+  getBlossomReports,
+  getBlossomUserDetail,
+  getBlossomUsers,
+  getBlossomWorkers,
   getDownloadJob,
   getDownloadJobs,
   getJob,
@@ -55,19 +79,107 @@ import {
   startNegentropySync,
   startDownloadEvents,
   retryJob,
+  resolveBlossomReport,
+  deleteBlossomPlan,
   cancelJob,
   deleteJobsHistory,
   getGroupsPage,
   getWoTSummary,
   addTrustedPubkey,
   removeTrustedPubkey,
+  reviewBlossomObjects,
   resumeJob,
+  purgeBlossomUser,
+  updateBlossomPolicy,
+  upsertBlossomPlan,
+  upsertBlossomWhitelistEntry,
+  assignBlossomPlan,
+  unassignBlossomPlan,
 } from "@/services/admin"
 
 const defaultPageSize = 50
 
 export function useRelayOverview() {
   return useQuery({ queryKey: ["relay-overview"], queryFn: getRelayOverview })
+}
+
+export function useBlossomOverview() {
+  return useQuery({ queryKey: ["blossom-overview"], queryFn: getBlossomOverview })
+}
+
+export function useBlossomPolicy() {
+  return useQuery({ queryKey: ["blossom-policy"], queryFn: getBlossomPolicy })
+}
+
+export function useBlossomPlans(scope?: string) {
+  return useQuery({ queryKey: ["blossom-plans", scope ?? "all"], queryFn: () => getBlossomPlans(scope) })
+}
+
+export function useInfiniteBlossomObjects(filters: BlossomObjectsFilters) {
+  return useInfiniteQuery({
+    initialPageParam: 0,
+    queryKey: ["blossom-objects", filters],
+    queryFn: ({ pageParam }) => getBlossomObjects(filters, { limit: defaultPageSize, offset: pageParam }),
+    getNextPageParam: (lastPage) => (lastPage.has_more ? lastPage.offset + lastPage.items.length : undefined),
+  })
+}
+
+export function useBlossomObjectDetail(hash: string, enabled = true) {
+  return useQuery({
+    queryKey: ["blossom-object", hash],
+    queryFn: () => getBlossomObjectDetail(hash),
+    enabled: enabled && Boolean(hash),
+  })
+}
+
+export function useInfiniteBlossomUsers(filters: BlossomUsersFilters) {
+  return useInfiniteQuery({
+    initialPageParam: 0,
+    queryKey: ["blossom-users", filters],
+    queryFn: ({ pageParam }) => getBlossomUsers(filters, { limit: defaultPageSize, offset: pageParam }),
+    getNextPageParam: (lastPage) => (lastPage.has_more ? lastPage.offset + lastPage.items.length : undefined),
+  })
+}
+
+export function useBlossomUserDetail(pubkey: string, enabled = true) {
+  return useQuery({
+    queryKey: ["blossom-user", pubkey],
+    queryFn: () => getBlossomUserDetail(pubkey),
+    enabled: enabled && Boolean(pubkey),
+  })
+}
+
+export function useBlossomWorkers(filters: BlossomWorkersFilters) {
+  return useQuery({
+    queryKey: ["blossom-workers", filters],
+    queryFn: () => getBlossomWorkers(filters),
+    refetchInterval: (query) => {
+      const items = query.state.data ?? []
+      return items.some((item) => item.status === "queued" || item.status === "running" || item.status === "delayed") ? 3000 : 8000
+    },
+  })
+}
+
+export function useInfiniteBlossomAudit(filters: BlossomAuditFilters) {
+  return useInfiniteQuery({
+    initialPageParam: 0,
+    queryKey: ["blossom-audit", filters],
+    queryFn: ({ pageParam }) => getBlossomAudit(filters, { limit: defaultPageSize, offset: pageParam }),
+    getNextPageParam: (lastPage) => (lastPage.has_more ? lastPage.offset + lastPage.items.length : undefined),
+  })
+}
+
+export function useInfiniteBlossomReports(filters: BlossomReportsFilters) {
+  return useInfiniteQuery({
+    initialPageParam: 0,
+    queryKey: ["blossom-reports", filters],
+    queryFn: ({ pageParam }) => getBlossomReports(filters, { limit: defaultPageSize, offset: pageParam }),
+    getNextPageParam: (lastPage) => (lastPage.has_more ? lastPage.offset + lastPage.items.length : undefined),
+  })
+}
+
+export function useBlossomAnalytics(enabled = true) {
+  return useQuery({ queryKey: ["blossom-analytics"], queryFn: getBlossomAnalytics, enabled })
 }
 
 export function useStreamStatus() {
@@ -451,6 +563,166 @@ export function useUpdateNIP86RelayMetadataMutation() {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["nip86", "relay-metadata"] }),
         queryClient.invalidateQueries({ queryKey: ["relay-overview"] }),
+      ])
+    },
+  })
+}
+
+export function useBlossomBulkReviewMutation() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (payload: BlossomBulkReviewPayload) => reviewBlossomObjects(payload),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["blossom-overview"] }),
+        queryClient.invalidateQueries({ queryKey: ["blossom-objects"] }),
+        queryClient.invalidateQueries({ queryKey: ["blossom-object"] }),
+        queryClient.invalidateQueries({ queryKey: ["blossom-audit"] }),
+        queryClient.invalidateQueries({ queryKey: ["blossom-workers"] }),
+      ])
+    },
+  })
+}
+
+export function useUpsertBlossomWhitelistMutation() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (payload: BlossomWhitelistPayload) => upsertBlossomWhitelistEntry(payload),
+    onSuccess: async (_, payload) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["blossom-overview"] }),
+        queryClient.invalidateQueries({ queryKey: ["blossom-users"] }),
+        queryClient.invalidateQueries({ queryKey: ["blossom-user", payload.pubkey] }),
+        queryClient.invalidateQueries({ queryKey: ["blossom-audit"] }),
+      ])
+    },
+  })
+}
+
+export function usePurgeBlossomUserMutation() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (pubkey: string) => purgeBlossomUser(pubkey),
+    onSuccess: async (_, pubkey) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["blossom-overview"] }),
+        queryClient.invalidateQueries({ queryKey: ["blossom-users"] }),
+        queryClient.invalidateQueries({ queryKey: ["blossom-user", pubkey] }),
+        queryClient.invalidateQueries({ queryKey: ["blossom-objects"] }),
+        queryClient.invalidateQueries({ queryKey: ["blossom-audit"] }),
+      ])
+    },
+  })
+}
+
+export function useAssignBlossomPlanMutation() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (payload: { plan_id: string; pubkey: string }) => assignBlossomPlan(payload),
+    onSuccess: async (_, payload) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["blossom-overview"] }),
+        queryClient.invalidateQueries({ queryKey: ["blossom-users"] }),
+        queryClient.invalidateQueries({ queryKey: ["blossom-user", payload.pubkey] }),
+        queryClient.invalidateQueries({ queryKey: ["blossom-plan-assignments"] }),
+        queryClient.invalidateQueries({ queryKey: ["blossom-audit"] }),
+      ])
+    },
+  })
+}
+
+export function useUnassignBlossomPlanMutation() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (payload: { plan_id: string; pubkey: string }) => unassignBlossomPlan(payload),
+    onSuccess: async (_, payload) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["blossom-overview"] }),
+        queryClient.invalidateQueries({ queryKey: ["blossom-users"] }),
+        queryClient.invalidateQueries({ queryKey: ["blossom-user", payload.pubkey] }),
+        queryClient.invalidateQueries({ queryKey: ["blossom-plan-assignments"] }),
+        queryClient.invalidateQueries({ queryKey: ["blossom-audit"] }),
+      ])
+    },
+  })
+}
+
+export function useBlossomPlanAssignments(planId: string, enabled = true) {
+	return useQuery({
+		queryKey: ["blossom-plan-assignments", planId],
+		queryFn: () => getBlossomPlanAssignments(planId),
+		enabled: enabled && Boolean(planId),
+	})
+}
+
+export function useCreateBlossomMirrorMutation() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (payload: BlossomMirrorPayload) => createBlossomMirrorJob(payload),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["blossom-workers"] }),
+        queryClient.invalidateQueries({ queryKey: ["blossom-audit"] }),
+      ])
+    },
+  })
+}
+
+export function useUpdateBlossomPolicyMutation() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (payload: BlossomPolicy) => updateBlossomPolicy(payload),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["blossom-overview"] }),
+        queryClient.invalidateQueries({ queryKey: ["blossom-policy"] }),
+        queryClient.invalidateQueries({ queryKey: ["blossom-users"] }),
+        queryClient.invalidateQueries({ queryKey: ["blossom-audit"] }),
+      ])
+    },
+  })
+}
+
+export function useResolveBlossomReportMutation() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (payload: BlossomResolveReportPayload) => resolveBlossomReport(payload),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["blossom-reports"] }),
+        queryClient.invalidateQueries({ queryKey: ["blossom-overview"] }),
+        queryClient.invalidateQueries({ queryKey: ["blossom-analytics"] }),
+        queryClient.invalidateQueries({ queryKey: ["blossom-audit"] }),
+      ])
+    },
+  })
+}
+
+export function useUpsertBlossomPlanMutation() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (payload: BlossomPlan) => upsertBlossomPlan(payload),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["blossom-plans"] }),
+        queryClient.invalidateQueries({ queryKey: ["blossom-policy"] }),
+        queryClient.invalidateQueries({ queryKey: ["blossom-overview"] }),
+        queryClient.invalidateQueries({ queryKey: ["blossom-audit"] }),
+      ])
+    },
+  })
+}
+
+export function useDeleteBlossomPlanMutation() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => deleteBlossomPlan(id),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["blossom-plans"] }),
+        queryClient.invalidateQueries({ queryKey: ["blossom-policy"] }),
+        queryClient.invalidateQueries({ queryKey: ["blossom-overview"] }),
+        queryClient.invalidateQueries({ queryKey: ["blossom-audit"] }),
       ])
     },
   })

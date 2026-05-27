@@ -4,6 +4,7 @@ import (
 	"context"
 	_ "embed"
 	"errors"
+	"strings"
 	"sync"
 	"time"
 
@@ -38,8 +39,44 @@ func New(db DBTX) *Queries {
 }
 
 func (q *Queries) Migrate(ctx context.Context) error {
-	_, err := q.db.Exec(ctx, schema)
-	return err
+	for _, statement := range splitSQLStatements(schema) {
+		if _, err := q.db.Exec(ctx, statement); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func splitSQLStatements(input string) []string {
+	statements := make([]string, 0, 64)
+	var builder strings.Builder
+	inSingleQuote := false
+	runes := []rune(input)
+	for i := 0; i < len(runes); i++ {
+		r := runes[i]
+		builder.WriteRune(r)
+		if r == '\'' {
+			nextIsQuote := i+1 < len(runes) && runes[i+1] == '\''
+			if nextIsQuote {
+				builder.WriteRune(runes[i+1])
+				i++
+				continue
+			}
+			inSingleQuote = !inSingleQuote
+			continue
+		}
+		if r == ';' && !inSingleQuote {
+			statement := strings.TrimSpace(builder.String())
+			if statement != ";" && statement != "" {
+				statements = append(statements, statement)
+			}
+			builder.Reset()
+		}
+	}
+	if tail := strings.TrimSpace(builder.String()); tail != "" {
+		statements = append(statements, tail)
+	}
+	return statements
 }
 
 func (q *Queries) StatPool() *pgxpool.Stat {

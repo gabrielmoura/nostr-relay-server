@@ -1,11 +1,11 @@
 package blossom
 
 import (
-	json "github.com/gabrielmoura/nostr-relay-server/internal/jsonx"
 	"github.com/gabrielmoura/nostr-relay-server/config"
 	db2 "github.com/gabrielmoura/nostr-relay-server/infra/db"
 	"github.com/gabrielmoura/nostr-relay-server/infra/log"
 	"github.com/gabrielmoura/nostr-relay-server/internal/db"
+	json "github.com/gabrielmoura/nostr-relay-server/internal/jsonx"
 	"github.com/gofiber/fiber/v2"
 	"go.uber.org/zap"
 	"strconv"
@@ -13,8 +13,20 @@ import (
 )
 
 func ListHandler(c *fiber.Ctx) error {
+	startedAt := time.Now()
+	statusCode := fiber.StatusOK
+	errorCategory := ""
+	defer func() {
+		observeBlossomRequest("/list/:id", c.Method(), startedAt)
+		if statusCode >= 400 {
+			observeBlossomError("/list/:id", c.Method(), statusCode, errorCategory)
+		}
+	}()
+
 	tags, pubKey, err := processAuth(c)
 	if err != nil {
+		statusCode = fiber.StatusUnauthorized
+		errorCategory = blossomErrorCategory(err, "auth_invalid")
 		return c.Status(fiber.StatusUnauthorized).SendString(err.Error())
 	}
 	tag := tags.GetFirst([]string{"t"}).Value()
@@ -24,20 +36,28 @@ func ListHandler(c *fiber.Ctx) error {
 		expirationTime, err := strconv.ParseInt(expiration, 10, 64)
 		if err != nil {
 			log.Logger.Error("Invalid expiration format", zap.Error(err))
+			statusCode = fiber.StatusBadRequest
+			errorCategory = "auth_invalid"
 			return c.Status(fiber.StatusBadRequest).SendString("Invalid expiration format")
 		}
 		if expirationTime < time.Now().Unix() {
 			log.Logger.Warn("Expired request", zap.String("expiration", expiration), zap.String("remote_ip", c.IP()))
+			statusCode = fiber.StatusForbidden
+			errorCategory = "auth_invalid"
 			return c.Status(fiber.StatusForbidden).SendString("Request expired")
 		}
 	}
 
 	if tag != "list" {
+		statusCode = fiber.StatusBadRequest
+		errorCategory = "auth_invalid"
 		return c.Status(fiber.StatusBadRequest).SendString("Hashkey is required")
 	}
 
 	pub_key := c.Params("id")
 	if pub_key == "" {
+		statusCode = fiber.StatusBadRequest
+		errorCategory = "invalid_request"
 		return c.Status(fiber.StatusBadRequest).SendString("Pubkey is required")
 	}
 	mediaList, err := db.DbQueries.GetAllObjectByKey(c.Context(), pubKey, 100)

@@ -607,6 +607,22 @@ store:
   allow_adult_content: false
   allow_violent_content: false
   names: []
+  media_processing:
+    enabled: true
+    extract_metadata: true
+    generate_blurhash: true
+    image:
+      generate_thumbnail: true
+      generate_webp: true
+      max_width: 1600
+      thumbnail_max_width: 320
+    video:
+      generate_thumbnail: false
+      generate_poster_webp: true
+      thumbnail_max_width: 320
+    streaming:
+      enable_hls: false
+      enable_dash: false
 
 cron:
   enabled: true
@@ -621,6 +637,7 @@ Some especially relevant settings:
 * `cron.nip40.*`: expiration cleanup configuration
 * `stream.*`: upstream/downstream relay streaming
 * `store.*`: Blossom media server settings
+* `store.media_processing.*`: optional BUD-05 worker flags and derivative generation controls
 * `nip29.*`: optional relay-based group support, admission, moderation, invite, PoW and timeline-reference rules
 * `admin_token`: enables token protection for internal admin API
 * `admin_pubkey`: required only when `nip86.enabled=true`
@@ -635,6 +652,24 @@ For the complete schema and production-oriented examples, see:
 - Keep `admin_token` set when using the embedded admin panel or internal admin API.
 - Keep `nip86.enabled: false` unless you explicitly need Nostr-native remote relay management.
 - Never commit `db.postgres_uri`, relay private keys, or production admin values into public repositories.
+
+### Blossom media processing defaults
+
+Current default posture:
+
+- metadata extraction: enabled
+- blurhash generation: enabled
+- image thumbnails: enabled
+- video thumbnails: disabled
+- HLS: disabled
+- DASH: disabled
+
+When `store.media_processing.streaming.enable_hls` or `store.media_processing.streaming.enable_dash` is enabled, the worker generates real stream manifests in background through `ffmpeg`. They remain off by default.
+
+Operational note:
+
+- `PUT /media` stores the original object immediately and offloads optimization to background workers
+- recoverable extraction failures should be logged and should not delete the original upload
 
 ---
 

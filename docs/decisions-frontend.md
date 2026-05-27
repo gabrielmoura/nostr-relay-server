@@ -342,3 +342,141 @@ For the next refinement, the modal should gain its own top-line KPI strip, addit
 For the current follow-up, the modal must also treat server-backed event-search aggregates as authoritative totals, while the search list remains only a virtualized drill-down projection.
 
 For the next refinement, `/panel/events/reported` becomes explicitly URL-driven, so chart interactions must synchronize with route search params instead of living only in persisted UI state.
+
+---
+
+## ADR-F013: Blossom Management Uses One Tabbed Route with Drawer-Based Drill-Down
+
+**Status:** Proposed  
+**Date:** 2026-05-12
+
+### Context
+
+The requested Blossom management scope is broad: KPI monitoring, file browsing, review queue, user quotas, mirroring, worker health, EXIF/privacy visibility and immutable audit logs. Splitting each concern into isolated routes would fragment operator context and make cross-checking a file, its uploader and its background jobs unnecessarily slow.
+
+### Decision
+
+1. add one `/blossom` route in the dashboard
+2. keep route-level navigation inside the page using tabs/sections instead of multiple top-level routes
+3. use table/grid toggle for the media browser and a right-side sheet for object/user drill-down
+4. keep data fetching in the route/workspace layer and rendering blocks dumb
+5. use TanStack Query mutations for bulk review, quotas, mirror and purge actions
+
+### Reasons
+
+1. **Operator speed:** one workspace reduces navigation churn during moderation and storage triage.
+2. **Visual coherence:** the current admin shell already supports dense operational pages well.
+3. **Architecture fit:** drawers isolate detail complexity without promoting every drill-down to a new route.
+4. **Performance:** only the active tab needs heavy server-state polling.
+
+### Consequences
+
+- ✅ the page can show KPIs, list/grid browsing and worker state in one coherent flow
+- ✅ the Smart/Dumb split remains explicit and testable
+- ✅ object inspection stays contextual instead of bouncing to a dedicated page
+- ⚠️ the route becomes data-dense and requires strict hierarchy to avoid operator overload
+- ⚠️ polling scope must be limited so inactive tabs do not create unnecessary network load
+
+---
+
+## ADR-F014: Blossom Uses Modal Overlays for Workers and Analytics, While Reports Stay as a Tab
+
+**Status:** Proposed  
+**Date:** 2026-05-15
+
+### Context
+
+Operators need two new interaction styles on top of the existing Blossom route:
+
+- a `Workers` shortcut that exposes queue state from anywhere in the workspace
+- an analytics surface with charts and operational summaries
+- a BUD-09 report workflow that is important enough to deserve persistent filtering and drill-down
+
+If all three concerns become tabs, quick worker inspection becomes slower. If all three become modals, reports lose URL-driven discoverability and long-form moderation ergonomics.
+
+### Decision
+
+1. keep `reports` as a first-class Blossom tab
+2. open workers through a modal dialog from the header shortcut
+3. open analytics through a separate modal dialog
+4. keep both modal overlays smart and query-backed, while list and chart primitives remain dumb
+
+### Reasons
+
+1. **Fast operations:** workers are often checked briefly, not navigated to for long sessions.
+2. **Cognitive load:** analytics benefits from focused modal context without permanently occupying tab space.
+3. **Moderation depth:** reports need filtering, pagination and drill-down that work better as a stable tab.
+
+### Consequences
+
+- ✅ operators can inspect workers without losing the current Blossom tab context
+- ✅ analytics can load lazily only when requested
+- ✅ reports remain bookmarkable and URL-driven inside the route
+- ⚠️ overlay state must not fight with tab state or sheet state
+
+---
+
+## ADR-F016: Detailed Blossom Quota Plan Editing Lives in a Child Route, Not in the Main Workspace Tabs
+
+**Status:** Proposed  
+**Date:** 2026-05-25
+
+### Context
+
+Operators now need richer quota-plan authoring: named plans, default assignments, editable storage/egress limits, explanatory help for byte units and clearer destructive actions. This is deeper than the compact operational controls already living in `/blossom`.
+
+### Decision
+
+1. add `/blossom/plans` as a lower-level configuration route
+2. keep `/blossom` as the operational hub and link to plans from there
+3. use a two-pane configuration UX: plan list/grid plus focused detail editor
+4. use icon-triggered tooltips for storage-unit help near MB/GB inputs
+
+### Reasons
+
+1. **Hierarchy:** advanced configuration should feel one level deeper than daily operations.
+2. **Cognitive load:** quota modeling needs more space, more copy and safer affordances.
+3. **Buildability:** a dedicated child route keeps the Smart/Dumb split clean and easier to maintain.
+
+### Consequences
+
+- ✅ operators get a clearer plan-management UX with room for explanation and guardrails
+- ✅ `/blossom` avoids becoming an overstuffed mega-page
+- ⚠️ cross-route invalidation between plans and overview must stay explicit
+
+---
+
+## ADR-F015: Dashboard Persistence Uses Zustand Stores, with localStorage for Small Preferences and IndexedDB for Larger Operator History
+
+**Status:** Proposed  
+**Date:** 2026-05-25
+
+### Context
+
+The admin dashboard already depends on `zustand` and uses it correctly in some places, but persistence is inconsistent:
+
+- some preferences already use `zustand` + `localStorage`
+- relay presets still use manual `localStorage` helpers
+- there is no typed IndexedDB-backed persistence for larger operator-side artifacts
+
+The next refinement needs a more explicit storage policy before adding more persistence around Blossom workflows.
+
+### Decision
+
+1. standardize client persistence behind `zustand` stores whenever the data belongs to app state
+2. keep URL-search params as the source of truth for shareable filters
+3. keep `localStorage` for compact preferences and recent values
+4. introduce IndexedDB only where payload size or append-oriented history makes it materially useful
+
+### Reasons
+
+1. **Type safety:** stores make persisted shapes explicit and reviewable.
+2. **Consistency:** UI state should not be split between ad-hoc helpers and store middleware.
+3. **Pragmatism:** IndexedDB is more complex and should only be used where `localStorage` is a poor fit.
+
+### Consequences
+
+- ✅ relay preset persistence can move out of raw helpers into one store
+- ✅ existing zustand usage remains aligned with current architecture
+- ✅ larger operator history such as Blossom mirror submissions can be kept outside `localStorage`
+- ⚠️ a small storage adapter layer is needed for IndexedDB-backed stores

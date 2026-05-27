@@ -3,8 +3,10 @@ module github.com/gabrielmoura/nostr-relay-server
 go 1.26.0
 
 require (
+	github.com/buckket/go-blurhash v1.1.0
 	github.com/bytedance/sonic v1.15.0
 	github.com/coder/websocket v1.8.14
+	github.com/disintegration/imaging v1.6.2
 	github.com/emmansun/base64 v0.9.0
 	github.com/fasthttp/websocket v1.5.12
 	github.com/gofiber/contrib/websocket v1.3.4
@@ -54,6 +56,7 @@ require (
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/klauspost/compress v1.18.5 // indirect
 	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
+	github.com/kylelemons/godebug v1.1.0 // indirect
 	github.com/mailru/easyjson v0.9.2 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.21 // indirect
@@ -85,6 +88,7 @@ require (
 	golang.org/x/arch v0.26.0 // indirect
 	golang.org/x/crypto v0.50.0 // indirect
 	golang.org/x/exp v0.0.0-20260410095643-746e56fc9e2f // indirect
+	golang.org/x/image v0.0.0-20191009234506-e7c1f5e7dbb8 // indirect
 	golang.org/x/net v0.53.0 // indirect
 	golang.org/x/sync v0.20.0 // indirect
 	golang.org/x/sys v0.43.0 // indirect

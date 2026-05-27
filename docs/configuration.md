@@ -102,6 +102,24 @@ relay:
   vanish_event: false
   enable_empty_filter: false
 
+marmot:
+  enabled: false
+  mip00:
+    enabled: false
+    accept_kind_30443: true
+    accept_kind_10051: true
+    accept_legacy_kind_443: false
+    validation_mode: basic
+    require_i_tag: true
+    require_base64_encoding_tag: true
+    require_relays_tag: true
+    require_mls_extensions: true
+    require_mls_proposals: true
+    require_ws_relay_urls: true
+    max_relays_per_event: 10
+    max_content_size_bytes: 262144
+    advertise_in_relay_document: false
+
 db:
   max_conns: 10
   min_conns: 1
@@ -162,6 +180,7 @@ stream:
   stream_down: false
 
 enable_negentropy: false
+negentropy_auth: false
 
 security:
   enabled: true
@@ -285,6 +304,30 @@ Recommended operator posture:
 - verify `relay_information.url` matches the externally reachable HTTP URL exactly
 - treat NIP-86 as a privileged operator surface with the same care as SSH or DB admin credentials
 
+## Blossom Media Processing Flags
+
+The Blossom media pipeline is runtime-adjustable. The configuration keys below control cost-heavy BUD-05 worker steps without changing public endpoint contracts.
+
+Defaults:
+
+- `store.media_processing.enabled = true`
+- `store.media_processing.extract_metadata = true`
+- `store.media_processing.generate_blurhash = true`
+- `store.media_processing.image.generate_thumbnail = true`
+- `store.media_processing.image.generate_webp = true`
+- `store.media_processing.video.generate_thumbnail = false`
+- `store.media_processing.video.generate_poster_webp = true`
+- `store.media_processing.streaming.enable_hls = false`
+- `store.media_processing.streaming.enable_dash = false`
+
+Operational intent:
+
+- keep metadata extraction enabled unless CPU pressure is extreme; it powers BUD-08 enrichment and operator visibility
+- keep Blurhash enabled by default because it is lightweight and improves preview UX
+- keep image thumbnails enabled by default for browsing and moderation
+- keep video thumbnails disabled by default to avoid extra transcode cost on constrained hosts
+- keep HLS/DASH disabled by default until the environment explicitly provisions the storage and bandwidth budget
+
 ### Security
 
 | Key | Type | Default | Description |
@@ -329,6 +372,33 @@ Operational notes:
 - config validation should be considered failed if `nip86.enabled=true` but `admin_pubkey` is missing
 - `blockip` disconnect is immediate only for websocket sessions visible to the local process
 | `enable_negentropy` | bool | `false` | Enables Negentropy flow (`NEG-OPEN`, `NEG-MSG`, `NEG-CLOSE`) and related sync handlers. |
+| `negentropy_auth` | bool | `false` | Requires NIP-42 authentication for Negentropy sessions and restricts them to the relay identity in `relay_information.pub_key`. |
+
+### Marmot
+
+| Key | Type | Default | Description |
+|---|---|---:|---|
+| `marmot.enabled` | bool | `false` | Master switch for all future Marmot-related relay behavior. Disabled mode must be fully inert. |
+| `marmot.mip00.enabled` | bool | `false` | Enables explicit relay-side handling for Marmot `MIP-00` event kinds. |
+| `marmot.mip00.accept_kind_30443` | bool | `true` | Allows Marmot KeyPackage events when `marmot.mip00.enabled=true`. |
+| `marmot.mip00.accept_kind_10051` | bool | `true` | Allows Marmot relay-list events when `marmot.mip00.enabled=true`. |
+| `marmot.mip00.accept_legacy_kind_443` | bool | `false` | Optional compatibility toggle for pre-cutover legacy KeyPackage events. |
+| `marmot.mip00.validation_mode` | string | `basic` | `off`, `basic`, or reserved future `strict`. `basic` validates only Nostr-level shape and tags. |
+| `marmot.mip00.require_i_tag` | bool | `true` | Requires the KeyPackageRef `i` tag on `kind:30443`. |
+| `marmot.mip00.require_base64_encoding_tag` | bool | `true` | Requires `encoding=base64` on `kind:30443`. |
+| `marmot.mip00.require_relays_tag` | bool | `true` | Requires relay discovery tags on Marmot events that depend on them. |
+| `marmot.mip00.require_mls_extensions` | bool | `true` | Requires `mls_extensions` and mandatory Marmot extension IDs in `basic` mode. |
+| `marmot.mip00.require_mls_proposals` | bool | `true` | Requires `mls_proposals` and mandatory self-remove signaling in `basic` mode. |
+| `marmot.mip00.require_ws_relay_urls` | bool | `true` | Requires relay URLs to be `ws://` or `wss://`. |
+| `marmot.mip00.max_relays_per_event` | int | `10` | Caps relay URL fan-out accepted in a single Marmot event. |
+| `marmot.mip00.max_content_size_bytes` | int | `262144` | Upper bound for accepted KeyPackage payload size before deeper parsing is even considered. |
+| `marmot.mip00.advertise_in_relay_document` | bool | `false` | Controls project-defined operator-facing compatibility disclosure; this must not append a fake NIP number to `supported_nips`. |
+
+Operational notes:
+
+- `marmot.mip00.enabled=false` means the relay falls back to generic event behavior with no Marmot-specific validation or metrics
+- `validation_mode=strict` is reserved for a later MLS-aware phase and should be rejected until the strict validator exists
+- this module documents relay-side `MIP-00` compatibility only; it does not imply support for the full Marmot stack (`MIP-01` to `MIP-04`)
 
 ### NIP-86 Operational Note
 
@@ -344,6 +414,13 @@ When `enable_negentropy=true`:
 - The WebSocket router accepts Negentropy messages and opens reconciliation sessions.
 - The relay can interoperate with peers using legacy `NEG-HAVE` / `NEG-NEED` as well as Strfry-style data transfer (`EVENT` + `REQ`).
 - The sync CLI (`nrserver sync`) performs reconciliation and event transfer with batched REQ ids to reduce rejection risk on strict relays.
+
+When `negentropy_auth=true`:
+
+- `NEG-OPEN`, `NEG-MSG`, `NEG-HAVE`, `NEG-NEED` and `NEG-CLOSE` require a successful NIP-42 `AUTH` on the same websocket connection.
+- the authorized pubkey is `relay_information.pub_key`, not `admin_pubkey`
+- the relay process must know `relay_information.priv_key` if the local sync CLI is expected to authenticate against remote relays that also require Negentropy auth
+- the relay returns `auth-required:` when the websocket is unauthenticated and `restricted:` when the authenticated pubkey is not the relay identity
 
 Recommended production posture:
 

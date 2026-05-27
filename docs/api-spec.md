@@ -78,6 +78,25 @@ Filters define which events to subscribe to:
 - `REQ` / `COUNT`: filters using `#h` are treated as group-scoped reads and must pass NIP-29 permission checks before matching events are delivered.
 - `REQ` / `COUNT` without `#h` continue to use the normal relay pipeline. If matching results later contain private or hidden NIP-29 material, per-event delivery filtering still applies before the event is sent to the client.
 
+### Marmot MIP-00 Event Scope
+
+- When `marmot.mip00.enabled=true`, relay-side Marmot validation applies only to configured Marmot event kinds:
+  - `kind:30443` KeyPackage events
+  - `kind:10051` KeyPackage relay-list events
+  - optional legacy `kind:443` only when explicitly enabled
+- `REQ` and `COUNT` use the normal relay query path; no dedicated Marmot transport or admin endpoint is introduced.
+- Phase 1 validation is tag- and shape-based only. The relay does not parse MLS payloads or verify cryptographic KeyPackage internals yet.
+- Expected query patterns remain standard Nostr filters, especially by `authors`, `#d` and `#i` for `kind:30443`.
+
+Marmot-related kinds outside this scope currently behave as generic Nostr events only:
+
+- `444` Welcome
+- `445` group events
+- `447` / `448` / `449` push-token exchange kinds
+- `10050` notification relay list
+
+That means the relay can still persist and query them through the normal event pipeline, but no dedicated Marmot/MIP-05 validation or workflow contract exists for them in this phase.
+
 ## External Server Routes (Port)
 
 ### WebSocket Root `/`
@@ -1276,8 +1295,10 @@ The relay may answer with:
 ### Operational Behavior
 
 - Negentropy handling is gated by `enable_negentropy` in `conf.yaml`.
+- `negentropy_auth=true` additionally requires websocket NIP-42 authentication for all Negentropy session messages and authorizes only `relay_information.pub_key`.
 - The server keeps per-session state and exposes dedicated Negentropy V2 Prometheus metrics.
 - The sync CLI uses adaptive REQ batching to handle relays with strict `ids` limits.
+- When a remote relay answers with `AUTH`, the sync CLI signs a NIP-42 event with `relay_information.priv_key` and retries the Negentropy flow on the same websocket.
 
 ## Supported NIPs
 
@@ -1326,3 +1347,464 @@ ws:
   rate_limit: 1    # requests per second
   burst: 5         # max burst size
 ```
+
+## Planned Internal Blossom Admin API
+
+All routes below live on the internal admin server and inherit optional `X-Admin-Token` protection plus `x-request-id` propagation.
+
+New follow-up scope for this module:
+
+- uploader policy must support `mandatory_review`, `enabled_users`, and `free`
+- uploader quotas must support global defaults per mode plus per-pubkey overrides
+- object URLs should prefer the stored extension when known: `/blob/<sha256>.png`
+- the dashboard gains dedicated reports and analytics surfaces plus a workers modal shortcut
+- Blossom must expose a lower-level plans/quotas configuration screen for richer plan modeling
+- Blossom HTTP traffic must publish Prometheus metrics for total requests, latency and categorized errors, including missing/invalid auth
+
+### `GET /admin/blossom/overview`
+
+Returns KPI cards and system alerts.
+
+```json
+{
+  "storage": {"used_bytes": 912345678, "free_bytes": 123456789, "used_percent": 88.1},
+  "objects": {"total": 48321, "flagged": 91, "pending_review": 14},
+  "traffic": {"monthly_ingress_bytes": 99887766, "monthly_egress_bytes": 3344556677},
+  "users": {"active": 421, "whitelisted": 97},
+  "workers": {"running": 6, "failed": 2},
+  "policy": {
+    "mode": "enabled_users",
+    "default_storage_quota_bytes": 5368709120,
+    "default_egress_quota_bytes": null,
+    "enabled_user_default_storage_quota_bytes": 5368709120,
+    "enabled_user_default_egress_quota_bytes": null,
+    "updated_at": "2026-05-15T11:22:33Z"
+  },
+  "alerts": [
+    {"level": "warning", "code": "disk-usage", "message": "Disco 90% cheio"}
+  ]
+}
+```
+
+Policy semantics:
+
+- `mandatory_review`: any authenticated uploader may upload, but every new blob starts in `pending_review` and remains unavailable for public download until approved
+- `enabled_users`: only pubkeys explicitly enabled in Blossom policy may upload; quota defaults come from the enabled-user default plan unless overridden per pubkey
+- `free`: any authenticated uploader may upload; quota defaults come from the free-mode default plan unless left `null` for unlimited
+
+### `GET /admin/blossom/policy`
+
+Returns the effective server-side Blossom policy used during upload authorization and review gating.
+
+The plans screen also needs richer payload detail than the current top-line mode:
+
+- active default plan per mode
+- list of named plans with storage/egress limits and visibility metadata
+- optional explanatory copy to drive tooltips and warnings in the admin UI
+
+### `PUT /admin/blossom/policy`
+
+Updates the effective Blossom upload mode.
+
+```json
+{
+  "mode": "free"
+}
+```
+
+### `GET /admin/blossom/plans`
+
+Returns the catalog of named Blossom upload plans used by the dedicated plans/quota screen.
+
+Suggested response shape:
+
+```json
+{
+  "items": [
+    {
+      "id": "free-5gb",
+      "name": "Free 5 GB",
+      "scope": "free",
+      "storage_quota_bytes": 5368709120,
+      "egress_quota_bytes": null,
+      "description": "Plano padrão para uploads abertos",
+      "is_default": true,
+      "updated_at": "2026-05-25T18:10:00Z"
+    }
+  ]
+}
+```
+
+### `PUT /admin/blossom/plans`
+
+Creates or updates one named Blossom plan.
+
+Expected fields:
+
+- `id`
+- `name`
+- `scope=free|enabled_users`
+- `storage_quota_bytes`
+- `egress_quota_bytes`
+- `description`
+- `is_default`
+
+### `DELETE /admin/blossom/plans/:id`
+
+Soft-removes or hard-removes one named plan when it is not the active default for the current mode.
+
+### `POST /admin/blossom/plans/:id/assign`
+
+Assigns a named plan to a specific uploader. Associations are 1:1, so assigning a new plan will replace any existing plan assignment for that user.
+
+```json
+{
+  "pubkey": "<hex-pubkey>"
+}
+```
+
+### `DELETE /admin/blossom/plans/:id/assign/:pubkey`
+
+Removes a plan assignment from an uploader.
+
+### `GET /admin/blossom/objects`
+
+Paginated object browser with exact SHA-256 search and MIME/extension filters.
+
+Query params:
+
+- `limit`, `offset`
+- `sha256` exact match
+- `mime_type`
+- `extension`
+- `view=grid|table`
+- `review_state`
+- `pubkey`
+- `uploader_q` matches uploader identity by name, display name, nip05, `npub`, or hex pubkey
+
+### `GET /admin/blossom/objects/:hash`
+
+Returns one object plus enriched metadata, derived files, NIP-94 tags, EXIF/privacy status and moderation state.
+
+Response additions used by the frontend:
+
+- `direct_url` prefers extension-bearing URLs when `extension` is known
+- `blossom_id` exposes a BUD-10 URI such as `blossom:<sha256>.png?xs=cdn.example.com&as=<pubkey>&sz=<bytes>`
+- `report_count` exposes the number of open BUD-09 reports tied to the blob
+
+### `POST /admin/blossom/objects/bulk-review`
+
+Bulk moderation endpoint for approval or hard-delete.
+
+```json
+{
+  "hashes": ["<sha256>", "<sha256>"],
+  "action": "approve",
+  "reason": "false positive"
+}
+```
+
+Allowed actions:
+
+- `approve`
+- `hard_delete`
+- `requeue_optimization`
+
+Approval side effect for `mandatory_review` mode:
+
+- approving an object clears the public-download block added at upload time
+
+### `POST /admin/blossom/users/whitelist`
+
+Create or update pubkey whitelist/quota settings.
+
+When the server is in `enabled_users` mode, `enabled=true` grants upload permission for that pubkey.
+
+Per-user quotas override the effective default plan for the current mode when non-null.
+
+### `GET /admin/blossom/users`
+
+Paginated uploader list with quota usage. Includes profile metadata `display_name`, `picture`, and `npub` when available.
+
+Query params:
+
+- `q` matches hex pubkey, `npub`, profile name, display name, `nip05`, or admin notes
+- `sort_by` column to sort by (e.g., `storage_used_bytes`, `monthly_egress_bytes`, `object_count`, `last_upload_at`, `pubkey`)
+- `sort_dir` direction of sort (`asc` or `desc`)
+
+### `GET /admin/blossom/users/:pubkey`
+
+Returns uploader profile, all linked files, quota usage and purge risk summary.
+
+### `POST /admin/blossom/users/:pubkey/purge`
+
+Enqueues full destructive purge for one uploader.
+
+### `POST /admin/blossom/mirror`
+
+Internal dashboard mirror command for BUD-04.
+
+```json
+{
+  "source_url": "https://origin.example.com/blob/<sha256>",
+  "expected_sha256": "<sha256>"
+}
+```
+
+The server enqueues a real background mirror job and returns its job id immediately. Worker snapshots and audit records become the monitoring surface for operators.
+
+### `GET /admin/blossom/workers`
+
+Lists optimization, mirror, purge and cleanup jobs with queue status.
+
+Query params:
+
+- `status`
+- `job_type`
+- `target_hash`
+
+The dashboard uses this endpoint in two places:
+
+- workers tab for long-running operational monitoring
+- header-level workers modal for quick inspection from any Blossom tab
+
+### `GET /admin/blossom/reports`
+
+Paginated BUD-09 report browser for blobs.
+
+Query params:
+
+- `limit`, `offset`
+- `q` matches hash, reporter, target event id, target pubkey, or reason text
+- `report_type`
+- `status=open|dismissed|actioned`
+- `object_hash`
+
+### `POST /admin/blossom/reports/:id/resolve`
+
+Marks one stored blob report as `dismissed` or `actioned`, optionally attaching an operator note.
+
+### `GET /admin/blossom/analytics`
+
+Returns pre-aggregated operational analytics for the dashboard modal.
+
+Suggested response blocks:
+
+- storage distribution by MIME and review state
+- upload and egress time series
+- top uploaders by storage and report count
+- worker counts by status and job type
+- report totals by type and resolution state
+
+### `GET /admin/blossom/audit`
+
+Read-only audit timeline backed by relational log plus optional `kind:24242` linkage.
+
+## Blossom Prometheus Metrics
+
+The external Blossom HTTP surface should emit route-level Prometheus metrics.
+
+Required counters/histograms:
+
+- `nostr_blossom_http_requests_total{route,method}`
+- `nostr_blossom_http_request_duration_seconds{route,method}`
+- `nostr_blossom_http_errors_total{route,method,category,status}`
+
+Suggested error categories:
+
+- `auth_missing`
+- `auth_invalid`
+- `auth_signature_invalid`
+- `quota_exceeded`
+- `policy_denied`
+- `mime_rejected`
+- `hash_mismatch`
+- `not_found`
+- `range_invalid`
+- `internal`
+
+Coverage requirements:
+
+- unauthenticated `PUT /upload`, `PUT /mirror`, `PUT /media`, and `PUT /report` must increment `nostr_blossom_http_errors_total` with an auth-related category
+- successful `GET /blob/:id` and `HEAD /blob/:id` should count independently from upload routes
+- route labels should use normalized logical routes rather than raw hashes in the URL
+
+## Planned Blossom/BUD Public Endpoints
+
+### `PUT /mirror` (BUD-04)
+
+- public Blossom route backed by the same queue worker used by the internal admin mirror action
+- requires `Authorization: Nostr <base64url-kind-24242-event>`
+- the authorization event must satisfy BUD-11 for the `upload` action:
+  - `kind == 24242`
+  - valid signature
+  - `created_at` is in the past
+  - `expiration` tag is present and still in the future
+  - at least one `t=upload` tag
+  - at least one `x=<expected sha256>` tag matching the requested blob hash
+  - if present, `server` tags must include the current Blossom host
+- request body:
+
+```json
+{
+  "url": "https://origin.example.com/blob/<sha256>",
+  "sha256": "<sha256>"
+}
+```
+
+- request validation rules:
+  - `url` must be absolute `http` or `https`
+  - `sha256` must be lowercase 64-char hex and must match the auth `x` tag
+  - the handler must reject empty or malformed payloads before enqueueing
+- success response is asynchronous to avoid request blocking and abuse amplification:
+
+```json
+{
+  "status": "queued",
+  "job_id": "<queue-job-id>",
+  "sha256": "<sha256>",
+  "url": "https://origin.example.com/blob/<sha256>"
+}
+```
+
+- the worker downloads the remote body in the background, computes the SHA-256 over the complete content stream, and only persists the file when the computed digest matches the requested hash exactly
+- a hash mismatch, MIME detection failure, policy rejection or storage failure marks the job as failed and nothing is stored locally
+- internal admin flow and public BUD-04 flow share the same underlying mirror job implementation
+
+### `PUT /media` and `HEAD /media` (BUD-05)
+
+- `PUT /media` accepts binary media in the request body and behaves as a trusted upload+optimize entrypoint distinct from `PUT /upload`
+- clients SHOULD send `Content-Type` and `Content-Length`
+- clients MAY send `X-SHA-256: <lowercase-hex>` so the server can validate auth and reject mismatches before or during persistence
+- requires `Authorization: Nostr <base64url-kind-24242-event>` with BUD-11 `t=media`
+- if `X-SHA-256` is present, at least one auth `x` tag must match it exactly
+- server flow:
+  - validate Blossom auth and upload policy
+  - stream the original body to local storage while computing SHA-256
+  - persist the canonical object row for the original hash
+  - enqueue one background optimization job bound to that original hash
+  - return the blob descriptor for the stored original object immediately, plus processing state metadata
+
+Example `PUT /media` success response:
+
+```json
+{
+  "status": "processing",
+  "message": "media optimization queued",
+  "url": "https://cdn.example.com/blob/<sha256>",
+  "sha256": "<sha256>",
+  "size": 184292,
+  "type": "image/png",
+  "uploaded": 1725909682,
+  "job_id": "<queue-job-id>",
+  "processing": {
+    "optimized": false,
+    "thumbnail": false,
+    "blurhash": false,
+    "streaming": false
+  }
+}
+```
+
+- worker responsibilities in the current rollout:
+  - metadata extraction from the original object whenever possible, enabled by default
+  - image thumbnail generation in WebP, enabled by default
+  - image optimized WebP generation, enabled by default
+  - video thumbnail generation, disabled by default
+  - blurhash generation from the optimized image or source-image fallback, enabled by default
+  - width/height extraction for images and videos, enabled by default
+  - duration and bitrate extraction for audio/video via `ffprobe`, enabled by default
+  - optional HLS/MPEG-DASH manifest generation behind configuration, disabled by default
+
+Active configuration surface:
+
+```yaml
+store:
+  media_processing:
+    enabled: true
+    extract_metadata: true
+    generate_blurhash: true
+    image:
+      generate_thumbnail: true
+      generate_webp: true
+      max_width: 1600
+      thumbnail_max_width: 320
+    video:
+      generate_thumbnail: false
+      generate_poster_webp: true
+      thumbnail_max_width: 320
+    streaming:
+      enable_hls: false
+      enable_dash: false
+```
+
+Failure model:
+
+- if original persistence fails, `PUT /media` fails the request
+- if a later extraction/transformation step fails, the worker records the error, logs context, marks partial availability, and preserves any metadata/derivatives already produced
+
+`HEAD /media`:
+
+- requires the same Blossom `kind:24242` authorization with `t=media`
+- uses `X-SHA-256` as the canonical lookup key for the original object
+- returns no body
+- returns `200 OK` when the object exists; readiness is exposed through headers:
+  - `X-SHA-256`
+  - `X-Media-Status: pending|processing|ready|failed`
+  - `X-Optimized-Available: true|false`
+  - `X-Thumbnail-Available: true|false`
+  - `X-Blurhash-Available: true|false`
+  - `X-Streaming-Available: true|false`
+  - `X-Processing-Job-Id` when a known active job exists
+- returns `404` when the canonical hash is unknown locally
+- `X-Media-Status=ready` means the configured worker steps have finished, not that every optional feature is globally enabled
+
+### BUD-08 metadata enrichment
+
+Whenever `PUT /media` or a queued `PUT /mirror` job completes successfully, the server refreshes the stored NIP-94-compatible metadata set from the extracted media facts produced by the BUD-05 processing routine.
+
+Generation rules:
+
+- `nip94_tags` are regenerated as an ordered JSON array of NIP-94 tag tuples, not patched field-by-field
+- the minimum generated tags are:
+  - `["url", "<canonical blob url>"]`
+  - `["m", "<lowercase mime>"]`
+  - `["x", "<canonical sha256>"]`
+  - `["ox", "<original sha256>"]` when a derivative differs from the source object
+  - `["size", "<bytes>"]`
+  - `["dim", "<width>x<height>"]` when dimensions are known
+- optional generated tags include:
+  - `["blurhash", "<value>"]`
+  - `["thumb", "<thumbnail url>", "<thumbnail sha256>"]`
+  - `["image", "<optimized preview url>", "<optimized sha256>"]`
+  - `["fallback", "<stream manifest url>"]` when HLS/DASH is enabled and published as an alternate delivery path
+  - repeated `["fallback", "<mirror url>"]` entries for every known mirror URL, including the origin URL captured by BUD-04
+- the canonical blob descriptor returned by upload/mirror routes may expose the same material as a `nip94` field derived from `nip94_tags`
+
+### `PUT /report` (BUD-09)
+
+The public Blossom server should accept a signed `kind:1984` NIP-56 report event in the request body.
+
+Server behavior:
+
+- extract one or more `x` tags as blob hashes
+- persist one review-report row per targeted blob hash
+- optionally retain related `e` and `p` tags for relay moderation correlation
+- return `2xx` on acceptance or a clear `4xx/5xx` error on failure
+
+This endpoint feeds the internal `/admin/blossom/reports` review workspace.
+
+### BUD-10 Blossom IDs
+
+When the dashboard exposes `Copiar Blossom ID`, it should generate URIs in the format:
+
+```text
+blossom:<sha256>.<ext>?xs=<server-host>&as=<uploader-pubkey>&sz=<bytes>
+```
+
+Rules:
+
+- use the stored extension when known; otherwise default to `.bin`
+- include at least one `xs` hint derived from the canonical server URL
+- include `as` when uploader pubkey is known
+- include `sz` when object size is known

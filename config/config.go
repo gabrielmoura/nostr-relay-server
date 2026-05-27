@@ -59,6 +59,12 @@ func applyLoadedConfig() error {
 	if err := cfg.ValidateAdminFeatures(); err != nil {
 		return err
 	}
+	if err := cfg.ValidateNegentropyFeatures(); err != nil {
+		return err
+	}
+	if err := cfg.ValidateMarmotFeatures(); err != nil {
+		return err
+	}
 
 	Cfg = cfg
 	cfg.applySecurityRelayInformationDefaults()
@@ -67,6 +73,12 @@ func applyLoadedConfig() error {
 	}
 	if cfg.NIP86Enabled() {
 		cfg.RelayInformation.SupportedNIPs = appendSupportedNIP(cfg.RelayInformation.SupportedNIPs, 86)
+	}
+	if cfg.Ws.AuthEnabled() {
+		cfg.RelayInformation.SupportedNIPs = appendSupportedNIP(cfg.RelayInformation.SupportedNIPs, 42)
+	}
+	if cfg.EnableNegentropy {
+		cfg.RelayInformation.SupportedNIPs = appendSupportedNIP(cfg.RelayInformation.SupportedNIPs, 77)
 	}
 	return nil
 }

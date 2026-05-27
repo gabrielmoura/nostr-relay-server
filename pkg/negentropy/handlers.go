@@ -29,8 +29,12 @@ var (
 	negManagerErr  error
 
 	negSessionsMu sync.Mutex
-	negSessions   = make(map[string]struct{})
+	negSessions   = make(map[string]negSession)
 )
+
+type negSession struct {
+	authedPubKey string
+}
 
 type relayEventStore struct{}
 
@@ -145,7 +149,7 @@ func HandleNegOpen(ws *dto.WsServer, data dto.Data) error {
 		result = "error"
 		metrics.NostrNegentropyV2ProtocolErrorsTotal.Inc()
 	} else {
-		addActiveSession(subID)
+		addActiveSession(subID, ws.Authed)
 	}
 
 	ws.ChanSender <- responseEnvelope(resp)
@@ -422,9 +426,9 @@ func copyTagMap(tags map[string][]string) map[string][]string {
 	return out
 }
 
-func addActiveSession(subID string) {
+func addActiveSession(subID string, authedPubKey string) {
 	negSessionsMu.Lock()
-	negSessions[subID] = struct{}{}
+	negSessions[subID] = negSession{authedPubKey: authedPubKey}
 	metrics.NostrNegentropyV2SessionsActive.Set(float64(len(negSessions)))
 	negSessionsMu.Unlock()
 }
@@ -434,4 +438,18 @@ func removeActiveSession(subID string) {
 	delete(negSessions, subID)
 	metrics.NostrNegentropyV2SessionsActive.Set(float64(len(negSessions)))
 	negSessionsMu.Unlock()
+}
+
+func SessionOwnedBy(subID string, authedPubKey string) bool {
+	negSessionsMu.Lock()
+	defer negSessionsMu.Unlock()
+
+	session, ok := negSessions[subID]
+	if !ok {
+		return true
+	}
+	if session.authedPubKey == "" {
+		return true
+	}
+	return session.authedPubKey == authedPubKey
 }
