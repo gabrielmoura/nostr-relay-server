@@ -1,371 +1,511 @@
---- Functions
-CREATE
-    OR REPLACE FUNCTION tags_to_tagvalues ( JSONB ) RETURNS TEXT [] AS 'SELECT array_agg(t->>1) FROM (SELECT jsonb_array_elements($1) AS t)s WHERE length(t->>0) = 1;' LANGUAGE SQL IMMUTABLE RETURNS NULL ON NULL INPUT;
---- Tables
-CREATE TABLE
-    IF
-    NOT EXISTS event (
-                         ID TEXT NOT NULL,
-                         pubkey TEXT NOT NULL,
-                         created_at INTEGER NOT NULL,
-                         kind INTEGER NOT NULL,
-                         tags JSONB NOT NULL,
-                         CONTENT TEXT NOT NULL,
-                         sig TEXT NOT NULL,
-                         tagvalues TEXT [] GENERATED ALWAYS AS ( tags_to_tagvalues ( tags ) ) STORED,
-                         content_search TSVECTOR GENERATED ALWAYS AS ( to_tsvector( 'portuguese', CONTENT ) ) STORED,
-                         deleted_by varchar(64) DEFAULT NULL
-);
---- Indexes
-CREATE UNIQUE INDEX
-    IF
-    NOT EXISTS ididx ON event USING btree ( ID text_pattern_ops );
-CREATE INDEX
-    IF
-    NOT EXISTS pubkeyprefix ON event USING btree ( pubkey text_pattern_ops );
-CREATE INDEX
-    IF
-    NOT EXISTS timeidx ON event ( created_at DESC );
-CREATE INDEX
-    IF
-    NOT EXISTS kindidx ON event ( kind );
-CREATE INDEX
-    IF
-    NOT EXISTS kindtimeidx ON event ( kind, created_at DESC );
-CREATE INDEX
-    IF
-    NOT EXISTS arbitrarytagvalues ON event USING gin ( tagvalues );
-CREATE INDEX
-    IF
-    NOT EXISTS content_search_idx ON event USING gin ( content_search );
-CREATE INDEX IF NOT EXISTS idx_event_created_at_id ON event (created_at, id);
--- Tabela para armazenar perfis
-CREATE TABLE IF NOT EXISTS profiles (
-                          ID BIGSERIAL PRIMARY KEY,
-                          public_key VARCHAR(64) NOT NULL UNIQUE CHECK ( length(public_key) = 64 ),
-                          NAME TEXT NOT NULL,
-                          about TEXT,
-                          picture TEXT,
-                          bot BOOLEAN DEFAULT FALSE,
-                          banner TEXT,
-                          website TEXT,
-                          display_name TEXT,
-                          lud16 TEXT,
-                          pronouns TEXT,
-                          nip05 TEXT,
-                          enable_store_files BOOLEAN default false,
-                           enable_nip05 BOOLEAN DEFAULT FALSE
+-- ============================================================
+-- PostgreSQL 18 optimized schema
+-- ============================================================
 
-);
+CREATE SCHEMA IF NOT EXISTS public;
 
-CREATE TABLE IF NOT EXISTS nip05_identities (
-    id BIGSERIAL PRIMARY KEY,
-    name TEXT NOT NULL UNIQUE,
-    public_key VARCHAR(64) NOT NULL UNIQUE REFERENCES profiles(public_key) ON DELETE CASCADE,
-    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
-);
+-- ============================================================
+-- Functions
+-- ============================================================
 
-CREATE INDEX IF NOT EXISTS idx_nip05_identities_public_key ON nip05_identities (public_key);
-CREATE INDEX IF NOT EXISTS idx_nip05_identities_name ON nip05_identities (name);
+CREATE OR REPLACE FUNCTION public.tags_to_tagvalues(input jsonb)
+    RETURNS text[]
+    LANGUAGE sql
+    IMMUTABLE
+    STRICT
+AS $$
+SELECT array_agg(t->>1)
+FROM (
+         SELECT jsonb_array_elements(input) AS t
+     ) s
+WHERE length(t->>0) = 1;
+$$;
 
--- Índices para a tabela profiles
-CREATE INDEX IF NOT EXISTS idx_profiles_name ON profiles ( NAME );
-CREATE INDEX IF NOT EXISTS idx_profiles_nip05 ON profiles ( nip05 );
-CREATE INDEX IF NOT EXISTS idx_profiles_display_name ON profiles ( display_name );
--- Tabela para armazenar usuários banidos
-CREATE TABLE IF NOT EXISTS banned_users (
-                               ID BIGSERIAL PRIMARY KEY,
-                               user_id BIGINT NOT NULL REFERENCES profiles ( ID ) ON DELETE CASCADE,
-                               reason TEXT NOT NULL,
-                               related_ids VARCHAR ( 60 ) [], -- Array de strings com até 60 caracteres
-                               created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+CREATE OR REPLACE FUNCTION public.nostr_expiration_submission()
+    RETURNS trigger
+    LANGUAGE plpgsql
+    VOLATILE
+AS $$
+DECLARE
+    expiration_tag       jsonb;
+    expiration_value     text;
+    expiration_timestamp integer;
+    unix_now             integer;
+BEGIN
+    SELECT value
+    INTO expiration_tag
+    FROM jsonb_array_elements(NEW.tags) AS value
+    WHERE value ->> 0 = 'expiration'
+    LIMIT 1;
 
-);
-ALTER TABLE banned_users ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW();
--- Índices para a tabela banned_users
-CREATE INDEX IF NOT EXISTS idx_banned_users_user_id ON banned_users ( user_id );
-CREATE INDEX IF NOT EXISTS idx_banned_users_id ON banned_users ( ID );
-CREATE INDEX IF NOT EXISTS idx_banned_users_created_at ON banned_users ( created_at DESC );
+    IF expiration_tag IS NULL THEN
+        RETURN NEW;
+    END IF;
 
--- Table para armazenar metadados de arquivos
-CREATE TABLE IF NOT EXISTS objects (
-                         hash VARCHAR ( 64 ) NOT NULL PRIMARY KEY,
-                         created_at TIMESTAMP WITH TIME ZONE NOT NULL,
-                         mime_type VARCHAR ( 255 ),
-                         SIZE BIGINT,
-                         blocked BOOLEAN,
-                         expires_at TIMESTAMP WITH TIME ZONE,
-                         blocked_by_reason TEXT,
-                         public_key VARCHAR ( 64 ) NOT NULL,
-                         tags JSONB
-);
--- Índices para a tabela objects
-CREATE INDEX IF NOT EXISTS idx_objects_mime_type ON objects ( mime_type );
-CREATE INDEX IF NOT EXISTS idx_objects_blocked ON objects ( blocked );
+    expiration_value := expiration_tag ->> 1;
 
-CREATE TABLE IF NOT EXISTS blossom_objects_admin (
-    hash VARCHAR(64) PRIMARY KEY REFERENCES objects(hash) ON DELETE CASCADE,
-    extension VARCHAR(32) NOT NULL DEFAULT '',
-    width INTEGER,
-    height INTEGER,
-    duration_ms BIGINT,
-    bitrate_kbps INTEGER,
-    blurhash TEXT,
-    thumbnail_hash VARCHAR(64),
-    optimized_hash VARCHAR(64),
-    hls_manifest_hash VARCHAR(64),
-    processing_status VARCHAR(24) NOT NULL DEFAULT 'pending',
-    processing_error TEXT,
-    exif_status VARCHAR(24) NOT NULL DEFAULT 'pending',
-    gps_detected BOOLEAN NOT NULL DEFAULT FALSE,
-    last_downloaded_at TIMESTAMPTZ,
-    download_count BIGINT NOT NULL DEFAULT 0,
-    ingress_bytes BIGINT NOT NULL DEFAULT 0,
-    egress_bytes BIGINT NOT NULL DEFAULT 0,
-    review_state VARCHAR(24) NOT NULL DEFAULT 'ready',
-    flag_reason TEXT,
-    nip94_tags JSONB NOT NULL DEFAULT '[]'::jsonb,
-    mirrors JSONB NOT NULL DEFAULT '[]'::jsonb,
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    BEGIN
+        expiration_timestamp := expiration_value::integer;
+    EXCEPTION
+        WHEN others THEN
+            RAISE EXCEPTION 'Invalid expiration timestamp: %', expiration_value;
+    END;
+
+    SELECT extract(epoch FROM now())::integer INTO unix_now;
+
+    IF expiration_timestamp < unix_now THEN
+        RAISE EXCEPTION 'expired event';
+    END IF;
+
+    RETURN NEW;
+END;
+$$;
+
+-- ============================================================
+-- Core tables
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS public.profiles (
+                                               id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+                                               public_key VARCHAR(64) NOT NULL UNIQUE CHECK (length(public_key) = 64),
+                                               name TEXT NOT NULL,
+                                               about TEXT,
+                                               picture TEXT,
+                                               bot BOOLEAN DEFAULT FALSE,
+                                               banner TEXT,
+                                               website TEXT,
+                                               display_name TEXT,
+                                               lud16 TEXT,
+                                               pronouns TEXT,
+                                               nip05 TEXT,
+                                               enable_nip05 BOOLEAN DEFAULT FALSE,
+                                               enable_store_files BOOLEAN DEFAULT FALSE
 );
 
-ALTER TABLE blossom_objects_admin ADD COLUMN IF NOT EXISTS hls_manifest_hash VARCHAR(64);
-ALTER TABLE blossom_objects_admin ADD COLUMN IF NOT EXISTS processing_status VARCHAR(24) NOT NULL DEFAULT 'pending';
-ALTER TABLE blossom_objects_admin ADD COLUMN IF NOT EXISTS processing_error TEXT;
-ALTER TABLE blossom_objects_admin ALTER COLUMN nip94_tags SET DEFAULT '[]'::jsonb;
-
-CREATE INDEX IF NOT EXISTS idx_blossom_objects_admin_review_state ON blossom_objects_admin (review_state, updated_at DESC);
-CREATE INDEX IF NOT EXISTS idx_blossom_objects_admin_extension ON blossom_objects_admin (extension);
-CREATE INDEX IF NOT EXISTS idx_blossom_objects_admin_last_downloaded_at ON blossom_objects_admin (last_downloaded_at);
-
-CREATE TABLE IF NOT EXISTS blossom_pubkey_quotas (
-    pubkey VARCHAR(64) PRIMARY KEY,
-    enabled BOOLEAN NOT NULL DEFAULT TRUE,
-    storage_quota_bytes BIGINT,
-    egress_quota_bytes BIGINT,
-    notes TEXT,
-    created_by VARCHAR(64) NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+CREATE TABLE IF NOT EXISTS public.event (
+                                            id TEXT PRIMARY KEY,
+                                            pubkey TEXT NOT NULL,
+                                            created_at INTEGER NOT NULL,
+                                            kind INTEGER NOT NULL,
+                                            tags JSONB NOT NULL,
+                                            content TEXT NOT NULL,
+                                            sig TEXT NOT NULL,
+                                            tagvalues TEXT[] GENERATED ALWAYS AS (public.tags_to_tagvalues(tags)) STORED,
+                                            content_search TSVECTOR GENERATED ALWAYS AS (
+                                                to_tsvector('portuguese'::regconfig, content)
+                                                ) STORED,
+                                            deleted_by VARCHAR(64)
 );
 
-CREATE TABLE IF NOT EXISTS blossom_server_policy (
-    id SMALLINT PRIMARY KEY,
-    mode VARCHAR(24) NOT NULL,
-    default_storage_quota_bytes BIGINT,
-    default_egress_quota_bytes BIGINT,
-    enabled_user_default_storage_quota_bytes BIGINT,
-    enabled_user_default_egress_quota_bytes BIGINT,
-    updated_by VARCHAR(64) NOT NULL,
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+CREATE TABLE IF NOT EXISTS public.nip05 (
+                                            pubkey TEXT NOT NULL,
+                                            name VARCHAR(32) NOT NULL,
+                                            expire_at TIMESTAMPTZ,
+                                            enabled BOOLEAN DEFAULT TRUE
 );
 
-CREATE TABLE IF NOT EXISTS blossom_plans (
-    id VARCHAR(64) PRIMARY KEY,
-    name VARCHAR(120) NOT NULL,
-    scope VARCHAR(24) NOT NULL,
-    storage_quota_bytes BIGINT,
-    egress_quota_bytes BIGINT,
-    description TEXT,
-    is_default BOOLEAN NOT NULL DEFAULT FALSE,
-    updated_by VARCHAR(64) NOT NULL,
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+CREATE TABLE IF NOT EXISTS public.nip05_identities (
+                                                       id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+                                                       name TEXT NOT NULL UNIQUE,
+                                                       public_key VARCHAR(64) NOT NULL UNIQUE REFERENCES public.profiles(public_key) ON DELETE CASCADE,
+                                                       created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                                                       updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE INDEX IF NOT EXISTS idx_blossom_plans_scope ON blossom_plans (scope, is_default, updated_at DESC);
-
-CREATE TABLE IF NOT EXISTS blossom_plan_assignments (
-    pubkey VARCHAR(64) PRIMARY KEY,
-    plan_id VARCHAR(64) NOT NULL REFERENCES blossom_plans(id) ON DELETE CASCADE,
-    assigned_by VARCHAR(64) NOT NULL,
-    assigned_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+CREATE TABLE IF NOT EXISTS public.banned_users (
+                                                   id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+                                                   user_id BIGINT NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+                                                   reason TEXT NOT NULL,
+                                                   related_ids VARCHAR(60)[],
+                                                   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE TABLE IF NOT EXISTS blossom_review_reports (
-    id BIGSERIAL PRIMARY KEY,
-    event_id VARCHAR(64) NOT NULL,
-    object_hash VARCHAR(64) NOT NULL REFERENCES objects(hash) ON DELETE CASCADE,
-    reporter_pubkey VARCHAR(64) NOT NULL,
-    target_event_id VARCHAR(64),
-    target_pubkey VARCHAR(64),
-    report_type VARCHAR(64),
-    reason TEXT,
-    status VARCHAR(24) NOT NULL DEFAULT 'open',
-    resolved_by VARCHAR(64),
-    resolved_note TEXT,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    resolved_at TIMESTAMPTZ
+-- ============================================================
+-- Blossom / objects
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS public.objects (
+                                              hash VARCHAR(200) PRIMARY KEY,
+                                              created_at TIMESTAMPTZ NOT NULL,
+                                              mime_type VARCHAR(255),
+                                              size BIGINT,
+                                              blocked BOOLEAN,
+                                              expires_at TIMESTAMPTZ,
+                                              blocked_by_reason TEXT,
+                                              public_key VARCHAR(64),
+                                              tags JSONB
 );
 
-CREATE INDEX IF NOT EXISTS idx_blossom_review_reports_object_hash ON blossom_review_reports (object_hash, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_blossom_review_reports_status ON blossom_review_reports (status, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_blossom_review_reports_event_id ON blossom_review_reports (event_id);
-
-CREATE TABLE IF NOT EXISTS blossom_audit_log (
-    id BIGSERIAL PRIMARY KEY,
-    actor_pubkey VARCHAR(64) NOT NULL,
-    action VARCHAR(64) NOT NULL,
-    target_type VARCHAR(32) NOT NULL,
-    target_id TEXT NOT NULL,
-    request_id TEXT,
-    payload JSONB NOT NULL DEFAULT '{}'::jsonb,
-    nostr_event_id VARCHAR(64),
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+CREATE TABLE IF NOT EXISTS public.blossom_objects_admin (
+                                                            hash VARCHAR(200) PRIMARY KEY REFERENCES public.objects(hash) ON DELETE CASCADE,
+                                                            extension VARCHAR(32) NOT NULL DEFAULT '',
+                                                            width INTEGER,
+                                                            height INTEGER,
+                                                            duration_ms BIGINT,
+                                                            bitrate_kbps INTEGER,
+                                                            blurhash TEXT,
+                                                            thumbnail_hash VARCHAR(64),
+                                                            optimized_hash VARCHAR(64),
+                                                            hls_manifest_hash VARCHAR(64),
+                                                            processing_status VARCHAR(24) NOT NULL DEFAULT 'pending',
+                                                            processing_error TEXT,
+                                                            exif_status VARCHAR(24) NOT NULL DEFAULT 'pending',
+                                                            gps_detected BOOLEAN NOT NULL DEFAULT FALSE,
+                                                            last_downloaded_at TIMESTAMPTZ,
+                                                            download_count BIGINT NOT NULL DEFAULT 0,
+                                                            ingress_bytes BIGINT NOT NULL DEFAULT 0,
+                                                            egress_bytes BIGINT NOT NULL DEFAULT 0,
+                                                            review_state VARCHAR(24) NOT NULL DEFAULT 'ready',
+                                                            flag_reason TEXT,
+                                                            nip94_tags JSONB NOT NULL DEFAULT '[]'::jsonb,
+                                                            mirrors JSONB NOT NULL DEFAULT '[]'::jsonb,
+                                                            updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE INDEX IF NOT EXISTS idx_blossom_audit_log_created_at ON blossom_audit_log (created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_blossom_audit_log_action ON blossom_audit_log (action, created_at DESC);
+CREATE TABLE IF NOT EXISTS public.blossom_pubkey_quotas (
+                                                            pubkey VARCHAR(64) PRIMARY KEY,
+                                                            enabled BOOLEAN NOT NULL DEFAULT TRUE,
+                                                            storage_quota_bytes BIGINT,
+                                                            egress_quota_bytes BIGINT,
+                                                            notes TEXT,
+                                                            created_by VARCHAR(64) NOT NULL,
+                                                            created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                                                            updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
 
+CREATE TABLE IF NOT EXISTS public.blossom_server_policy (
+                                                            id SMALLINT PRIMARY KEY,
+                                                            mode VARCHAR(24) NOT NULL,
+                                                            default_storage_quota_bytes BIGINT,
+                                                            default_egress_quota_bytes BIGINT,
+                                                            enabled_user_default_storage_quota_bytes BIGINT,
+                                                            enabled_user_default_egress_quota_bytes BIGINT,
+                                                            updated_by VARCHAR(64) NOT NULL,
+                                                            updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
 
+CREATE TABLE IF NOT EXISTS public.blossom_plans (
+                                                    id VARCHAR(64) PRIMARY KEY,
+                                                    name VARCHAR(120) NOT NULL,
+                                                    scope VARCHAR(24) NOT NULL,
+                                                    storage_quota_bytes BIGINT,
+                                                    egress_quota_bytes BIGINT,
+                                                    description TEXT,
+                                                    is_default BOOLEAN NOT NULL DEFAULT FALSE,
+                                                    updated_by VARCHAR(64) NOT NULL,
+                                                    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
 
--- Para queries de deletion events
+CREATE TABLE IF NOT EXISTS public.blossom_plan_assignments (
+                                                               pubkey VARCHAR(64) PRIMARY KEY,
+                                                               plan_id VARCHAR(64) NOT NULL REFERENCES public.blossom_plans(id) ON DELETE CASCADE,
+                                                               assigned_by VARCHAR(64) NOT NULL,
+                                                               assigned_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS public.blossom_review_reports (
+                                                             id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+                                                             event_id VARCHAR(64) NOT NULL,
+                                                             object_hash VARCHAR(200) NOT NULL REFERENCES public.objects(hash) ON DELETE CASCADE,
+                                                             reporter_pubkey VARCHAR(64) NOT NULL,
+                                                             target_event_id VARCHAR(64),
+                                                             target_pubkey VARCHAR(64),
+                                                             report_type VARCHAR(64),
+                                                             reason TEXT,
+                                                             status VARCHAR(24) NOT NULL DEFAULT 'open',
+                                                             resolved_by VARCHAR(64),
+                                                             resolved_note TEXT,
+                                                             created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                                                             resolved_at TIMESTAMPTZ
+);
+
+CREATE TABLE IF NOT EXISTS public.blossom_audit_log (
+                                                        id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+                                                        actor_pubkey VARCHAR(64) NOT NULL,
+                                                        action VARCHAR(64) NOT NULL,
+                                                        target_type VARCHAR(32) NOT NULL,
+                                                        target_id TEXT NOT NULL,
+                                                        request_id TEXT,
+                                                        payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+                                                        nostr_event_id VARCHAR(64),
+                                                        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- ============================================================
+-- NIP-29
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS public.nip29_roles (
+                                                  role_id INTEGER GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+                                                  name VARCHAR(250) NOT NULL,
+                                                  description TEXT
+);
+
+CREATE TABLE IF NOT EXISTS public.nip29_groups (
+                                                   relay TEXT NOT NULL,
+                                                   group_id TEXT NOT NULL,
+                                                   name VARCHAR(255) NOT NULL,
+                                                   picture TEXT,
+                                                   about TEXT,
+                                                   private BOOLEAN NOT NULL DEFAULT FALSE,
+                                                   closed BOOLEAN NOT NULL DEFAULT FALSE,
+                                                   last_metadata_update TIMESTAMPTZ NOT NULL,
+                                                   last_admins_update TIMESTAMPTZ NOT NULL,
+                                                   last_members_update TIMESTAMPTZ NOT NULL,
+                                                   last_roles_update TIMESTAMPTZ NOT NULL,
+                                                   restricted BOOLEAN NOT NULL DEFAULT FALSE,
+                                                   hidden BOOLEAN NOT NULL DEFAULT FALSE,
+                                                   created_by VARCHAR(64),
+                                                   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                                                   deleted_at TIMESTAMPTZ,
+                                                   min_pow INTEGER NOT NULL DEFAULT 0,
+                                                   require_moderation_timeline_ref BOOLEAN NOT NULL DEFAULT FALSE,
+                                                   min_timeline_references INTEGER NOT NULL DEFAULT 0,
+                                                   timeline_recent_window INTEGER NOT NULL DEFAULT 50,
+                                                   allow_late_publication BOOLEAN NOT NULL DEFAULT FALSE,
+                                                   PRIMARY KEY (relay, group_id)
+);
+
+CREATE TABLE IF NOT EXISTS public.nip29_group_roles (
+                                                        relay TEXT NOT NULL,
+                                                        group_id TEXT NOT NULL,
+                                                        role_id INTEGER NOT NULL REFERENCES public.nip29_roles(role_id) ON DELETE CASCADE,
+                                                        PRIMARY KEY (relay, group_id, role_id),
+                                                        FOREIGN KEY (relay, group_id) REFERENCES public.nip29_groups(relay, group_id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS public.nip29_group_members (
+                                                          relay TEXT NOT NULL,
+                                                          group_id TEXT NOT NULL,
+                                                          user_id VARCHAR(64) NOT NULL,
+                                                          role_id INTEGER NOT NULL REFERENCES public.nip29_roles(role_id) ON DELETE CASCADE,
+                                                          banned BOOLEAN NOT NULL DEFAULT FALSE,
+                                                          PRIMARY KEY (relay, group_id, user_id, role_id, banned),
+                                                          FOREIGN KEY (relay, group_id) REFERENCES public.nip29_groups(relay, group_id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS public.nip29_group_bans (
+                                                       relay TEXT NOT NULL,
+                                                       group_id TEXT NOT NULL,
+                                                       user_id VARCHAR(64) NOT NULL,
+                                                       reason TEXT,
+                                                       created_by VARCHAR(64),
+                                                       created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                                                       PRIMARY KEY (relay, group_id, user_id),
+                                                       FOREIGN KEY (relay, group_id) REFERENCES public.nip29_groups(relay, group_id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS public.nip29_group_invites (
+                                                          relay TEXT NOT NULL,
+                                                          group_id TEXT NOT NULL,
+                                                          code TEXT NOT NULL,
+                                                          created_by VARCHAR(64) NOT NULL,
+                                                          max_uses INTEGER NOT NULL DEFAULT 1,
+                                                          uses INTEGER NOT NULL DEFAULT 0,
+                                                          expires_at TIMESTAMPTZ,
+                                                          revoked_at TIMESTAMPTZ,
+                                                          created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                                                          last_used_at TIMESTAMPTZ,
+                                                          PRIMARY KEY (relay, group_id, code),
+                                                          FOREIGN KEY (relay, group_id) REFERENCES public.nip29_groups(relay, group_id) ON DELETE CASCADE
+);
+
+-- ============================================================
+-- NIP-86
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS public.nip86_allowed_pubkeys (
+                                                            pubkey VARCHAR(64) PRIMARY KEY,
+                                                            reason TEXT,
+                                                            created_by VARCHAR(64) NOT NULL,
+                                                            created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                                                            updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS public.nip86_banned_events (
+                                                          event_id VARCHAR(64) PRIMARY KEY,
+                                                          reason TEXT,
+                                                          created_by VARCHAR(64) NOT NULL,
+                                                          created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                                                          updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS public.nip86_blocked_ips (
+                                                        ip INET PRIMARY KEY,
+                                                        reason TEXT,
+                                                        created_by VARCHAR(64) NOT NULL,
+                                                        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                                                        updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS public.nip86_relay_metadata (
+                                                           relay_url TEXT PRIMARY KEY,
+                                                           name TEXT,
+                                                           description TEXT,
+                                                           updated_by VARCHAR(64) NOT NULL,
+                                                           updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- ============================================================
+-- Trigger idempotente para expiration
+-- ============================================================
+
+DO $$
+    BEGIN
+        IF NOT EXISTS (
+            SELECT 1
+            FROM pg_trigger
+            WHERE tgname = 'trg_event_expiration'
+        ) THEN
+            CREATE TRIGGER trg_event_expiration
+                BEFORE INSERT ON public.event
+                FOR EACH ROW
+            EXECUTE FUNCTION public.nostr_expiration_submission();
+        END IF;
+    END $$;
+
+-- ============================================================
+-- Índices normais
+-- ============================================================
+
+CREATE UNIQUE INDEX IF NOT EXISTS ididx
+    ON public.event USING btree (id text_pattern_ops);
+
+CREATE INDEX IF NOT EXISTS pubkeyprefix
+    ON public.event USING btree (pubkey text_pattern_ops);
+
+CREATE INDEX IF NOT EXISTS timeidx
+    ON public.event (created_at DESC);
+
+CREATE INDEX IF NOT EXISTS kindidx
+    ON public.event (kind);
+
+CREATE INDEX IF NOT EXISTS kindtimeidx
+    ON public.event (kind, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS arbitrarytagvalues
+    ON public.event USING gin (tagvalues);
+
+CREATE INDEX IF NOT EXISTS content_search_idx
+    ON public.event USING gin (content_search);
+
+CREATE INDEX IF NOT EXISTS idx_event_created_at_id
+    ON public.event (created_at, id);
+
+CREATE INDEX IF NOT EXISTS pubkey_nip05_name
+    ON public.nip05 (pubkey, name);
+
+CREATE INDEX IF NOT EXISTS idx_nip05_identities_public_key
+    ON public.nip05_identities (public_key);
+
+CREATE INDEX IF NOT EXISTS idx_nip05_identities_name
+    ON public.nip05_identities (name);
+
+CREATE INDEX IF NOT EXISTS idx_profiles_name
+    ON public.profiles (name);
+
+CREATE INDEX IF NOT EXISTS idx_profiles_nip05
+    ON public.profiles (nip05);
+
+CREATE INDEX IF NOT EXISTS idx_profiles_display_name
+    ON public.profiles (display_name);
+
+CREATE INDEX IF NOT EXISTS idx_banned_users_user_id
+    ON public.banned_users (user_id);
+
+CREATE INDEX IF NOT EXISTS idx_banned_users_id
+    ON public.banned_users (id);
+
+CREATE INDEX IF NOT EXISTS idx_banned_users_created_at
+    ON public.banned_users (created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_objects_mime_type
+    ON public.objects (mime_type);
+
+CREATE INDEX IF NOT EXISTS idx_objects_blocked
+    ON public.objects (blocked);
+
+CREATE INDEX IF NOT EXISTS idx_blossom_objects_admin_review_state
+    ON public.blossom_objects_admin (review_state, updated_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_blossom_objects_admin_extension
+    ON public.blossom_objects_admin (extension);
+
+CREATE INDEX IF NOT EXISTS idx_blossom_objects_admin_last_downloaded_at
+    ON public.blossom_objects_admin (last_downloaded_at);
+
+CREATE INDEX IF NOT EXISTS idx_blossom_plans_scope
+    ON public.blossom_plans (scope, is_default, updated_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_blossom_review_reports_object_hash
+    ON public.blossom_review_reports (object_hash, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_blossom_review_reports_status
+    ON public.blossom_review_reports (status, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_blossom_review_reports_event_id
+    ON public.blossom_review_reports (event_id);
+
+CREATE INDEX IF NOT EXISTS idx_blossom_audit_log_created_at
+    ON public.blossom_audit_log (created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_blossom_audit_log_action
+    ON public.blossom_audit_log (action, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_roles_name
+    ON public.nip29_roles (name);
+
+CREATE INDEX IF NOT EXISTS idx_groups_name
+    ON public.nip29_groups (name);
+
+CREATE INDEX IF NOT EXISTS idx_groups_last_metadata_update
+    ON public.nip29_groups (last_metadata_update);
+
+CREATE INDEX IF NOT EXISTS idx_groups_last_members_update
+    ON public.nip29_groups (last_members_update);
+
+CREATE INDEX IF NOT EXISTS idx_group_members_user_id
+    ON public.nip29_group_members (user_id);
+
+CREATE INDEX IF NOT EXISTS idx_group_members_lookup
+    ON public.nip29_group_members (relay, group_id, user_id)
+    WHERE banned = FALSE;
+
+CREATE INDEX IF NOT EXISTS idx_group_bans_user_lookup
+    ON public.nip29_group_bans (relay, group_id, user_id);
+
+CREATE INDEX IF NOT EXISTS idx_group_invites_expires_at
+    ON public.nip29_group_invites (expires_at);
+
+CREATE INDEX IF NOT EXISTS idx_nip86_allowed_pubkeys_updated_at
+    ON public.nip86_allowed_pubkeys (updated_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_nip86_banned_events_updated_at
+    ON public.nip86_banned_events (updated_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_nip86_blocked_ips_updated_at
+    ON public.nip86_blocked_ips (updated_at DESC);
+
+-- ============================================================
+-- Índices avançados
+-- Rode estes FORA de uma transaction block.
+-- ============================================================
+
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_event_deletions
-    ON event (created_at DESC, id)
+    ON public.event (created_at DESC, id)
     WHERE deleted_by IS NOT NULL;
 
--- Covering index para author queries (evita table access)
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_event_covering_author
-    ON event (pubkey, created_at DESC)
+    ON public.event (pubkey, created_at DESC)
     INCLUDE (kind, content, tags, sig);
 
--- Partial para eventos recentes (sem função - usa constante estática)
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_event_recent
-    ON event (created_at DESC, id)
-    WHERE created_at > 1735689600;  -- Unix timestamp de 24h atrás
+    ON public.event (created_at DESC, id)
+    WHERE created_at > 1735689600;
 
--- Queries por author + kind (muito comum)
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_event_author_kind
-    ON event (pubkey, kind, created_at DESC);
+    ON public.event (pubkey, kind, created_at DESC);
 
--- Covering index para evitar table access
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_event_covering
-    ON event (pubkey, created_at DESC)
+    ON public.event (pubkey, created_at DESC)
     INCLUDE (kind, content, tags, sig);
-
-CREATE TABLE IF NOT EXISTS nip29_roles (
-    role_id SERIAL PRIMARY KEY,
-    name VARCHAR(64) NOT NULL,
-    description TEXT
-);
-
-CREATE INDEX IF NOT EXISTS idx_roles_name ON nip29_roles (name);
-
-CREATE TABLE IF NOT EXISTS nip29_groups (
-    relay TEXT NOT NULL,
-    group_id TEXT NOT NULL,
-    name VARCHAR(255) NOT NULL,
-    picture TEXT,
-    about TEXT,
-    private BOOLEAN NOT NULL DEFAULT FALSE,
-    closed BOOLEAN NOT NULL DEFAULT FALSE,
-    last_metadata_update TIMESTAMPTZ NOT NULL,
-    last_admins_update TIMESTAMPTZ NOT NULL,
-    last_members_update TIMESTAMPTZ NOT NULL,
-    last_roles_update TIMESTAMPTZ NOT NULL,
-    PRIMARY KEY (relay, group_id)
-);
-
-ALTER TABLE nip29_groups ADD COLUMN IF NOT EXISTS restricted BOOLEAN NOT NULL DEFAULT FALSE;
-ALTER TABLE nip29_groups ADD COLUMN IF NOT EXISTS hidden BOOLEAN NOT NULL DEFAULT FALSE;
-ALTER TABLE nip29_groups ADD COLUMN IF NOT EXISTS created_by VARCHAR(64);
-ALTER TABLE nip29_groups ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
-ALTER TABLE nip29_groups ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
-ALTER TABLE nip29_groups ADD COLUMN IF NOT EXISTS min_pow INTEGER NOT NULL DEFAULT 0;
-ALTER TABLE nip29_groups ADD COLUMN IF NOT EXISTS require_moderation_timeline_ref BOOLEAN NOT NULL DEFAULT FALSE;
-ALTER TABLE nip29_groups ADD COLUMN IF NOT EXISTS min_timeline_references INTEGER NOT NULL DEFAULT 0;
-ALTER TABLE nip29_groups ADD COLUMN IF NOT EXISTS timeline_recent_window INTEGER NOT NULL DEFAULT 50;
-ALTER TABLE nip29_groups ADD COLUMN IF NOT EXISTS allow_late_publication BOOLEAN NOT NULL DEFAULT FALSE;
-
-CREATE INDEX IF NOT EXISTS idx_groups_name ON nip29_groups (name);
-CREATE INDEX IF NOT EXISTS idx_groups_last_metadata_update ON nip29_groups (last_metadata_update);
-CREATE INDEX IF NOT EXISTS idx_groups_last_members_update ON nip29_groups (last_members_update);
-
-CREATE TABLE IF NOT EXISTS nip29_group_roles (
-    relay TEXT NOT NULL,
-    group_id TEXT NOT NULL,
-    role_id INTEGER NOT NULL REFERENCES nip29_roles(role_id) ON DELETE CASCADE,
-    PRIMARY KEY (relay, group_id, role_id),
-    FOREIGN KEY (relay, group_id) REFERENCES nip29_groups(relay, group_id) ON DELETE CASCADE
-);
-
-CREATE TABLE IF NOT EXISTS nip29_group_members (
-    relay TEXT NOT NULL,
-    group_id TEXT NOT NULL,
-    user_id VARCHAR(64) NOT NULL,
-    role_id INTEGER NOT NULL REFERENCES nip29_roles(role_id) ON DELETE CASCADE,
-    banned BOOLEAN NOT NULL DEFAULT FALSE,
-    PRIMARY KEY (relay, group_id, user_id, role_id, banned),
-    FOREIGN KEY (relay, group_id) REFERENCES nip29_groups(relay, group_id) ON DELETE CASCADE
-);
-
-CREATE INDEX IF NOT EXISTS idx_group_members_user_id ON nip29_group_members (user_id);
-CREATE INDEX IF NOT EXISTS idx_group_members_lookup ON nip29_group_members (relay, group_id, user_id) WHERE banned = FALSE;
-
-CREATE TABLE IF NOT EXISTS nip29_group_bans (
-    relay TEXT NOT NULL,
-    group_id TEXT NOT NULL,
-    user_id VARCHAR(64) NOT NULL,
-    reason TEXT,
-    created_by VARCHAR(64),
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    PRIMARY KEY (relay, group_id, user_id),
-    FOREIGN KEY (relay, group_id) REFERENCES nip29_groups(relay, group_id) ON DELETE CASCADE
-);
-
-CREATE INDEX IF NOT EXISTS idx_group_bans_user_lookup ON nip29_group_bans (relay, group_id, user_id);
-
-CREATE TABLE IF NOT EXISTS nip29_group_invites (
-    relay TEXT NOT NULL,
-    group_id TEXT NOT NULL,
-    code TEXT NOT NULL,
-    created_by VARCHAR(64) NOT NULL,
-    max_uses INTEGER NOT NULL DEFAULT 1,
-    uses INTEGER NOT NULL DEFAULT 0,
-    expires_at TIMESTAMPTZ,
-    revoked_at TIMESTAMPTZ,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    last_used_at TIMESTAMPTZ,
-    PRIMARY KEY (relay, group_id, code),
-    FOREIGN KEY (relay, group_id) REFERENCES nip29_groups(relay, group_id) ON DELETE CASCADE
-);
-
-CREATE INDEX IF NOT EXISTS idx_group_invites_expires_at ON nip29_group_invites (expires_at);
-
-CREATE TABLE IF NOT EXISTS nip86_allowed_pubkeys (
-    pubkey VARCHAR(64) PRIMARY KEY,
-    reason TEXT,
-    created_by VARCHAR(64) NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX IF NOT EXISTS idx_nip86_allowed_pubkeys_updated_at ON nip86_allowed_pubkeys (updated_at DESC);
-
-CREATE TABLE IF NOT EXISTS nip86_banned_events (
-    event_id VARCHAR(64) PRIMARY KEY,
-    reason TEXT,
-    created_by VARCHAR(64) NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX IF NOT EXISTS idx_nip86_banned_events_updated_at ON nip86_banned_events (updated_at DESC);
-
-CREATE TABLE IF NOT EXISTS nip86_blocked_ips (
-    ip INET PRIMARY KEY,
-    reason TEXT,
-    created_by VARCHAR(64) NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX IF NOT EXISTS idx_nip86_blocked_ips_updated_at ON nip86_blocked_ips (updated_at DESC);
-
-CREATE TABLE IF NOT EXISTS nip86_relay_metadata (
-    relay_url TEXT PRIMARY KEY,
-    name TEXT,
-    description TEXT,
-    updated_by VARCHAR(64) NOT NULL,
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
