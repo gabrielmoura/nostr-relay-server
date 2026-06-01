@@ -1,6 +1,6 @@
-# NRServer + Tor com Docker Compose
+# NRServer + Tor com Docker Compose e Swarm
 
-Este guia mostra como executar o `nrserver` com PostgreSQL e Tor (onion service) usando o `Dockerfile` multi-stage do projeto e o `docker-compose.yml` da raiz.
+Este guia mostra como executar o `nrserver` com PostgreSQL, Redis e Tor (onion service) usando o `Dockerfile` multi-stage do projeto, o `docker-compose.yml` da raiz e o `stack.yml` para Docker Swarm.
 
 ## 1) O que foi padronizado
 
@@ -8,9 +8,12 @@ Este guia mostra como executar o `nrserver` com PostgreSQL e Tor (onion service)
 - Orquestracao com `docker-compose.yml`:
   - `nrserver` (relay)
   - `postgres` (persistencia)
+  - `redis` (cache, pub/sub e jobs)
   - `tor` (hidden service e socks proxy)
+- Orquestracao opcional com `stack.yml` para Docker Swarm.
 - Configuracao do Tor em `torrc`.
-- Senha do PostgreSQL via secret local (`postgres_password.txt`).
+- Senha do PostgreSQL via `secret` local (`deploy/postgres/password.txt`).
+- Arquivos `conf.yaml`, `postgresql.conf`, `redis.conf` e `torrc` entregues via `configs` do Docker.
 
 ## 2) Arquivos usados
 
@@ -18,9 +21,17 @@ Este guia mostra como executar o `nrserver` com PostgreSQL e Tor (onion service)
 .
 ├── Dockerfile
 ├── docker-compose.yml
+├── stack.yml
 ├── conf.yaml
+├── deploy/
+│   ├── postgres/
+│   │   ├── postgresql.conf
+│   │   ├── password.txt          # criar localmente (nao comitar)
+│   │   └── password.txt.example
+│   └── redis/
+│       └── redis.conf
 ├── torrc
-└── postgres_password.txt   # criar localmente (nao comitar)
+└── Docker_Tor.md
 ```
 
 ## 3) Pre-requisitos
@@ -31,26 +42,37 @@ Este guia mostra como executar o `nrserver` com PostgreSQL e Tor (onion service)
 
 ## 4) Preparar configuracao
 
-### 4.1 Crie o arquivo de senha do Postgres
+### 4.1 Ajuste o arquivo de senha do Postgres
 
-Use o exemplo versionado e gere seu arquivo local:
+O repositório já inclui `deploy/postgres/password.txt` com um valor placeholder.
+
+Troque esse valor antes de subir o ambiente:
 
 ```bash
-cp postgres_password.txt.example postgres_password.txt
+printf 'uma-senha-forte\n' > deploy/postgres/password.txt
 ```
-
-Depois altere o valor para uma senha forte.
 
 ### 4.2 Ajuste o `conf.yaml`
 
-No `conf.yaml`, configure o banco para usar o servico `postgres` da rede compose:
+No `conf.yaml`, configure banco e Redis para usar os servicos da rede compose/swarm:
 
 ```yaml
 db:
-  postgres_uri: postgres://postgres:SUA_SENHA@postgres:5432/nostr
+  postgres_uri: postgres://postgres:SUA_SENHA@postgres:5432/nostr?sslmode=disable
+
+redis:
+  enabled: true
+  addr: redis:6379
+  password: ""
 ```
 
-Se quiser trafego de saida via Tor, mantenha os proxies definidos no servico `nrserver` do compose.
+Revise tambem os arquivos usados como `configs`:
+
+- `deploy/postgres/postgresql.conf`
+- `deploy/redis/redis.conf`
+- `torrc`
+
+Se quiser trafego de saida via Tor, mantenha os proxies `HTTP_PROXY`, `HTTPS_PROXY` e `ALL_PROXY` definidos no servico `nrserver` do compose/stack.
 
 ## 5) Build e subida do ambiente
 
@@ -64,6 +86,7 @@ docker compose up -d --build
 
 ```bash
 docker compose logs -f nrserver
+docker compose logs -f redis
 docker compose logs -f tor
 docker compose logs -f postgres
 ```
@@ -96,7 +119,39 @@ Reinicie o relay:
 docker compose restart nrserver
 ```
 
-## 7) Buildx com cache (CI/local)
+## 7) Deploy com Docker Swarm
+
+### 7.1 Inicialize o Swarm
+
+```bash
+docker swarm init
+```
+
+### 7.2 Garanta os mesmos arquivos locais
+
+Arquivos necessarios:
+
+- `./conf.yaml`
+- `./deploy/postgres/postgresql.conf`
+- `./deploy/postgres/password.txt`
+- `./deploy/redis/redis.conf`
+- `./torrc`
+
+### 7.3 Suba a stack
+
+```bash
+docker stack deploy -c stack.yml nrserver
+```
+
+### 7.4 Acompanhe a stack
+
+```bash
+docker stack services nrserver
+docker service logs -f nrserver_nrserver
+docker service logs -f nrserver_tor
+```
+
+## 8) Buildx com cache (CI/local)
 
 Para build manual da imagem com cache remoto:
 
@@ -109,7 +164,7 @@ docker buildx build \
   .
 ```
 
-## 8) Operacao diaria
+## 9) Operacao diaria
 
 Parar mantendo dados:
 
@@ -123,9 +178,16 @@ Parar removendo dados persistidos (cuidado):
 docker compose down -v
 ```
 
-## 9) Observacoes de seguranca
+Remover stack no Swarm:
 
-- Nao comite `postgres_password.txt`.
+```bash
+docker stack rm nrserver
+```
+
+## 10) Observacoes de seguranca
+
+- Troque imediatamente o valor placeholder de `deploy/postgres/password.txt`.
 - Em producao, mantenha `admin_token` definido.
 - Exponha `9091` apenas localmente (ja configurado como `127.0.0.1:9091:9091`).
 - Revise os campos `relay_information` antes de publicar o relay.
+- Se nao precisar trafego de saida via Tor, remova os proxies do servico `nrserver`.

@@ -557,13 +557,13 @@ O projeto possui `Dockerfile` multi-stage com:
 
 * build frontend (`infra/dash`) via Node/pnpm
 * build backend Go (`cmd/nrserver`)
-* imagem final `scratch` com binario estatico + CA certs + usuario nao-root
+* imagem final distroless com binario Go estatico e usuario nao-root
 
 Build local da imagem:
 
 [source,bash]
 ----
-docker buildx build --load -t nostr-relay-server:local .
+docker build -t nostr-relay-server:local .
 ----
 
 Execucao com arquivo de configuracao local:
@@ -572,7 +572,7 @@ Execucao com arquivo de configuracao local:
 ----
 docker run --rm \
   -p 9090:9090 \
-  -p 127.0.0.1:9091:9091 \
+  -p 9091:9091 \
   -v $(pwd)/conf.yaml:/app/conf.yaml:ro \
   nostr-relay-server:local
 ----
@@ -585,22 +585,39 @@ Notas operacionais:
 
 === 13.3 Setup com Docker Compose + Tor
 
-Para ambiente com PostgreSQL e onion service, use os arquivos:
+Para ambiente com PostgreSQL, Redis e onion service, use os arquivos:
 
 * `docker-compose.yml`
+* `deploy/postgres/postgresql.conf`
+* `deploy/postgres/password.txt.example`
+* `deploy/redis/redis.conf`
 * `torrc`
-* `Docker_Tor.md`
+* `stack.yml`
+
+No runtime Docker, `conf.yaml`, `postgresql.conf`, `redis.conf` e `torrc` sao entregues via `configs`, e a senha do Postgres via `secret`.
 
 Fluxo recomendado:
 
-1. criar segredo local:
+1. criar arquivo local de senha do PostgreSQL:
 +
 [source,bash]
 ----
-cp postgres_password.txt.example postgres_password.txt
+cp deploy/postgres/password.txt.example deploy/postgres/password.txt
 ----
 
-2. ajustar `conf.yaml` para usar `postgres` no `db.postgres_uri`
+2. ajustar `conf.yaml` para usar os nomes de servico internos:
++
+[source,yaml]
+----
+db:
+  postgres_uri: postgres://postgres:SUA_SENHA@postgres:5432/nostr?sslmode=disable
+
+redis:
+  enabled: true
+  addr: redis:6379
+  password: ""
+----
+
 3. subir stack completa:
 +
 [source,bash]
@@ -622,14 +639,58 @@ docker compose exec tor cat /var/lib/tor/nostr-relay/hostname
 docker compose restart nrserver
 ----
 
-=== 13.4 Rotina de manutencao
+Campos tipicos a revisar no `conf.yaml` apos obter o `.onion`:
+
+* `relay_information.url`
+* `relay_information.canonical_url`
+* `relay_information.icon`
+* `store.api_path`
+* `store.media_path`
+
+=== 13.4 Setup com Docker Swarm
+
+Para deploy em Swarm use `stack.yml`.
+
+Passos:
+
+1. inicializar o swarm se necessario:
++
+[source,bash]
+----
+docker swarm init
+----
+
+2. preparar os mesmos mounts locais usados no compose:
+
+* `./conf.yaml`
+* `./deploy/postgres/postgresql.conf`
+* `./deploy/postgres/password.txt`
+* `./deploy/redis/redis.conf`
+* `./torrc`
+
+3. subir a stack:
++
+[source,bash]
+----
+docker stack deploy -c stack.yml nrserver
+----
+
+4. acompanhar servicos:
++
+[source,bash]
+----
+docker stack services nrserver
+docker service logs -f nrserver_nrserver
+----
+
+=== 13.5 Rotina de manutencao
 
 * validar config antes de deploy (`conf validate`)
 * executar migracao em janela controlada (`seed`)
 * monitorar `/metrics` + logs
 * usar `cron --list` e `cron --run-once` para validacao de jobs
 
-=== 13.5 Troubleshooting tecnico
+=== 13.6 Troubleshooting tecnico
 
 Sintoma: `missing DB URI`
 
@@ -700,6 +761,7 @@ Este arquivo e principal, mas os detalhes exaustivos por tema permanecem em:
 * `docs/decisions.md`
 * `Dockerfile`
 * `docker-compose.yml`
+* `stack.yml`
 * `Docker_Tor.md`
 
 == 17. Estado da documentacao

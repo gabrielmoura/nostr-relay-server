@@ -1,0 +1,125 @@
+services:
+  nrserver:
+    image: nostr-relay-server:local
+    command: ["server"]
+    ports:
+      - target: 9090
+        published: 9090
+        protocol: tcp
+        mode: ingress
+      - target: 9091
+        published: 9091
+        protocol: tcp
+        mode: ingress
+    environment:
+      HTTP_PROXY: socks5://tor:9050
+      HTTPS_PROXY: socks5://tor:9050
+      ALL_PROXY: socks5://tor:9050
+    configs:
+      - source: nrserver_conf
+        target: /app/conf.yaml
+    networks:
+      - backend
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+      update_config:
+        order: start-first
+        failure_action: rollback
+
+  postgres:
+    image: postgres:18.4-alpine3.23
+    environment:
+      POSTGRES_DB: nostr
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+    command: ["postgres", "-c", "config_file=/etc/postgresql/postgresql.conf"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d nostr"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    volumes:
+      - type: volume
+        source: pg_data
+        target: /var/lib/postgresql/data
+    configs:
+      - source: postgres_conf
+        target: /etc/postgresql/postgresql.conf
+    secrets:
+      - source: postgres_password
+        target: postgres_password
+    networks:
+      - backend
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+      placement:
+        constraints:
+          - node.role == manager
+
+  redis:
+    image: redis:8.8.0-alpine3.23
+    command: ["redis-server", "/usr/local/etc/redis-custom/redis.conf"]
+    volumes:
+      - type: volume
+        source: redis_data
+        target: /data
+    configs:
+      - source: redis_conf
+        target: /usr/local/etc/redis-custom/redis.conf
+    networks:
+      - backend
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+      placement:
+        constraints:
+          - node.role == manager
+
+  tor:
+    image: osminogin/tor-simple:latest
+    volumes:
+      - type: volume
+        source: tor_data
+        target: /var/lib/tor
+    configs:
+      - source: tor_conf
+        target: /etc/tor/torrc
+    networks:
+      - backend
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+      placement:
+        constraints:
+          - node.role == manager
+
+volumes:
+  pg_data:
+  redis_data:
+  tor_data:
+
+configs:
+  nrserver_conf:
+    file: ./deploy/conf.yaml
+  postgres_conf:
+    file: ./deploy/postgres/postgresql.conf
+  redis_conf:
+    file: ./deploy/redis/redis.conf
+  tor_conf:
+    file: ./torrc
+
+secrets:
+  postgres_password:
+    file: ./deploy/postgres/password.txt
+
+networks:
+  backend:
+    driver: overlay
+    attachable: true

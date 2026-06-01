@@ -1,4 +1,20 @@
 services:
+  nrserver-migrate:
+    image: nostr-relay-server:local
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: nrserver-migrate
+    restart: "no"
+    command: ["seed"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./conf.yaml:/app/conf.yaml:ro
+    networks:
+      - backend
+
   nrserver:
     image: nostr-relay-server:local
     build:
@@ -7,41 +23,58 @@ services:
     container_name: nrserver
     restart: unless-stopped
     depends_on:
+      nrserver-migrate:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_started
     ports:
       - "9090:9090"
       - "127.0.0.1:9091:9091"
     volumes:
-      - ./conf.yaml:/app/conf.yaml:ro
+      - ./deploy/conf.yaml:/app/conf.yaml:ro
     environment:
       HTTP_PROXY: socks5://tor:9050
       HTTPS_PROXY: socks5://tor:9050
       ALL_PROXY: socks5://tor:9050
     networks:
-      - relay
-      - tor
+      - backend
 
   postgres:
-    image: postgres:17-alpine
+    image: postgres:18.4-alpine3.23
     container_name: nrserver-postgres
     restart: unless-stopped
     environment:
       POSTGRES_DB: nostr
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
-    secrets:
-      - postgres_password
+      POSTGRES_PASSWORD_FILE: /run/postgres_password
+    command: ["postgres", "-c", "config_file=/etc/postgresql/postgresql.conf"]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d nostr"]
       interval: 10s
       timeout: 5s
       retries: 10
       start_period: 10s
+    ports:
+      - "127.0.0.1:55432:5432"
     volumes:
-      - pg_data:/var/lib/postgresql/data
+      - pg_data:/var/lib/postgresql
+      - ./deploy/postgres/postgresql.conf:/etc/postgresql/postgresql.conf:ro
+      - ./deploy/postgres/password.txt:/run/postgres_password:ro
     networks:
-      - relay
+      - backend
+
+  redis:
+    image: redis:8.8.0-alpine3.23
+    container_name: nrserver-redis
+    restart: unless-stopped
+    command: ["redis-server", "/usr/local/etc/redis/redis.conf"]
+    volumes:
+      - redis_data:/data
+      - ./deploy/redis/redis.conf:/usr/local/etc/redis/redis.conf:ro
+    networks:
+      - backend
 
   tor:
     image: osminogin/tor-simple:latest
@@ -53,18 +86,13 @@ services:
       - tor_data:/var/lib/tor
       - ./torrc:/etc/tor/torrc:ro
     networks:
-      - tor
-
-secrets:
-  postgres_password:
-    file: ./postgres_password.txt
+      - backend
 
 volumes:
   pg_data:
+  redis_data:
   tor_data:
 
 networks:
-  relay:
-    driver: bridge
-  tor:
+  backend:
     driver: bridge

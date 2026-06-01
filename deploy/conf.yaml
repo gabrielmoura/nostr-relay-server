@@ -1,0 +1,226 @@
+port: 9090
+app_env: production
+admin_token: ""
+admin_pubkey: "npub1jxl2tnvnv9gycsy64aze295c3a529lx5sfmzlktf5lxuw805g5wqew0z0n"
+security:
+  limits:
+    max_filters_per_req: 300
+nip86:
+    enabled: true
+    auth_window_seconds: 60
+    cache_ttl_seconds: 300
+ws:
+    rate_limit: 1
+    burst: 5
+    auth: true
+    auth_mode: optional
+relay_information:
+    url: http:/kqzk4pnydptareyj7b4uzxg4rqkeh6wmntcjuoppy6wv72nkj3na2vad.onion
+    name: Nostr Relay Server
+    description: A Nostr Relay Server
+    pub_key: "npub1dx0cw25dmteggk0uyp6tvks5zsrpdtq7ha6rlucua3c4wepfz5lsnspra4"
+    priv_key: "nsec1nrhple709d2aqfpwcam3ec8p7uy52yusmr5m9878r8pswp0q7ysp8rk6k"
+    supported_nips:
+        - 11 # Documento de informações do relé
+        - 1 # Descrição básica do fluxo do protocolo
+        - 2 # Lista de seguidores
+        - 4
+        - 25
+        - 9
+        - 23 # Long-form Content
+        - 45 # Event Counts
+        - 42 # Authentication of clients to relays
+        - 17
+        - 62 # Request to Vanish
+        - 40 # Expiration Timestamp
+        - 18
+        - 13 # Proof of Work
+    software: https://github.com/gabrielmoura/nostr-relay-server
+    version: 0.1.0
+    canonical_url: ws://kqzk4pnydptareyj7b4uzxg4rqkeh6wmntcjuoppy6wv72nkj3na2vad.onion
+    icon: http://kqzk4pnydptareyj7b4uzxg4rqkeh6wmntcjuoppy6wv72nkj3na2vad.onion/nostr.png
+relay:
+    query_limit: 1000
+    query_ids_limit: 500
+    query_authors_limit: 500
+    query_kinds_limit: 500
+    query_tags_limit: 9000
+    keep_recent_events: true
+    max_size_event_in_bytes: 1000000
+    filter_limit: 9999999999
+    reporting_limit: 5
+    enable_anonymous_req: true
+    max_tag_value_length: 3500
+    enable_empty_filter: true
+db:
+    max_conns: 50
+    min_conns: 1
+    max_conn_lifetime_minutes: 30
+    max_conn_idle_minutes: 5
+    health_check_period_seconds: 30
+    postgres_uri: postgres://postgres:change-me@postgres:5432/nostr?sslmode=disable
+redis:
+  enabled: true
+  addr: "redis:6379"
+  pool_size: 10
+  subscription_cleanup_interval_seconds: 60
+  subscription_stale_after_seconds: 120
+  cache:
+    ban_ttl: 3600
+    profile_ttl: 300
+    query_ttl: 30
+    query_meta_ttl: 30
+    event_ttl: 600
+    dedup_ttl: 3600
+  queue:
+    enabled: true
+    consumer_group: nrserver
+    worker_count: 2
+    block_ms: 5000
+    batch_size: 32
+    max_len_approx: 100000
+    body_ttl_seconds: 259200
+    result_ttl_seconds: 259200
+    metrics_ttl_seconds: 172800
+    reclaim_idle_seconds: 120
+    reclaim_batch_size: 100
+    promote_batch_size: 100
+    promote_interval_ms: 1000
+    recent_jobs_list_limit: 1000
+
+jobs:
+  enabled: true
+  default_queue: default
+  default_timeout_seconds: 300
+  default_max_attempts: 5
+  retry_base_delay_ms: 1000
+  retry_max_delay_ms: 300000
+  retry_jitter_ms: 250
+  active_worker_window_seconds: 120
+  download:
+    queue: admin
+    priority: normal
+  sync:
+    queue: admin
+    priority: normal
+  cron:
+    queue: cron
+    priority: normal
+
+stream:
+    relays:
+        - wss://cobrafuma.com/relay
+        - wss://nexus.libernet.app
+        - wss://relay.chorus.community
+        # - ws://127.0.0.1:7777
+    stream_down: false
+    stream_up: false
+enable_negentropy: true
+cron:
+    enabled: true
+    db_optimization:
+        enabled: true
+        schedule: "0 30 3 * * *"
+        analyze: true
+        vacuum_analyze: false
+        reindex_event: false
+    reported_events_fetch:
+        enabled: true
+        schedule: "0 */30 * * * *"
+        relays: []
+        lookback_hours: 24
+        limit_per_relay: 200
+    delete_old_events:
+        enabled: false
+        schedule: "0 0 4 * * *"
+        older_than_days: 365
+        batch_size: 2000
+    nip40:
+        enabled: false
+        schedule: "0 */15 * * * *"
+        batch_size: 2000
+store:
+    enabled: true
+    api_path: http://kqzk4pnydptareyj7b4uzxg4rqkeh6wmntcjuoppy6wv72nkj3na2vad.onion/upload
+    media_path: http://kqzk4pnydptareyj7b4uzxg4rqkeh6wmntcjuoppy6wv72nkj3na2vad.onion/blob
+    accepted_mimetypes:
+        - image/jpeg
+        - image/png
+        - image/gif
+        - image/webp
+        - image/svg+xml
+        - video/mp4
+        - video/webm
+        - video/ogg
+        - audio/mpeg
+        - audio/ogg
+        - audio/wav
+        - audio/flac
+        - audio/aac
+        - audio/mp4
+        - audio/opus
+        - audio/vorbis
+    allow_adult_content: false
+    allow_violent_content: false
+    names: [ ]
+nip29:
+    enabled: true
+    relay_scope: ""
+    cache_ttl_seconds: 60
+    membership_cache_ttl_seconds: 30
+    ban_cache_ttl_seconds: 30
+    timeline_cache_ttl_seconds: 300
+    group_creator_role: admin
+    default_roles:
+        - name: admin
+          description: Full group administration
+          permissions:
+            - create-group
+            - put-user
+            - remove-user
+            - edit-metadata
+            - delete-event
+            - delete-group
+            - create-invite
+        - name: moderator
+          description: Moderation actions without full ownership
+          permissions:
+            - put-user
+            - remove-user
+            - delete-event
+            - create-invite
+    create:
+        enabled: true
+        max_groups_per_pubkey: 10
+    moderation:
+        allow_private_groups: true
+        require_recent_moderation: true
+        recent_window_seconds: 60
+    admission:
+        default_closed: false
+        default_private: false
+        default_restricted: false
+        default_hidden: false
+        require_membership_for_write: true
+        allow_late_publication: false
+    invite:
+        enabled: false
+        default_max_uses: 1
+        default_ttl_seconds: 86400
+        allow_multi_use: false
+    pow:
+        enabled: false
+        default_min_difficulty: 0
+        moderation_min_difficulty: 0
+    timeline:
+        enabled: false
+        required_on_moderation: false
+        min_references: 0
+        recent_window: 50
+    advanced:
+        emit_member_list_events: true
+        emit_role_events: true
+        cache_membership_lookup: true
+        cache_group_metadata: true
+    permissions:
+        create_invite: true
