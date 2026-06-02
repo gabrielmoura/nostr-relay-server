@@ -19,6 +19,7 @@ import (
 	"github.com/gabrielmoura/nostr-relay-server/internal/groups"
 	json "github.com/gabrielmoura/nostr-relay-server/internal/jsonx"
 	policies "github.com/gabrielmoura/nostr-relay-server/internal/policies"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/nbd-wtf/go-nostr"
 	"go.uber.org/zap"
 )
@@ -195,11 +196,38 @@ func (w *worker) flush(ctx context.Context) {
 	if err != nil {
 		statsErrors.Add(1)
 		metrics.NostrRelayIngestionErrors.Inc()
-		log.Logger.Error("batch insert failed",
+		fields := []zap.Field{
 			zap.Error(err),
+			zap.Int("worker_id", w.id),
 			zap.Int("batch_size", len(batch)),
 			zap.Duration("duration", duration),
-		)
+		}
+
+		var batchErr *dbstore.BatchInsertError
+		if errors.As(err, &batchErr) {
+			fields = append(fields,
+				zap.Int("event_index", batchErr.Index),
+				zap.String("event_id", batchErr.EventID),
+				zap.Int("kind", batchErr.Kind),
+				zap.String("pubkey", batchErr.Pubkey),
+				zap.Int("content_length", batchErr.ContentLength),
+				zap.Int("tags_count", batchErr.TagsCount),
+				zap.Int("raw_size", batchErr.RawSize),
+			)
+		}
+
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) {
+			fields = append(fields,
+				zap.String("sqlstate", pgErr.Code),
+				zap.String("pg_message", pgErr.Message),
+				zap.String("pg_detail", pgErr.Detail),
+				zap.String("pg_table", pgErr.TableName),
+				zap.String("pg_constraint", pgErr.ConstraintName),
+			)
+		}
+
+		log.Logger.Error("batch insert failed", fields...)
 	} else {
 		statsBatchProcessed.Add(1)
 		statsEventsInserted.Add(int64(len(batch)))

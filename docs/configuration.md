@@ -471,7 +471,7 @@ Authentication modes:
 | `relay_information.supported_nips` | int[] | `[11,1,2,4,25]` | Advertised supported NIPs. |
 | `relay_information.software` | string | repo URL | Software URL. |
 | `relay_information.version` | string | `0.1.0` | Version string. |
-| `relay_information.canonical_url` | string | `ws://localhost:<port>/relay` | Canonical websocket URL. |
+| `relay_information.canonical_url` | string | `ws://localhost:<port>` | Canonical websocket URL. This must match the real websocket endpoint path and scheme used by clients. Trailing `/` is tolerated, but `/relay` and `/` are different paths for NIP-42 validation. |
 | `relay_information.terms_of_service` | string | `""` | Optional terms of service URL exposed in NIP-11. |
 | `relay_information.relay_countries` | string[] | `[]` | Optional country/region tags exposed in NIP-11. |
 | `relay_information.language_tags` | string[] | `[]` | Optional language tags exposed in NIP-11. |

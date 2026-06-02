@@ -63,7 +63,7 @@ func setDefaults(export bool) {
 	viper.SetDefault("relay_information.software", "https://github.com/gabrielmoura/nostr-relay-server")
 	viper.SetDefault("relay_information.version", "0.1.0")
 	viper.SetDefault("relay_information.icon", fmt.Sprintf("http://localhost:%s/nostr.png", viper.GetString("port")))
-	viper.SetDefault("relay_information.canonical_url", fmt.Sprintf("ws://localhost:%s/relay", viper.GetString("port")))
+	viper.SetDefault("relay_information.canonical_url", fmt.Sprintf("ws://localhost:%s", viper.GetString("port")))
 	viper.SetDefault("relay_information.url", fmt.Sprintf("http://localhost:%s", viper.GetString("port")))
 
 	viper.SetDefault("relay.query_limit", 100)

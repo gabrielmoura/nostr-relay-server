@@ -7,7 +7,7 @@
         "npx",
         "-y",
         "@modelcontextprotocol/server-postgres",
-        "postgres://postgres:Strong%40P4ssword@localhost:5432/nostr"
+        "postgres://postgres:change-me@localhost:5432/nostr"
       ],
       "enabled": true,
       "timeout": 30000

@@ -35,12 +35,18 @@ Primary storage for all Nostr events.
 - `timeidx` - B-tree on `created_at` DESC
 - `kindidx` - B-tree on `kind`
 - `kindtimeidx` - B-tree on `(kind, created_at DESC)`
-- `arbitrarytagvalues` - GIN on `tagvalues`
+- `idx_event_pubkey_created_at` - B-tree on `(pubkey, created_at DESC)`
+- `idx_event_author_kind` - B-tree on `(pubkey, kind, created_at DESC)`
+- `idx_event_deletions` - partial B-tree on `(created_at DESC, id)` when `deleted_by IS NOT NULL`
+- `idx_event_tags_gin` - GIN on `tags` with `jsonb_path_ops`
 - `content_search_idx` - GIN on `content_search`
 - `idx_event_created_at_id` - B-tree on `(created_at, id)`
 
+**Operational note:**
+- do not use B-tree covering indexes with `INCLUDE (content, tags, sig)` on `event`; these payload columns can exceed PostgreSQL's per-index-row limit and break ingestion
+
 **Generated Columns:**
-- `tagvalues`: Extracted via `tags_to_tagvalues()` function (single-character tags)
+- `tagvalues`: Extracted via `tags_to_tagvalues()` function (retained as helper/compatibility column, not as the primary exact tag-filter path)
 - `content_search`: Portuguese full-text search vector
 
 ### 2. `profiles` - User Profiles
@@ -579,9 +585,8 @@ WHERE created_at > 1710000000;
 CREATE INDEX idx_event_kinds_popular ON event (kind, created_at DESC) 
 WHERE kind IN (0, 1, 3, 7);
 
--- Covering index for author queries
-CREATE INDEX idx_event_author_covering ON event (pubkey, created_at DESC) 
-INCLUDE (id, kind, tags, content, sig);
+-- Safe author-time index for hot author queries
+CREATE INDEX idx_event_pubkey_created_at ON event (pubkey, created_at DESC);
 
 -- Composite index for author + kind filters
 CREATE INDEX idx_event_author_kind ON event (pubkey, kind, created_at DESC);
@@ -589,6 +594,24 @@ CREATE INDEX idx_event_author_kind ON event (pubkey, kind, created_at DESC);
 -- Partial index for deletion events
 CREATE INDEX idx_event_deletions ON event (created_at DESC) 
 WHERE deleted_by IS NOT NULL;
+```
+
+Avoid these index shapes on `event`:
+
+```sql
+CREATE INDEX ... INCLUDE (content, tags, sig);
+CREATE INDEX ... ON event ((tags::text));
+CREATE INDEX ... ON event ((content));
+```
+
+They increase write amplification and can fail for large events.
+
+Prefer exact tag filters such as:
+
+```sql
+tags @> '[["p","<pubkey>"]]'::jsonb
+tags @> '[["e","<event_id>"]]'::jsonb
+tags @> '[["t","nostr"]]'::jsonb
 ```
 
 ## Planned Blossom Admin Extensions

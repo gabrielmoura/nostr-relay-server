@@ -7,9 +7,47 @@ import (
 
 	"github.com/gabrielmoura/nostr-relay-server/config"
 	"github.com/gabrielmoura/nostr-relay-server/infra/cache"
+	json "github.com/gabrielmoura/nostr-relay-server/internal/jsonx"
 	"github.com/jackc/pgx/v5"
 	"github.com/nbd-wtf/go-nostr"
 )
+
+type BatchInsertError struct {
+	Index         int
+	EventID       string
+	Pubkey        string
+	Kind          int
+	ContentLength int
+	TagsCount     int
+	RawSize       int
+	Err           error
+}
+
+func (e *BatchInsertError) Error() string {
+	return fmt.Sprintf("failed to insert event %d (%s): %v", e.Index, e.EventID, e.Err)
+}
+
+func (e *BatchInsertError) Unwrap() error {
+	return e.Err
+}
+
+func newBatchInsertError(index int, evt *nostr.Event, err error) error {
+	batchErr := &BatchInsertError{
+		Index: index,
+		Err:   err,
+	}
+	if evt != nil {
+		batchErr.EventID = evt.ID
+		batchErr.Pubkey = evt.PubKey
+		batchErr.Kind = evt.Kind
+		batchErr.ContentLength = len(evt.Content)
+		batchErr.TagsCount = len(evt.Tags)
+		if raw, marshalErr := json.Marshal(evt); marshalErr == nil {
+			batchErr.RawSize = len(raw)
+		}
+	}
+	return batchErr
+}
 
 const deleteAllEventsByPubkey = `-- name: DeleteAllEventsByPubkey :exec
 DELETE FROM event WHERE pubkey = $1::text
@@ -105,7 +143,7 @@ func (q *Queries) InsertEventBatch(ctx context.Context, arg []*nostr.Event) erro
 	defer results.Close()
 	for i := range arg {
 		if _, err := results.Exec(); err != nil {
-			return fmt.Errorf("failed to insert event %d: %w", i, err)
+			return newBatchInsertError(i, arg[i], err)
 		}
 	}
 

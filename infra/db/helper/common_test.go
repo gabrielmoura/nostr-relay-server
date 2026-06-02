@@ -55,15 +55,16 @@ func TestQueryEventsSQL_BuildsEventQuery(t *testing.T) {
 
 	query, params, err := QueryEventsSql(cfg, filter, false)
 	require.NoError(t, err)
+	require.NotContains(t, query, "?")
 	require.Contains(t, query, "SELECT id, pubkey, created_at, kind, tags, content, sig FROM event WHERE")
 	require.Contains(t, query, "id IN ($1,$2)")
 	require.Contains(t, query, "pubkey IN ($3)")
 	require.Contains(t, query, "kind IN ($4)")
-	require.Contains(t, query, "tagvalues && ARRAY[$5,$6]")
+	require.Contains(t, query, "(tags @> $5::jsonb OR tags @> $6::jsonb)")
 	require.Contains(t, query, "content_search @@ to_tsquery('portuguese', $7)")
 	require.Contains(t, query, "tag->>1 ILIKE $8")
 	require.Contains(t, query, "ORDER BY created_at DESC, id LIMIT $9")
-	require.Equal(t, []any{"id1", "id2", "author1", 1, "val1", "val2", "nostr & relay", "%nostr relay%", 3}, params)
+	require.Equal(t, []any{"id1", "id2", "author1", 1, `[["p","val1"]]`, `[["p","val2"]]`, "nostr & relay", "%nostr relay%", 3}, params)
 }
 
 func TestQueryEventsSQL_BuildsCountQuery(t *testing.T) {

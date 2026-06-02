@@ -92,7 +92,7 @@ CREATE TABLE IF NOT EXISTS public.event (
                                             sig TEXT NOT NULL,
                                             tagvalues TEXT[] GENERATED ALWAYS AS (public.tags_to_tagvalues(tags)) STORED,
                                             content_search TSVECTOR GENERATED ALWAYS AS (
-                                                to_tsvector('portuguese'::regconfig, content)
+                                                to_tsvector('simple'::regconfig, content)
                                                 ) STORED,
                                             deleted_by VARCHAR(64)
 );
@@ -383,9 +383,6 @@ CREATE INDEX IF NOT EXISTS kindidx
 CREATE INDEX IF NOT EXISTS kindtimeidx
     ON public.event (kind, created_at DESC);
 
-CREATE INDEX IF NOT EXISTS arbitrarytagvalues
-    ON public.event USING gin (tagvalues);
-
 CREATE INDEX IF NOT EXISTS content_search_idx
     ON public.event USING gin (content_search);
 
@@ -491,13 +488,20 @@ CREATE INDEX IF NOT EXISTS idx_nip86_blocked_ips_updated_at
 -- Rode estes FORA de uma transaction block.
 -- ============================================================
 
+-- Old payload-covering indexes can exceed PostgreSQL's per-index-row size.
+DROP INDEX CONCURRENTLY IF EXISTS idx_event_covering_author;
+DROP INDEX CONCURRENTLY IF EXISTS idx_event_covering;
+DROP INDEX CONCURRENTLY IF EXISTS arbitrarytagvalues;
+
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_event_deletions
     ON public.event (created_at DESC, id)
     WHERE deleted_by IS NOT NULL;
 
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_event_covering_author
-    ON public.event (pubkey, created_at DESC)
-    INCLUDE (kind, content, tags, sig);
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_event_pubkey_created_at
+    ON public.event (pubkey, created_at DESC);
+
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_event_tags_gin
+    ON public.event USING gin (tags jsonb_path_ops);
 
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_event_recent
     ON public.event (created_at DESC, id)
@@ -505,7 +509,3 @@ CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_event_recent
 
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_event_author_kind
     ON public.event (pubkey, kind, created_at DESC);
-
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_event_covering
-    ON public.event (pubkey, created_at DESC)
-    INCLUDE (kind, content, tags, sig);

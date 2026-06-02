@@ -57,7 +57,7 @@ services:
       retries: 10
       start_period: 10s
     ports:
-      - "127.0.0.1:55432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - pg_data:/var/lib/postgresql
       - ./deploy/postgres/postgresql.conf:/etc/postgresql/postgresql.conf:ro
@@ -70,6 +70,8 @@ services:
     container_name: nrserver-redis
     restart: unless-stopped
     command: ["redis-server", "/usr/local/etc/redis/redis.conf"]
+    ports:
+      - "127.0.0.1:6379:6379"
     volumes:
       - redis_data:/data
       - ./deploy/redis/redis.conf:/usr/local/etc/redis/redis.conf:ro

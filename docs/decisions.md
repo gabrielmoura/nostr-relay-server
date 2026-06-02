@@ -1598,6 +1598,44 @@ BUD-05 requires `PUT /media` and `HEAD /media`, plus heavy media processing such
 **Status:** Proposed  
 **Date:** 2026-05-20
 
+---
+
+## ADR-039: Event Ingestion Keeps Narrow B-Tree Indexes and Removes Wide Covering Payload Indexes
+
+**Status:** Accepted  
+**Date:** 2026-06-01
+
+### Context
+
+Production ingestion can fail with PostgreSQL `SQLSTATE 54000` when a B-tree index tuple becomes larger than the 8191-byte limit. The current `event` schema defines two concurrent covering indexes that include `content`, `tags`, and `sig`, which are all unbounded payload columns. The same schema file also acts as the embedded bootstrap migration source, so operational fixes must remain incremental and startup-safe.
+
+At the same time, NIP-42 troubleshooting revealed a separate but related configuration mismatch: the websocket server is mounted at `/`, while the default `relay_information.canonical_url` still points to `/relay`, which can cause client authentication failures when operators keep the default.
+
+### Decision
+
+1. drop `idx_event_covering_author` and `idx_event_covering`
+2. replace them with one narrow concurrent index on `(pubkey, created_at DESC)`
+3. keep B-tree indexes only on selective, bounded fields used by real queries
+4. emit native PostgreSQL placeholders directly from the query builder instead of generating `?` and rebinding later
+5. use exact `jsonb` containment for Nostr tag filters and back it with `GIN (tags jsonb_path_ops)` while keeping `tagvalues` only as a compatibility helper
+6. align the default canonical websocket URL with the actual websocket route `/`
+7. improve insert/auth logs with structured metadata and precise failure reasons
+
+### Reasons
+
+1. **Write safety:** unbounded payloads do not belong inside B-tree covering indexes on a high-ingest event table.
+2. **Reviewability:** native `$n` placeholders are clearer for a pgx/PostgreSQL codebase and eliminate false positives during SQL review.
+3. **Operational clarity:** auth failures need exact reasons, not raw event dumps.
+4. **Incremental change:** the outage fix must not require a full tag storage redesign.
+
+### Consequences
+
+- ✅ large events can be inserted without hitting index tuple limits from payload-covering indexes
+- ✅ author and author+kind queries keep efficient access paths without oversized payload storage in indexes
+- ✅ NIP-42 failures become diagnosable when scheme/path/canonical URL mismatches happen
+- ✅ `#p`, `#e`, and `#t` filters keep exact tag-name semantics instead of matching by raw value only
+- ⚠️ startup schema application now depends on correct handling of PostgreSQL dollar-quoted blocks
+
 ### Context
 
 The relay already stores arbitrary Nostr events and already implements generic replaceable and addressable semantics. Marmot `MIP-00` requires support for `kind:30443` KeyPackage events and `kind:10051` relay-list events, but most of the full protocol remains a client-side MLS responsibility.

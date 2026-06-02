@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"github.com/gabrielmoura/nostr-relay-server/config"
-	"github.com/jmoiron/sqlx"
 	"github.com/nbd-wtf/go-nostr"
 )
 
@@ -24,10 +23,10 @@ func BuildQuery(filter nostr.Filter, cfg *config.RelayConfig, doCount bool) (str
 		builder.WriteString(" ORDER BY created_at DESC, id")
 	}
 
-	builder.WriteString(" LIMIT ?")
-	params = append(params, filter.Limit)
+	builder.WriteString(" LIMIT ")
+	builder.WriteString(addParam(&params, filter.Limit))
 
-	return sqlx.Rebind(sqlx.BindType("postgres"), builder.String()), params, nil
+	return builder.String(), params, nil
 }
 
 func BuildWhereClause(filter nostr.Filter, cfg *config.RelayConfig) (string, []any) {
@@ -53,49 +52,57 @@ func addIDsCondition(conditions *[]string, params *[]any, ids []string) {
 	if len(ids) == 0 {
 		return
 	}
-	*conditions = append(*conditions, fmt.Sprintf("id IN (%s)", makePlaceholders(len(ids))))
+	placeholders := make([]string, 0, len(ids))
 	for _, id := range ids {
-		*params = append(*params, id)
+		placeholders = append(placeholders, addParam(params, id))
 	}
+	*conditions = append(*conditions, fmt.Sprintf("id IN (%s)", strings.Join(placeholders, ",")))
 }
 
 func addAuthorsCondition(conditions *[]string, params *[]any, authors []string) {
 	if len(authors) == 0 {
 		return
 	}
-	*conditions = append(*conditions, fmt.Sprintf("pubkey IN (%s)", makePlaceholders(len(authors))))
+	placeholders := make([]string, 0, len(authors))
 	for _, author := range authors {
-		*params = append(*params, author)
+		placeholders = append(placeholders, addParam(params, author))
 	}
+	*conditions = append(*conditions, fmt.Sprintf("pubkey IN (%s)", strings.Join(placeholders, ",")))
 }
 
 func addKindsCondition(conditions *[]string, params *[]any, kinds []int) {
 	if len(kinds) == 0 {
 		return
 	}
-	*conditions = append(*conditions, fmt.Sprintf("kind IN (%s)", makePlaceholders(len(kinds))))
+	placeholders := make([]string, 0, len(kinds))
 	for _, kind := range kinds {
-		*params = append(*params, kind)
+		placeholders = append(placeholders, addParam(params, kind))
 	}
+	*conditions = append(*conditions, fmt.Sprintf("kind IN (%s)", strings.Join(placeholders, ",")))
 }
 
 func addTagsCondition(conditions *[]string, params *[]any, tags nostr.TagMap) {
-	for _, values := range tags {
-		*conditions = append(*conditions, fmt.Sprintf("tagvalues && ARRAY[%s]", makePlaceholders(len(values))))
+	for tagName, values := range tags {
+		tagName = strings.TrimPrefix(tagName, "#")
+		clauses := make([]string, 0, len(values))
 		for _, value := range values {
-			*params = append(*params, value)
+			payload := fmt.Sprintf(`[[%q,%q]]`, tagName, value)
+			clauses = append(clauses, "tags @> "+addParam(params, payload)+"::jsonb")
 		}
+		if len(clauses) == 1 {
+			*conditions = append(*conditions, clauses[0])
+			continue
+		}
+		*conditions = append(*conditions, "("+strings.Join(clauses, " OR ")+")")
 	}
 }
 
 func addTimeConditions(conditions *[]string, params *[]any, since, until *nostr.Timestamp) {
 	if since != nil {
-		*conditions = append(*conditions, "created_at >= ?")
-		*params = append(*params, since)
+		*conditions = append(*conditions, "created_at >= "+addParam(params, since))
 	}
 	if until != nil {
-		*conditions = append(*conditions, "created_at <= ?")
-		*params = append(*params, until)
+		*conditions = append(*conditions, "created_at <= "+addParam(params, until))
 	}
 }
 
@@ -105,15 +112,15 @@ func addSearchCondition(conditions *[]string, params *[]any, search string) {
 	}
 	terms := strings.Fields(search)
 	tsQuery := strings.Join(terms, " & ")
+	tsPlaceholder := addParam(params, tsQuery)
+	likePlaceholder := addParam(params, "%"+search+"%")
 	*conditions = append(*conditions, `(
-		content_search @@ to_tsquery('portuguese', ?)
+		content_search @@ to_tsquery('portuguese', `+tsPlaceholder+`)
 		OR EXISTS (
 			SELECT 1 FROM jsonb_array_elements(tags) tag
-			WHERE lower(tag->>0) = 'description' AND tag->>1 ILIKE ?
+			WHERE lower(tag->>0) = 'description' AND tag->>1 ILIKE `+likePlaceholder+`
 		)
 	)`)
-	*params = append(*params, tsQuery)
-	*params = append(*params, "%"+search+"%")
 }
 
 func addDeletionCondition(conditions *[]string, fakeDeletion bool) {
@@ -122,9 +129,7 @@ func addDeletionCondition(conditions *[]string, fakeDeletion bool) {
 	}
 }
 
-func makePlaceholders(n int) string {
-	if n <= 0 {
-		return ""
-	}
-	return strings.TrimRight(strings.Repeat("?,", n), ",")
+func addParam(params *[]any, value any) string {
+	*params = append(*params, value)
+	return fmt.Sprintf("$%d", len(*params))
 }

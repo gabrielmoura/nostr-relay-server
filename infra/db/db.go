@@ -4,6 +4,7 @@ import (
 	"context"
 	_ "embed"
 	"errors"
+	"fmt"
 	"strings"
 	"sync"
 	"time"
@@ -39,9 +40,9 @@ func New(db DBTX) *Queries {
 }
 
 func (q *Queries) Migrate(ctx context.Context) error {
-	for _, statement := range splitSQLStatements(schema) {
+	for idx, statement := range splitSQLStatements(schema) {
 		if _, err := q.db.Exec(ctx, statement); err != nil {
-			return err
+			return fmt.Errorf("schema statement %d failed: %w", idx+1, err)
 		}
 	}
 	return nil
@@ -51,21 +52,43 @@ func splitSQLStatements(input string) []string {
 	statements := make([]string, 0, 64)
 	var builder strings.Builder
 	inSingleQuote := false
-	runes := []rune(input)
-	for i := 0; i < len(runes); i++ {
-		r := runes[i]
-		builder.WriteRune(r)
-		if r == '\'' {
-			nextIsQuote := i+1 < len(runes) && runes[i+1] == '\''
+	dollarQuoteTag := ""
+	for i := 0; i < len(input); i++ {
+		if dollarQuoteTag != "" {
+			if strings.HasPrefix(input[i:], dollarQuoteTag) {
+				builder.WriteString(dollarQuoteTag)
+				i += len(dollarQuoteTag) - 1
+				dollarQuoteTag = ""
+				continue
+			}
+			builder.WriteByte(input[i])
+			continue
+		}
+
+		ch := input[i]
+		builder.WriteByte(ch)
+		if ch == '\'' {
+			nextIsQuote := i+1 < len(input) && input[i+1] == '\''
 			if nextIsQuote {
-				builder.WriteRune(runes[i+1])
+				builder.WriteByte(input[i+1])
 				i++
 				continue
 			}
 			inSingleQuote = !inSingleQuote
 			continue
 		}
-		if r == ';' && !inSingleQuote {
+
+		if !inSingleQuote && ch == '$' {
+			tag, ok := readDollarQuoteTag(input[i:])
+			if ok {
+				builder.WriteString(tag[1:])
+				i += len(tag) - 1
+				dollarQuoteTag = tag
+				continue
+			}
+		}
+
+		if ch == ';' && !inSingleQuote {
 			statement := strings.TrimSpace(builder.String())
 			if statement != ";" && statement != "" {
 				statements = append(statements, statement)
@@ -77,6 +100,29 @@ func splitSQLStatements(input string) []string {
 		statements = append(statements, tail)
 	}
 	return statements
+}
+
+func readDollarQuoteTag(input string) (string, bool) {
+	if input == "" || input[0] != '$' {
+		return "", false
+	}
+
+	end := strings.IndexByte(input[1:], '$')
+	if end < 0 {
+		return "", false
+	}
+	end++
+
+	tag := input[:end+1]
+	for i := 1; i < len(tag)-1; i++ {
+		ch := tag[i]
+		if ch == '_' || ch >= '0' && ch <= '9' || ch >= 'a' && ch <= 'z' || ch >= 'A' && ch <= 'Z' {
+			continue
+		}
+		return "", false
+	}
+
+	return tag, true
 }
 
 func (q *Queries) StatPool() *pgxpool.Stat {
