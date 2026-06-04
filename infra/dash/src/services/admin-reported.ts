@@ -1,6 +1,6 @@
 import { adminApolloClient } from "@/graphql/client"
 import { EventReportsDocument, ReportedEventsDocument, ReportedEventsSummaryDocument } from "@/graphql/generated/operations"
-import { GraphQLApiError } from "@/graphql/admin-api"
+import { GraphQLApiError } from "@/graphql/helpers"
 import type { AdminPage, EventReportsResponse, EventRecord, ReportedEventItem, ReportedEventsSummary } from "@/types/admin"
 
 import { ApiError } from "./admin"

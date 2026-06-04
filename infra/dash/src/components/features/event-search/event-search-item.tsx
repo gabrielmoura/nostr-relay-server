@@ -26,7 +26,7 @@ import { toNote } from "@/lib/nostr"
 import { getNostrKindMeta } from "@/lib/nostr-kind-meta"
 import { eventCommunityLabel, eventHeadline, parseEventRefs, parseProfileContent } from "@/lib/event-search"
 import { formatDateTime, shortenId } from "@/lib/utils"
-import { getEventTags } from "@/services/admin"
+import { getEventTags } from "@/services/admin-event-detail"
 import type { EventRecord } from "@/types/admin"
 
 interface EventSearchItemProps {

@@ -1,16 +1,6 @@
 import { adminApolloClient } from "@/graphql/client"
 import { env } from "@/lib/env"
 
-export type RequestInitLike = RequestInit | undefined
-
-export type RequestContext = {
-  method: string
-  pathname: string
-  search: URLSearchParams
-  body: any
-  init?: RequestInitLike
-}
-
 export class GraphQLApiError extends Error {
   status?: number
   details?: unknown
@@ -23,36 +13,6 @@ export class GraphQLApiError extends Error {
     this.details = details
     this.requestId = requestId
   }
-}
-
-export async function buildRequestContext(path: string, init?: RequestInitLike): Promise<RequestContext> {
-  const method = (init?.method ?? "GET").toUpperCase()
-  const url = new URL(path, "http://admin.local")
-  return {
-    method,
-    pathname: url.pathname,
-    search: url.searchParams,
-    body: await readBody(init),
-    init,
-  }
-}
-
-export async function graphQuery<TResult>(document: any, variables: Record<string, unknown> | undefined, map: (data: any) => TResult): Promise<TResult> {
-	try {
-		const result = await adminApolloClient.query({ query: document, variables })
-		return map(result.data)
-	} catch (error) {
-		throw toApiError(error)
-	}
-}
-
-export async function graphMutation<TResult>(document: any, variables: Record<string, unknown> | undefined, map: (data: any) => TResult): Promise<TResult> {
-	try {
-		const result = await adminApolloClient.mutate({ mutation: document, variables })
-		return map(result.data)
-	} catch (error) {
-		throw toApiError(error)
-	}
 }
 
 export async function graphUpload<TResult>(query: string, formData: FormData, map: (data: any) => TResult): Promise<TResult> {
@@ -79,124 +39,6 @@ export async function graphUpload<TResult>(query: string, formData: FormData, ma
     throw new GraphQLApiError(payload.errors?.[0]?.message ?? `Falha na requisicao (${response.status})`, response.status, payload, requestId)
   }
   return map(payload.data)
-}
-
-export async function readBody(init?: RequestInitLike): Promise<any> {
-  if (!init?.body || init.body instanceof FormData) {
-    return undefined
-  }
-  if (typeof init.body === "string") {
-    return JSON.parse(init.body)
-  }
-  return init.body
-}
-
-export function toApiError(error: any): GraphQLApiError {
-  const response = error?.networkError?.response
-  const requestId = response?.headers?.get?.("x-request-id") ?? undefined
-  const status = error?.networkError?.statusCode ?? error?.statusCode ?? undefined
-  const graphMessage = error?.errors?.[0]?.message ?? error?.message ?? "Falha na requisicao GraphQL"
-  return new GraphQLApiError(graphMessage, status, error, requestId)
-}
-
-export function pageVars(search: URLSearchParams) {
-  const limit = Number(search.get("limit") ?? 0)
-  const offset = Number(search.get("offset") ?? 0)
-  return { limit: limit || 50, offset }
-}
-
-export function eventFilterVars(search: URLSearchParams) {
-  const tags = search.getAll("tag").map((tag) => {
-    const [name = "", ...rest] = tag.split(":")
-    return { name: name.replace(/^#/, ""), value: rest.join(":") }
-  }).filter((item) => item.name && item.value)
-  return {
-    q: emptyToNull(search.get("q")),
-    authors: search.getAll("author"),
-    kinds: search.getAll("kind").map(Number).filter(Number.isFinite),
-    tags: tags.length > 0 ? tags : null,
-    since: numberOrNull(search.get("since")),
-    until: numberOrNull(search.get("until")),
-  }
-}
-
-export function reportedFilterVars(search: URLSearchParams) {
-  const type = search.get("type")
-  return {
-    q: emptyToNull(search.get("q")),
-    types: type && type !== "all" ? [type] : null,
-  }
-}
-
-export function labelsFilterVars(search: URLSearchParams) {
-  const targetType = labelTargetTypeVar(search.get("target_type"))
-  return {
-    namespace: emptyToNull(search.get("namespace")),
-    labels: search.getAll("label"),
-    targetType,
-    target: emptyToNull(search.get("target")),
-    author: emptyToNull(search.get("author")),
-    q: emptyToNull(search.get("q")),
-  }
-}
-
-export function jobsFilterVars(search: URLSearchParams) {
-  return {
-    queue: emptyToNull(search.get("queue")),
-    jobName: emptyToNull(search.get("job_name")),
-    statuses: search.getAll("status"),
-  }
-}
-
-export function blossomObjectFilterVars(search: URLSearchParams) {
-  return {
-    sha256: emptyToNull(search.get("sha256")),
-    mimeType: emptyToNull(search.get("mime_type")),
-    extension: emptyToNull(search.get("extension")),
-    reviewState: emptyToNull(search.get("review_state")),
-    pubkey: emptyToNull(search.get("pubkey")),
-    uploaderQuery: emptyToNull(search.get("uploader_q")),
-  }
-}
-
-export function blossomUserFilterVars(search: URLSearchParams) {
-  return {
-    q: emptyToNull(search.get("q")),
-    sortBy: emptyToNull(search.get("sort_by")),
-    sortDir: search.get("sort_dir") ? String(search.get("sort_dir")).toUpperCase() : null,
-  }
-}
-
-export function blossomReportFilterVars(search: URLSearchParams) {
-  return {
-    q: emptyToNull(search.get("q")),
-    reportType: emptyToNull(search.get("report_type")),
-    status: search.get("status") ? String(search.get("status")).toUpperCase() : null,
-    objectHash: emptyToNull(search.get("object_hash")),
-  }
-}
-
-export function bucketVar(value: string | null) {
-  const normalized = value?.trim().toLowerCase()
-  if (normalized === "hour") return "HOUR"
-  if (normalized === "day") return "DAY"
-  return undefined
-}
-
-export function labelTargetTypeVar(value: string | null) {
-  const normalized = value?.trim().toLowerCase()
-  if (normalized === "event") return "EVENT"
-  if (normalized === "pubkey") return "PUBKEY"
-  if (normalized === "address") return "ADDRESS"
-  if (normalized === "reference") return "REFERENCE"
-  if (normalized === "topic") return "TOPIC"
-  return undefined
-}
-
-export function numberOrNull(value: string | null) {
-  if (!value) return null
-  const parsed = Number(value)
-  return Number.isFinite(parsed) ? parsed : null
 }
 
 export function emptyToNull(value: string | null) {
@@ -238,21 +80,6 @@ export function mapEventRecord(item: any) {
     created_at: item.createdAt,
     content: item.content,
     sig: item.sig,
-    tags: (item.tags ?? []).map((tag: any) => tag.values),
-  }
-}
-
-export function mapLabelEvent(item: any) {
-  return {
-    id: item.id,
-    pubkey: item.pubkey,
-    author_npub: item.authorNpub,
-    created_at: item.createdAt,
-    kind: item.kind,
-    content: item.content,
-    namespace: item.namespace,
-    labels: item.labels,
-    target: { type: String(item.target.type).toLowerCase(), value: item.target.value, relay_hint: item.target.relayHint },
     tags: (item.tags ?? []).map((tag: any) => tag.values),
   }
 }
@@ -387,17 +214,13 @@ export function mapDownloadJob(item: any) {
   }
 }
 
-export function downloadStatus(status: string) {
+function downloadStatus(status: string) {
   switch (status) {
-    case "succeeded":
-      return "completed"
+    case "succeeded": return "completed"
     case "failed":
-    case "dead":
-      return "failed"
-    case "running":
-      return "running"
-    default:
-      return "queued"
+    case "dead": return "failed"
+    case "running": return "running"
+    default: return "queued"
   }
 }
 
@@ -405,4 +228,16 @@ export function extractDeletedCount(message?: string | null) {
   if (!message) return 0
   const match = message.match(/deleted\s+(\d+)/i)
   return match ? Number(match[1]) : 0
+}
+
+export function blossomObjectFilterVars(search: URLSearchParams) {
+  return { sha256: emptyToNull(search.get("sha256")), mimeType: emptyToNull(search.get("mime_type")), extension: emptyToNull(search.get("extension")), reviewState: emptyToNull(search.get("review_state")), pubkey: emptyToNull(search.get("pubkey")), uploaderQuery: emptyToNull(search.get("uploader_q")) }
+}
+
+export function blossomUserFilterVars(search: URLSearchParams) {
+  return { q: emptyToNull(search.get("q")), sortBy: emptyToNull(search.get("sort_by")), sortDir: search.get("sort_dir") ? String(search.get("sort_dir")).toUpperCase() : null }
+}
+
+export function blossomReportFilterVars(search: URLSearchParams) {
+  return { q: emptyToNull(search.get("q")), reportType: emptyToNull(search.get("report_type")), status: search.get("status") ? String(search.get("status")).toUpperCase() : null, objectHash: emptyToNull(search.get("object_hash")) }
 }

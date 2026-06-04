@@ -21,7 +21,7 @@ export const adminApolloClient = new ApolloClient({
   cache: new InMemoryCache(),
   link: httpLink,
   devtools: {
-    enabled: import.meta.env.DEV,
+    enabled: true,
   },
   defaultOptions: {
     query: {
