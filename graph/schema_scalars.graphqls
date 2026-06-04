@@ -1,0 +1,206 @@
+scalar Int64
+scalar JSON
+scalar Upload
+
+enum TimelineBucket {
+  HOUR
+  DAY
+}
+
+enum LabelTargetType {
+  EVENT
+  PUBKEY
+  ADDRESS
+  REFERENCE
+  TOPIC
+}
+
+enum BlossomPlanScope {
+  FREE
+  ENABLED_USERS
+}
+
+enum BlossomReviewAction {
+  APPROVE
+  HARD_DELETE
+  REQUEUE_OPTIMIZATION
+}
+
+enum BlossomReportStatus {
+  OPEN
+  DISMISSED
+  ACTIONED
+}
+
+enum SortDirection {
+  ASC
+  DESC
+}
+
+input OffsetPageInput {
+  limit: Int = 100
+  offset: Int = 0
+}
+
+input AdminTagFilterInput {
+  name: String!
+  value: String!
+}
+
+input AdminEventSearchInput {
+  q: String
+  authors: [String!]
+  kinds: [Int!]
+  tags: [AdminTagFilterInput!]
+  since: Int64
+  until: Int64
+}
+
+input AdminReportedEventFilterInput {
+  q: String
+  types: [String!]
+}
+
+input AdminLabelTargetInput {
+  type: LabelTargetType!
+  value: String!
+  relayHint: String
+}
+
+input AdminLabelFilterInput {
+  namespace: String
+  labels: [String!]
+  targetType: LabelTargetType
+  target: String
+  author: String
+  q: String
+}
+
+input AdminBlossomObjectFilterInput {
+  sha256: String
+  mimeType: String
+  extension: String
+  reviewState: String
+  pubkey: String
+  uploaderQuery: String
+}
+
+input AdminBlossomUserFilterInput {
+  q: String
+  sortBy: String
+  sortDir: SortDirection = DESC
+}
+
+input AdminBlossomReportFilterInput {
+  q: String
+  reportType: String
+  status: BlossomReportStatus
+  objectHash: String
+}
+
+input AdminJobFilterInput {
+  queue: String
+  jobName: String
+  statuses: [String!]
+}
+
+input AdminBanUserInput {
+  reason: String
+  relatedIds: [String!]
+}
+
+input AdminNip05UpsertInput {
+  name: String!
+  pubkey: String!
+}
+
+input AdminFetchEventInput {
+  relays: [String!]
+}
+
+input AdminCreateLabelInput {
+  namespace: String!
+  labels: [String!]!
+  comment: String
+  target: AdminLabelTargetInput!
+}
+
+input AdminBlossomPolicyInput {
+  mode: String!
+}
+
+input AdminBlossomPlanInput {
+  id: ID!
+  name: String!
+  scope: BlossomPlanScope!
+  storageQuotaBytes: Int64
+  egressQuotaBytes: Int64
+  description: String
+  isDefault: Boolean!
+}
+
+input AdminBlossomBulkReviewInput {
+  hashes: [ID!]!
+  action: BlossomReviewAction!
+  reason: String
+}
+
+input AdminBlossomWhitelistInput {
+  pubkey: String!
+  enabled: Boolean!
+  storageQuotaBytes: Int64
+  egressQuotaBytes: Int64
+  notes: String
+}
+
+input AdminBlossomMirrorInput {
+  sourceURL: String!
+  expectedSHA256: String!
+}
+
+input AdminBlossomResolveReportInput {
+  status: BlossomReportStatus!
+  note: String
+}
+
+input AdminNip86ReasonInput {
+  reason: String
+}
+
+input AdminNip86RelayMetadataInput {
+  name: String!
+  description: String!
+}
+
+input AdminNegentropySyncInput {
+  remote: String!
+  direction: String = "both"
+  filter: JSON
+  timeoutSeconds: Int
+}
+
+input AdminDownloadEventsInput {
+  relays: [String!]!
+  publicKey: String
+  kinds: [Int!]
+  filter: JSON
+  timeoutSeconds: Int
+}
+
+input AdminDeleteJobsHistoryInput {
+  jobName: String!
+  statuses: [String!]
+}
+
+type PageInfo {
+  total: Int!
+  limit: Int!
+  offset: Int!
+  hasMore: Boolean!
+}
+
+type MutationAck {
+  ok: Boolean!
+  message: String
+  entityId: ID
+}

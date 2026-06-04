@@ -1,6 +1,5 @@
 import React, { Suspense } from "react"
 import { Link } from "@tanstack/react-router"
-import { QueryErrorResetBoundary } from "@tanstack/react-query"
 import { useParams } from "@tanstack/react-router"
 import { useTranslation } from "react-i18next"
 import { Panel, Group as PanelGroup, Separator as PanelResizeHandle } from "react-resizable-panels"
@@ -350,26 +349,20 @@ export function EventDetailPage() {
   const { eventId } = useParams({ from: "/events/$eventId" })
 
   return (
-    <QueryErrorResetBoundary>
-      {({ reset }) => (
-        <EventDetailErrorBoundary
-          fallbackRender={(error, resetBoundary) => (
-            <EventDetailErrorState
-              error={error}
-              eventID={eventId}
-              onRetry={() => {
-                reset()
-                resetBoundary()
-              }}
-            />
-          )}
-          onReset={reset}
-        >
-          <Suspense fallback={<LoadingPanel label={t("eventDetail.loading")} />}>
-            <EventDetailPageContent eventID={eventId} />
-          </Suspense>
-        </EventDetailErrorBoundary>
+    <EventDetailErrorBoundary
+      fallbackRender={(error, resetBoundary) => (
+        <EventDetailErrorState
+          error={error}
+          eventID={eventId}
+          onRetry={() => {
+            resetBoundary()
+          }}
+        />
       )}
-    </QueryErrorResetBoundary>
+    >
+      <Suspense fallback={<LoadingPanel label={t("eventDetail.loading")} />}>
+        <EventDetailPageContent eventID={eventId} />
+      </Suspense>
+    </EventDetailErrorBoundary>
   )
 }

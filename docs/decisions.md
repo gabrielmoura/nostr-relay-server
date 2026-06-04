@@ -221,6 +221,39 @@ Needed ability to forward events to other relays.
 
 ---
 
+## ADR-040: Consolidate Internal Admin REST Into GraphQL
+
+**Status:** Proposed  
+**Date:** 2026-06-03
+
+### Context
+
+The internal admin surface has grown into a large REST API under `/admin/*` with many related list, detail, aggregate, and mutation endpoints. The repository already contains a `graph/` folder with `gqlgen` scaffolding, but it is still only the default todo example and is not connected to the real admin domain.
+
+The admin SPA increasingly needs cross-domain screens that fetch overview, list, summary, and drill-down data together. REST currently spreads that behavior across many endpoints and duplicated request normalization rules.
+
+### Decision
+
+Adopt an internal-only GraphQL admin API using `gqlgen` on top of the existing Fiber internal server.
+
+### Reasons
+
+1. **Single transport surface:** one authenticated endpoint for the admin SPA instead of many route-specific REST handlers
+2. **Better composition:** overview, lists, aggregates, and detail blocks can be fetched in one operation without creating more bespoke endpoints
+3. **Reuse current backends:** GraphQL can wrap the existing DB, Redis, queue, WoT, NIP-86, and Blossom services without forcing persistence changes
+4. **Existing project fit:** the repo already uses Go, Fiber, and gqlgen scaffolding, so the migration is additive rather than stack-changing
+5. **Stronger contract control:** SDL becomes the approved source of truth before resolver implementation
+
+### Consequences
+
+- ✅ Internal admin consumers get a typed contract better aligned with the SPA
+- ✅ REST normalization rules can move into resolver helpers instead of remaining spread across many query strings
+- ✅ Async admin workflows remain compatible through typed mutation payloads that expose job ids and status
+- ⚠️ Resolver boundaries must be designed carefully to avoid re-implementing business logic already present in existing services
+- ⚠️ Public relay APIs are intentionally excluded; NIP-86 JSON-RPC remains separate from the internal admin GraphQL surface
+
+---
+
 ## ADR-009: Incremental Security Hardening Layer
 
 **Status:** Accepted  

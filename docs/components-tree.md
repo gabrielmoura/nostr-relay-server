@@ -178,6 +178,7 @@ Rules:
 - all chart blocks remain dumb and receive pre-aggregated props from the server-backed summary query
 - `recharts` usage stays isolated to the analytical components
 - the event list and the reports modal remain drill-down surfaces under the analytical summary layer
+- the "Autores mais reportados" card must also expose direct profile links for the author name/pubkey without requiring a chart click
 
 ### Global State (`stores/`) - Planned
 
@@ -196,6 +197,24 @@ Rules:
 - stores use `zustand` with `immer`
 - small stores persist to `localStorage`
 - larger append-oriented operator history may persist through an IndexedDB storage adapter
+
+### GraphQL Infrastructure Modules - Planned
+
+| Module | Type | Purpose |
+|-------|------|---------|
+| `graphql/client.ts` | Smart infra | Apollo Client creation, auth headers, links, cache |
+| `graphql/errors.ts` | Smart infra | Normalize GraphQL/network/request-id failures |
+| `graphql/fragments/*` | Smart infra | Colocated fragments by route/feature |
+| `graphql/queries/*` | Smart infra | Route-level query documents |
+| `graphql/mutations/*` | Smart infra | Typed mutation documents |
+| `graphql/adapters/*` | Smart infra | GraphQL result -> UI view model mapping |
+| `hooks/use-admin-graphql.ts` | Smart infra | Shared GraphQL helper hooks when reuse is real |
+
+Rules:
+
+- routes remain the primary smart entrypoints
+- feature containers may host colocated fragments, but rendering blocks stay dumb
+- no UI primitive under `components/ui/` may import Apollo hooks directly
 
 ---
 

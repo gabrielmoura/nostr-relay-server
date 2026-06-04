@@ -1,3 +1,4 @@
+import { Link } from "@tanstack/react-router"
 import { useParams } from "@tanstack/react-router"
 import { Copy } from "lucide-react"
 import { useTranslation } from "react-i18next"
@@ -41,7 +42,7 @@ export function UserDetailPage() {
         actions={
           <>
             <Button asChild variant="outline">
-              <a href={`/panel/events/search?q=${encodeURIComponent(pubkey)}`}>{t("userDetail.monitor")}</a>
+              <Link search={{ authors: pubkey }} to="/events/search">{t("userDetail.monitor")}</Link>
             </Button>
             <Button
               onClick={async () => {

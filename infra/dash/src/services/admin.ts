@@ -47,14 +47,11 @@ import type {
   NIP86RelayMetadataPayload,
   NIP05Identity,
   NIP05IdentityPayload,
-  EventReportsResponse,
-  ReportedEventsSummary,
   EventTimeline,
   AdminLabelEvent,
   AdminLabelsFilters,
   AdminLabelsSummary,
   CreateAdminLabelPayload,
-  ReportedEventItem,
   RelayOverview,
   StreamStatus,
   UserNIP05Association,
@@ -67,6 +64,7 @@ import type {
   AdminGroupResponse,
   AdminWoTSummaryResponse,
 } from "@/types/admin"
+import { graphqlRequest, GraphQLApiError } from "@/graphql/admin-api"
 import { env } from "@/lib/env"
 import { buildNpubLike, formatCount, toTitleCase } from "@/lib/utils"
 import { toNevent, toNote, toNprofile, toNpub } from "@/lib/nostr"
@@ -88,38 +86,14 @@ export class ApiError extends Error {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const headers = new Headers(init?.headers)
-
-  if (env.adminToken) {
-    headers.set("X-Admin-Token", env.adminToken)
-  }
-
-  if (init?.body && !(init.body instanceof FormData) && !headers.has("Content-Type")) {
-    headers.set("Content-Type", "application/json")
-  }
-
-  const response = await fetch(`${env.adminBaseUrl}${path}`, {
-    ...init,
-    headers,
-  })
-  const requestId = response.headers.get("x-request-id") ?? undefined
-
-  if (!response.ok) {
-    let message = `Falha na requisicao (${response.status})`
-    let details: unknown
-    try {
-      const body = (await response.json()) as { error?: string }
-      details = body
-      if (body.error) {
-        message = body.error
-      }
-    } catch {
-      // ignore
+  try {
+    return await graphqlRequest<T>(path, init)
+  } catch (error) {
+    if (error instanceof GraphQLApiError) {
+      throw new ApiError(error.message, error.status, error.details, error.requestId)
     }
-    throw new ApiError(message, response.status, details, requestId)
+    throw error
   }
-
-  return response.json() as Promise<T>
 }
 
 function buildQuery(search: Record<string, string | number | string[] | undefined>) {
@@ -192,7 +166,7 @@ function normalizeProfile(input: Record<string, unknown>): UserProfile {
   }
 }
 
-type PageParams = {
+export type PageParams = {
   limit: number
   offset: number
 }
@@ -494,58 +468,6 @@ export async function importEventsFiles(files: File[]) {
     method: "POST",
     body: formData,
   })
-}
-
-export async function getEventReports(eventID: string, params: PageParams) {
-  return request<EventReportsResponse>(`/events/${eventID}/reports?limit=${params.limit}&offset=${params.offset}`)
-}
-
-export async function getReportedEventsPage(filters: { query: string; type: string; target_pubkey?: string; target_event_id?: string; since?: number; until?: number }, params: PageParams) {
-  const search = new URLSearchParams({ limit: String(params.limit), offset: String(params.offset) })
-  if (filters.query) {
-    search.set("q", filters.query)
-  }
-  if (filters.type && filters.type !== "all") {
-    search.set("type", filters.type)
-  }
-  if (filters.target_pubkey) {
-    search.set("target_pubkey", filters.target_pubkey)
-  }
-  if (filters.target_event_id) {
-    search.set("target_event_id", filters.target_event_id)
-  }
-  if (filters.since) {
-    search.set("since", String(filters.since))
-  }
-  if (filters.until) {
-    search.set("until", String(filters.until))
-  }
-
-  return request<AdminPage<ReportedEventItem>>(`/events/reported?${search.toString()}`)
-}
-
-export async function getReportedEventsSummary(filters: { query: string; type: string; target_pubkey?: string; target_event_id?: string; since?: number; until?: number }) {
-  const search = new URLSearchParams()
-  if (filters.query) {
-    search.set("q", filters.query)
-  }
-  if (filters.type && filters.type !== "all") {
-    search.set("type", filters.type)
-  }
-  if (filters.target_pubkey) {
-    search.set("target_pubkey", filters.target_pubkey)
-  }
-  if (filters.target_event_id) {
-    search.set("target_event_id", filters.target_event_id)
-  }
-  if (filters.since) {
-    search.set("since", String(filters.since))
-  }
-  if (filters.until) {
-    search.set("until", String(filters.until))
-  }
-
-  return request<ReportedEventsSummary>(`/events/reported/summary${search.toString() ? `?${search.toString()}` : ""}`)
 }
 
 export async function getLabelsPage(filters: AdminLabelsFilters, params: PageParams) {

@@ -4,6 +4,29 @@
 
 The admin dashboard (`infra/dash/`) is a React 19 + TypeScript SPA built with TanStack Router and i18next. It provides operational controls for the Nostr relay server.
 
+## Planned GraphQL Frontend Migration
+
+The admin dashboard will migrate from the current REST service layer to the internal GraphQL surface exposed by the relay backend.
+
+Target transport:
+
+- `POST /admin/graphql`
+- authenticated internal helpers for development: `GET /admin/graphql/schema` and `GET /admin/graphql/playground`
+
+Target frontend data stack:
+
+- **Apollo Client 4.x** for GraphQL transport, cache, and mutations
+- **TanStack Router** remains the route and URL-state layer
+- the current compact operations-dashboard language remains intact
+
+This is a data-layer refactor, not a visual redesign.
+
+Implementation note for the first migration pass:
+
+- existing route-facing hooks in `use-admin-data.ts` remain in place temporarily
+- those hooks now sit on top of a GraphQL-backed service layer instead of calling REST directly
+- this keeps route churn low while removing the admin REST dependency from the dashboard
+
 ## Planned NIP-86 Dashboard Extension
 
 The dashboard will remain on the internal admin API and will not call the external NIP-86 JSON-RPC endpoint directly from the browser.
@@ -75,7 +98,7 @@ This should refine the current dashboard instead of replacing it with a marketin
 | Layer | Technology | Purpose |
 |-------|------------|---------|
 | **Framework** | React 19 | UI library with new hooks (useActionState, useOptimistic) |
-| **State Management** | TanStack Query | Server state management, caching, and mutations |
+| **State Management** | Apollo Client 4.x | GraphQL server state, cache, fragments, and mutations |
 | **Routing** | TanStack Router | File-based routing with type-safe navigation |
 | **i18n** | i18next | Internationalization (English/Portuguese) |
 | **Build** | Vite | Fast development and optimized production build |
@@ -149,18 +172,85 @@ infra/dash/src/
 └─────────────────────────────────────────────────────────────┘
 ```
 
-### Service Layer (Future)
+### Service Layer and GraphQL Access
 
-All API calls should go through a service layer:
+All backend communication must continue to go through a typed integration layer:
 
 ```
-┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-│  Component  │────►│  Service    │────►│   API       │
-│             │     │  (typed)    │     │  (fetch)    │
-└─────────────┘     └─────────────┘     └─────────────┘
+┌─────────────┐     ┌──────────────────┐     ┌────────────────┐
+│  Component  │────►│ GraphQL module   │────►│ Apollo Client  │
+│             │     │ (typed docs +    │     │ + /admin/graphql │
+│             │     │ adapters)        │     │                │
+└─────────────┘     └──────────────────┘     └────────────────┘
 ```
 
-Currently, API calls already flow through `services/admin.ts` for most dashboard paths. New NIP-86-facing admin features should continue to use this service-first pattern.
+Rules for the migration:
+
+- route-level smart components own page queries and mutations
+- dumb components receive already-shaped props and callbacks only
+- GraphQL documents must be colocated by route or feature, but transport setup stays centralized
+- `services/admin.ts` must stop being a REST fetch bag and become a typed GraphQL adapter boundary or be split by domain into GraphQL modules
+- no route component should call `fetch` directly
+
+Preferred structure after approval:
+
+```text
+infra/dash/src/
+  graphql/
+    client.ts
+    errors.ts
+    fragments/
+    queries/
+    mutations/
+    adapters/
+  hooks/
+    use-admin-graphql.ts
+```
+
+Current implementation state:
+
+- `src/graphql/client.ts` provides the shared Apollo client
+- `src/graphql/admin-api/` now splits the admin transport by domain:
+  - `core.ts`
+  - `users.ts`
+  - `events.ts`
+  - `nip05-nip86.ts`
+  - `jobs-wot.ts`
+  - `blossom.ts`
+  - `index.ts`
+- `src/hooks/use-admin-data.ts` now exposes the existing route-facing hook API through an Apollo-backed compatibility layer, reducing route churn during migration
+- `src/graphql/documents.ts` is the source-of-truth for frontend GraphQL operations used by codegen
+- `infra/dash/codegen.ts` and `pnpm graphql:codegen` generate typed operation artifacts in `src/graphql/generated/operations.ts`
+
+## Apollo Client Strategy
+
+- `ApolloProvider` at app root, alongside Router and current global providers
+- one page query per route where practical, composed from colocated fragments
+- mutations via `useMutation`
+- typed adapters convert GraphQL camelCase payloads into route-friendly view models when needed
+- current mock fallback behavior should be isolated behind the GraphQL adapter layer instead of leaking into route components
+- `x-request-id` must be extracted from GraphQL transport failures and surfaced through typed frontend errors
+
+Incremental adoption rule:
+
+- while Apollo is now the GraphQL client, the first pass may keep existing TanStack Query hooks as route-facing orchestration wrappers until route-by-route Apollo hook migration is complete
+- the current implementation has already removed direct TanStack Query usage from `use-admin-data.ts`; remaining route compatibility is preserved through local hook adapters instead of React Query primitives
+
+## Error Handling and Boundaries
+
+- current global error boundaries remain
+- Apollo transport and GraphQL errors must be normalized into one frontend error shape
+- request-id propagation remains mandatory for debugging admin failures
+- route-level retries should use Apollo refetch or mutation retry UX, not ad-hoc fetch retries
+
+## Smart vs Dumb Impact
+
+No visual component should become GraphQL-aware.
+
+- Smart: route pages, modal containers, board/workspace containers
+- Dumb: cards, rows, forms, charts, badges, summaries, lists
+
+The migration must not push GraphQL hooks into dumb components.
 
 ## Persistence Strategy
 

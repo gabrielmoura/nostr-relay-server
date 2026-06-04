@@ -1,7 +1,9 @@
+import { Link } from "@tanstack/react-router"
 import { useTranslation } from "react-i18next"
 import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { toNpub } from "@/lib/nostr"
 import { shortenId } from "@/lib/utils"
 
 type ReportedAuthorPoint = {
@@ -45,6 +47,26 @@ export function ReportedEventsTopAuthorsChart({ items, onAuthorSelect }: Reporte
             </BarChart>
           </ResponsiveContainer>
         </div>
+        {items.length > 0 ? (
+          <div className="mt-4 space-y-2 border-t border-border pt-4">
+            {items.slice(0, 5).map((item) => {
+              const npub = toNpub(item.pubkey) || item.pubkey
+              return (
+                <div className="flex items-start justify-between gap-3 text-sm" key={item.pubkey}>
+                  <div className="min-w-0">
+                    <Link className="block truncate font-medium text-foreground underline decoration-dotted underline-offset-2 hover:text-primary" params={{ pubkey: item.pubkey }} to="/users/$pubkey">
+                      {item.name}
+                    </Link>
+                    <Link className="block truncate text-xs text-muted-foreground underline underline-offset-2 hover:text-primary" params={{ pubkey: item.pubkey }} to="/users/$pubkey">
+                      {shortenId(npub, 18, 6)}
+                    </Link>
+                  </div>
+                  <span className="shrink-0 text-xs text-muted-foreground">{item.count}</span>
+                </div>
+              )
+            })}
+          </div>
+        ) : null}
       </CardContent>
     </Card>
   )

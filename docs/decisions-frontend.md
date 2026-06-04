@@ -1,5 +1,42 @@
 # Frontend Decisions
 
+## ADR-F011: Admin Dashboard Migrates From REST + TanStack Query To Internal GraphQL + Apollo Client
+
+**Status:** Proposed  
+**Date:** 2026-06-03
+
+### Context
+
+The admin dashboard currently consumes many internal REST endpoints through `services/admin.ts` and `use-admin-data.ts`, with server-state orchestration handled by TanStack Query. The backend now has an internal GraphQL admin surface, making the current REST fan-out unnecessarily verbose for route screens that combine overview, lists, aggregates, modals, and mutations.
+
+The route structure, visual language, and URL-state design are already good enough and do not need a UI reset.
+
+### Decision
+
+1. keep **TanStack Router** for routing and URL-state
+2. adopt **Apollo Client 4.x** as the admin GraphQL client and remove REST as the dashboard transport
+3. keep the current route-facing hook surface temporarily so migration can be incremental
+4. keep dumb components transport-agnostic
+5. colocate GraphQL fragments and operations by route or feature container
+6. move request normalization, error normalization, and request-id propagation into a GraphQL integration layer
+
+### Reasons
+
+1. **Transport fit:** the backend admin contract is now GraphQL-first
+2. **Composition:** route screens can fetch exactly the fields they need without multiplying REST helpers
+3. **Boundary clarity:** Apollo becomes the single GraphQL client while current hooks can be migrated route by route
+4. **Low visual risk:** route tree and UI primitives remain intact while only the data layer changes
+
+### Consequences
+
+- ✅ fewer transport-specific REST helpers in the dashboard
+- ✅ route queries can be composed from colocated fragments
+- ✅ the admin graph becomes the single source of truth for frontend admin data
+- ⚠️ TanStack Query may remain temporarily as an orchestration layer until route hooks are fully migrated
+- ⚠️ current mock fallback behavior must be re-homed into GraphQL adapters or development-only tooling
+
+---
+
 ## ADR-F009: Rich Event Visualization Uses Protocol-Aware Cards and One Shared Media Interpreter
 
 **Status:** Proposed  

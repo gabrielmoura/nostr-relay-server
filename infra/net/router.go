@@ -1,9 +1,11 @@
 package net
 
 import (
+	"net/http"
 	"path/filepath"
 	"strconv"
 
+	"github.com/gabrielmoura/nostr-relay-server/graph"
 	"github.com/gabrielmoura/nostr-relay-server/config"
 	httphandler "github.com/gabrielmoura/nostr-relay-server/infra/handler/http"
 	httpblossom "github.com/gabrielmoura/nostr-relay-server/infra/handler/http/blossom"
@@ -87,83 +89,29 @@ func (r *RouterFactory) setupInternalRoutes(app *fiber.App) {
 	})
 
 	admin := app.Group("/admin", httphandler.AdminTokenMiddleware(r.Config))
-	admin.Get("", httphandler.AdminIndex())
-	admin.Get("/", httphandler.AdminIndex())
-	admin.Get("/overview", httphandler.AdminOverview())
-	admin.Get("/stream/status", httphandler.StreamStatus())
-	admin.Get("/connections/active", httphandler.ActiveConnections())
-	admin.Get("/connections/authed", httphandler.AuthedConnections())
-	admin.Post("/connections/:wsid/disconnect", httphandler.DisconnectConnection())
-	admin.Get("/users/logged", httphandler.LoggedUsers())
-	admin.Get("/users/banned", httphandler.BannedUsers())
-	admin.Get("/users/search", httphandler.SearchUsers())
-	admin.Get("/users/:pubkey/profile", httphandler.UserProfile())
-	admin.Get("/users/:pubkey/nip05", httphandler.UserNIP05())
-	admin.Get("/users/:pubkey/ban", httphandler.BanStatus())
-	admin.Post("/users/:pubkey/ban", httphandler.BanUser())
-	admin.Delete("/users/:pubkey/ban", httphandler.UnbanUser())
-	admin.Get("/nip05", httphandler.NIP05List())
-	admin.Post("/nip05", httphandler.NIP05Upsert())
-	admin.Delete("/nip05/:name", httphandler.NIP05Delete())
-	admin.Get("/events/search", httphandler.SearchEvents())
-	admin.Post("/events/import", httphandler.ImportEventsJSONL())
-	admin.Get("/events/search/aggregates", httphandler.SearchEventsAggregates())
-	admin.Get("/events/search/timeline", httphandler.SearchEventsTimeline())
-	admin.Get("/events/reported", httphandler.ReportedEvents())
-	admin.Get("/events/reported/summary", httphandler.ReportedEventsSummary())
-	admin.Get("/labels", httphandler.LabelsList())
-	admin.Get("/labels/summary", httphandler.LabelsSummary())
-	admin.Post("/labels", httphandler.CreateLabel())
-	admin.Get("/blossom/overview", httphandler.BlossomOverview())
-	admin.Get("/blossom/policy", httphandler.BlossomPolicy())
-	admin.Put("/blossom/policy", httphandler.BlossomPolicyUpsert())
-	admin.Get("/blossom/objects", httphandler.BlossomObjects())
-	admin.Get("/blossom/plans", httphandler.BlossomPlans())
-	admin.Put("/blossom/plans", httphandler.BlossomPlanUpsert())
-	admin.Delete("/blossom/plans/:id", httphandler.BlossomPlanDelete())
-	admin.Get("/blossom/plans/:id/assignments", httphandler.BlossomPlanAssignments())
-	admin.Post("/blossom/plans/:id/assign", httphandler.BlossomPlanAssign())
-	admin.Delete("/blossom/plans/:id/assign/:pubkey", httphandler.BlossomPlanUnassign())
-	admin.Get("/blossom/objects/:hash", httphandler.BlossomObjectDetail())
-	admin.Post("/blossom/objects/bulk-review", httphandler.BlossomBulkReview())
-	admin.Post("/blossom/users/whitelist", httphandler.BlossomWhitelistUpsert())
-	admin.Get("/blossom/users", httphandler.BlossomUsers())
-	admin.Get("/blossom/users/:pubkey", httphandler.BlossomUserDetail())
-	admin.Post("/blossom/users/:pubkey/purge", httphandler.BlossomUserPurge())
-	admin.Post("/blossom/mirror", httphandler.BlossomMirror())
-	admin.Get("/blossom/reports", httphandler.BlossomReports())
-	admin.Post("/blossom/reports/:id/resolve", httphandler.BlossomResolveReport())
-	admin.Get("/blossom/analytics", httphandler.BlossomAnalytics())
-	admin.Get("/blossom/workers", httphandler.BlossomWorkers())
-	admin.Get("/blossom/audit", httphandler.BlossomAudit())
-	admin.Post("/events/:id/fetch", httphandler.FetchEventFromRelays())
-	admin.Get("/events/:id", httphandler.EventDetail())
-	admin.Get("/events/:id/reports", httphandler.EventReports())
-	admin.Get("/nip86/allowed-pubkeys", httphandler.NIP86AllowedPubKeys())
-	admin.Post("/nip86/allowed-pubkeys/:pubkey", httphandler.NIP86CreateAllowedPubKey())
-	admin.Delete("/nip86/allowed-pubkeys/:pubkey", httphandler.NIP86DeleteAllowedPubKey())
-	admin.Get("/nip86/blocked-ips", httphandler.NIP86BlockedIPs())
-	admin.Post("/nip86/blocked-ips/:ip", httphandler.NIP86CreateBlockedIP())
-	admin.Delete("/nip86/blocked-ips/:ip", httphandler.NIP86DeleteBlockedIP())
-	admin.Get("/nip86/banned-events", httphandler.NIP86BannedEvents())
-	admin.Post("/nip86/banned-events/:id", httphandler.NIP86CreateBannedEvent())
-	admin.Delete("/nip86/banned-events/:id", httphandler.NIP86DeleteBannedEvent())
-	admin.Get("/nip86/relay-metadata", httphandler.NIP86RelayMetadata())
-	admin.Post("/nip86/relay-metadata", httphandler.NIP86UpdateRelayMetadata())
-	admin.Post("/sync/negentropy", httphandler.NegentropySync())
-	admin.Post("/events/download", httphandler.DownloadEvents())
-	admin.Get("/events/download/jobs", httphandler.DownloadJobs())
-	admin.Get("/events/download/jobs/:jobId", httphandler.DownloadJobDetail())
-	admin.Get("/jobs", httphandler.JobsList())
-	admin.Get("/jobs/:jobId", httphandler.JobDetail())
-	admin.Post("/jobs/:jobId/retry", httphandler.RetryJob())
-	admin.Post("/jobs/:jobId/cancel", httphandler.CancelJob())
-	admin.Post("/jobs/:jobId/resume", httphandler.ResumeJob())
-	admin.Delete("/jobs", httphandler.DeleteJobsHistory())
-	admin.Get("/groups", httphandler.ListGroups())
-	admin.Get("/wot/summary", httphandler.WoTSummary())
-	admin.Post("/wot/trusted", httphandler.AddTrustedPubkey())
-	admin.Delete("/wot/trusted/:pubkey", httphandler.RemoveTrustedPubkey())
+	graphqlHandler := fasthttpadaptor.NewFastHTTPHandler(graph.HTTPHandler())
+	admin.Post("/graphql", func(c *fiber.Ctx) error {
+		graphqlHandler(c.Context())
+		return nil
+	})
+	schemaHandler := fasthttpadaptor.NewFastHTTPHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		sdl, err := graph.SchemaSDL()
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		_, _ = w.Write([]byte(sdl))
+	}))
+	admin.Get("/graphql/schema", func(c *fiber.Ctx) error {
+		schemaHandler(c.Context())
+		return nil
+	})
+	playgroundHandler := fasthttpadaptor.NewFastHTTPHandler(graph.PlaygroundHandler("/admin/graphql"))
+	admin.Get("/graphql/playground", func(c *fiber.Ctx) error {
+		playgroundHandler(c.Context())
+		return nil
+	})
 
 	app.Get(httphandler.AdminUIBasePath(), httphandler.AdminUIIndex())
 	app.Get(httphandler.AdminUIBasePath()+"/assets/*", httphandler.AdminUIAsset())

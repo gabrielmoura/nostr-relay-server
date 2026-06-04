@@ -9,6 +9,18 @@ The Nostr Relay Server exposes two HTTP servers:
 
 If `admin_token` is configured, all `/admin/*` endpoints require header `X-Admin-Token: <token>`.
 
+### Admin GraphQL Transport
+
+The internal admin API is exposed only through the authenticated GraphQL surface backed by `gqlgen` and served by Fiber.
+
+- Proposed endpoint: `POST /admin/graphql`
+- Proposed development endpoint: `GET /admin/graphql/schema`
+- Proposed development endpoint: `GET /admin/graphql/playground`
+- Proposed SDL source during docs phase: `docs/graphql-admin-schema.graphqls`
+- Detailed migration spec: `docs/graphql-admin.md`
+
+The previous `/admin/*` REST surface is no longer exposed by the internal server.
+
 ## Event Visualization Contracts
 
 The admin dashboard event visualization work depends on the existing admin event payload already exposing enough raw protocol material to derive media and protocol-specific summaries in the frontend.

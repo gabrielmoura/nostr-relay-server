@@ -115,6 +115,18 @@ Nostr Relay Server is a high-performance Nostr relay implementation in Go, suppo
 | **Admin SPA** | React 19 + Vite + TanStack Router + i18next | Internal operations dashboard (English/Portuguese localization) |
 | **Embedded Assets** | `embed.FS` | Ships `infra/dash/dist` inside the Go binary |
 
+## Planned Admin GraphQL Layer
+
+The internal admin surface is exposed as a single internal GraphQL endpoint while keeping the same service, DB, Redis cache, and queue backends.
+
+- **Server:** same internal Fiber app
+- **Path:** planned `/admin/graphql`
+- **GraphQL engine:** `gqlgen`
+- **Auth:** reuse existing `AdminTokenMiddleware`
+- **Runtime rule:** GraphQL resolvers reuse current admin/domain services instead of duplicating rules from the REST handlers
+
+This is a transport consolidation only. The public relay websocket root, NIP-11, NIP-86 JSON-RPC, and Blossom public endpoints stay outside this GraphQL scope.
+
 ## Planned NIP-32 Labels Management
 
 The relay already stores `kind:1985` label events in the shared `event` table. The next admin feature extends the internal dashboard and admin API so operators can inspect and create NIP-32 labels without relying on a browser-side Nostr signer.

@@ -2,6 +2,8 @@ package db
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -71,6 +73,19 @@ func (q *Queries) ListBlossomReports(ctx context.Context, filters BlossomReportF
 func (q *Queries) ResolveBlossomReport(ctx context.Context, id int64, status string, resolvedBy string, note string) error {
 	_, err := q.db.Exec(ctx, `UPDATE blossom_review_reports SET status = $2::text, resolved_by = NULLIF($3::text, ''), resolved_note = NULLIF($4::text, ''), resolved_at = NOW() WHERE id = $1::bigint`, id, status, resolvedBy, note)
 	return err
+}
+
+func (q *Queries) GetBlossomReportByID(ctx context.Context, id int64) (BlossomReportRow, bool, error) {
+	const statement = `SELECT r.id, r.event_id, r.object_hash, r.reporter_pubkey, COALESCE(r.target_event_id, ''), COALESCE(r.target_pubkey, ''), COALESCE(r.report_type, ''), COALESCE(r.reason, ''), r.status, COALESCE(r.resolved_by, ''), COALESCE(r.resolved_note, ''), r.created_at, r.resolved_at FROM blossom_review_reports r WHERE r.id = $1::bigint LIMIT 1`
+	var item BlossomReportRow
+	err := q.db.QueryRow(ctx, statement, id).Scan(&item.ID, &item.EventID, &item.ObjectHash, &item.ReporterPubkey, &item.TargetEventID, &item.TargetPubkey, &item.ReportType, &item.Reason, &item.Status, &item.ResolvedBy, &item.ResolvedNote, &item.CreatedAt, &item.ResolvedAt)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return BlossomReportRow{}, false, nil
+		}
+		return BlossomReportRow{}, false, err
+	}
+	return item, true, nil
 }
 
 func (q *Queries) GetBlossomReportSummary(ctx context.Context, filters BlossomReportFilters) (BlossomReportSummary, error) {

@@ -6,6 +6,12 @@ This document describes both PostgreSQL and Redis data structures:
 - **PostgreSQL**: Persistent storage for events, profiles, and file metadata
 - **Redis**: Cache, pub/sub, and subscription state management
 
+Admin GraphQL migration note:
+
+- the planned GraphQL admin API reuses the current PostgreSQL and Redis structures
+- this phase does not introduce new tables, Redis keys, or persistence formats
+- resolver design should map transport fields to the existing admin query/runtime models already used by REST
+
 ---
 
 ## PostgreSQL Tables

@@ -2,7 +2,20 @@
 
 ## Overview
 
-The frontend uses React's built-in state mechanisms plus TanStack Router for URL-driven state. No external state management library (Redux, Zustand, etc.) is currently in use.
+The frontend uses React local state, TanStack Router for URL-driven state, and already includes persisted Zustand stores for selected operator preferences.
+
+Planned migration:
+
+- Apollo Client replaces REST as the primary admin transport layer
+- TanStack Router remains the URL-state layer
+- Zustand/local persistence remains limited to compact UI/session state
+
+Current implementation stage:
+
+- Apollo Client is already the transport used by the admin service layer for GraphQL operations
+- existing route-facing admin hooks remain temporarily as orchestration wrappers during the migration
+- `use-admin-data.ts` now provides a compatibility layer with refetch, infinite loading, mutation state, and invalidation semantics over Apollo-backed async services
+- this means server state is currently GraphQL-backed while preserving the route/component ergonomics that previously depended on TanStack Query-like results
 
 ---
 
@@ -38,7 +51,7 @@ const searchParams = useSearch({ from: '/events/search' });
 
 ### 3. Server State
 
-**Location**: Route components, fetched on mount/effect
+**Location**: Apollo Client cache + route-level smart components
 
 **Examples**:
 - API response data
@@ -46,7 +59,9 @@ const searchParams = useSearch({ from: '/events/search' });
 - user lists
 
 ```tsx
-const { data, isLoading, error } = useEvent(id);
+const { data, loading, error } = useQuery(EVENT_DETAIL_QUERY, {
+  variables: { id },
+});
 ```
 
 ### 4. Persisted Client State
@@ -75,6 +90,26 @@ Planned relevant uses:
 ---
 
 ## Feature State Flows
+
+## Planned GraphQL State Rules
+
+- Apollo Client owns GraphQL transport and normalized client behavior
+- route pages own their top-level queries and mutations
+- dumb components consume props only
+- GraphQL data is not mirrored into custom stores unless there is a real offline or draft need
+- URL filter state must survive transient GraphQL failures
+
+### Mutation ownership
+
+- route or modal container owns the mutation hook
+- optimistic updates are only allowed where rollback is cheap and semantics are clear
+- destructive moderation and queue operations should prefer explicit loading/success/error states over optimistic writes
+
+### Error and retry model
+
+- GraphQL/network errors normalize to one app error shape
+- `x-request-id` from the GraphQL transport must be attached when available
+- retry stays at route or modal-container level
 
 ### Event Search (`event-search-page.tsx`)
 
@@ -114,6 +149,10 @@ Planned relevant uses:
 | `success` | Data received, render list |
 | `empty` | No results for query |
 | `error` | API failure |
+
+Navigation rule tied to the user detail page:
+
+- the `Monitor` CTA on `/panel/users/:pubkey` must navigate to `/panel/events/search?authors=<pubkey>` so event search starts with an author filter instead of a generic full-text query
 
 ### Event Detail (`event-detail-page.tsx`)
 

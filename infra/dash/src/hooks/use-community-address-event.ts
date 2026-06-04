@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query"
+import { useEffect, useState } from "react"
 import { useNostr } from "@nostrify/react"
 
 import { parseAddressPointer } from "@/lib/event-parser"
@@ -24,27 +24,87 @@ function toEventRecord(event: {
   }
 }
 
+const communityAddressCache = new Map<string, EventRecord | null>()
+const pendingCommunityQueries = new Map<string, Promise<EventRecord | null>>()
+
 export function useCommunityAddressEvent(address: string) {
   const { nostr } = useNostr()
   const pointer = parseAddressPointer(address)
+  const [data, setData] = useState<EventRecord | null | undefined>(undefined)
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<unknown>(null)
 
-  return useQuery({
-    queryKey: ["nostr-community-address", address],
-    enabled: Boolean(pointer && pointer.kind === 34550),
-    queryFn: async () => {
-      if (!pointer) {
-        return null
+  useEffect(() => {
+    const isEnabled = Boolean(pointer && pointer.kind === 34550)
+    if (!isEnabled || !pointer) {
+      setData(null)
+      setIsLoading(false)
+      return
+    }
+
+    if (communityAddressCache.has(address)) {
+      setData(communityAddressCache.get(address))
+      setIsLoading(false)
+      return
+    }
+
+    let active = true
+    setIsLoading(true)
+
+    const fetchEvent = async () => {
+      if (pendingCommunityQueries.has(address)) {
+        return pendingCommunityQueries.get(address)!
       }
 
-      const events = await nostr.query([{
-        kinds: [pointer.kind],
-        authors: [pointer.pubkey],
-        "#d": [pointer.identifier],
-        limit: 1,
-      }])
+      const promise = (async () => {
+        try {
+          const events = await nostr.query([{
+            kinds: [pointer.kind],
+            authors: [pointer.pubkey],
+            "#d": [pointer.identifier],
+            limit: 1,
+          }])
 
-      const event = events[0]
-      return event ? toEventRecord(event) : null
-    },
-  })
+          const event = events[0]
+          return event ? toEventRecord(event) : null
+        } catch (err) {
+          throw err
+        }
+      })()
+
+      pendingCommunityQueries.set(address, promise)
+      try {
+        const result = await promise
+        communityAddressCache.set(address, result)
+        return result
+      } finally {
+        pendingCommunityQueries.delete(address)
+      }
+    }
+
+    fetchEvent()
+      .then((record) => {
+        if (active) {
+          setData(record)
+          setIsLoading(false)
+        }
+      })
+      .catch((err) => {
+        if (active) {
+          setError(err)
+          setIsLoading(false)
+        }
+      })
+
+    return () => {
+      active = false
+    }
+  }, [address, pointer, nostr])
+
+  return {
+    data,
+    isLoading,
+    isError: error != null,
+    error,
+  }
 }
