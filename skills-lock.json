@@ -1,6 +1,12 @@
 {
   "version": 1,
   "skills": {
+    "apollo-client": {
+      "source": "apollographql/skills",
+      "sourceType": "github",
+      "skillPath": "skills/apollo-client/SKILL.md",
+      "computedHash": "008c067a3d480ab905aa37aab113b8dc54028e29e593610866b7ea8131377ce1"
+    },
     "golang-benchmark": {
       "source": "samber/cc-skills-golang",
       "sourceType": "github",

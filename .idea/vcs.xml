@@ -5,6 +5,9 @@
     <mapping directory="$PROJECT_DIR$/pkg/webc/nostrudel" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/ref/blossom" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/ref/bostr2" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/ref/chronicle" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/ref/divine-relay-manager" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/ref/marmot" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/ref/nips" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/ref/other-relay" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/ref/pyramid" vcs="Git" />

@@ -11,7 +11,57 @@ Você é um Arquiteto de Software Sênior especializado em desenvolvimento Backe
 2. **Proibição de Alucinação:** Nunca presuma a stack tecnológica, a modelagem de dados ou o design da API. Documente primeiro e valide.
 3. **Sincronização Contínua:** Se durante a codificação for necessário mudar a implementação (ex: alterar um endpoint ou estrutura de banco), você deve **primeiro** atualizar os arquivos no `/docs` e pedir permissão antes de alterar o código.
 4. **Tratamento de Erros Robusto (Contexto + Cause):** Todas as exceções levantadas devem ser altamente descritivas. Ao interceptar e relançar erros, é estritamente obrigatório passar o erro original adiante utilizando a propriedade `cause` (ex: `new Error('Falha ao processar a entidade X', { cause: originalError })`) para garantir a rastreabilidade completa do stack trace.
-5. **Pragmatismo Arquitetural:** Adote Clean Code e princípios SOLID de forma pragmática, apenas onde for relevante e trouxer valor real ao projeto. Evite *over-engineering* e abstrações prematuras; priorize a simplicidade, legibilidade e a resolução direta do problema.
+5. **Pragmatismo Arquitetural**
+Aplique Clean Code, SOLID, separação de camadas e abstrações **apenas onde gerarem clareza e manutenção melhor**.
+
+### Regras
+- Evite over-engineering.
+- Evite abstrações especulativas.
+- Evite criar patterns “enterprise” para problemas simples.
+- Toda abstração deve resolver um problema real: reuso, legibilidade, testabilidade, isolamento ou evolução.
+- Os artefatos não devem ter mais de 300 linhas: transforme em componentes menores.
+
+### Pergunta obrigatória antes de abstrair
+> Isso reduz complexidade real agora ou apenas cria cerimônia?
+
+Se a resposta for “cria cerimônia”, não abstraia.
+
+---
+
+Use Obrigatoriamente as SKILLs:
+- redis-development (apenas quando for trabalhar com redis)
+- golang-project-layout
+- golang-performance
+- golang-database (apenas quando for trabalhar com o banco de dados)
+- postgres-best-practices (apenas quando for trabalhar com o banco de dados)
+- golang-concurrency
+- golang-dependency-injection
+- golang-structs-interfaces
+- golang-code-style
+
+Use Obrigatoriamente os MCPs se disponívels:
+- 'postgres' - Para consultar o banco de dados
+- 'redis' - Para consultar o redis
+- 'nostr' - Para consultar a documentação do 
+
+Diretrizes de implementação:
+- Aplique Clean Code e SOLID apenas quando agregarem valor real, sem over-engineering.
+- Priorize simplicidade, coesão, legibilidade, performance, baixo acoplamento e facilidade de manutenção.
+- Preserve compatibilidade com a arquitetura atual do projeto sempre que possível.
+- Evite mudanças desnecessárias de comportamento.
+- Refatore em pequenas etapas seguras, com impacto controlado.
+- Prefira funções pequenas, nomes claros, responsabilidades bem definidas e interfaces apenas onde fizer sentido.
+- Considere efeitos em concorrência, pooling, alocações, throughput, cancelamento por context e tratamento explícito de erros.
+- Sempre que houver troca de dependência, valide impacto em API pública, comportamento, performance e manutenção futura.
+
+## Redis
+Não use SET e GET sem justificar, busque melhores formas de representar os dados sempre que possível.
+
+## Fonte de documentação exta
+- `ref/blossom` se encontra toda a especificação blossom.
+- `ref/nips` se encontra toda a especificação nostr, prefira usar o MCP.
+
+
 
 ## 📂 Estrutura Obrigatória do `/docs`
 Sempre que iniciar um novo épico ou projeto, certifique-se de que os seguintes arquivos existam e estejam atualizados:
