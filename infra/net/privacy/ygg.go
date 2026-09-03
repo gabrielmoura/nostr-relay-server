@@ -6,6 +6,7 @@ import (
 	"net"
 	"strconv"
 	"sync"
+	"time"
 
 	"github.com/gabrielmoura/nostr-relay-server/config"
 	"github.com/voluminor/ratatoskr"
@@ -32,6 +33,13 @@ type yggService struct {
 	node    *ratatoskr.Obj
 	fwd     *forward.Obj
 	addr    *net.TCPAddr
+
+	// observability (see Status)
+	startedAt   time.Time
+	startErr    string
+	txBytes     int64
+	rxBytes     int64
+	connections int
 }
 
 func newYggService(cfg config.YggConfig, logger *zap.Logger, store *KeyStore) Service {
@@ -40,12 +48,23 @@ func newYggService(cfg config.YggConfig, logger *zap.Logger, store *KeyStore) Se
 
 func (s *yggService) Name() string { return "yggdrasil" }
 
-func (s *yggService) Start(ctx context.Context, relayPort int) error {
+func (s *yggService) Start(ctx context.Context, relayPort int) (err error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.started {
 		return nil
 	}
+	// Record the observability state regardless of the return path.
+	defer func() {
+		if err != nil {
+			s.startErr = err.Error()
+			s.startedAt = time.Time{}
+			s.started = false
+		} else {
+			s.startErr = ""
+			s.startedAt = time.Now()
+		}
+	}()
 
 	// Yggdrasil is always embedded; "disabled" is the only disabling mode.
 	mode := resolveMode(s.cfg.Mode, true)
@@ -142,3 +161,27 @@ func (s *yggService) Close() error {
 
 // dialPort is a small helper to format an address for logging.
 func dialPort(p int) string { return strconv.Itoa(p) }
+
+// Status returns a copy of the Yggdrasil network's observability snapshot.
+func (s *yggService) Status() StatusSnapshot {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var peers *int
+	if len(s.cfg.Peers) > 0 {
+		n := len(s.cfg.Peers)
+		peers = &n
+	}
+	return StatusSnapshot{
+		ID:          "yggdrasil",
+		Mode:        resolveMode(s.cfg.Mode, true),
+		Enabled:     s.cfg.Mode != "" && s.cfg.Mode != "disabled",
+		Started:     s.started,
+		StartErr:    s.startErr,
+		Addresses:   s.Addresses(),
+		Uptime:      uptimeSince(s.startedAt, s.started),
+		TxBytes:     s.txBytes,
+		RxBytes:     s.rxBytes,
+		Connections: s.connections,
+		Peers:       peers,
+	}
+}

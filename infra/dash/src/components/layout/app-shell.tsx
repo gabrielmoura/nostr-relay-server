@@ -31,6 +31,7 @@ const primaryNav: NavItem[] = [
   { to: "/nip05", labelKey: "layout.nav.nip05", icon: AtSign },
   { to: "/nip86", labelKey: "layout.nav.nip86", icon: ShieldCheck },
   { to: "/events/reported", labelKey: "layout.nav.eventsReported", icon: TriangleAlert },
+  { to: "/privacy", labelKey: "layout.nav.privacy", icon: ShieldCheck },
   { to: "/stream", labelKey: "layout.nav.streams", icon: Radio },
 ]
 

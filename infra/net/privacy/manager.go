@@ -15,6 +15,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/gabrielmoura/nostr-relay-server/config"
 	"go.uber.org/zap"
@@ -57,6 +58,8 @@ type Service interface {
 	Close() error
 	// Name returns the network name for logging ("tor", "i2p", "yggdrasil").
 	Name() string
+	// Status returns a copy of this network's observability snapshot.
+	Status() StatusSnapshot
 }
 
 // Manager owns the enabled privacy networks and their lifecycle.
@@ -171,4 +174,93 @@ func resolveMode(mode string, preferNative bool) string {
 	default:
 		return mode
 	}
+}
+
+// StatusSnapshot is the per-network observability contract returned by
+// Service.Status(). It is the single source of truth for the admin dashboard's
+// privacy monitoring UI.
+type StatusSnapshot struct {
+	ID          string // "tor" | "i2p" | "yggdrasil"
+	Mode        string // native | external (resolved)
+	Enabled     bool   // configured (non-disabled)
+	Started     bool   // Start() succeeded
+	StartErr    string // last start error message, "" if OK
+	Addresses   []string
+	Uptime      time.Duration
+	TxBytes     int64
+	RxBytes     int64
+	Connections int
+	Peers       *int // peers/circuits, nil when the network cannot report it
+}
+
+// ---------------------------------------------------------------------------
+// Singleton accessor: lets the HTTP admin handler reach the running Manager
+// without threading it through every constructor. Set at boot in cmd/server.go.
+// ---------------------------------------------------------------------------
+
+var (
+	globalMu  sync.RWMutex
+	globalMgr *Manager
+)
+
+// SetManager registers the running privacy Manager (may be nil when privacy is
+// disabled) for the admin dashboard and HTTP handler.
+func SetManager(m *Manager) {
+	globalMu.Lock()
+	defer globalMu.Unlock()
+	globalMgr = m
+}
+
+// GetManager returns the registered privacy Manager, or nil when privacy is
+// disabled or not yet initialized.
+func GetManager() *Manager {
+	globalMu.RLock()
+	defer globalMu.RUnlock()
+	return globalMgr
+}
+
+// Status returns the aggregated observability snapshot for every started
+// network, plus the global persistence/enabled flags. It is safe to call on a
+// nil manager (returns empty flags) so the dashboard never breaks when privacy
+// is off.
+func (m *Manager) Status() struct {
+	Enabled     bool
+	Persistence bool
+	StateDir    string
+	Networks    []StatusSnapshot
+} {
+	if m == nil {
+		return struct {
+			Enabled     bool
+			Persistence bool
+			StateDir    string
+			Networks    []StatusSnapshot
+		}{}
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	out := make([]StatusSnapshot, 0, len(m.services))
+	for _, svc := range m.services {
+		out = append(out, svc.Status())
+	}
+	return struct {
+		Enabled     bool
+		Persistence bool
+		StateDir    string
+		Networks    []StatusSnapshot
+	}{
+		Enabled:     m.cfg.Enabled,
+		Persistence: m.cfg.Persistence,
+		StateDir:    m.cfg.StateDir,
+		Networks:    out,
+	}
+}
+
+// uptimeSince returns the elapsed time since startedAt, or 0 when the service
+// is not started. It is used by the per-network Status() implementations.
+func uptimeSince(startedAt time.Time, started bool) time.Duration {
+	if !started || startedAt.IsZero() {
+		return 0
+	}
+	return time.Since(startedAt)
 }

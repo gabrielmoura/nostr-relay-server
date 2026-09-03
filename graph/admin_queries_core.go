@@ -176,3 +176,19 @@ func buildEventSearchQuery(filter *model.AdminEventSearchInput, page *model.Offs
 	}
 	return query
 }
+
+// privacyStatus returns the aggregated privacy-network observability snapshot
+// (Tor / I2P / Yggdrasil) for the admin dashboard. Delegates to the internal
+// /privacy/status HTTP handler, mirroring adminStreamStatus.
+func (r *Resolver) privacyStatus(ctx context.Context) (*model.PrivacyStatus, error) {
+	payload, err := executeAdminRequest(ctx, adminRequest{
+		method:      http.MethodGet,
+		route:       "/privacy/status",
+		path:        "/privacy/status",
+		handlerFunc: httphandler.PrivacyStatus(),
+	})
+	if err != nil {
+		return nil, err
+	}
+	return decodeRESTModel[model.PrivacyStatus](payload)
+}

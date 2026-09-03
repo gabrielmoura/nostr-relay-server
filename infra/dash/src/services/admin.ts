@@ -1,6 +1,6 @@
-import type { RelayOverview, StreamStatus } from "@/types/admin"
+import type { PrivacyStatus, RelayOverview, StreamStatus } from "@/types/admin"
 import { adminApolloClient } from "@/graphql/client"
-import { AdminOverviewDocument, AdminStreamStatusDocument } from "@/graphql/generated/operations"
+import { AdminOverviewDocument, AdminStreamStatusDocument, PrivacyStatusDocument } from "@/graphql/generated/operations"
 import { formatCount } from "@/lib/utils"
 import { env } from "@/lib/env"
 import { mockConnections, seedBannedUsers } from "@/mocks/admin"
@@ -10,8 +10,8 @@ export class ApiError extends Error {
   details?: unknown
   requestId?: string
 
-  constructor(message: string, status?: number, details?: unknown, requestId?: string) {
-    super(message)
+  constructor(message: string, status?: number, details?: unknown, requestId?: string, options?: { cause?: unknown }) {
+    super(message, options)
     this.name = "ApiError"
     this.status = status
     this.details = details
@@ -117,6 +117,73 @@ export async function getStreamStatus(): Promise<StreamStatus> {
         forward_failures: 3,
       },
     }
+  }
+}
+
+export function getPrivacyStatus(): Promise<PrivacyStatus> {
+  return getPrivacyStatusImpl().catch((error: unknown) => {
+    if (!isMockEnabled()) {
+      throw error
+    }
+    return {
+      enabled: true,
+      persistence: true,
+      state_dir: "data/privacy",
+      networks: [
+        {
+          id: "tor",
+          name: "Tor",
+          mode: "onion",
+          enabled: true,
+          started: true,
+          status: "operational",
+          addresses: ["abcdefghijklmnop.onion"],
+          metrics: { tx_bytes: 1048576, rx_bytes: 2097152, connections: 3 },
+          uptime_ms: 86400000,
+        },
+        {
+          id: "yggdrasil",
+          name: "Yggdrasil",
+          mode: "tun",
+          enabled: true,
+          started: true,
+          status: "operational",
+          addresses: ["201:dead:beef::1"],
+          metrics: { tx_bytes: 512000, rx_bytes: 1024000, peers: 5, connections: 0 },
+          uptime_ms: 3600000,
+        },
+      ],
+    }
+  })
+}
+
+async function getPrivacyStatusImpl(): Promise<PrivacyStatus> {
+  const result = await adminApolloClient.query({ query: PrivacyStatusDocument })
+  const payload = result.data?.privacyStatus
+  if (!payload) throw new ApiError("GraphQL query returned no data")
+  return {
+    enabled: payload.enabled,
+    persistence: payload.persistence,
+    state_dir: payload.stateDir ?? undefined,
+    networks: (payload.networks ?? []).map((network) => ({
+      id: network.id,
+      name: network.name,
+      mode: network.mode,
+      enabled: network.enabled,
+      started: network.started,
+      status: network.status,
+      addresses: network.addresses ?? [],
+      metrics: network.metrics
+        ? {
+            tx_bytes: network.metrics.txBytes,
+            rx_bytes: network.metrics.rxBytes,
+            peers: network.metrics.peers ?? null,
+            connections: network.metrics.connections ?? null,
+          }
+        : null,
+      error: network.error ?? null,
+      uptime_ms: network.uptimeMs,
+    })),
   }
 }
 

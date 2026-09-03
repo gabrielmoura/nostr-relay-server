@@ -1,6 +1,7 @@
 type Query {
   adminOverview: AdminOverview!
   adminStreamStatus: AdminStreamStatus!
+  privacyStatus: PrivacyStatus!
   activeConnections(page: OffsetPageInput): AdminConnectionPage!
   authedConnections(page: OffsetPageInput): AdminConnectionPage!
   loggedUsers(page: OffsetPageInput): AdminLoggedUserPage!

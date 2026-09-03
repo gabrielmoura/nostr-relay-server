@@ -139,6 +139,8 @@ func runServer(cmd *cobra.Command, args []string) {
 				log.Logger.Error("Erro ao iniciar camada de privacidade", zap.Error(err))
 			}
 		}
+		// Expose the manager to the admin dashboard /privacy/status handler.
+		privacy.SetManager(pm)
 
 		if config.Cfg.Stream.StreamUp || config.Cfg.Stream.StreamDown {
 			if err := nostrpool.Init(mainCtx, config.Cfg.Stream.Relays); err != nil {

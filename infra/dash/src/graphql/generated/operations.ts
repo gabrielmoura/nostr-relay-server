@@ -973,6 +973,47 @@ export type PageInfo = {
   total: Scalars['Int']['output'];
 };
 
+export type PrivacyNetwork = {
+  __typename: 'PrivacyNetwork';
+  addresses: Array<Scalars['String']['output']>;
+  enabled: Scalars['Boolean']['output'];
+  error?: Maybe<Scalars['String']['output']>;
+  id: PrivacyNetworkId;
+  metrics?: Maybe<PrivacyNetworkMetrics>;
+  mode: Scalars['String']['output'];
+  name: Scalars['String']['output'];
+  started: Scalars['Boolean']['output'];
+  status: PrivacyNetworkStatusEnum;
+  uptimeMs: Scalars['Int64']['output'];
+};
+
+export type PrivacyNetworkId =
+  | 'i2p'
+  | 'tor'
+  | 'yggdrasil';
+
+export type PrivacyNetworkMetrics = {
+  __typename: 'PrivacyNetworkMetrics';
+  connections?: Maybe<Scalars['Int']['output']>;
+  peers?: Maybe<Scalars['Int']['output']>;
+  rxBytes: Scalars['Int64']['output'];
+  txBytes: Scalars['Int64']['output'];
+};
+
+export type PrivacyNetworkStatusEnum =
+  | 'disabled'
+  | 'error'
+  | 'operational'
+  | 'starting';
+
+export type PrivacyStatus = {
+  __typename: 'PrivacyStatus';
+  enabled: Scalars['Boolean']['output'];
+  networks: Array<PrivacyNetwork>;
+  persistence: Scalars['Boolean']['output'];
+  stateDir?: Maybe<Scalars['String']['output']>;
+};
+
 export type PubkeyCount = {
   __typename: 'PubkeyCount';
   count: Scalars['Int64']['output'];
@@ -1015,6 +1056,7 @@ export type Query = {
   nip86BannedEvents: AdminNip86EventPage;
   nip86BlockedIps: AdminNip86IpPage;
   nip86RelayMetadata: AdminNip86RelayMetadata;
+  privacyStatus: PrivacyStatus;
   reportedEvents: AdminReportedEventPage;
   reportedEventsSummary: AdminReportedEventsSummary;
   searchUsers: AdminProfilePage;
@@ -1228,6 +1270,11 @@ export type AdminStreamStatusQueryVariables = Exact<{ [key: string]: never; }>;
 
 
 export type AdminStreamStatusQuery = { __typename: 'Query', adminStreamStatus: { __typename: 'AdminStreamStatus', config: Record<string, unknown>, dispatcher: Record<string, unknown>, pool: Record<string, unknown>, counters: Record<string, unknown> } };
+
+export type PrivacyStatusQueryVariables = Exact<{ [key: string]: never; }>;
+
+
+export type PrivacyStatusQuery = { __typename: 'Query', privacyStatus: { __typename: 'PrivacyStatus', enabled: boolean, persistence: boolean, stateDir?: string | null, networks: Array<{ __typename: 'PrivacyNetwork', id: PrivacyNetworkId, name: string, mode: string, enabled: boolean, started: boolean, status: PrivacyNetworkStatusEnum, addresses: Array<string>, error?: string | null, uptimeMs: number, metrics?: { __typename: 'PrivacyNetworkMetrics', txBytes: number, rxBytes: number, peers?: number | null, connections?: number | null } | null }> } };
 
 export type ActiveConnectionsQueryVariables = Exact<{
   page?: InputMaybe<OffsetPageInput>;
@@ -1750,6 +1797,7 @@ export type BlossomAuditQuery = { __typename: 'Query', blossomAudit: { __typenam
 
 export const AdminOverviewDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"AdminOverview"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"adminOverview"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"activeConnections"}},{"kind":"Field","name":{"kind":"Name","value":"authedConnections"}},{"kind":"Field","name":{"kind":"Name","value":"loggedUsers"}},{"kind":"Field","name":{"kind":"Name","value":"bannedUsers"}},{"kind":"Field","name":{"kind":"Name","value":"indexedEvents"}},{"kind":"Field","name":{"kind":"Name","value":"eventsPerMinute"}},{"kind":"Field","name":{"kind":"Name","value":"relayStatus"}}]}}]}}]} as unknown as DocumentNode<AdminOverviewQuery, AdminOverviewQueryVariables>;
 export const AdminStreamStatusDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"AdminStreamStatus"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"adminStreamStatus"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"config"}},{"kind":"Field","name":{"kind":"Name","value":"dispatcher"}},{"kind":"Field","name":{"kind":"Name","value":"pool"}},{"kind":"Field","name":{"kind":"Name","value":"counters"}}]}}]}}]} as unknown as DocumentNode<AdminStreamStatusQuery, AdminStreamStatusQueryVariables>;
+export const PrivacyStatusDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"PrivacyStatus"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"privacyStatus"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"enabled"}},{"kind":"Field","name":{"kind":"Name","value":"persistence"}},{"kind":"Field","name":{"kind":"Name","value":"stateDir"}},{"kind":"Field","name":{"kind":"Name","value":"networks"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"mode"}},{"kind":"Field","name":{"kind":"Name","value":"enabled"}},{"kind":"Field","name":{"kind":"Name","value":"started"}},{"kind":"Field","name":{"kind":"Name","value":"status"}},{"kind":"Field","name":{"kind":"Name","value":"addresses"}},{"kind":"Field","name":{"kind":"Name","value":"metrics"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"txBytes"}},{"kind":"Field","name":{"kind":"Name","value":"rxBytes"}},{"kind":"Field","name":{"kind":"Name","value":"peers"}},{"kind":"Field","name":{"kind":"Name","value":"connections"}}]}},{"kind":"Field","name":{"kind":"Name","value":"error"}},{"kind":"Field","name":{"kind":"Name","value":"uptimeMs"}}]}}]}}]}}]} as unknown as DocumentNode<PrivacyStatusQuery, PrivacyStatusQueryVariables>;
 export const ActiveConnectionsDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"ActiveConnections"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"page"}},"type":{"kind":"NamedType","name":{"kind":"Name","value":"OffsetPageInput"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"activeConnections"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"page"},"value":{"kind":"Variable","name":{"kind":"Name","value":"page"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"pageInfo"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"total"}},{"kind":"Field","name":{"kind":"Name","value":"limit"}},{"kind":"Field","name":{"kind":"Name","value":"offset"}},{"kind":"Field","name":{"kind":"Name","value":"hasMore"}}]}},{"kind":"Field","name":{"kind":"Name","value":"items"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"wsid"}},{"kind":"Field","name":{"kind":"Name","value":"ip"}},{"kind":"Field","name":{"kind":"Name","value":"authed"}},{"kind":"Field","name":{"kind":"Name","value":"subscriptionCount"}},{"kind":"Field","name":{"kind":"Name","value":"connectedAt"}},{"kind":"Field","name":{"kind":"Name","value":"lastSeenAt"}},{"kind":"Field","name":{"kind":"Name","value":"userAgent"}}]}}]}}]}}]} as unknown as DocumentNode<ActiveConnectionsQuery, ActiveConnectionsQueryVariables>;
 export const AuthedConnectionsDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"AuthedConnections"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"page"}},"type":{"kind":"NamedType","name":{"kind":"Name","value":"OffsetPageInput"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"authedConnections"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"page"},"value":{"kind":"Variable","name":{"kind":"Name","value":"page"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"pageInfo"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"total"}},{"kind":"Field","name":{"kind":"Name","value":"limit"}},{"kind":"Field","name":{"kind":"Name","value":"offset"}},{"kind":"Field","name":{"kind":"Name","value":"hasMore"}}]}},{"kind":"Field","name":{"kind":"Name","value":"items"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"wsid"}},{"kind":"Field","name":{"kind":"Name","value":"ip"}},{"kind":"Field","name":{"kind":"Name","value":"authed"}},{"kind":"Field","name":{"kind":"Name","value":"subscriptionCount"}},{"kind":"Field","name":{"kind":"Name","value":"connectedAt"}},{"kind":"Field","name":{"kind":"Name","value":"lastSeenAt"}},{"kind":"Field","name":{"kind":"Name","value":"userAgent"}}]}}]}}]}}]} as unknown as DocumentNode<AuthedConnectionsQuery, AuthedConnectionsQueryVariables>;
 export const DisconnectConnectionDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"DisconnectConnection"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"wsid"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"ID"}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"reason"}},"type":{"kind":"NamedType","name":{"kind":"Name","value":"String"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"disconnectConnection"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"wsid"},"value":{"kind":"Variable","name":{"kind":"Name","value":"wsid"}}},{"kind":"Argument","name":{"kind":"Name","value":"reason"},"value":{"kind":"Variable","name":{"kind":"Name","value":"reason"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"ok"}},{"kind":"Field","name":{"kind":"Name","value":"entityId"}}]}}]}}]} as unknown as DocumentNode<DisconnectConnectionMutation, DisconnectConnectionMutationVariables>;

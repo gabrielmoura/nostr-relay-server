@@ -575,6 +575,33 @@ type ComplexityRoot struct {
 		Total   func(childComplexity int) int
 	}
 
+	PrivacyNetwork struct {
+		Addresses func(childComplexity int) int
+		Enabled   func(childComplexity int) int
+		Error     func(childComplexity int) int
+		ID        func(childComplexity int) int
+		Metrics   func(childComplexity int) int
+		Mode      func(childComplexity int) int
+		Name      func(childComplexity int) int
+		Started   func(childComplexity int) int
+		Status    func(childComplexity int) int
+		UptimeMs  func(childComplexity int) int
+	}
+
+	PrivacyNetworkMetrics struct {
+		Connections func(childComplexity int) int
+		Peers       func(childComplexity int) int
+		RxBytes     func(childComplexity int) int
+		TxBytes     func(childComplexity int) int
+	}
+
+	PrivacyStatus struct {
+		Enabled     func(childComplexity int) int
+		Networks    func(childComplexity int) int
+		Persistence func(childComplexity int) int
+		StateDir    func(childComplexity int) int
+	}
+
 	PubkeyCount struct {
 		Count       func(childComplexity int) int
 		DisplayName func(childComplexity int) int
@@ -615,6 +642,7 @@ type ComplexityRoot struct {
 		Nip86BannedEvents      func(childComplexity int, q *string, page *model.OffsetPageInput) int
 		Nip86BlockedIps        func(childComplexity int, q *string, page *model.OffsetPageInput) int
 		Nip86RelayMetadata     func(childComplexity int) int
+		PrivacyStatus          func(childComplexity int) int
 		ReportedEvents         func(childComplexity int, filter *model.AdminReportedEventFilterInput, page *model.OffsetPageInput) int
 		ReportedEventsSummary  func(childComplexity int, filter *model.AdminReportedEventFilterInput) int
 		SearchUsers            func(childComplexity int, q *string, page *model.OffsetPageInput) int
@@ -673,6 +701,7 @@ type MutationResolver interface {
 type QueryResolver interface {
 	AdminOverview(ctx context.Context) (*model.AdminOverview, error)
 	AdminStreamStatus(ctx context.Context) (*model.AdminStreamStatus, error)
+	PrivacyStatus(ctx context.Context) (*model.PrivacyStatus, error)
 	ActiveConnections(ctx context.Context, page *model.OffsetPageInput) (*model.AdminConnectionPage, error)
 	AuthedConnections(ctx context.Context, page *model.OffsetPageInput) (*model.AdminConnectionPage, error)
 	LoggedUsers(ctx context.Context, page *model.OffsetPageInput) (*model.AdminLoggedUserPage, error)
@@ -3032,6 +3061,117 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.PageInfo.Total(childComplexity), true
 
+	case "PrivacyNetwork.addresses":
+		if e.ComplexityRoot.PrivacyNetwork.Addresses == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PrivacyNetwork.Addresses(childComplexity), true
+	case "PrivacyNetwork.enabled":
+		if e.ComplexityRoot.PrivacyNetwork.Enabled == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PrivacyNetwork.Enabled(childComplexity), true
+	case "PrivacyNetwork.error":
+		if e.ComplexityRoot.PrivacyNetwork.Error == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PrivacyNetwork.Error(childComplexity), true
+	case "PrivacyNetwork.id":
+		if e.ComplexityRoot.PrivacyNetwork.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PrivacyNetwork.ID(childComplexity), true
+	case "PrivacyNetwork.metrics":
+		if e.ComplexityRoot.PrivacyNetwork.Metrics == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PrivacyNetwork.Metrics(childComplexity), true
+	case "PrivacyNetwork.mode":
+		if e.ComplexityRoot.PrivacyNetwork.Mode == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PrivacyNetwork.Mode(childComplexity), true
+	case "PrivacyNetwork.name":
+		if e.ComplexityRoot.PrivacyNetwork.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PrivacyNetwork.Name(childComplexity), true
+	case "PrivacyNetwork.started":
+		if e.ComplexityRoot.PrivacyNetwork.Started == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PrivacyNetwork.Started(childComplexity), true
+	case "PrivacyNetwork.status":
+		if e.ComplexityRoot.PrivacyNetwork.Status == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PrivacyNetwork.Status(childComplexity), true
+	case "PrivacyNetwork.uptimeMs":
+		if e.ComplexityRoot.PrivacyNetwork.UptimeMs == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PrivacyNetwork.UptimeMs(childComplexity), true
+
+	case "PrivacyNetworkMetrics.connections":
+		if e.ComplexityRoot.PrivacyNetworkMetrics.Connections == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PrivacyNetworkMetrics.Connections(childComplexity), true
+	case "PrivacyNetworkMetrics.peers":
+		if e.ComplexityRoot.PrivacyNetworkMetrics.Peers == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PrivacyNetworkMetrics.Peers(childComplexity), true
+	case "PrivacyNetworkMetrics.rxBytes":
+		if e.ComplexityRoot.PrivacyNetworkMetrics.RxBytes == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PrivacyNetworkMetrics.RxBytes(childComplexity), true
+	case "PrivacyNetworkMetrics.txBytes":
+		if e.ComplexityRoot.PrivacyNetworkMetrics.TxBytes == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PrivacyNetworkMetrics.TxBytes(childComplexity), true
+
+	case "PrivacyStatus.enabled":
+		if e.ComplexityRoot.PrivacyStatus.Enabled == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PrivacyStatus.Enabled(childComplexity), true
+	case "PrivacyStatus.networks":
+		if e.ComplexityRoot.PrivacyStatus.Networks == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PrivacyStatus.Networks(childComplexity), true
+	case "PrivacyStatus.persistence":
+		if e.ComplexityRoot.PrivacyStatus.Persistence == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PrivacyStatus.Persistence(childComplexity), true
+	case "PrivacyStatus.stateDir":
+		if e.ComplexityRoot.PrivacyStatus.StateDir == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PrivacyStatus.StateDir(childComplexity), true
+
 	case "PubkeyCount.count":
 		if e.ComplexityRoot.PubkeyCount.Count == nil {
 			break
@@ -3375,6 +3515,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.Nip86RelayMetadata(childComplexity), true
+	case "Query.privacyStatus":
+		if e.ComplexityRoot.Query.PrivacyStatus == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.PrivacyStatus(childComplexity), true
 	case "Query.reportedEvents":
 		if e.ComplexityRoot.Query.ReportedEvents == nil {
 			break
@@ -4605,6 +4751,60 @@ func (ec *executionContext) childFields_PageInfo(ctx context.Context, field grap
 		return ec.fieldContext_PageInfo_hasMore(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type PageInfo", field.Name)
+}
+
+func (ec *executionContext) childFields_PrivacyNetwork(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_PrivacyNetwork_id(ctx, field)
+	case "name":
+		return ec.fieldContext_PrivacyNetwork_name(ctx, field)
+	case "mode":
+		return ec.fieldContext_PrivacyNetwork_mode(ctx, field)
+	case "enabled":
+		return ec.fieldContext_PrivacyNetwork_enabled(ctx, field)
+	case "started":
+		return ec.fieldContext_PrivacyNetwork_started(ctx, field)
+	case "status":
+		return ec.fieldContext_PrivacyNetwork_status(ctx, field)
+	case "addresses":
+		return ec.fieldContext_PrivacyNetwork_addresses(ctx, field)
+	case "metrics":
+		return ec.fieldContext_PrivacyNetwork_metrics(ctx, field)
+	case "error":
+		return ec.fieldContext_PrivacyNetwork_error(ctx, field)
+	case "uptimeMs":
+		return ec.fieldContext_PrivacyNetwork_uptimeMs(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type PrivacyNetwork", field.Name)
+}
+
+func (ec *executionContext) childFields_PrivacyNetworkMetrics(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "txBytes":
+		return ec.fieldContext_PrivacyNetworkMetrics_txBytes(ctx, field)
+	case "rxBytes":
+		return ec.fieldContext_PrivacyNetworkMetrics_rxBytes(ctx, field)
+	case "peers":
+		return ec.fieldContext_PrivacyNetworkMetrics_peers(ctx, field)
+	case "connections":
+		return ec.fieldContext_PrivacyNetworkMetrics_connections(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type PrivacyNetworkMetrics", field.Name)
+}
+
+func (ec *executionContext) childFields_PrivacyStatus(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "enabled":
+		return ec.fieldContext_PrivacyStatus_enabled(ctx, field)
+	case "persistence":
+		return ec.fieldContext_PrivacyStatus_persistence(ctx, field)
+	case "stateDir":
+		return ec.fieldContext_PrivacyStatus_stateDir(ctx, field)
+	case "networks":
+		return ec.fieldContext_PrivacyStatus_networks(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type PrivacyStatus", field.Name)
 }
 
 func (ec *executionContext) childFields_PubkeyCount(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -15167,6 +15367,438 @@ func (ec *executionContext) fieldContext_PageInfo_hasMore(_ context.Context, fie
 	return graphql.NewScalarFieldContext("PageInfo", field, false, false, errors.New("field of type Boolean does not have child fields"))
 }
 
+func (ec *executionContext) _PrivacyNetwork_id(ctx context.Context, field graphql.CollectedField, obj *model.PrivacyNetwork) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PrivacyNetwork_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v model.PrivacyNetworkID) graphql.Marshaler {
+			return ec.marshalNPrivacyNetworkID2githubᚗcomᚋgabrielmouraᚋnostrᚑrelayᚑserverᚋgraphᚋmodelᚐPrivacyNetworkID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_PrivacyNetwork_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PrivacyNetwork", field, false, false, errors.New("field of type PrivacyNetworkID does not have child fields"))
+}
+
+func (ec *executionContext) _PrivacyNetwork_name(ctx context.Context, field graphql.CollectedField, obj *model.PrivacyNetwork) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PrivacyNetwork_name(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_PrivacyNetwork_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PrivacyNetwork", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _PrivacyNetwork_mode(ctx context.Context, field graphql.CollectedField, obj *model.PrivacyNetwork) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PrivacyNetwork_mode(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Mode, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_PrivacyNetwork_mode(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PrivacyNetwork", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _PrivacyNetwork_enabled(ctx context.Context, field graphql.CollectedField, obj *model.PrivacyNetwork) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PrivacyNetwork_enabled(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Enabled, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_PrivacyNetwork_enabled(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PrivacyNetwork", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _PrivacyNetwork_started(ctx context.Context, field graphql.CollectedField, obj *model.PrivacyNetwork) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PrivacyNetwork_started(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Started, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_PrivacyNetwork_started(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PrivacyNetwork", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _PrivacyNetwork_status(ctx context.Context, field graphql.CollectedField, obj *model.PrivacyNetwork) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PrivacyNetwork_status(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Status, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v model.PrivacyNetworkStatusEnum) graphql.Marshaler {
+			return ec.marshalNPrivacyNetworkStatusEnum2githubᚗcomᚋgabrielmouraᚋnostrᚑrelayᚑserverᚋgraphᚋmodelᚐPrivacyNetworkStatusEnum(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_PrivacyNetwork_status(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PrivacyNetwork", field, false, false, errors.New("field of type PrivacyNetworkStatusEnum does not have child fields"))
+}
+
+func (ec *executionContext) _PrivacyNetwork_addresses(ctx context.Context, field graphql.CollectedField, obj *model.PrivacyNetwork) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PrivacyNetwork_addresses(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Addresses, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []string) graphql.Marshaler {
+			return ec.marshalNString2ᚕstringᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_PrivacyNetwork_addresses(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PrivacyNetwork", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _PrivacyNetwork_metrics(ctx context.Context, field graphql.CollectedField, obj *model.PrivacyNetwork) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PrivacyNetwork_metrics(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Metrics, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.PrivacyNetworkMetrics) graphql.Marshaler {
+			return ec.marshalOPrivacyNetworkMetrics2ᚖgithubᚗcomᚋgabrielmouraᚋnostrᚑrelayᚑserverᚋgraphᚋmodelᚐPrivacyNetworkMetrics(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_PrivacyNetwork_metrics(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PrivacyNetwork",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_PrivacyNetworkMetrics(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _PrivacyNetwork_error(ctx context.Context, field graphql.CollectedField, obj *model.PrivacyNetwork) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PrivacyNetwork_error(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Error, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_PrivacyNetwork_error(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PrivacyNetwork", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _PrivacyNetwork_uptimeMs(ctx context.Context, field graphql.CollectedField, obj *model.PrivacyNetwork) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PrivacyNetwork_uptimeMs(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.UptimeMs, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt642int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_PrivacyNetwork_uptimeMs(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PrivacyNetwork", field, false, false, errors.New("field of type Int64 does not have child fields"))
+}
+
+func (ec *executionContext) _PrivacyNetworkMetrics_txBytes(ctx context.Context, field graphql.CollectedField, obj *model.PrivacyNetworkMetrics) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PrivacyNetworkMetrics_txBytes(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.TxBytes, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt642int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_PrivacyNetworkMetrics_txBytes(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PrivacyNetworkMetrics", field, false, false, errors.New("field of type Int64 does not have child fields"))
+}
+
+func (ec *executionContext) _PrivacyNetworkMetrics_rxBytes(ctx context.Context, field graphql.CollectedField, obj *model.PrivacyNetworkMetrics) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PrivacyNetworkMetrics_rxBytes(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.RxBytes, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt642int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_PrivacyNetworkMetrics_rxBytes(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PrivacyNetworkMetrics", field, false, false, errors.New("field of type Int64 does not have child fields"))
+}
+
+func (ec *executionContext) _PrivacyNetworkMetrics_peers(ctx context.Context, field graphql.CollectedField, obj *model.PrivacyNetworkMetrics) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PrivacyNetworkMetrics_peers(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Peers, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *int32) graphql.Marshaler {
+			return ec.marshalOInt2ᚖint32(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_PrivacyNetworkMetrics_peers(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PrivacyNetworkMetrics", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _PrivacyNetworkMetrics_connections(ctx context.Context, field graphql.CollectedField, obj *model.PrivacyNetworkMetrics) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PrivacyNetworkMetrics_connections(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Connections, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *int32) graphql.Marshaler {
+			return ec.marshalOInt2ᚖint32(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_PrivacyNetworkMetrics_connections(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PrivacyNetworkMetrics", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _PrivacyStatus_enabled(ctx context.Context, field graphql.CollectedField, obj *model.PrivacyStatus) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PrivacyStatus_enabled(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Enabled, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_PrivacyStatus_enabled(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PrivacyStatus", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _PrivacyStatus_persistence(ctx context.Context, field graphql.CollectedField, obj *model.PrivacyStatus) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PrivacyStatus_persistence(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Persistence, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_PrivacyStatus_persistence(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PrivacyStatus", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _PrivacyStatus_stateDir(ctx context.Context, field graphql.CollectedField, obj *model.PrivacyStatus) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PrivacyStatus_stateDir(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.StateDir, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_PrivacyStatus_stateDir(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PrivacyStatus", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _PrivacyStatus_networks(ctx context.Context, field graphql.CollectedField, obj *model.PrivacyStatus) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PrivacyStatus_networks(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Networks, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.PrivacyNetwork) graphql.Marshaler {
+			return ec.marshalNPrivacyNetwork2ᚕᚖgithubᚗcomᚋgabrielmouraᚋnostrᚑrelayᚑserverᚋgraphᚋmodelᚐPrivacyNetworkᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_PrivacyStatus_networks(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PrivacyStatus",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_PrivacyNetwork(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _PubkeyCount_pubkey(ctx context.Context, field graphql.CollectedField, obj *model.PubkeyCount) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -15295,6 +15927,38 @@ func (ec *executionContext) fieldContext_Query_adminStreamStatus(_ context.Conte
 		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return ec.childFields_AdminStreamStatus(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_privacyStatus(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_privacyStatus(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().PrivacyStatus(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.PrivacyStatus) graphql.Marshaler {
+			return ec.marshalNPrivacyStatus2ᚖgithubᚗcomᚋgabrielmouraᚋnostrᚑrelayᚑserverᚋgraphᚋmodelᚐPrivacyStatus(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_privacyStatus(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_PrivacyStatus(ctx, field)
 		},
 	}
 	return fc, nil
@@ -22941,6 +23605,183 @@ func (ec *executionContext) _PageInfo(ctx context.Context, sel ast.SelectionSet,
 	return out
 }
 
+var privacyNetworkImplementors = []string{"PrivacyNetwork"}
+
+func (ec *executionContext) _PrivacyNetwork(ctx context.Context, sel ast.SelectionSet, obj *model.PrivacyNetwork) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, privacyNetworkImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("PrivacyNetwork")
+		case "id":
+			out.Values[i] = ec._PrivacyNetwork_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "name":
+			out.Values[i] = ec._PrivacyNetwork_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "mode":
+			out.Values[i] = ec._PrivacyNetwork_mode(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "enabled":
+			out.Values[i] = ec._PrivacyNetwork_enabled(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "started":
+			out.Values[i] = ec._PrivacyNetwork_started(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "status":
+			out.Values[i] = ec._PrivacyNetwork_status(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "addresses":
+			out.Values[i] = ec._PrivacyNetwork_addresses(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "metrics":
+			out.Values[i] = ec._PrivacyNetwork_metrics(ctx, field, obj)
+		case "error":
+			out.Values[i] = ec._PrivacyNetwork_error(ctx, field, obj)
+		case "uptimeMs":
+			out.Values[i] = ec._PrivacyNetwork_uptimeMs(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferred), math.MaxInt32)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var privacyNetworkMetricsImplementors = []string{"PrivacyNetworkMetrics"}
+
+func (ec *executionContext) _PrivacyNetworkMetrics(ctx context.Context, sel ast.SelectionSet, obj *model.PrivacyNetworkMetrics) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, privacyNetworkMetricsImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("PrivacyNetworkMetrics")
+		case "txBytes":
+			out.Values[i] = ec._PrivacyNetworkMetrics_txBytes(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "rxBytes":
+			out.Values[i] = ec._PrivacyNetworkMetrics_rxBytes(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "peers":
+			out.Values[i] = ec._PrivacyNetworkMetrics_peers(ctx, field, obj)
+		case "connections":
+			out.Values[i] = ec._PrivacyNetworkMetrics_connections(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferred), math.MaxInt32)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var privacyStatusImplementors = []string{"PrivacyStatus"}
+
+func (ec *executionContext) _PrivacyStatus(ctx context.Context, sel ast.SelectionSet, obj *model.PrivacyStatus) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, privacyStatusImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("PrivacyStatus")
+		case "enabled":
+			out.Values[i] = ec._PrivacyStatus_enabled(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "persistence":
+			out.Values[i] = ec._PrivacyStatus_persistence(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "stateDir":
+			out.Values[i] = ec._PrivacyStatus_stateDir(ctx, field, obj)
+		case "networks":
+			out.Values[i] = ec._PrivacyStatus_networks(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferred), math.MaxInt32)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
 var pubkeyCountImplementors = []string{"PubkeyCount"}
 
 func (ec *executionContext) _PubkeyCount(ctx context.Context, sel ast.SelectionSet, obj *model.PubkeyCount) graphql.Marshaler {
@@ -23038,6 +23879,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_adminStreamStatus(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "privacyStatus":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_privacyStatus(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
@@ -25791,6 +26654,66 @@ func (ec *executionContext) marshalNPageInfo2ᚖgithubᚗcomᚋgabrielmouraᚋno
 	return ec._PageInfo(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalNPrivacyNetwork2ᚕᚖgithubᚗcomᚋgabrielmouraᚋnostrᚑrelayᚑserverᚋgraphᚋmodelᚐPrivacyNetworkᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.PrivacyNetwork) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNPrivacyNetwork2ᚖgithubᚗcomᚋgabrielmouraᚋnostrᚑrelayᚑserverᚋgraphᚋmodelᚐPrivacyNetwork(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNPrivacyNetwork2ᚖgithubᚗcomᚋgabrielmouraᚋnostrᚑrelayᚑserverᚋgraphᚋmodelᚐPrivacyNetwork(ctx context.Context, sel ast.SelectionSet, v *model.PrivacyNetwork) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._PrivacyNetwork(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNPrivacyNetworkID2githubᚗcomᚋgabrielmouraᚋnostrᚑrelayᚑserverᚋgraphᚋmodelᚐPrivacyNetworkID(ctx context.Context, v any) (model.PrivacyNetworkID, error) {
+	var res model.PrivacyNetworkID
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNPrivacyNetworkID2githubᚗcomᚋgabrielmouraᚋnostrᚑrelayᚑserverᚋgraphᚋmodelᚐPrivacyNetworkID(ctx context.Context, sel ast.SelectionSet, v model.PrivacyNetworkID) graphql.Marshaler {
+	return v
+}
+
+func (ec *executionContext) unmarshalNPrivacyNetworkStatusEnum2githubᚗcomᚋgabrielmouraᚋnostrᚑrelayᚑserverᚋgraphᚋmodelᚐPrivacyNetworkStatusEnum(ctx context.Context, v any) (model.PrivacyNetworkStatusEnum, error) {
+	var res model.PrivacyNetworkStatusEnum
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNPrivacyNetworkStatusEnum2githubᚗcomᚋgabrielmouraᚋnostrᚑrelayᚑserverᚋgraphᚋmodelᚐPrivacyNetworkStatusEnum(ctx context.Context, sel ast.SelectionSet, v model.PrivacyNetworkStatusEnum) graphql.Marshaler {
+	return v
+}
+
+func (ec *executionContext) marshalNPrivacyStatus2githubᚗcomᚋgabrielmouraᚋnostrᚑrelayᚑserverᚋgraphᚋmodelᚐPrivacyStatus(ctx context.Context, sel ast.SelectionSet, v model.PrivacyStatus) graphql.Marshaler {
+	return ec._PrivacyStatus(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNPrivacyStatus2ᚖgithubᚗcomᚋgabrielmouraᚋnostrᚑrelayᚑserverᚋgraphᚋmodelᚐPrivacyStatus(ctx context.Context, sel ast.SelectionSet, v *model.PrivacyStatus) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._PrivacyStatus(ctx, sel, v)
+}
+
 func (ec *executionContext) marshalNPubkeyCount2ᚕᚖgithubᚗcomᚋgabrielmouraᚋnostrᚑrelayᚑserverᚋgraphᚋmodelᚐPubkeyCountᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.PubkeyCount) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
@@ -26398,6 +27321,13 @@ func (ec *executionContext) unmarshalOOffsetPageInput2ᚖgithubᚗcomᚋgabrielm
 	}
 	res, err := ec.unmarshalInputOffsetPageInput(ctx, v)
 	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOPrivacyNetworkMetrics2ᚖgithubᚗcomᚋgabrielmouraᚋnostrᚑrelayᚑserverᚋgraphᚋmodelᚐPrivacyNetworkMetrics(ctx context.Context, sel ast.SelectionSet, v *model.PrivacyNetworkMetrics) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._PrivacyNetworkMetrics(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalOSortDirection2ᚖgithubᚗcomᚋgabrielmouraᚋnostrᚑrelayᚑserverᚋgraphᚋmodelᚐSortDirection(ctx context.Context, v any) (*model.SortDirection, error) {

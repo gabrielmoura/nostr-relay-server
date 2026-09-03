@@ -10,6 +10,7 @@ import { LoggedUsersPage } from "@/routes/logged-users-page"
 import { OverviewPage } from "@/routes/overview-page"
 import { ReportedEventsPage } from "@/routes/reported-events-page"
 import { StreamStatusPage } from "@/routes/stream-status-page"
+import { PrivacyPage } from "@/components/privacy/privacy-page"
 import { UserDetailPage } from "@/routes/user-detail-page"
 import { NIP05Page } from "@/routes/nip05-page"
 import { NIP86Page } from "@/routes/nip86-page"
@@ -166,6 +167,12 @@ const streamStatusRoute = createRoute({
   component: StreamStatusPage,
 })
 
+const privacyRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/privacy",
+  component: PrivacyPage,
+})
+
 const syncRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/sync",
@@ -210,6 +217,7 @@ const routeTree = rootRoute.addChildren([
   blossomReportsRoute,
   blossomAuditRoute,
   streamStatusRoute,
+  privacyRoute,
   eventDetailRoute,
   syncRoute,
   downloadRoute,

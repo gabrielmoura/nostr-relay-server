@@ -8,6 +8,7 @@ import (
 	"net"
 	"strconv"
 	"sync"
+	"time"
 
 	"github.com/cretz/bine/tor"
 	bined25519 "github.com/cretz/bine/torutil/ed25519"
@@ -36,6 +37,13 @@ type torService struct {
 	proc    *tor.Tor
 	socks   string
 	onionID string
+
+	// observability (see Status)
+	startedAt   time.Time
+	startErr    string
+	txBytes     int64
+	rxBytes     int64
+	connections int
 }
 
 func newTorService(cfg config.TorConfig, logger *zap.Logger, store *KeyStore) Service {
@@ -54,10 +62,11 @@ func (s *torService) Start(ctx context.Context, relayPort int) error {
 	mode := resolveMode(s.cfg.Mode, true)
 	s.socks = net.JoinHostPort("127.0.0.1", strconv.Itoa(s.cfg.SocksPort))
 
+	var startErr error
 	switch mode {
 	case "native":
 		if err := s.startNative(ctx, relayPort); err != nil {
-			return fmt.Errorf("tor native: %w", err)
+			startErr = fmt.Errorf("tor native: %w", err)
 		}
 	case "external":
 		// The external daemon's inbound onion is configured out-of-band
@@ -65,9 +74,15 @@ func (s *torService) Start(ctx context.Context, relayPort int) error {
 		// the configured proxy.
 		s.logger.Info("tor external: using existing daemon", zap.String("socks", s.socks))
 	default:
-		return fmt.Errorf("tor: unknown mode %q", s.cfg.Mode)
+		startErr = fmt.Errorf("tor: unknown mode %q", s.cfg.Mode)
+	}
+	if startErr != nil {
+		s.startErr = startErr.Error()
+		return startErr
 	}
 	s.started = true
+	s.startedAt = time.Now()
+	s.startErr = ""
 	return nil
 }
 
@@ -169,4 +184,23 @@ func (s *torService) Close() error {
 	}
 	s.started = false
 	return nil
+}
+
+// Status returns a copy of the Tor network's observability snapshot.
+func (s *torService) Status() StatusSnapshot {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return StatusSnapshot{
+		ID:          "tor",
+		Mode:        resolveMode(s.cfg.Mode, true),
+		Enabled:     s.cfg.Mode != "" && s.cfg.Mode != "disabled",
+		Started:     s.started,
+		StartErr:    s.startErr,
+		Addresses:   s.Addresses(),
+		Uptime:      uptimeSince(s.startedAt, s.started),
+		TxBytes:     s.txBytes,
+		RxBytes:     s.rxBytes,
+		Connections: s.connections,
+		Peers:       nil, // bine does not expose a uniform circuit/peer counter
+	}
 }

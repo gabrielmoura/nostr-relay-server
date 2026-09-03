@@ -835,3 +835,30 @@ export type BlossomAuditRecord = {
 export type BlossomAuditFilters = {
   q?: string
 }
+
+export type PrivacyStatus = {
+  enabled: boolean
+  persistence: boolean
+  state_dir?: string
+  networks: PrivacyNetwork[]
+}
+
+export type PrivacyNetwork = {
+  id: "tor" | "i2p" | "yggdrasil"
+  name: string
+  mode: string
+  enabled: boolean
+  started: boolean
+  status: "operational" | "starting" | "error" | "disabled"
+  addresses: string[]
+  metrics?: PrivacyNetworkMetrics | null
+  error?: string | null
+  uptime_ms: number
+}
+
+export type PrivacyNetworkMetrics = {
+  tx_bytes: number
+  rx_bytes: number
+  peers?: number | null
+  connections?: number | null
+}

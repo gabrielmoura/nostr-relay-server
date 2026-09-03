@@ -2,6 +2,7 @@ import { gql } from "@apollo/client"
 
 export const AdminOverviewOp = gql`query AdminOverview { adminOverview { activeConnections authedConnections loggedUsers bannedUsers indexedEvents eventsPerMinute relayStatus } }`
 export const AdminStreamStatusOp = gql`query AdminStreamStatus { adminStreamStatus { config dispatcher pool counters } }`
+export const PrivacyStatusOp = gql`query PrivacyStatus { privacyStatus { enabled persistence stateDir networks { id name mode enabled started status addresses metrics { txBytes rxBytes peers connections } error uptimeMs } } }`
 export const ActiveConnectionsOp = gql`query ActiveConnections($page: OffsetPageInput) { activeConnections(page: $page) { pageInfo { total limit offset hasMore } items { wsid ip authed subscriptionCount connectedAt lastSeenAt userAgent } } }`
 export const AuthedConnectionsOp = gql`query AuthedConnections($page: OffsetPageInput) { authedConnections(page: $page) { pageInfo { total limit offset hasMore } items { wsid ip authed subscriptionCount connectedAt lastSeenAt userAgent } } }`
 export const DisconnectConnectionOp = gql`mutation DisconnectConnection($wsid: ID!, $reason: String) { disconnectConnection(wsid: $wsid, reason: $reason) { ok entityId } }`

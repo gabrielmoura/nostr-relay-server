@@ -81,3 +81,10 @@ type AdminCreateLabelPayload { event: NostrEvent! stored: Boolean! }
 type AdminJob { id: ID! queue: String! priority: String! jobName: String! status: String! attempts: Int! maxAttempts: Int! createdAt: String! startedAt: String finishedAt: String runAt: String lastError: String payload: JSON result: JSON }
 type AdminGroup { groupId: ID! name: String! description: String! private: Boolean! closed: Boolean! hidden: Boolean! memberCount: Int! }
 type AdminWoTSummary { totalNodes: Int! totalEdges: Int! trustedPubkeys: [String!]! lastComputedAt: String }
+
+# ---- Privacy network observability (admin dashboard) ----
+type PrivacyStatus { enabled: Boolean! persistence: Boolean! stateDir: String networks: [PrivacyNetwork!]! }
+type PrivacyNetwork { id: PrivacyNetworkID! name: String! mode: String! enabled: Boolean! started: Boolean! status: PrivacyNetworkStatusEnum! addresses: [String!]! metrics: PrivacyNetworkMetrics error: String uptimeMs: Int64! }
+type PrivacyNetworkMetrics { txBytes: Int64! rxBytes: Int64! peers: Int connections: Int }
+enum PrivacyNetworkID { tor i2p yggdrasil }
+enum PrivacyNetworkStatusEnum { operational starting error disabled }

@@ -31,6 +31,13 @@ type i2pService struct {
 	started bool
 	sam     *samClient
 	address string
+
+	// observability (see Status)
+	startedAt   time.Time
+	startErr    string
+	txBytes     int64
+	rxBytes     int64
+	connections int
 }
 
 func newI2PService(cfg config.I2PConfig, logger *zap.Logger, store *KeyStore) Service {
@@ -39,12 +46,23 @@ func newI2PService(cfg config.I2PConfig, logger *zap.Logger, store *KeyStore) Se
 
 func (s *i2pService) Name() string { return "i2p" }
 
-func (s *i2pService) Start(ctx context.Context, relayPort int) error {
+func (s *i2pService) Start(ctx context.Context, relayPort int) (err error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.started {
 		return nil
 	}
+	// Record the observability state regardless of the return path.
+	defer func() {
+		if err != nil {
+			s.startErr = err.Error()
+			s.startedAt = time.Time{}
+			s.started = false
+		} else {
+			s.startErr = ""
+			s.startedAt = time.Now()
+		}
+	}()
 
 	mode := resolveMode(s.cfg.Mode, false) // production default = external
 	switch mode {
@@ -133,4 +151,23 @@ func (s *i2pService) Close() error {
 	s.address = ""
 	s.started = false
 	return nil
+}
+
+// Status returns a copy of the I2P network's observability snapshot.
+func (s *i2pService) Status() StatusSnapshot {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return StatusSnapshot{
+		ID:          "i2p",
+		Mode:        resolveMode(s.cfg.Mode, false),
+		Enabled:     s.cfg.Mode != "" && s.cfg.Mode != "disabled",
+		Started:     s.started,
+		StartErr:    s.startErr,
+		Addresses:   s.Addresses(),
+		Uptime:      uptimeSince(s.startedAt, s.started),
+		TxBytes:     s.txBytes,
+		RxBytes:     s.rxBytes,
+		Connections: s.connections,
+		Peers:       nil, // an I2P eepsite has no peer count
+	}
 }

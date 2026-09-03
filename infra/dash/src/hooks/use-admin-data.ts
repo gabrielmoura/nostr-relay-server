@@ -21,6 +21,7 @@ import type {
   NIP86RelayMetadataPayload,
 } from "@/types/admin"
 import {
+  getPrivacyStatus,
   getRelayOverview,
   getStreamStatus,
 } from "@/services/admin"
@@ -121,6 +122,10 @@ export function useBlossomAnalytics(enabled = true) {
 
 export function useStreamStatus() {
   return useQuery({ queryKey: ["stream-status"], queryFn: getStreamStatus, refetchInterval: 10000 })
+}
+
+export function usePrivacyStatus() {
+  return useQuery({ queryKey: ["privacy-status"], queryFn: getPrivacyStatus, refetchInterval: 10000 })
 }
 
 export function useInfiniteConnections(mode: "active" | "authed") {

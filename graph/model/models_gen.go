@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"strconv"
-	"strings"
 )
 
 type AdminAsyncJob struct {
@@ -670,6 +669,33 @@ type PageInfo struct {
 	HasMore bool  `json:"hasMore"`
 }
 
+type PrivacyNetwork struct {
+	ID        PrivacyNetworkID         `json:"id"`
+	Name      string                   `json:"name"`
+	Mode      string                   `json:"mode"`
+	Enabled   bool                     `json:"enabled"`
+	Started   bool                     `json:"started"`
+	Status    PrivacyNetworkStatusEnum `json:"status"`
+	Addresses []string                 `json:"addresses"`
+	Metrics   *PrivacyNetworkMetrics   `json:"metrics,omitempty"`
+	Error     *string                  `json:"error,omitempty"`
+	UptimeMs  int                      `json:"uptimeMs"`
+}
+
+type PrivacyNetworkMetrics struct {
+	TxBytes     int    `json:"txBytes"`
+	RxBytes     int    `json:"rxBytes"`
+	Peers       *int32 `json:"peers,omitempty"`
+	Connections *int32 `json:"connections,omitempty"`
+}
+
+type PrivacyStatus struct {
+	Enabled     bool              `json:"enabled"`
+	Persistence bool              `json:"persistence"`
+	StateDir    *string           `json:"stateDir,omitempty"`
+	Networks    []*PrivacyNetwork `json:"networks"`
+}
+
 type PubkeyCount struct {
 	Pubkey      string  `json:"pubkey"`
 	DisplayName *string `json:"displayName,omitempty"`
@@ -894,7 +920,6 @@ func (e *LabelTargetType) UnmarshalGQL(v any) error {
 		return fmt.Errorf("enums must be strings")
 	}
 
-	str = strings.ToUpper(strings.TrimSpace(str))
 	*e = LabelTargetType(str)
 	if !e.IsValid() {
 		return fmt.Errorf("%s is not a valid LabelTargetType", str)
@@ -915,6 +940,122 @@ func (e *LabelTargetType) UnmarshalJSON(b []byte) error {
 }
 
 func (e LabelTargetType) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type PrivacyNetworkID string
+
+const (
+	PrivacyNetworkIDTor       PrivacyNetworkID = "tor"
+	PrivacyNetworkIDI2p       PrivacyNetworkID = "i2p"
+	PrivacyNetworkIDYggdrasil PrivacyNetworkID = "yggdrasil"
+)
+
+var AllPrivacyNetworkID = []PrivacyNetworkID{
+	PrivacyNetworkIDTor,
+	PrivacyNetworkIDI2p,
+	PrivacyNetworkIDYggdrasil,
+}
+
+func (e PrivacyNetworkID) IsValid() bool {
+	switch e {
+	case PrivacyNetworkIDTor, PrivacyNetworkIDI2p, PrivacyNetworkIDYggdrasil:
+		return true
+	}
+	return false
+}
+
+func (e PrivacyNetworkID) String() string {
+	return string(e)
+}
+
+func (e *PrivacyNetworkID) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = PrivacyNetworkID(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid PrivacyNetworkID", str)
+	}
+	return nil
+}
+
+func (e PrivacyNetworkID) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *PrivacyNetworkID) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e PrivacyNetworkID) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type PrivacyNetworkStatusEnum string
+
+const (
+	PrivacyNetworkStatusEnumOperational PrivacyNetworkStatusEnum = "operational"
+	PrivacyNetworkStatusEnumStarting    PrivacyNetworkStatusEnum = "starting"
+	PrivacyNetworkStatusEnumError       PrivacyNetworkStatusEnum = "error"
+	PrivacyNetworkStatusEnumDisabled    PrivacyNetworkStatusEnum = "disabled"
+)
+
+var AllPrivacyNetworkStatusEnum = []PrivacyNetworkStatusEnum{
+	PrivacyNetworkStatusEnumOperational,
+	PrivacyNetworkStatusEnumStarting,
+	PrivacyNetworkStatusEnumError,
+	PrivacyNetworkStatusEnumDisabled,
+}
+
+func (e PrivacyNetworkStatusEnum) IsValid() bool {
+	switch e {
+	case PrivacyNetworkStatusEnumOperational, PrivacyNetworkStatusEnumStarting, PrivacyNetworkStatusEnumError, PrivacyNetworkStatusEnumDisabled:
+		return true
+	}
+	return false
+}
+
+func (e PrivacyNetworkStatusEnum) String() string {
+	return string(e)
+}
+
+func (e *PrivacyNetworkStatusEnum) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = PrivacyNetworkStatusEnum(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid PrivacyNetworkStatusEnum", str)
+	}
+	return nil
+}
+
+func (e PrivacyNetworkStatusEnum) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *PrivacyNetworkStatusEnum) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e PrivacyNetworkStatusEnum) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil
@@ -1005,7 +1146,6 @@ func (e *TimelineBucket) UnmarshalGQL(v any) error {
 		return fmt.Errorf("enums must be strings")
 	}
 
-	str = strings.ToUpper(strings.TrimSpace(str))
 	*e = TimelineBucket(str)
 	if !e.IsValid() {
 		return fmt.Errorf("%s is not a valid TimelineBucket", str)
