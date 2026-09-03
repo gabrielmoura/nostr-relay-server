@@ -52,6 +52,17 @@ func processEvent(ws *dto.WsServer, evt *nostr.Event) string {
 		}
 	}
 
+	// NIP-70: Protected Events — events carrying the ["-"] tag may only be
+	// published by their author. When the client has not yet authenticated
+	// we trigger the NIP-42 AUTH flow so it can retry after authenticating.
+	if reject, reason := policies.P.RejectProtectedEvent(evt, ws.Authed); reject {
+		if ws.Authed == "" {
+			auth.SendAuthChallenge(ws)
+		}
+		rejectEvent(ws, evt, reason)
+		return ""
+	}
+
 	if reject, reason := policies.P.ValidateIncomingEvent(ctx, evt); reject {
 		rejectEvent(ws, evt, reason)
 		return ""

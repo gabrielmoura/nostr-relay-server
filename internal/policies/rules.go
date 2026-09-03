@@ -12,6 +12,7 @@ import (
 	"github.com/gabrielmoura/nostr-relay-server/infra/metrics"
 	"github.com/gabrielmoura/nostr-relay-server/internal/db"
 	"github.com/gabrielmoura/nostr-relay-server/internal/dto"
+	json "github.com/gabrielmoura/nostr-relay-server/internal/jsonx"
 	"github.com/gabrielmoura/nostr-relay-server/internal/nip86"
 	"github.com/gabrielmoura/nostr-relay-server/internal/security"
 	"github.com/nbd-wtf/go-nostr"
@@ -189,6 +190,53 @@ func (p Policies) checkDirectMessageAccess(filter nostr.Filter, ws *dto.WsServer
 	default:
 		return true, "restricted: authenticated user does not have authorization for requested filters."
 	}
+}
+
+// rejectProtectedEvent implements NIP-70: Protected Events.
+// Events carrying the ["-"] tag can only be published by their author.
+// If the client is not authenticated, the relay sends an auth-required message.
+// If authenticated but the pubkey does not match, the event is rejected.
+func (p Policies) rejectProtectedEvent(evt *nostr.Event, authedPubkey string) (bool, string) {
+	if !hasProtectedTag(evt) {
+		return false, ""
+	}
+	if authedPubkey == "" {
+		return true, "auth-required: this event may only be published by its author"
+	}
+	if authedPubkey != evt.PubKey {
+		return true, security.Reason(security.PrefixRestricted, "protected event can only be published by its author")
+	}
+	return false, ""
+}
+
+// rejectRepostOfProtectedEvent implements the NIP-70 repost rule:
+// reposts (kind 6 and kind 16) MUST NOT embed a protected event.
+func (p Policies) rejectRepostOfProtectedEvent(evt *nostr.Event) (bool, string) {
+	if evt.Kind != nostr.KindRepost && evt.Kind != nostr.KindGenericRepost {
+		return false, ""
+	}
+	if strings.TrimSpace(evt.Content) == "" {
+		return false, ""
+	}
+	var embedded nostr.Event
+	if err := json.Unmarshal([]byte(evt.Content), &embedded); err != nil {
+		// Content is not a valid embedded event; nothing to check.
+		return false, ""
+	}
+	if hasProtectedTag(&embedded) {
+		return true, security.Reason(security.PrefixRestricted, "repost must not embed a protected event")
+	}
+	return false, ""
+}
+
+// hasProtectedTag returns true when the event contains the NIP-70 ["-"] tag.
+func hasProtectedTag(evt *nostr.Event) bool {
+	for _, tag := range evt.Tags {
+		if len(tag) == 1 && tag[0] == "-" {
+			return true
+		}
+	}
+	return false
 }
 
 func firstNonEmpty(values ...string) string {

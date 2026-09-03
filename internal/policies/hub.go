@@ -35,6 +35,12 @@ func (p Policies) ValidateIncomingEvent(ctx context.Context, evt *nostr.Event) (
 	return groups.ValidateIncomingEvent(ctx, evt)
 }
 
+// RejectProtectedEvent implements NIP-70 validation.
+// It must be called from the event handler where the authenticated pubkey is available.
+func (p Policies) RejectProtectedEvent(evt *nostr.Event, authedPubkey string) (bool, string) {
+	return p.rejectProtectedEvent(evt, authedPubkey)
+}
+
 func (p Policies) ValidateBatchEvent(ctx context.Context, evt *nostr.Event) (bool, string) {
 	if reject, reason := p.validateEventIdentity(evt); reject {
 		return true, reason
@@ -160,6 +166,9 @@ func (p Policies) validateStorageEvent(ctx context.Context, evt *nostr.Event) (b
 		return true, reason
 	}
 	if reject, reason := p.rejectEventsWithBase64Media(evt); reject {
+		return true, reason
+	}
+	if reject, reason := p.rejectRepostOfProtectedEvent(evt); reject {
 		return true, reason
 	}
 	if reject, reason := p.validateMarmotMIP00Event(evt); reject {
