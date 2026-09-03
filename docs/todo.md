@@ -152,6 +152,24 @@
 - [ ] Deployment guide
 - [ ] Troubleshooting guide
 
+## Phase 40: Admin GraphQL Migration
+
+### 39.1: Docs and schema
+- [x] Inventory current `/admin/*` REST routes and payloads
+- [x] Validate relevant Nostr protocol semantics for admin operations (NIP-19, NIP-32, NIP-56, NIP-86)
+- [x] Document GraphQL target contract in `docs/graphql-admin-schema.graphqls`
+- [x] Document migration rules and REST-to-GraphQL mapping in `docs/graphql-admin.md`
+- [x] Add ADR for internal admin GraphQL adoption
+- [ ] Get explicit documentation approval before touching `graph/` or router wiring
+
+### 39.2: Planned implementation after approval
+- [ ] Replace sample `graph/schema.graphqls` todo schema with approved admin SDL
+- [ ] Add gqlgen scalar mappings for `Time`, `Int64`, `JSON`, and `Upload`
+- [ ] Mount `/admin/graphql` on the internal Fiber app behind `AdminTokenMiddleware`
+- [ ] Implement resolver composition over existing admin services and query packages
+- [ ] Add resolver tests for normalization, auth, pagination, async job payloads, and Blossom/NIP-86 operations
+- [ ] Define REST deprecation path for the admin SPA migration
+
 ## Phase 38: Marmot MIP-00 Relay Support
 
 ### 38.1: Docs and design
@@ -637,6 +655,27 @@
 - [ ] Extend root HTTP handler to detect `application/nostr+json+rpc`
 - [ ] Implement NIP-98 middleware for exact URL, method, signature, freshness, and payload hash validation
 - [ ] Reject non-admin pubkeys with `401`
+
+---
+
+## Phase 39: PostgreSQL Ingestion Hardening (NEW)
+
+### 39.1: Immediate Safety
+- [x] Identify the wide `event` indexes causing PostgreSQL `SQLSTATE 54000`
+- [x] Document the root cause and the safe replacement index strategy
+- [x] Drop `idx_event_covering_author` and `idx_event_covering` concurrently
+- [x] Create `idx_event_pubkey_created_at` concurrently
+
+### 39.2: Query and Auth Correctness
+- [x] Emit native PostgreSQL placeholders from the event query builder
+- [x] Improve batch insert failure logs with event metadata and SQLSTATE
+- [x] Improve NIP-42 failure logs with explicit rejection reasons
+- [x] Align default `relay_information.canonical_url` with the websocket route `/`
+
+### 39.3: Follow-up Improvements
+- [x] Migrate hot tag filters from `tagvalues` overlap to `tags @>` + GIN `jsonb_path_ops`
+- [ ] Evaluate normalized `event_tag` helper table only for analytics-heavy workloads
+- [ ] Add PostgreSQL integration coverage for large `content` and large `tags`
 
 ### 36.4: Service and Repository
 - [ ] Add NIP-86 dispatcher and method handlers

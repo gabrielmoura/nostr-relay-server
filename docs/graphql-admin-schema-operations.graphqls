@@ -1,0 +1,78 @@
+type Query {
+  adminOverview: AdminOverview!
+  adminStreamStatus: AdminStreamStatus!
+  activeConnections(page: OffsetPageInput): AdminConnectionPage!
+  authedConnections(page: OffsetPageInput): AdminConnectionPage!
+  loggedUsers(page: OffsetPageInput): AdminLoggedUserPage!
+  bannedUsers(q: String, page: OffsetPageInput): AdminProfilePage!
+  searchUsers(q: String, page: OffsetPageInput): AdminProfilePage!
+  userProfile(pubkey: String!): AdminProfile!
+  userBanStatus(pubkey: String!): AdminBanStatus!
+  userNip05(pubkey: String!): AdminNip05Lookup!
+  nip05Identities(q: String, page: OffsetPageInput): AdminNip05IdentityPage!
+  events(filter: AdminEventSearchInput, page: OffsetPageInput): AdminEventPage!
+  eventAggregates(filter: AdminEventSearchInput): AdminEventAggregates!
+  eventTimeline(filter: AdminEventSearchInput, bucket: TimelineBucket = HOUR): AdminTimeline!
+  eventDetail(id: ID!): AdminEventDetail!
+  eventReports(id: ID!, page: OffsetPageInput): AdminEventReportPage!
+  reportedEvents(filter: AdminReportedEventFilterInput, page: OffsetPageInput): AdminReportedEventPage!
+  reportedEventsSummary(filter: AdminReportedEventFilterInput): AdminReportedEventsSummary!
+  labels(filter: AdminLabelFilterInput, page: OffsetPageInput): AdminLabelPage!
+  labelsSummary(filter: AdminLabelFilterInput): AdminLabelsSummary!
+  blossomOverview: AdminBlossomOverview!
+  blossomPolicy: AdminBlossomPolicy!
+  blossomPlans: [AdminBlossomPlan!]!
+  blossomPlanAssignments(planId: ID!, page: OffsetPageInput): AdminBlossomPlanAssignmentPage!
+  blossomObjects(filter: AdminBlossomObjectFilterInput, page: OffsetPageInput): AdminBlossomObjectPage!
+  blossomObject(hash: ID!): AdminBlossomObject!
+  blossomUsers(filter: AdminBlossomUserFilterInput, page: OffsetPageInput): AdminBlossomUserPage!
+  blossomUser(pubkey: String!): AdminBlossomUserDetail!
+  blossomReports(filter: AdminBlossomReportFilterInput, page: OffsetPageInput): AdminBlossomReportPage!
+  blossomAnalytics: JSON!
+  blossomWorkers(status: String, jobType: String, targetHash: String, page: OffsetPageInput): AdminBlossomWorkerPage!
+  blossomAudit(page: OffsetPageInput): AdminBlossomAuditPage!
+  nip86AllowedPubkeys(q: String, page: OffsetPageInput): AdminNip86PubkeyPage!
+  nip86BlockedIps(q: String, page: OffsetPageInput): AdminNip86IPPage!
+  nip86BannedEvents(q: String, page: OffsetPageInput): AdminNip86EventPage!
+  nip86RelayMetadata: AdminNip86RelayMetadata!
+  jobs(filter: AdminJobFilterInput, page: OffsetPageInput): AdminJobPage!
+  job(id: ID!, queue: String): AdminJob!
+  groups: [AdminGroup!]!
+  wotSummary: AdminWoTSummary!
+}
+
+type Mutation {
+  disconnectConnection(wsid: ID!, reason: String): MutationAck!
+  banUser(pubkey: String!, input: AdminBanUserInput!): AdminBanStatus!
+  unbanUser(pubkey: String!): AdminBanStatus!
+  upsertNip05(input: AdminNip05UpsertInput!): AdminNip05Identity!
+  deleteNip05(name: String!): MutationAck!
+  importEvents(files: [Upload!]!): AdminImportEventsPayload!
+  fetchEventFromRelays(id: ID!, input: AdminFetchEventInput): AdminFetchEventPayload!
+  createLabel(input: AdminCreateLabelInput!): AdminCreateLabelPayload!
+  upsertBlossomPolicy(input: AdminBlossomPolicyInput!): AdminBlossomPolicy!
+  upsertBlossomPlan(input: AdminBlossomPlanInput!): AdminBlossomPlan!
+  deleteBlossomPlan(id: ID!): MutationAck!
+  assignBlossomPlan(planId: ID!, pubkey: String!): MutationAck!
+  unassignBlossomPlan(planId: ID!, pubkey: String!): MutationAck!
+  reviewBlossomObjects(input: AdminBlossomBulkReviewInput!): MutationAck!
+  upsertBlossomWhitelist(input: AdminBlossomWhitelistInput!): AdminBlossomUser!
+  purgeBlossomUser(pubkey: String!): MutationAck!
+  mirrorBlossomObject(input: AdminBlossomMirrorInput!): AdminAsyncJob!
+  resolveBlossomReport(id: ID!, input: AdminBlossomResolveReportInput!): AdminBlossomReport!
+  createNip86AllowedPubkey(pubkey: String!, input: AdminNip86ReasonInput): MutationAck!
+  deleteNip86AllowedPubkey(pubkey: String!): MutationAck!
+  createNip86BlockedIp(ip: String!, input: AdminNip86ReasonInput): MutationAck!
+  deleteNip86BlockedIp(ip: String!): MutationAck!
+  createNip86BannedEvent(eventId: ID!, input: AdminNip86ReasonInput): MutationAck!
+  deleteNip86BannedEvent(eventId: ID!): MutationAck!
+  updateNip86RelayMetadata(input: AdminNip86RelayMetadataInput!): AdminNip86RelayMetadata!
+  startNegentropySync(input: AdminNegentropySyncInput!): AdminAsyncJob!
+  downloadEvents(input: AdminDownloadEventsInput!): AdminAsyncJob!
+  retryJob(id: ID!, queue: String): MutationAck!
+  cancelJob(id: ID!, queue: String): MutationAck!
+  resumeJob(id: ID!, queue: String): MutationAck!
+  deleteJobsHistory(input: AdminDeleteJobsHistoryInput!): MutationAck!
+  addTrustedPubkey(pubkey: String!): AdminWoTSummary!
+  removeTrustedPubkey(pubkey: String!): AdminWoTSummary!
+}

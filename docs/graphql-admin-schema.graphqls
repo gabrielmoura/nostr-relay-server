@@ -1,0 +1,9 @@
+"""
+Proposed admin GraphQL schema manifest for gqlgen + GoFiber.
+Docs-first artifact only. Do not wire these files into `graph/*.graphqls` before approval.
+
+Schema split:
+- docs/graphql-admin-schema-scalars.graphqls
+- docs/graphql-admin-schema-types.graphqls
+- docs/graphql-admin-schema-operations.graphqls
+"""

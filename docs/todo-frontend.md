@@ -58,6 +58,23 @@
 
 ## In Progress
 
+### Admin GraphQL Frontend Migration
+- [x] Add frontend GraphQL architecture to docs
+- [x] Define Apollo Client root integration for `infra/dash`
+- [x] Define GraphQL document split by route/feature
+- [x] Define adapter strategy from GraphQL payloads to existing view models
+- [x] Define migration path away from `services/admin.ts` REST calls
+- [x] Define error normalization and `x-request-id` propagation for GraphQL failures
+- [x] Get explicit approval before implementing frontend GraphQL refactor
+- [x] Add Apollo Client dependencies and root provider
+- [x] Add authenticated schema/playground development workflow for admin developers
+- [x] Refactor `use-admin-data.ts` away from TanStack Query server-state hooks to Apollo-backed compatibility hooks
+- [x] Migrate route pages from REST service calls to GraphQL queries/mutations via the admin service layer
+- [x] Remove frontend dependency on admin REST endpoints after route parity is complete
+- [x] Add reproducible GraphQL codegen pipeline for typed documents and operations
+- [x] Split GraphQL admin transport layer by domain for maintainability
+- [x] Verify `pnpm build` for `infra/dash`
+
 ### Documentation Update
 - [ ] Review and finalize `docs/frontend-architecture.md`
 - [ ] Review and finalize `docs/components-tree.md`

@@ -1,0 +1,83 @@
+type NostrTag {
+  values: [String!]!
+}
+
+type NostrEvent {
+  id: ID!
+  pubkey: String!
+  createdAt: Int64!
+  kind: Int!
+  tags: [NostrTag!]!
+  content: String!
+  sig: String!
+}
+
+type NameCount { name: String! count: Int64! }
+type KindCount { kind: Int! count: Int64! }
+type TagCount { tag: String! count: Int64! }
+type PubkeyCount { pubkey: String! displayName: String count: Int64! }
+type TargetCount { targetEventId: ID! count: Int64! }
+
+type AdminOverview { activeConnections: Int! authedConnections: Int! loggedUsers: Int! bannedUsers: Int! indexedEvents: Int64! eventsPerMinute: Int64! relayStatus: String! }
+type AdminStreamStatus { config: JSON! dispatcher: JSON! pool: JSON! counters: JSON! }
+type AdminConnection { wsid: ID! ip: String! authed: String subscriptionCount: Int! connectedAt: String lastSeenAt: String userAgent: String }
+type AdminProfile { pubkey: String! npub: String displayName: String! handle: String picture: String nip05: String about: String website: String bot: Boolean! status: String reason: String relatedIds: [String!]! createdAt: String }
+type AdminLoggedUser { profile: AdminProfile! connectionCount: Int! lastSeenAt: String connectionState: String! }
+type AdminBanStatus { pubkey: String! banned: Boolean! reason: String relatedIds: [String!]! createdAt: String }
+type AdminNip05Identity { name: String! pubkey: String! npub: String displayName: String picture: String relayHints: [String!]! createdAt: String updatedAt: String }
+type AdminNip05Lookup { pubkey: String! exists: Boolean! identity: AdminNip05Identity }
+
+type AdminConnectionPage { pageInfo: PageInfo! items: [AdminConnection!]! }
+type AdminProfilePage { pageInfo: PageInfo! items: [AdminProfile!]! }
+type AdminLoggedUserPage { pageInfo: PageInfo! items: [AdminLoggedUser!]! }
+type AdminNip05IdentityPage { pageInfo: PageInfo! items: [AdminNip05Identity!]! }
+type AdminEventPage { pageInfo: PageInfo! items: [NostrEvent!]! }
+type AdminEventReportPage { pageInfo: PageInfo! items: [AdminEventReport!]! }
+type AdminReportedEventPage { pageInfo: PageInfo! items: [AdminReportedEvent!]! }
+type AdminLabelPage { pageInfo: PageInfo! items: [AdminLabelEvent!]! }
+type AdminBlossomPlanAssignmentPage { pageInfo: PageInfo! items: [AdminBlossomPlanAssignment!]! }
+type AdminBlossomObjectPage { pageInfo: PageInfo! items: [AdminBlossomObject!]! }
+type AdminBlossomUserPage { pageInfo: PageInfo! items: [AdminBlossomUser!]! }
+type AdminBlossomReportPage { pageInfo: PageInfo! items: [AdminBlossomReport!]! }
+type AdminBlossomWorkerPage { pageInfo: PageInfo! items: [JSON!]! }
+type AdminBlossomAuditPage { pageInfo: PageInfo! items: [JSON!]! }
+type AdminNip86PubkeyPage { pageInfo: PageInfo! items: [AdminNip86PubkeyRecord!]! }
+type AdminNip86IPPage { pageInfo: PageInfo! items: [AdminNip86IPRecord!]! }
+type AdminNip86EventPage { pageInfo: PageInfo! items: [AdminNip86EventRecord!]! }
+type AdminJobPage { pageInfo: PageInfo! items: [AdminJob!]! }
+
+type AdminEventAggregates { total: Int64! kinds: [KindCount!]! topAuthors: [PubkeyCount!]! topTags: [TagCount!]! trends: JSON! }
+type AdminTimelinePoint { ts: Int64! count: Int64! }
+type AdminTimeline { bucket: TimelineBucket! points: [AdminTimelinePoint!]! }
+type AdminEventDetail { event: NostrEvent! identifiers: JSON! author: JSON! hashtags: [String!]! imageUrls: [String!]! }
+type AdminEventReport { reportEventId: ID! reporterPubkey: String! reporterNpub: String reporterDisplayName: String! reporterPicture: String reportedEventId: String reportedPubkey: String reportType: String content: String createdAt: Int64! }
+type AdminReportedEvent { targetEventId: ID! targetPubkey: String targetNevent: String targetCreatedAt: Int64 targetCreatedAtIso: String targetAuthor: JSON! reportCount: Int64! lastReported: Int64! lastReportedAt: String reportTypes: [String!]! targetEvent: NostrEvent }
+type AdminReportedEventsSummary { totalEvents: Int64! totalReports: Int64! uniqueTargetAuthors: Int64! timeline: [NameCount!]! reportTypes: [NameCount!]! topAuthors: [PubkeyCount!]! topTargets: [TargetCount!]! }
+
+type AdminLabelTarget { type: LabelTargetType! value: String! relayHint: String }
+type AdminLabelEvent { id: ID! pubkey: String! authorNpub: String createdAt: Int64! kind: Int! content: String! namespace: String! labels: [String!]! target: AdminLabelTarget! tags: [NostrTag!]! }
+type AdminLabelsSummary { totalEvents: Int64! totalTargets: Int64! namespaces: [NameCount!]! labels: [NameCount!]! targetTypes: [NameCount!]! }
+
+type AdminBlossomOverview { storage: JSON! objects: JSON! traffic: JSON! users: JSON! workers: JSON! policy: AdminBlossomPolicy! alerts: [JSON!]! }
+type AdminBlossomPolicy { mode: String! defaultStorageQuotaBytes: Int64 enabledUserDefaultStorageQuotaBytes: Int64 defaultEgressQuotaBytes: Int64 enabledUserDefaultEgressQuotaBytes: Int64 updatedAt: String }
+type AdminBlossomPlan { id: ID! name: String! scope: BlossomPlanScope! storageQuotaBytes: Int64 egressQuotaBytes: Int64 description: String isDefault: Boolean! updatedAt: String }
+type AdminBlossomPlanAssignment { planId: ID! pubkey: String! displayName: String picture: String npub: String assignedBy: String! assignedAt: String! }
+type AdminBlossomObject { hash: ID! uploaderPubkey: String! mimeType: String! extension: String! size: Int64! createdAt: String! reviewState: String! exifStatus: String! gpsDetected: Boolean! directURL: String! optimizedURL: String thumbnailURL: String blossomID: String width: Int height: Int durationMS: Int64 bitrateKbps: Int downloadCount: Int64! ingressBytes: Int64! egressBytes: Int64! flagReason: String mirrors: [String!]! reportCount: Int64! nip94Tags: [NostrTag!]! }
+type AdminBlossomUser { pubkey: String! displayName: String picture: String npub: String objectCount: Int64! storageUsedBytes: Int64! storageQuotaBytes: Int64 monthlyEgressBytes: Int64! egressQuotaBytes: Int64 enabled: Boolean! lastUploadAt: String notes: String }
+type AdminBlossomUserDetail { user: AdminBlossomUser! files: [AdminBlossomObject!]! }
+type AdminBlossomReport { id: ID! eventID: String! objectHash: String! reporterPubkey: String! reporterNpub: String targetEventID: String targetPubkey: String reportType: String reason: String status: BlossomReportStatus! resolvedBy: String resolvedNote: String createdAt: String resolvedAt: String }
+
+type AdminNip86PubkeyRecord { pubkey: String! reason: String createdAt: String updatedAt: String createdBy: String }
+type AdminNip86IPRecord { ip: String! reason: String createdAt: String updatedAt: String createdBy: String }
+type AdminNip86EventRecord { eventId: ID! reason: String createdAt: String updatedAt: String createdBy: String }
+type AdminNip86RelayMetadata { relayUrl: String! name: String! description: String! }
+
+type AdminAsyncJob { status: String! jobId: ID remote: String relays: [String!]! message: String }
+type AdminFetchRelayResult { relay: String! status: String! error: String }
+type AdminFetchEventPayload { eventId: ID sourceRelay: String found: Boolean! persisted: Boolean! relaysTried: Int! relayResults: [AdminFetchRelayResult!]! message: String }
+type AdminImportFileResult { filename: String! total: Int! inserted: Int! duplicates: Int! invalid: Int! error: String }
+type AdminImportEventsPayload { files: [AdminImportFileResult!]! }
+type AdminCreateLabelPayload { event: NostrEvent! stored: Boolean! }
+type AdminJob { id: ID! queue: String! priority: String! jobName: String! status: String! attempts: Int! maxAttempts: Int! createdAt: String! startedAt: String finishedAt: String runAt: String lastError: String payload: JSON result: JSON }
+type AdminGroup { groupId: ID! name: String! description: String! private: Boolean! closed: Boolean! hidden: Boolean! memberCount: Int! }
+type AdminWoTSummary { totalNodes: Int! totalEdges: Int! trustedPubkeys: [String!]! lastComputedAt: String }
