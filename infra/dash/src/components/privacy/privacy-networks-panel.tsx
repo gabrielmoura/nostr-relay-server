@@ -91,7 +91,7 @@ function NetworkCard({ network }: { network: PrivacyNetwork }) {
           <CardDescription>{t("privacy.metricsDescription")}</CardDescription>
         </CardHeader>
         <CardContent>
-          <PrivacyMetrics metrics={network.metrics} />
+          <PrivacyMetrics mode={network.mode} metrics={network.metrics} />
           {network.error ? (
             <p className="mt-3 rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">{network.error}</p>
           ) : null}
