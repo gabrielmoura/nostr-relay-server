@@ -18,3 +18,7 @@ nrserver_x86_64
 *.txt
 __pycache__/
 *.pyc
+# Agent / tooling working state
+.opencode/
+session-*.md
+TO_FIX.TXT
