@@ -25,6 +25,7 @@ import (
 type i2pService struct {
 	cfg    config.I2PConfig
 	logger *zap.Logger
+	store  *KeyStore
 
 	mu      sync.Mutex
 	started bool
@@ -32,8 +33,8 @@ type i2pService struct {
 	address string
 }
 
-func newI2PService(cfg config.I2PConfig, logger *zap.Logger) Service {
-	return &i2pService{cfg: cfg, logger: logger}
+func newI2PService(cfg config.I2PConfig, logger *zap.Logger, store *KeyStore) Service {
+	return &i2pService{cfg: cfg, logger: logger, store: store}
 }
 
 func (s *i2pService) Name() string { return "i2p" }
@@ -77,7 +78,18 @@ func (s *i2pService) Start(ctx context.Context, relayPort int) error {
 		port = 7656
 	}
 
-	client := newSAMClient(host, port, s.cfg.SessionName)
+	// Persistent identity: reuse the same SAM destination blob across restarts
+	// so the .b32.i2p address stays stable.
+	var persistDest string
+	if s.store != nil {
+		var err error
+		persistDest, err = loadOrCreateString(s.store, "i2p.key")
+		if err != nil {
+			return fmt.Errorf("i2p external: %w", err)
+		}
+	}
+
+	client := newSAMClient(host, port, s.cfg.SessionName, persistDest)
 	if err := client.connect(10 * time.Second); err != nil {
 		return fmt.Errorf("i2p external: %w", err)
 	}
@@ -85,6 +97,13 @@ func (s *i2pService) Start(ctx context.Context, relayPort int) error {
 	if addr == "" {
 		_ = client.Close()
 		return fmt.Errorf("i2p external: could not derive .b32.i2p address")
+	}
+
+	// First run: persist the router-generated destination blob for reuse.
+	if s.store != nil && persistDest == "" && client.Destination() != "" {
+		if err := s.store.Save("i2p.key", []byte(client.Destination())); err != nil {
+			s.logger.Warn("i2p: failed to persist destination", zap.Error(err))
+		}
 	}
 
 	s.sam = client

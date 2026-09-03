@@ -2,12 +2,15 @@ package privacy
 
 import (
 	"context"
+	"crypto"
+	"crypto/ed25519"
 	"fmt"
 	"net"
 	"strconv"
 	"sync"
 
 	"github.com/cretz/bine/tor"
+	bined25519 "github.com/cretz/bine/torutil/ed25519"
 	"github.com/gabrielmoura/nostr-relay-server/config"
 	"go.uber.org/zap"
 	"golang.org/x/net/proxy"
@@ -25,6 +28,7 @@ import (
 type torService struct {
 	cfg    config.TorConfig
 	logger *zap.Logger
+	store  *KeyStore
 
 	mu      sync.Mutex
 	started bool
@@ -34,8 +38,8 @@ type torService struct {
 	onionID string
 }
 
-func newTorService(cfg config.TorConfig, logger *zap.Logger) Service {
-	return &torService{cfg: cfg, logger: logger}
+func newTorService(cfg config.TorConfig, logger *zap.Logger, store *KeyStore) Service {
+	return &torService{cfg: cfg, logger: logger, store: store}
 }
 
 func (s *torService) Name() string { return "tor" }
@@ -98,10 +102,29 @@ func (s *torService) startNative(ctx context.Context, relayPort int) error {
 		v3 = true // default to v3
 	}
 
+	// Persistent identity: reuse the same v3 ed25519 key across restarts so the
+	// .onion address stays stable. Load-or-create a 64-byte ed25519 private key.
+	var key crypto.PrivateKey
+	if s.store != nil {
+		keyBytes, err := s.store.LoadOrCreate("tor.key", func() ([]byte, error) {
+			_, priv, kerr := ed25519.GenerateKey(nil)
+			if kerr != nil {
+				return nil, fmt.Errorf("generating onion key: %w", kerr)
+			}
+			return []byte(priv), nil
+		})
+		if err != nil {
+			_ = t.Close()
+			return fmt.Errorf("persistent onion key: %w", err)
+		}
+		key = bined25519.FromCryptoPrivateKey(ed25519.PrivateKey(keyBytes))
+	}
+
 	onion, err := t.Listen(ctx, &tor.ListenConf{
 		LocalPort:   localPort, // bine dials 127.0.0.1:<localPort> -> the relay's own port
 		RemotePorts: remotePorts,
 		Version3:    v3,
+		Key:         key,
 	})
 	if err != nil {
 		_ = t.Close()

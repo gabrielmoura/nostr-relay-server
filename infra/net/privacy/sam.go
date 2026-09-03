@@ -24,16 +24,18 @@ type samClient struct {
 	mu          sync.Mutex
 	destination string // base64 destination (public key)
 	b32address  string // .b32.i2p base-address
+	persisted   string // base64 destination blob to reuse across runs ("" = transient)
 	closed      bool
 }
 
-func newSAMClient(host string, port int, sessionName string) *samClient {
+func newSAMClient(host string, port int, sessionName string, persisted string) *samClient {
 	if sessionName == "" {
 		sessionName = "nostr-relay"
 	}
 	return &samClient{
 		addr:        net.JoinHostPort(host, fmt.Sprintf("%d", port)),
 		sessionName: sessionName,
+		persisted:   persisted,
 	}
 }
 
@@ -73,7 +75,11 @@ func (c *samClient) handshake(timeout time.Duration) error {
 }
 
 func (c *samClient) createSession(timeout time.Duration) error {
-	cmd := fmt.Sprintf("SESSION CREATE STYLE=STREAM ID=%s DESTINATION=TRANSIENT", c.sessionName)
+	dest := c.persisted
+	if dest == "" {
+		dest = "TRANSIENT"
+	}
+	cmd := fmt.Sprintf("SESSION CREATE STYLE=STREAM ID=%s DESTINATION=%s", c.sessionName, dest)
 	if err := c.writeLine(cmd); err != nil {
 		return err
 	}
@@ -84,13 +90,30 @@ func (c *samClient) createSession(timeout time.Duration) error {
 	if !strings.HasPrefix(reply, "SESSION STATUS RESULT=OK") {
 		return fmt.Errorf("sam session create failed: %s", reply)
 	}
-	c.destination = samField(reply, "DESTINATION")
-	if c.destination == "" {
+	replyDest := samField(reply, "DESTINATION")
+	switch {
+	case c.persisted != "":
+		// Reusing a persisted identity: the router may echo back the same
+		// destination; trust the persisted blob, or the echo if present.
+		c.destination = c.persisted
+		if replyDest != "" {
+			c.destination = replyDest
+		}
+	case replyDest != "":
+		// First (transient) run: capture the router-generated destination so the
+		// caller can persist it for reuse.
+		c.destination = replyDest
+	default:
 		return fmt.Errorf("sam session create: missing DESTINATION in %q", reply)
 	}
 	c.b32address = b32FromDestination(c.destination)
 	return nil
 }
+
+// Destination returns the base64 destination blob for this session. When it was
+// created from a persisted identity this is the reusable value; otherwise it is
+// the router-generated destination that can be persisted for reuse.
+func (c *samClient) Destination() string { return c.destination }
 
 func (c *samClient) writeLine(line string) error {
 	c.mu.Lock()

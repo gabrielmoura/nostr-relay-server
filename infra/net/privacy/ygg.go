@@ -10,6 +10,7 @@ import (
 	"github.com/gabrielmoura/nostr-relay-server/config"
 	"github.com/voluminor/ratatoskr"
 	"github.com/voluminor/ratatoskr/mod/forward"
+	yggconfig "github.com/yggdrasil-network/yggdrasil-go/src/config"
 	"go.uber.org/zap"
 )
 
@@ -24,6 +25,7 @@ import (
 type yggService struct {
 	cfg    config.YggConfig
 	logger *zap.Logger
+	store  *KeyStore
 
 	mu      sync.Mutex
 	started bool
@@ -32,8 +34,8 @@ type yggService struct {
 	addr    *net.TCPAddr
 }
 
-func newYggService(cfg config.YggConfig, logger *zap.Logger) Service {
-	return &yggService{cfg: cfg, logger: logger}
+func newYggService(cfg config.YggConfig, logger *zap.Logger, store *KeyStore) Service {
+	return &yggService{cfg: cfg, logger: logger, store: store}
 }
 
 func (s *yggService) Name() string { return "yggdrasil" }
@@ -51,20 +53,31 @@ func (s *yggService) Start(ctx context.Context, relayPort int) error {
 		return nil
 	}
 
+	// Build a yggdrasil NodeConfig. We generate a default config and, when a
+	// persistent store is available, reuse a stable identity so the node keeps
+	// the same Yggdrasil IPv6 address across restarts.
+	nc := yggconfig.GenerateConfig()
+	nc.PrivateKey = nil
+	if s.store != nil {
+		keyBytes, kerr := s.store.LoadOrCreate("ygg.key", func() ([]byte, error) {
+			gen := yggconfig.GenerateConfig()
+			gen.NewPrivateKey()
+			return []byte(gen.PrivateKey), nil
+		})
+		if kerr != nil {
+			return fmt.Errorf("persistent yggdrasil identity: %w", kerr)
+		}
+		nc.PrivateKey = yggconfig.KeyBytes(keyBytes)
+	}
+	if len(s.cfg.Peers) > 0 {
+		nc.Peers = s.cfg.Peers
+	}
+
 	rcfg := ratatoskr.ConfigObj{
 		Ctx:    ctx,
 		Logger: nil,
+		Config: nc,
 	}
-	// Provide a config; ratatoskr generates one with random keys + admin off
-	// when Config is nil, which is what we want for an ephemeral embedded node.
-	if len(s.cfg.Peers) > 0 {
-		rcfg.Config = nil
-		rcfg.Peers = nil
-		// ratatoskr.New requires Config.Peers empty when Peers is set, and we
-		// pass Peers via the generated config below.
-	}
-	// ratatoskr.New(cfg) with nil Config auto-generates (no peers). To attach
-	// user peers we set Config.Peers. We use the generated default config path.
 
 	node, err := ratatoskr.New(rcfg)
 	if err != nil {
@@ -72,15 +85,8 @@ func (s *yggService) Start(ctx context.Context, relayPort int) error {
 	}
 	s.node = node
 
-	// If the user supplied peers, re-start the node with them is not supported
-	// post-New; configuration must be supplied at construction. Since
-	// ratatoskr generates an ephemeral config when Config is nil, peer
-	// injection requires building a yggdrasil NodeConfig. For simplicity we log
-	// a warning and run without explicit peers (mesh discovery still works via
-	// links when peers are configured externally).
 	if len(s.cfg.Peers) > 0 {
-		s.logger.Warn("yggdrasil: explicit peers require a yggdrasil NodeConfig; using default config (no static peers). "+
-			"Configure peers via your yggdrasil routes or use the built-in key generation.",
+		s.logger.Info("yggdrasil: static peers wired via NodeConfig",
 			zap.Int("peers", len(s.cfg.Peers)))
 	}
 

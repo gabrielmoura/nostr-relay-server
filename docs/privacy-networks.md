@@ -76,6 +76,8 @@ set `i2p.mode: external`.
 ```yaml
 privacy:
   enabled: false           # Master switch (default: false — opt-in)
+  persistence: true        # Persist/reuse identities across restarts (default: true)
+  state_dir: ./data/privacy # Root for persistent identity keys (0700 on disk)
 
   tor:
     mode: native           # native | external | auto | disabled
@@ -99,6 +101,32 @@ privacy:
     data_dir: ""           # embedded node state (empty = ephemeral)
     listen_port: 0         # Yggdrasil-internal port (0 = relay port)
 ```
+
+## Persistent Identity
+
+By default the relay **reuses the same privacy identities across restarts**
+(`privacy.persistence: true`). Each network's address stays stable:
+
+| Network | Persisted artifact | Stable because |
+|---------|-------------------|----------------|
+| Tor | v3 onion **ed25519 key** (`tor.key`) | Same key → same `.onion` |
+| Yggdrasil | node **ed25519 private key** (`ygg.key`) | Same key → same IPv6 |
+| I2P | SAM **destination blob** (`i2p.key`) | Same destination → same `.b32.i2p` |
+
+Keys are stored under `privacy.state_dir` (default `./data/privacy`) with
+**0600 file / 0700 directory** permissions, written **atomically** (temp file +
+rename) so a crash can never corrupt an existing identity.
+
+Set `privacy.persistence: false` (or leave `state_dir` unset) to rotate
+identities every run — e.g. for disposable/test relays that must not be
+reachable at a known address.
+
+### I2P note
+
+Persistent I2P reuse requires the external SAM daemon (i2pd/Java-I2P) to accept
+the same `DESTINATION` blob on session create, which it does for a
+fixed/locally-generated destination. For the strongest persistence guarantee,
+run your router with a fixed destination configured for this relay.
 
 ## Architecture
 
@@ -164,6 +192,7 @@ alternative connection URLs.
 - [ ] I2P: ensure i2pd/Java-I2P is running with SAM enabled on port 7656 (external)
 - [ ] Yggdrasil: no external setup needed; the embedded node handles peer discovery
 - [ ] Verify addresses appear in NIP-11 (`curl -H 'Accept: application/nostr+json' http://localhost:PORT/`)
+- [ ] Confirm identities persist: restart the relay and check the addresses are unchanged (verify files under `privacy.state_dir`)
 - [ ] Test each network independently (set `disabled` for networks you don't want)
 
 ## Troubleshooting

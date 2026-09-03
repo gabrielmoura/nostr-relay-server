@@ -103,16 +103,28 @@ func (m *Manager) Start(ctx context.Context, relayPort int) error {
 }
 
 // buildServices instantiates a Service for each configured (non-disabled) network.
+// A shared persistent KeyStore (defaults to privacy.state_dir) is created so all
+// services reuse stable identities (onion / b32 / IPv6) across restarts.
 func (m *Manager) buildServices() error {
+	var store *KeyStore
+	if m.cfg.Persistence && m.cfg.StateDir != "" {
+		store = NewKeyStore(m.cfg.StateDir)
+		m.logger.Info("privacy persistent state", zap.String("dir", m.cfg.StateDir))
+	} else if !m.cfg.Persistence {
+		m.logger.Warn("privacy.persistence disabled; identities rotated every run")
+	} else {
+		m.logger.Warn("privacy.state_dir not set; identities will be ephemeral per run")
+	}
+
 	var svcs []Service
 	if m.cfg.Tor.Mode != "" && m.cfg.Tor.Mode != "disabled" {
-		svcs = append(svcs, newTorService(m.cfg.Tor, m.logger.Named("tor")))
+		svcs = append(svcs, newTorService(m.cfg.Tor, m.logger.Named("tor"), store))
 	}
 	if m.cfg.I2P.Mode != "" && m.cfg.I2P.Mode != "disabled" {
-		svcs = append(svcs, newI2PService(m.cfg.I2P, m.logger.Named("i2p")))
+		svcs = append(svcs, newI2PService(m.cfg.I2P, m.logger.Named("i2p"), store))
 	}
 	if m.cfg.Ygg.Mode != "" && m.cfg.Ygg.Mode != "disabled" {
-		svcs = append(svcs, newYggService(m.cfg.Ygg, m.logger.Named("yggdrasil")))
+		svcs = append(svcs, newYggService(m.cfg.Ygg, m.logger.Named("yggdrasil"), store))
 	}
 	if len(svcs) == 0 {
 		return fmt.Errorf("privacy.enabled is true but no network has a mode other than disabled")

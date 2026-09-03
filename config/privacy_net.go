@@ -12,10 +12,12 @@ package config
 //	"auto"     - try native first, fall back to external.
 //	"disabled" - do not start this network.
 type PrivacyConfig struct {
-	Enabled bool      `json:"enabled" yaml:"enabled" mapstructure:"enabled"`
-	Tor     TorConfig `json:"tor" yaml:"tor" mapstructure:"tor"`
-	I2P     I2PConfig `json:"i2p" yaml:"i2p" mapstructure:"i2p"`
-	Ygg     YggConfig `json:"yggdrasil" yaml:"yggdrasil" mapstructure:"yggdrasil"`
+	Enabled     bool      `json:"enabled" yaml:"enabled" mapstructure:"enabled"`
+	Persistence bool      `json:"persistence" yaml:"persistence" mapstructure:"persistence"` // persist/reuse identities (default true)
+	StateDir    string    `json:"state_dir" yaml:"state_dir" mapstructure:"state_dir"`       // root for persistent identity keys
+	Tor         TorConfig `json:"tor" yaml:"tor" mapstructure:"tor"`
+	I2P         I2PConfig `json:"i2p" yaml:"i2p" mapstructure:"i2p"`
+	Ygg         YggConfig `json:"yggdrasil" yaml:"yggdrasil" mapstructure:"yggdrasil"`
 }
 
 type TorConfig struct {
