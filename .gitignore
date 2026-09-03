@@ -16,3 +16,5 @@ nrserver_x86_64
 /docs/todo-frontend.md
 *.bkp
 *.txt
+__pycache__/
+*.pyc
