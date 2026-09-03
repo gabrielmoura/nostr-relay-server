@@ -5,10 +5,12 @@ import (
 	"time"
 
 	"github.com/gabrielmoura/nostr-relay-server/config"
+	"github.com/gabrielmoura/nostr-relay-server/infra/net/privacy"
 	"github.com/gabrielmoura/nostr-relay-server/infra/nip05"
 	"github.com/gabrielmoura/nostr-relay-server/infra/util"
 	"github.com/gabrielmoura/nostr-relay-server/internal/db"
 	"github.com/gabrielmoura/nostr-relay-server/internal/dto"
+	json "github.com/gabrielmoura/nostr-relay-server/internal/jsonx"
 	"github.com/gabrielmoura/nostr-relay-server/internal/nip86"
 	"github.com/gofiber/contrib/websocket"
 	"github.com/gofiber/fiber/v2"
@@ -72,13 +74,34 @@ func NostrJSON(cfg *config.Config) fiber.Handler {
 	}
 }
 
+// NIP11WithPrivacy returns the relay's NIP-11 document, augmented with the
+// currently active privacy addresses (Tor onion, I2P b32, Yggdrasil) when the
+// privacy subsystem is enabled.
+func NIP11WithPrivacy(cfg *config.Config) any {
+	doc := cfg.RelayInformation.PublicNIP11()
+	addrs := privacy.GetActiveAddresses()
+	if len(addrs) == 0 {
+		return doc
+	}
+	raw, err := json.Marshal(doc)
+	if err != nil {
+		return doc
+	}
+	var m map[string]any
+	if err := json.Unmarshal(raw, &m); err != nil {
+		return doc
+	}
+	m["privacy_addresses"] = addrs
+	return m
+}
+
 func RootUpgrade(cfg *config.Config) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		if handled, err := handleNIP86JSONRPC(c, cfg); handled {
 			return err
 		}
 		if strings.Contains(c.Get("Accept"), "application/nostr+json") {
-			return c.JSON(cfg.RelayInformation.PublicNIP11())
+			return c.JSON(NIP11WithPrivacy(cfg))
 		}
 		if websocket.IsWebSocketUpgrade(c) {
 			if nip86.S != nil && nip86.S.Enabled() {

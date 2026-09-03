@@ -29,6 +29,7 @@ type Config struct {
 	Store            StoreConfig              `json:"store" yaml:"store" mapstructure:"store"`
 	NIP29            NIP29Config              `json:"nip29" yaml:"nip29" mapstructure:"nip29"`
 	WoT              WoTConfig                `json:"wot" yaml:"wot" mapstructure:"wot"`
+	Privacy          PrivacyConfig            `json:"privacy" yaml:"privacy" mapstructure:"privacy"`
 }
 
 type WoTConfig struct {

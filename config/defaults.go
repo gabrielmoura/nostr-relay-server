@@ -187,6 +187,7 @@ func setDefaults(export bool) {
 	viper.SetDefault("negentropy_auth", false)
 
 	setNIP29Defaults()
+	setPrivacyDefaults()
 	if export {
 		setExportDefaults()
 	}
@@ -249,4 +250,27 @@ func setExportDefaults() {
 	viper.SetDefault("relay_information.limitation.auth_required", false)
 	viper.SetDefault("relay_information.limitation.payment_required", false)
 	viper.SetDefault("relay_information.limitation.restricted_writes", false)
+}
+
+// setPrivacyDefaults define os padrões do bloco privacy.
+func setPrivacyDefaults() {
+	viper.SetDefault("privacy.enabled", false)
+	viper.SetDefault("privacy.tor.mode", "disabled")
+	viper.SetDefault("privacy.tor.data_dir", "./data/tor")
+	viper.SetDefault("privacy.tor.control_port", 0)
+	viper.SetDefault("privacy.tor.socks_port", 9050)
+	viper.SetDefault("privacy.tor.remote_ports", []int{80})
+	viper.SetDefault("privacy.tor.onion_port", 0) // 0 => relay port
+	viper.SetDefault("privacy.tor.v3", true)
+	viper.SetDefault("privacy.tor.key_file", "")
+	viper.SetDefault("privacy.i2p.mode", "disabled")
+	viper.SetDefault("privacy.i2p.sam_host", "127.0.0.1")
+	viper.SetDefault("privacy.i2p.sam_port", 7656)
+	viper.SetDefault("privacy.i2p.i2cp_port", 7654)
+	viper.SetDefault("privacy.i2p.session_name", "nrserver")
+	viper.SetDefault("privacy.i2p.data_dir", "./data/i2p")
+	viper.SetDefault("privacy.yggdrasil.mode", "disabled")
+	viper.SetDefault("privacy.yggdrasil.peers", []string{})
+	viper.SetDefault("privacy.yggdrasil.data_dir", "./data/ygg")
+	viper.SetDefault("privacy.yggdrasil.listen_port", 0) // 0 => relay port
 }

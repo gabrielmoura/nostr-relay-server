@@ -11,12 +11,13 @@ import (
 	"github.com/gabrielmoura/nostr-relay-server/infra/ingestion"
 	"github.com/gabrielmoura/nostr-relay-server/infra/metrics"
 	"github.com/gabrielmoura/nostr-relay-server/infra/net"
+	"github.com/gabrielmoura/nostr-relay-server/infra/net/privacy"
 	"github.com/gabrielmoura/nostr-relay-server/infra/pubsub"
 	redisqueue "github.com/gabrielmoura/nostr-relay-server/infra/queue/redis"
 	"github.com/gabrielmoura/nostr-relay-server/infra/redis"
 	"github.com/gabrielmoura/nostr-relay-server/infra/stream"
-	"github.com/gabrielmoura/nostr-relay-server/internal/bootstrap"
 	internalblossom "github.com/gabrielmoura/nostr-relay-server/internal/blossom"
+	"github.com/gabrielmoura/nostr-relay-server/internal/bootstrap"
 	"github.com/gabrielmoura/nostr-relay-server/internal/db"
 	"github.com/gabrielmoura/nostr-relay-server/internal/down"
 	"github.com/gabrielmoura/nostr-relay-server/internal/groups"
@@ -130,6 +131,15 @@ func runServer(cmd *cobra.Command, args []string) {
 		// Inicializa o handler dentro do contexto principal
 		in, ex := net.Router()
 
+		// Camada de privacidade opcional (Tor / I2P / Yggdrasil)
+		var pm *privacy.Manager
+		if config.Cfg.Privacy.Enabled {
+			pm = privacy.NewManager(config.Cfg.Privacy, log.Logger)
+			if err := pm.Start(mainCtx, config.Cfg.Port); err != nil {
+				log.Logger.Error("Erro ao iniciar camada de privacidade", zap.Error(err))
+			}
+		}
+
 		if config.Cfg.Stream.StreamUp || config.Cfg.Stream.StreamDown {
 			if err := nostrpool.Init(mainCtx, config.Cfg.Stream.Relays); err != nil {
 				log.Logger.Error("Erro ao inicializar o Relay Pool", zap.Error(err))
@@ -158,6 +168,11 @@ func runServer(cmd *cobra.Command, args []string) {
 			}
 			if err := in.Shutdown(); err != nil {
 				log.Logger.Fatal("Erro ao desligar o servidor", zap.Error(err))
+			}
+
+			// Encerra a camada de privacidade (Tor / I2P / Yggdrasil)
+			if pm != nil {
+				pm.Close()
 			}
 
 			// Fechar conexão Redis
