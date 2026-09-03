@@ -1,7 +1,7 @@
 import { Eye } from "lucide-react"
 import Hls from "hls.js"
 import * as dashjs from "dashjs"
-import { MediaOutlet, MediaPlayer, MediaPoster } from "@vidstack/react"
+import { MediaPlayer, MediaProvider, Poster } from "@vidstack/react"
 import { useEffect, useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
 
@@ -52,8 +52,9 @@ export function EventVideoPlayer({ url, poster, lazy = false, className, showChr
       title="Event media"
       viewType="video"
     >
-      {poster ? <MediaPoster alt={t("eventDetail.eventImageAlt")} src={poster} /> : null}
-      <MediaOutlet />
+      <MediaProvider>
+        {poster ? <Poster alt={t("eventDetail.eventImageAlt")} src={poster} /> : null}
+      </MediaProvider>
     </MediaPlayer>
   ) : (
     <button
