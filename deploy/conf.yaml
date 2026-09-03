@@ -15,11 +15,11 @@ ws:
     auth: true
     auth_mode: optional
 relay_information:
-    url: http:/kqzk4pnydptareyj7b4uzxg4rqkeh6wmntcjuoppy6wv72nkj3na2vad.onion
+    url: http:/192.168.1.157:9090
     name: Nostr Relay Server
     description: A Nostr Relay Server
     pub_key: "npub1dx0cw25dmteggk0uyp6tvks5zsrpdtq7ha6rlucua3c4wepfz5lsnspra4"
-    priv_key: "nsec1nrhple709d2aqfpwcam3ec8p7uy52yusmr5m9878r8pswp0q7ysp8rk6k"
+    priv_key: "nsec1nrhple709d2aqfpwcam3ec8p7uy52yusmr5m9878r87pswp0q7ysp8rk6k"
     supported_nips:
         - 11 # Documento de informações do relé
         - 1 # Descrição básica do fluxo do protocolo
@@ -37,8 +37,8 @@ relay_information:
         - 13 # Proof of Work
     software: https://github.com/gabrielmoura/nostr-relay-server
     version: 0.1.0
-    canonical_url: ws://kqzk4pnydptareyj7b4uzxg4rqkeh6wmntcjuoppy6wv72nkj3na2vad.onion
-    icon: http://kqzk4pnydptareyj7b4uzxg4rqkeh6wmntcjuoppy6wv72nkj3na2vad.onion/nostr.png
+    canonical_url: ws://192.168.1.157:9090
+    icon: http://192.168.1.157:9090/nostr.png
 relay:
     query_limit: 1000
     query_ids_limit: 500
@@ -141,8 +141,8 @@ cron:
         batch_size: 2000
 store:
     enabled: true
-    api_path: http://kqzk4pnydptareyj7b4uzxg4rqkeh6wmntcjuoppy6wv72nkj3na2vad.onion/upload
-    media_path: http://kqzk4pnydptareyj7b4uzxg4rqkeh6wmntcjuoppy6wv72nkj3na2vad.onion/blob
+    api_path: http://192.168.1.157:9090/upload
+    media_path: http://192.168.1.157:9090/blob
     accepted_mimetypes:
         - image/jpeg
         - image/png

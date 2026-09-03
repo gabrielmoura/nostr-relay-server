@@ -34,6 +34,7 @@ services:
       - "127.0.0.1:9091:9091"
     volumes:
       - ./deploy/conf.yaml:/app/conf.yaml:ro
+#      - blossom_data:/app/files
     environment:
       HTTP_PROXY: socks5://tor:9050
       HTTPS_PROXY: socks5://tor:9050
