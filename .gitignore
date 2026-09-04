@@ -22,3 +22,6 @@ __pycache__/
 .opencode/
 session-*.md
 TO_FIX.TXT
+bin
+.claude
+.codex
