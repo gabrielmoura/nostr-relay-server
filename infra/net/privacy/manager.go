@@ -101,7 +101,11 @@ func (m *Manager) Start(ctx context.Context, relayPort int) error {
 			zap.String("network", svc.Name()),
 			zap.Strings("addresses", svc.Addresses()))
 	}
-	setActiveAddresses(m.Addresses())
+	var addresses []string
+	for _, svc := range m.services {
+		addresses = append(addresses, svc.Addresses()...)
+	}
+	setActiveAddresses(addresses)
 	return nil
 }
 

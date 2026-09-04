@@ -71,6 +71,68 @@ func TestPrivacyStatusReturnsProviderFailureWithoutGraphQLError(t *testing.T) {
 	}
 }
 
+func TestPrivacyStatusReturnsPopulatedAndDegradedNetworksWithoutGraphQLError(t *testing.T) {
+	previous := privacy.GetManager()
+	stateDir := t.TempDir()
+	manager := privacy.NewManager(config.PrivacyConfig{
+		Enabled:     true,
+		Persistence: true,
+		StateDir:    stateDir,
+		I2P:         config.I2PConfig{Mode: "unsupported"},
+		Ygg:         config.YggConfig{Mode: "native"},
+	}, nil)
+	if err := manager.Start(t.Context(), 0); err != nil {
+		t.Fatalf("start privacy manager: %v", err)
+	}
+	privacy.SetManager(manager)
+	t.Cleanup(func() {
+		manager.Close()
+		privacy.SetManager(previous)
+	})
+
+	response := executePrivacyStatusQuery(t)
+	if len(response.Errors) != 0 {
+		t.Fatalf("GraphQL errors = %s, want none", response.Errors)
+	}
+	if !response.Data.PrivacyStatus.Enabled || !response.Data.PrivacyStatus.Persistence {
+		t.Fatalf("privacyStatus = %#v, want enabled persistent status", response.Data.PrivacyStatus)
+	}
+	if response.Data.PrivacyStatus.StateDir == nil || *response.Data.PrivacyStatus.StateDir != stateDir {
+		t.Fatalf("privacyStatus.stateDir = %#v, want %q", response.Data.PrivacyStatus.StateDir, stateDir)
+	}
+	if len(response.Data.PrivacyStatus.Networks) != 2 {
+		t.Fatalf("privacyStatus.networks = %#v, want populated and degraded networks", response.Data.PrivacyStatus.Networks)
+	}
+
+	degraded := response.Data.PrivacyStatus.Networks[0]
+	if degraded.ID != "i2p" || degraded.Name != "I2P" || degraded.Mode != "unsupported" || !degraded.Enabled || degraded.Started || degraded.Status != "error" {
+		t.Fatalf("degraded network = %#v, want enabled i2p error snapshot", degraded)
+	}
+	if len(degraded.Addresses) != 0 {
+		t.Fatalf("degraded addresses = %#v, want []", degraded.Addresses)
+	}
+	if degraded.Metrics == nil || degraded.Metrics.TxBytes != 0 || degraded.Metrics.RxBytes != 0 || degraded.Metrics.Peers != nil || degraded.Metrics.Connections == nil || *degraded.Metrics.Connections != 0 {
+		t.Fatalf("degraded metrics = %#v, want neutral metrics with nullable peers", degraded.Metrics)
+	}
+	if degraded.Error == nil || *degraded.Error == "" || degraded.UptimeMs != 0 {
+		t.Fatalf("degraded error = %#v, uptimeMs = %d; want provider error and zero uptime", degraded.Error, degraded.UptimeMs)
+	}
+
+	populated := response.Data.PrivacyStatus.Networks[1]
+	if populated.ID != "yggdrasil" || populated.Name != "Yggdrasil" || populated.Mode != "native" || !populated.Enabled || !populated.Started || populated.Status != "operational" {
+		t.Fatalf("populated network = %#v, want enabled operational yggdrasil snapshot", populated)
+	}
+	if len(populated.Addresses) != 1 || populated.Addresses[0] == "" {
+		t.Fatalf("populated addresses = %#v, want one yggdrasil address", populated.Addresses)
+	}
+	if populated.Metrics == nil || populated.Metrics.TxBytes != 0 || populated.Metrics.RxBytes != 0 || populated.Metrics.Peers == nil || *populated.Metrics.Peers != 0 || populated.Metrics.Connections == nil || *populated.Metrics.Connections != 0 {
+		t.Fatalf("populated metrics = %#v, want neutral metrics with a reported peer count", populated.Metrics)
+	}
+	if populated.Error != nil || populated.UptimeMs < 0 {
+		t.Fatalf("populated error = %#v, uptimeMs = %d; want nil error and non-negative uptime", populated.Error, populated.UptimeMs)
+	}
+}
+
 func executePrivacyStatusQuery(t *testing.T) graphResponse {
 	t.Helper()
 
@@ -109,16 +171,22 @@ type graphResponse struct {
 }
 
 type privacyNetwork struct {
+	ID        string          `json:"id"`
+	Name      string          `json:"name"`
+	Mode      string          `json:"mode"`
+	Enabled   bool            `json:"enabled"`
 	Started   bool            `json:"started"`
 	Status    string          `json:"status"`
 	Addresses []string        `json:"addresses"`
 	Metrics   *privacyMetrics `json:"metrics"`
 	Error     *string         `json:"error"`
+	UptimeMs  int             `json:"uptimeMs"`
 }
 
 type privacyMetrics struct {
 	TxBytes     int  `json:"txBytes"`
 	RxBytes     int  `json:"rxBytes"`
+	Peers       *int `json:"peers"`
 	Connections *int `json:"connections"`
 }
 
