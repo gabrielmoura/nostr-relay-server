@@ -33,11 +33,12 @@ type i2pService struct {
 	address string
 
 	// observability (see Status)
-	startedAt   time.Time
-	startErr    string
-	txBytes     int64
-	rxBytes     int64
-	connections int
+	startedAt     time.Time
+	startErr      string
+	txBytes       int64
+	rxBytes       int64
+	connections   int
+	startFailures uint64
 }
 
 func newI2PService(cfg config.I2PConfig, logger *zap.Logger, store *KeyStore) Service {
@@ -56,6 +57,7 @@ func (s *i2pService) Start(ctx context.Context, relayPort int) (err error) {
 	defer func() {
 		if err != nil {
 			s.startErr = err.Error()
+			s.startFailures++
 			s.startedAt = time.Time{}
 			s.started = false
 		} else {
@@ -157,17 +159,22 @@ func (s *i2pService) Close() error {
 func (s *i2pService) Status() StatusSnapshot {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	var addresses []string
+	if s.address != "" {
+		addresses = []string{s.address}
+	}
 	return StatusSnapshot{
-		ID:          "i2p",
-		Mode:        resolveMode(s.cfg.Mode, false),
-		Enabled:     s.cfg.Mode != "" && s.cfg.Mode != "disabled",
-		Started:     s.started,
-		StartErr:    s.startErr,
-		Addresses:   s.Addresses(),
-		Uptime:      uptimeSince(s.startedAt, s.started),
-		TxBytes:     s.txBytes,
-		RxBytes:     s.rxBytes,
-		Connections: s.connections,
-		Peers:       nil, // an I2P eepsite has no peer count
+		ID:            "i2p",
+		Mode:          resolveMode(s.cfg.Mode, false),
+		Enabled:       s.cfg.Mode != "" && s.cfg.Mode != "disabled",
+		Started:       s.started,
+		StartErr:      s.startErr,
+		Addresses:     addresses,
+		Uptime:        uptimeSince(s.startedAt, s.started),
+		TxBytes:       s.txBytes,
+		RxBytes:       s.rxBytes,
+		Connections:   s.connections,
+		Peers:         nil, // an I2P eepsite has no peer count
+		StartFailures: s.startFailures,
 	}
 }

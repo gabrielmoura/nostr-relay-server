@@ -35,11 +35,12 @@ type yggService struct {
 	addr    *net.TCPAddr
 
 	// observability (see Status)
-	startedAt   time.Time
-	startErr    string
-	txBytes     int64
-	rxBytes     int64
-	connections int
+	startedAt     time.Time
+	startErr      string
+	txBytes       int64
+	rxBytes       int64
+	connections   int
+	startFailures uint64
 }
 
 func newYggService(cfg config.YggConfig, logger *zap.Logger, store *KeyStore) Service {
@@ -58,6 +59,7 @@ func (s *yggService) Start(ctx context.Context, relayPort int) (err error) {
 	defer func() {
 		if err != nil {
 			s.startErr = err.Error()
+			s.startFailures++
 			s.startedAt = time.Time{}
 			s.started = false
 		} else {
@@ -166,22 +168,66 @@ func dialPort(p int) string { return strconv.Itoa(p) }
 func (s *yggService) Status() StatusSnapshot {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	var addresses []string
+	if s.addr != nil {
+		addresses = []string{s.addr.String()}
+	}
+	yggStatus := s.yggdrasilStatusLocked()
 	var peers *int
-	if len(s.cfg.Peers) > 0 {
-		n := len(s.cfg.Peers)
+	if yggStatus != nil {
+		n := yggStatus.PeersUp + yggStatus.PeersDown
 		peers = &n
 	}
 	return StatusSnapshot{
-		ID:          "yggdrasil",
-		Mode:        resolveMode(s.cfg.Mode, true),
-		Enabled:     s.cfg.Mode != "" && s.cfg.Mode != "disabled",
-		Started:     s.started,
-		StartErr:    s.startErr,
-		Addresses:   s.Addresses(),
-		Uptime:      uptimeSince(s.startedAt, s.started),
-		TxBytes:     s.txBytes,
-		RxBytes:     s.rxBytes,
-		Connections: s.connections,
-		Peers:       peers,
+		ID:            "yggdrasil",
+		Mode:          resolveMode(s.cfg.Mode, true),
+		Enabled:       s.cfg.Mode != "" && s.cfg.Mode != "disabled",
+		Started:       s.started,
+		StartErr:      s.startErr,
+		Addresses:     addresses,
+		Uptime:        uptimeSince(s.startedAt, s.started),
+		TxBytes:       s.txBytes,
+		RxBytes:       s.rxBytes,
+		Connections:   s.connections,
+		Peers:         peers,
+		StartFailures: s.startFailures,
+		Yggdrasil:     yggStatus,
 	}
+}
+
+// yggdrasilStatusLocked collects only ratatoskr/yggdrasil public diagnostic
+// APIs. Session bytes are the canonical byte source to avoid double-counting
+// the overlapping PeerInfo byte view.
+func (s *yggService) yggdrasilStatusLocked() *YggdrasilStatusSnapshot {
+	if s.node == nil {
+		return nil
+	}
+
+	core := s.node.Core()
+	if core == nil {
+		return nil
+	}
+
+	status := &YggdrasilStatusSnapshot{MTUBytes: s.node.MTU()}
+	for _, peer := range s.node.GetPeers() {
+		if peer.Up {
+			status.PeersUp++
+		} else {
+			status.PeersDown++
+		}
+		if peer.Inbound {
+			status.PeersInbound++
+		}
+		status.PeerRxBytesPerSec += peer.RXRate
+		status.PeerTxBytesPerSec += peer.TXRate
+	}
+	for _, session := range core.GetSessions() {
+		status.Sessions++
+		status.SessionRxBytes += session.RXBytes
+		status.SessionTxBytes += session.TXBytes
+	}
+	status.RoutingEntries = core.GetSelf().RoutingEntries
+	status.TreeEntries = len(core.GetTree())
+	status.PathEntries = len(core.GetPaths())
+	return status
 }

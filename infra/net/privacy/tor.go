@@ -39,11 +39,12 @@ type torService struct {
 	onionID string
 
 	// observability (see Status)
-	startedAt   time.Time
-	startErr    string
-	txBytes     int64
-	rxBytes     int64
-	connections int
+	startedAt     time.Time
+	startErr      string
+	txBytes       int64
+	rxBytes       int64
+	connections   int
+	startFailures uint64
 }
 
 func newTorService(cfg config.TorConfig, logger *zap.Logger, store *KeyStore) Service {
@@ -78,6 +79,7 @@ func (s *torService) Start(ctx context.Context, relayPort int) error {
 	}
 	if startErr != nil {
 		s.startErr = startErr.Error()
+		s.startFailures++
 		return startErr
 	}
 	s.started = true
@@ -190,17 +192,22 @@ func (s *torService) Close() error {
 func (s *torService) Status() StatusSnapshot {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	var addresses []string
+	if s.onionID != "" {
+		addresses = []string{s.onionID + ".onion"}
+	}
 	return StatusSnapshot{
-		ID:          "tor",
-		Mode:        resolveMode(s.cfg.Mode, true),
-		Enabled:     s.cfg.Mode != "" && s.cfg.Mode != "disabled",
-		Started:     s.started,
-		StartErr:    s.startErr,
-		Addresses:   s.Addresses(),
-		Uptime:      uptimeSince(s.startedAt, s.started),
-		TxBytes:     s.txBytes,
-		RxBytes:     s.rxBytes,
-		Connections: s.connections,
-		Peers:       nil, // bine does not expose a uniform circuit/peer counter
+		ID:            "tor",
+		Mode:          resolveMode(s.cfg.Mode, true),
+		Enabled:       s.cfg.Mode != "" && s.cfg.Mode != "disabled",
+		Started:       s.started,
+		StartErr:      s.startErr,
+		Addresses:     addresses,
+		Uptime:        uptimeSince(s.startedAt, s.started),
+		TxBytes:       s.txBytes,
+		RxBytes:       s.rxBytes,
+		Connections:   s.connections,
+		Peers:         nil, // bine does not expose a uniform circuit/peer counter
+		StartFailures: s.startFailures,
 	}
 }

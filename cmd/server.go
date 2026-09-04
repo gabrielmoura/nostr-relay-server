@@ -4,6 +4,10 @@ import (
 	"context"
 	"fmt"
 
+	"os"
+	"os/signal"
+	"syscall"
+
 	croncmd "github.com/gabrielmoura/nostr-relay-server/cmd/internal/cron"
 	"github.com/gabrielmoura/nostr-relay-server/config"
 	"github.com/gabrielmoura/nostr-relay-server/infra/cache"
@@ -28,11 +32,9 @@ import (
 	syncjob "github.com/gabrielmoura/nostr-relay-server/internal/sync"
 	"github.com/gabrielmoura/nostr-relay-server/internal/wot"
 	"github.com/gabrielmoura/nostr-relay-server/pkg/nostrpool"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
-	"os"
-	"os/signal"
-	"syscall"
 
 	"github.com/gabrielmoura/nostr-relay-server/infra/log"
 )
@@ -141,6 +143,9 @@ func runServer(cmd *cobra.Command, args []string) {
 		}
 		// Expose the manager to the admin dashboard /privacy/status handler.
 		privacy.SetManager(pm)
+		if err := metrics.RegisterPrivacyMetrics(prometheus.DefaultRegisterer, pm); err != nil {
+			log.Logger.Error("failed to register privacy metrics", zap.Error(err))
+		}
 
 		if config.Cfg.Stream.StreamUp || config.Cfg.Stream.StreamDown {
 			if err := nostrpool.Init(mainCtx, config.Cfg.Stream.Relays); err != nil {

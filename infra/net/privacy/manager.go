@@ -191,6 +191,38 @@ type StatusSnapshot struct {
 	RxBytes     int64
 	Connections int
 	Peers       *int // peers/circuits, nil when the network cannot report it
+	// StartFailures is the number of failed Start attempts observed during this
+	// service process lifetime.
+	StartFailures uint64
+	// Yggdrasil contains native, aggregate-only node facts. It is nil for Tor,
+	// I2P, and Yggdrasil instances that have not created a node yet.
+	Yggdrasil *YggdrasilStatusSnapshot
+}
+
+// YggdrasilStatusSnapshot is the Prometheus-free aggregate of Yggdrasil's
+// public diagnostic APIs. Values are current snapshots, not lifetime counters.
+type YggdrasilStatusSnapshot struct {
+	PeersUp           int
+	PeersDown         int
+	PeersInbound      int
+	Sessions          int
+	SessionRxBytes    uint64
+	SessionTxBytes    uint64
+	PeerRxBytesPerSec uint64
+	PeerTxBytesPerSec uint64
+	RoutingEntries    uint64
+	TreeEntries       int
+	PathEntries       int
+	MTUBytes          uint64
+}
+
+// ManagerStatus is the stable, exported aggregate returned by Manager.Status.
+// It deliberately exposes only domain status and has no Prometheus dependency.
+type ManagerStatus struct {
+	Enabled     bool
+	Persistence bool
+	StateDir    string
+	Networks    []StatusSnapshot
 }
 
 // ---------------------------------------------------------------------------
@@ -223,19 +255,9 @@ func GetManager() *Manager {
 // network, plus the global persistence/enabled flags. It is safe to call on a
 // nil manager (returns empty flags) so the dashboard never breaks when privacy
 // is off.
-func (m *Manager) Status() struct {
-	Enabled     bool
-	Persistence bool
-	StateDir    string
-	Networks    []StatusSnapshot
-} {
+func (m *Manager) Status() ManagerStatus {
 	if m == nil {
-		return struct {
-			Enabled     bool
-			Persistence bool
-			StateDir    string
-			Networks    []StatusSnapshot
-		}{}
+		return ManagerStatus{}
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -243,12 +265,7 @@ func (m *Manager) Status() struct {
 	for _, svc := range m.services {
 		out = append(out, svc.Status())
 	}
-	return struct {
-		Enabled     bool
-		Persistence bool
-		StateDir    string
-		Networks    []StatusSnapshot
-	}{
+	return ManagerStatus{
 		Enabled:     m.cfg.Enabled,
 		Persistence: m.cfg.Persistence,
 		StateDir:    m.cfg.StateDir,
