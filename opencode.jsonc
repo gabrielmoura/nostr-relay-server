@@ -1,5 +1,10 @@
 {
   "$schema": "https://opencode.ai/config.json",
+
+  // Habilita TODOS os servidores LSP nativos do OpenCode.
+  // Se omitido, o LSP fica desabilitado por padrão.
+  "lsp": true,
+
   "mcp": {
     "postgres": {
       "type": "local",

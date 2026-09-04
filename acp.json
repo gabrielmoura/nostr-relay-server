@@ -1,0 +1,8 @@
+{
+  "agent_servers": {
+    "OpenCode": {
+      "command": "/usr/bin/opencode",
+      "args": ["acp"]
+    }
+  }
+}
