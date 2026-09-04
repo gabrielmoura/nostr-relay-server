@@ -37,7 +37,6 @@ relay_information:
         - 13 # Proof of Work
         - 70 # Protected Events
     software: https://github.com/gabrielmoura/nostr-relay-server
-    version: 0.1.0
     canonical_url: ws://0.tcp.sa.ngrok.io:20246
     icon: http://kqzk4pnydptareyj7b4uzxg4rqkeh6wmntcjuoppy6wv72nkj3na2vad.onion/nostr.png
 relay:
