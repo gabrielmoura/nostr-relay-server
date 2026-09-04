@@ -1,4 +1,4 @@
-import type { PrivacyStatus, RelayOverview, StreamStatus } from "@/types/admin"
+import type { PrivacyNetwork, PrivacyStatus, RelayOverview, StreamStatus } from "@/types/admin"
 import { adminApolloClient } from "@/graphql/client"
 import { AdminOverviewDocument, AdminStreamStatusDocument, PrivacyStatusDocument } from "@/graphql/generated/operations"
 import { formatCount } from "@/lib/utils"
@@ -165,26 +165,62 @@ async function getPrivacyStatusImpl(): Promise<PrivacyStatus> {
     enabled: payload.enabled,
     persistence: payload.persistence,
     state_dir: payload.stateDir ?? undefined,
-    networks: (payload.networks ?? []).map((network) => ({
-      id: network.id,
-      name: network.name,
-      mode: network.mode,
-      enabled: network.enabled,
-      started: network.started,
-      status: network.status,
-      addresses: network.addresses ?? [],
-      metrics: network.metrics
-        ? {
-            tx_bytes: network.metrics.txBytes,
-            rx_bytes: network.metrics.rxBytes,
-            peers: network.metrics.peers ?? null,
-            connections: network.metrics.connections ?? null,
-          }
-        : null,
-      error: network.error ?? null,
-      uptime_ms: network.uptimeMs,
-    })),
+    networks: (Array.isArray(payload.networks) ? (payload.networks as unknown[]) : [])
+      .filter(isPrivacyNetworkPayload)
+      .map(normalizePrivacyNetwork),
   }
+}
+
+const privacyNetworkIDs = ["tor", "i2p", "yggdrasil"] as const
+const privacyNetworkStatuses = ["operational", "starting", "error", "disabled"] as const
+
+function isPrivacyNetworkPayload(value: unknown): value is Record<string, unknown> {
+  if (!isRecord(value)) return false
+
+  return (
+    privacyNetworkIDs.includes(value.id as PrivacyNetwork["id"]) &&
+    typeof value.name === "string" &&
+    typeof value.mode === "string" &&
+    typeof value.enabled === "boolean" &&
+    typeof value.started === "boolean" &&
+    privacyNetworkStatuses.includes(value.status as PrivacyNetwork["status"])
+  )
+}
+
+function normalizePrivacyNetwork(network: Record<string, unknown>): PrivacyNetwork {
+  const metrics = isRecord(network.metrics) ? network.metrics : null
+
+  return {
+    id: network.id as PrivacyNetwork["id"],
+    name: network.name as string,
+    mode: network.mode as string,
+    enabled: network.enabled as boolean,
+    started: network.started as boolean,
+    status: network.status as PrivacyNetwork["status"],
+    addresses: Array.isArray(network.addresses) ? network.addresses.filter((address): address is string => typeof address === "string") : [],
+    metrics: metrics
+      ? {
+          tx_bytes: numberOrZero(metrics.txBytes),
+          rx_bytes: numberOrZero(metrics.rxBytes),
+          peers: numberOrNull(metrics.peers),
+          connections: numberOrNull(metrics.connections),
+        }
+      : null,
+    error: typeof network.error === "string" ? network.error : null,
+    uptime_ms: numberOrZero(network.uptimeMs),
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null
+}
+
+function numberOrZero(value: unknown): number {
+  return typeof value === "number" && Number.isFinite(value) ? value : 0
+}
+
+function numberOrNull(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null
 }
 
 export function isFeatureDisabledError(error: any): boolean {

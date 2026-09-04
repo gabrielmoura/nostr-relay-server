@@ -11,36 +11,56 @@ export function PrivacyPage() {
   const { t } = useTranslation()
   const query = usePrivacyStatus()
 
-  if (query.isLoading) {
-    return <LoadingPanel label={t("privacy.loading")} />
-  }
-
-  if (query.isError || !query.data) {
-    return <ErrorPanel title={t("privacy.errorTitle")} description={t("privacy.errorDescription")} onRetry={() => void query.refetch()} />
-  }
-
-  if (!query.data.enabled) {
-    return (
-      <FeatureDisabledPanel
-        title={t("privacy.disabledTitle")}
-        description={t("privacy.disabledDescription")}
-        configKey="privacy"
-        howToEnable={t("privacy.howToEnable")}
-      />
-    )
-  }
-
-  const privacy = query.data
-
   return (
     <div className="space-y-6">
       <PageHeader title={t("privacy.title")} description={t("privacy.description")} />
 
-      <section className="grid gap-4 sm:grid-cols-3">
+      {query.isLoading ? (
+        <LoadingPanel label={t("privacy.loading")} />
+      ) : query.isError || !query.data ? (
+        <ErrorPanel
+          title={t("privacy.errorTitle")}
+          description={t("privacy.errorDescription")}
+          onRetry={() => void query.refetch().catch(() => undefined)}
+        />
+      ) : (
+        <PrivacyStatusContent privacy={query.data} />
+      )}
+    </div>
+  )
+}
+
+function PrivacyStatusContent({ privacy }: { privacy: NonNullable<ReturnType<typeof usePrivacyStatus>["data"]> }) {
+  const { t } = useTranslation()
+  const networks = privacy.networks ?? []
+  const activeNetworks = networks.filter((network) => network.started).length
+  const failedNetworks = networks.filter((network) => network.status === "error").length
+
+  return (
+    <>
+      <section className="grid gap-4 sm:grid-cols-3 xl:grid-cols-5">
         <Card>
           <CardHeader>
             <CardDescription>{t("privacy.enabled")}</CardDescription>
             <CardTitle>{privacy.enabled ? t("common.yes") : t("common.no")}</CardTitle>
+          </CardHeader>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardDescription>{t("privacy.networksConfigured")}</CardDescription>
+            <CardTitle>{networks.length}</CardTitle>
+          </CardHeader>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardDescription>{t("privacy.networksActive")}</CardDescription>
+            <CardTitle>{activeNetworks}</CardTitle>
+          </CardHeader>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardDescription>{t("privacy.networksError")}</CardDescription>
+            <CardTitle>{failedNetworks}</CardTitle>
           </CardHeader>
         </Card>
         <Card>
@@ -57,7 +77,16 @@ export function PrivacyPage() {
         </Card>
       </section>
 
-      <PrivacyNetworksPanel networks={privacy.networks} />
-    </div>
+      {!privacy.enabled ? (
+        <FeatureDisabledPanel
+          title={t("privacy.disabledTitle")}
+          description={t("privacy.disabledDescription")}
+          configKey="privacy"
+          howToEnable={t("privacy.howToEnable")}
+        />
+      ) : (
+        <PrivacyNetworksPanel networks={networks} />
+      )}
+    </>
   )
 }

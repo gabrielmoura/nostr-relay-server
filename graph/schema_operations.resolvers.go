@@ -7,7 +7,6 @@ package graph
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/gabrielmoura/nostr-relay-server/graph/model"
@@ -190,7 +189,7 @@ func (r *queryResolver) AdminStreamStatus(ctx context.Context) (*model.AdminStre
 
 // PrivacyStatus is the resolver for the privacyStatus field.
 func (r *queryResolver) PrivacyStatus(ctx context.Context) (*model.PrivacyStatus, error) {
-	panic(fmt.Errorf("not implemented: PrivacyStatus - privacyStatus"))
+	return r.privacyStatus(ctx)
 }
 
 // ActiveConnections is the resolver for the activeConnections field.

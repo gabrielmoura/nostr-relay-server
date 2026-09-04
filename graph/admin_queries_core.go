@@ -9,6 +9,8 @@ import (
 
 	"github.com/gabrielmoura/nostr-relay-server/graph/model"
 	httphandler "github.com/gabrielmoura/nostr-relay-server/infra/handler/http"
+	"github.com/gabrielmoura/nostr-relay-server/infra/log"
+	"go.uber.org/zap"
 )
 
 func (r *Resolver) adminOverview(ctx context.Context) (*model.AdminOverview, error) {
@@ -188,7 +190,21 @@ func (r *Resolver) privacyStatus(ctx context.Context) (*model.PrivacyStatus, err
 		handlerFunc: httphandler.PrivacyStatus(),
 	})
 	if err != nil {
+		log.Logger.Error("privacy status request failed",
+			zap.String("component", "privacy"),
+			zap.String("operation", "status"),
+			zap.Error(err),
+		)
 		return nil, err
 	}
-	return decodeRESTModel[model.PrivacyStatus](payload)
+	status, err := decodeRESTModel[model.PrivacyStatus](payload)
+	if err != nil {
+		log.Logger.Error("privacy status response decode failed",
+			zap.String("component", "privacy"),
+			zap.String("operation", "status"),
+			zap.Error(err),
+		)
+		return nil, err
+	}
+	return status, nil
 }

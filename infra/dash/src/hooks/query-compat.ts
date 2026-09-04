@@ -240,7 +240,7 @@ export function useQuery<T>({ queryKey, queryFn, enabled = true, refetchInterval
     if (!enabled) return
     const cacheEntry = getCacheEntry<T>(serializedKey, enabled)
     if (cacheEntry.data === undefined && !cacheEntry.isFetching) {
-      void execute()
+      void execute().catch(() => undefined)
     }
   }, [enabled, execute, serializedKey])
 
@@ -251,7 +251,7 @@ export function useQuery<T>({ queryKey, queryFn, enabled = true, refetchInterval
       callback: () => {
         const cacheEntry = getCacheEntry<T>(serializedKey, enabled)
         cacheEntry.promise = undefined
-        void execute()
+        void execute().catch(() => undefined)
       },
     }
     querySubscribers.add(subEntry)
@@ -269,7 +269,7 @@ export function useQuery<T>({ queryKey, queryFn, enabled = true, refetchInterval
     const timer = window.setInterval(() => {
       const cacheEntry = getCacheEntry<T>(serializedKey, enabled)
       cacheEntry.promise = undefined
-      void execute()
+      void execute().catch(() => undefined)
     }, nextInterval)
 
     return () => window.clearInterval(timer)

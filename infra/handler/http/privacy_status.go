@@ -13,7 +13,7 @@ import (
 type PrivacyStatusResponse struct {
 	Enabled     bool                     `json:"enabled"`
 	Persistence bool                     `json:"persistence"`
-	StateDir    string                   `json:"state_dir,omitempty"`
+	StateDir    string                   `json:"state_dir"`
 	Networks    []PrivacyNetworkResponse `json:"networks"`
 }
 
@@ -70,14 +70,18 @@ func toPrivacyNetworkResponse(n privacy.StatusSnapshot) PrivacyNetworkResponse {
 		status = "error"
 	}
 
-	var metrics *PrivacyMetricsResponse
-	if n.Started {
-		metrics = &PrivacyMetricsResponse{
-			TxBytes:     n.TxBytes,
-			RxBytes:     n.RxBytes,
-			Peers:       n.Peers,
-			Connections: n.Connections,
-		}
+	// Metrics are best-effort observability values. A stopped or unavailable
+	// provider still has a valid status, so expose neutral counters rather than
+	// turning missing samples into an error or a null UI state.
+	metrics := &PrivacyMetricsResponse{
+		TxBytes:     n.TxBytes,
+		RxBytes:     n.RxBytes,
+		Peers:       n.Peers,
+		Connections: n.Connections,
+	}
+	addresses := n.Addresses
+	if addresses == nil {
+		addresses = []string{}
 	}
 
 	return PrivacyNetworkResponse{
@@ -87,7 +91,7 @@ func toPrivacyNetworkResponse(n privacy.StatusSnapshot) PrivacyNetworkResponse {
 		Enabled:   n.Enabled,
 		Started:   n.Started,
 		Status:    status,
-		Addresses: n.Addresses,
+		Addresses: addresses,
 		Metrics:   metrics,
 		Error:     n.StartErr,
 		UptimeMs:  n.Uptime.Milliseconds(),
