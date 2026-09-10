@@ -77,7 +77,7 @@ func Init(ctx context.Context) error {
 	DbQueries = db.New(pool)
 	Pool = pool
 	cache.Init()
-	go watchPoolStats(ctx, pool)
+	metrics.SetPostgresPool(pool)
 	return nil
 }
 
@@ -92,27 +92,4 @@ func checkConnection(ctx context.Context, pool *pgxpool.Pool) error {
 	}
 	defer conn.Release()
 	return conn.Ping(ctx)
-}
-
-func watchPoolStats(ctx context.Context, pool *pgxpool.Pool) {
-	ticker := time.NewTicker(15 * time.Second)
-	defer ticker.Stop()
-	var lastAcquireCount int64
-
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			stats := pool.Stat()
-			metrics.NostrDBPoolAcquired.Set(float64(stats.AcquiredConns()))
-			metrics.NostrDBPoolIdle.Set(float64(stats.IdleConns()))
-			metrics.NostrDBPoolTotal.Set(float64(stats.TotalConns()))
-			acquireDelta := stats.AcquireCount() - lastAcquireCount
-			if acquireDelta > 0 {
-				metrics.NostrDBPoolAcquireCount.Add(float64(acquireDelta))
-				lastAcquireCount = stats.AcquireCount()
-			}
-		}
-	}
 }

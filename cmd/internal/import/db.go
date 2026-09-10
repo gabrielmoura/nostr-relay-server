@@ -19,7 +19,7 @@ func saveToDatabase(ctx context.Context, store *dbx.Queries, event *nostr.Event)
 func saveBatchToDatabase(ctx context.Context, store *dbx.Queries, events []*nostr.Event) error {
 	nCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	if err := store.InsertEventBatch(nCtx, events); err != nil {
+	if _, err := store.InsertEventBatch(nCtx, events); err != nil {
 		return fmt.Errorf("failed to save batch of events to event store: %w", err)
 	}
 	return nil

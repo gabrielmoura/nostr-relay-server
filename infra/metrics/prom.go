@@ -1,12 +1,23 @@
 package metrics
 
 import (
+	"sync"
+	"time"
+
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/prometheus/client_golang/prometheus"
+	goredis "github.com/redis/go-redis/v9"
 )
 
 var (
 	internalProcessingBuckets = []float64{0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5}
+	ingestionBatchBuckets     = []float64{0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30}
 	externalOperationBuckets  = []float64{1, 2.5, 5, 10, 30, 60, 120, 300, 600}
+
+	postgresPoolMu sync.RWMutex
+	postgresPool   *pgxpool.Pool
+	redisPoolMu    sync.RWMutex
+	redisPool      *goredis.Client
 )
 
 const ExternalRelayLabel = "external"
@@ -239,21 +250,22 @@ var (
 	NostrRelayBatchProcessed = prometheus.NewCounter(
 		prometheus.CounterOpts{
 			Name: "nostr_relay_batch_processed_total",
-			Help: "Total number of batches processed by ingestion workers.",
+			Help: "Total ingestion batches completed without a storage error.",
 		},
 	)
 	NostrRelayEventsInserted = prometheus.NewCounter(
 		prometheus.CounterOpts{
 			Name: "nostr_relay_events_inserted_total",
-			Help: "Total number of events inserted via batch processing.",
+			Help: "Total event rows actually inserted by ingestion batches, excluding ON CONFLICT duplicates and ephemeral events.",
 		},
 	)
-	NostrRelayIngestionDuration = prometheus.NewHistogram(
+	NostrRelayIngestionDuration = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Name:    "nostr_relay_ingestion_duration_seconds",
-			Help:    "Duration of batch insertion in seconds.",
-			Buckets: prometheus.DefBuckets,
+			Help:    "Duration of complete ingestion batch processing, including validation, persistence, and local post-persistence work. The outcome label is bounded to success or error.",
+			Buckets: ingestionBatchBuckets,
 		},
+		[]string{"outcome"},
 	)
 	NostrRelayIngestionBackpressure = prometheus.NewCounter(
 		prometheus.CounterOpts{
@@ -264,13 +276,25 @@ var (
 	NostrRelayIngestionDuplicates = prometheus.NewCounter(
 		prometheus.CounterOpts{
 			Name: "nostr_relay_ingestion_duplicates_total",
-			Help: "Total number of duplicate events rejected by deduplication.",
+			Help: "Total duplicate events skipped by ingestion deduplication or PostgreSQL ON CONFLICT handling.",
 		},
 	)
 	NostrRelayIngestionErrors = prometheus.NewCounter(
 		prometheus.CounterOpts{
 			Name: "nostr_relay_ingestion_errors_total",
 			Help: "Total number of errors during batch insertion.",
+		},
+	)
+	NostrRelayIngestionRejected = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "nostr_relay_ingestion_rejected_total",
+			Help: "Total events rejected by ingestion policy before persistence. These are not storage errors.",
+		},
+	)
+	NostrRelayIngestionQueueDepth = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "nostr_relay_ingestion_queue_depth",
+			Help: "Current number of events buffered in the bounded ingestion channel, excluding events already held in worker batches.",
 		},
 	)
 	NostrRedisQueryCacheResult = prometheus.NewCounterVec(
@@ -280,28 +304,124 @@ var (
 		},
 		[]string{"result"},
 	)
-	NostrDBPoolAcquired = prometheus.NewGauge(
+	NostrDBPoolAcquired = prometheus.NewGaugeFunc(
 		prometheus.GaugeOpts{
 			Name: "nostr_db_pool_acquired",
-			Help: "Number of currently acquired database connections.",
+			Help: "Current number of PostgreSQL connections acquired from the pgx pool.",
+		},
+		func() float64 {
+			if stats := currentPostgresPoolStats(); stats != nil {
+				return float64(stats.AcquiredConns())
+			}
+			return 0
 		},
 	)
-	NostrDBPoolIdle = prometheus.NewGauge(
+	NostrDBPoolIdle = prometheus.NewGaugeFunc(
 		prometheus.GaugeOpts{
 			Name: "nostr_db_pool_idle",
-			Help: "Number of currently idle database connections.",
+			Help: "Current number of idle PostgreSQL connections in the pgx pool.",
+		},
+		func() float64 {
+			if stats := currentPostgresPoolStats(); stats != nil {
+				return float64(stats.IdleConns())
+			}
+			return 0
 		},
 	)
-	NostrDBPoolTotal = prometheus.NewGauge(
+	NostrDBPoolTotal = prometheus.NewGaugeFunc(
 		prometheus.GaugeOpts{
 			Name: "nostr_db_pool_total",
-			Help: "Total number of database connections in the pool.",
+			Help: "Current total number of PostgreSQL connections in the pgx pool.",
+		},
+		func() float64 {
+			if stats := currentPostgresPoolStats(); stats != nil {
+				return float64(stats.TotalConns())
+			}
+			return 0
 		},
 	)
-	NostrDBPoolAcquireCount = prometheus.NewCounter(
+	NostrDBPoolEmptyAcquires = prometheus.NewCounterFunc(
 		prometheus.CounterOpts{
-			Name: "nostr_db_pool_acquire_total",
-			Help: "Total successful database pool acquires.",
+			Name: "nostr_db_pool_empty_acquires_total",
+			Help: "Total successful PostgreSQL pool acquires that had to wait because the pool was empty.",
+		},
+		func() float64 {
+			if stats := currentPostgresPoolStats(); stats != nil {
+				return float64(stats.EmptyAcquireCount())
+			}
+			return 0
+		},
+	)
+	NostrDBPoolEmptyAcquireWaitSeconds = prometheus.NewCounterFunc(
+		prometheus.CounterOpts{
+			Name: "nostr_db_pool_empty_acquire_wait_seconds_total",
+			Help: "Cumulative time spent waiting for a PostgreSQL connection after the pgx pool became empty.",
+		},
+		func() float64 {
+			if stats := currentPostgresPoolStats(); stats != nil {
+				return stats.EmptyAcquireWaitTime().Seconds()
+			}
+			return 0
+		},
+	)
+	NostrRedisPoolTotal = prometheus.NewGaugeFunc(
+		prometheus.GaugeOpts{
+			Name: "nostr_redis_pool_total_connections",
+			Help: "Current total number of connections in the Redis client pool.",
+		},
+		func() float64 {
+			if stats := currentRedisPoolStats(); stats != nil {
+				return float64(stats.TotalConns)
+			}
+			return 0
+		},
+	)
+	NostrRedisPoolIdle = prometheus.NewGaugeFunc(
+		prometheus.GaugeOpts{
+			Name: "nostr_redis_pool_idle_connections",
+			Help: "Current number of idle connections in the Redis client pool.",
+		},
+		func() float64 {
+			if stats := currentRedisPoolStats(); stats != nil {
+				return float64(stats.IdleConns)
+			}
+			return 0
+		},
+	)
+	NostrRedisPoolPending = prometheus.NewGaugeFunc(
+		prometheus.GaugeOpts{
+			Name: "nostr_redis_pool_pending_requests",
+			Help: "Current number of requests waiting for a Redis client-pool connection.",
+		},
+		func() float64 {
+			if stats := currentRedisPoolStats(); stats != nil {
+				return float64(stats.PendingRequests)
+			}
+			return 0
+		},
+	)
+	NostrRedisPoolTimeouts = prometheus.NewCounterFunc(
+		prometheus.CounterOpts{
+			Name: "nostr_redis_pool_timeouts_total",
+			Help: "Total Redis client-pool waits that timed out.",
+		},
+		func() float64 {
+			if stats := currentRedisPoolStats(); stats != nil {
+				return float64(stats.Timeouts)
+			}
+			return 0
+		},
+	)
+	NostrRedisPoolWaitSeconds = prometheus.NewCounterFunc(
+		prometheus.CounterOpts{
+			Name: "nostr_redis_pool_wait_seconds_total",
+			Help: "Cumulative time spent waiting for Redis client-pool connections.",
+		},
+		func() float64 {
+			if stats := currentRedisPoolStats(); stats != nil {
+				return time.Duration(stats.WaitDurationNs).Seconds()
+			}
+			return 0
 		},
 	)
 	NostrListenerOrphanCleanup = prometheus.NewCounter(
@@ -456,11 +576,19 @@ func RegisterMetrics() {
 		NostrRelayIngestionBackpressure,
 		NostrRelayIngestionDuplicates,
 		NostrRelayIngestionErrors,
+		NostrRelayIngestionRejected,
+		NostrRelayIngestionQueueDepth,
 		NostrRedisQueryCacheResult,
 		NostrDBPoolAcquired,
 		NostrDBPoolIdle,
 		NostrDBPoolTotal,
-		NostrDBPoolAcquireCount,
+		NostrDBPoolEmptyAcquires,
+		NostrDBPoolEmptyAcquireWaitSeconds,
+		NostrRedisPoolTotal,
+		NostrRedisPoolIdle,
+		NostrRedisPoolPending,
+		NostrRedisPoolTimeouts,
+		NostrRedisPoolWaitSeconds,
 		NostrListenerOrphanCleanup,
 		NostrCronNIP40RunsTotal,
 		NostrCronNIP40DeletedEventsTotal,
@@ -494,4 +622,38 @@ func RegisterMetrics() {
 		NostrBlossomHTTPErrorsTotal,
 	)
 
+}
+
+// SetPostgresPool makes pgx pool state available at Prometheus scrape time.
+func SetPostgresPool(pool *pgxpool.Pool) {
+	postgresPoolMu.Lock()
+	postgresPool = pool
+	postgresPoolMu.Unlock()
+}
+
+// SetRedisClient makes Redis client-pool state available at Prometheus scrape time.
+func SetRedisClient(client *goredis.Client) {
+	redisPoolMu.Lock()
+	redisPool = client
+	redisPoolMu.Unlock()
+}
+
+func currentPostgresPoolStats() *pgxpool.Stat {
+	postgresPoolMu.RLock()
+	pool := postgresPool
+	postgresPoolMu.RUnlock()
+	if pool == nil {
+		return nil
+	}
+	return pool.Stat()
+}
+
+func currentRedisPoolStats() *goredis.PoolStats {
+	redisPoolMu.RLock()
+	client := redisPool
+	redisPoolMu.RUnlock()
+	if client == nil {
+		return nil
+	}
+	return client.PoolStats()
 }

@@ -9,6 +9,7 @@ import (
 
 	"github.com/gabrielmoura/nostr-relay-server/config"
 	"github.com/gabrielmoura/nostr-relay-server/infra/log"
+	"github.com/gabrielmoura/nostr-relay-server/infra/metrics"
 	goredis "github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 )
@@ -58,6 +59,7 @@ func Init(cfg *config.RedisConfig) error {
 	clientOnce.Do(func() {
 		client = New(cfg)
 		if !client.IsEnabled() {
+			metrics.SetRedisClient(nil)
 			log.Logger.Info("Redis is disabled, using fallback")
 			return
 		}
@@ -78,6 +80,7 @@ func Init(cfg *config.RedisConfig) error {
 		}
 
 		log.Logger.Info("Redis connected successfully", zap.String("addr", client.cfg.Addr))
+		metrics.SetRedisClient(client.Raw())
 	})
 	return nil
 }
@@ -97,6 +100,7 @@ func (c *Client) Ping(ctx context.Context) error {
 }
 
 func (c *Client) Close() error {
+	metrics.SetRedisClient(nil)
 	if c.rdb != nil {
 		return c.rdb.Close()
 	}

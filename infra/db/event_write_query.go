@@ -23,6 +23,11 @@ type BatchInsertError struct {
 	Err           error
 }
 
+type BatchInsertResult struct {
+	Inserted   int
+	Duplicates int
+}
+
 func (e *BatchInsertError) Error() string {
 	return fmt.Sprintf("failed to insert event %d (%s): %v", e.Index, e.EventID, e.Err)
 }
@@ -129,9 +134,10 @@ func (q *Queries) InsertEvent(ctx context.Context, arg *nostr.Event) error {
 	return err
 }
 
-func (q *Queries) InsertEventBatch(ctx context.Context, arg []*nostr.Event) error {
+func (q *Queries) InsertEventBatch(ctx context.Context, arg []*nostr.Event) (BatchInsertResult, error) {
+	result := BatchInsertResult{}
 	if len(arg) == 0 {
-		return errors.New("no events to insert")
+		return result, errors.New("no events to insert")
 	}
 
 	batch := pgx.Batch{}
@@ -140,13 +146,24 @@ func (q *Queries) InsertEventBatch(ctx context.Context, arg []*nostr.Event) erro
 	}
 
 	results := q.db.SendBatch(ctx, &batch)
-	defer results.Close()
 	for i := range arg {
-		if _, err := results.Exec(); err != nil {
-			return newBatchInsertError(i, arg[i], err)
+		commandTag, err := results.Exec()
+		if err != nil {
+			_ = results.Close()
+			return result, newBatchInsertError(i, arg[i], err)
 		}
+		if commandTag.RowsAffected() == 0 {
+			result.Duplicates++
+			continue
+		}
+		result.Inserted++
+	}
+	if err := results.Close(); err != nil {
+		return result, fmt.Errorf("close event batch: %w", err)
 	}
 
-	_ = cache.InvalidateQueryCache()
-	return nil
+	if result.Inserted > 0 {
+		_ = cache.InvalidateQueryCache()
+	}
+	return result, nil
 }

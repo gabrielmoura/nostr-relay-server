@@ -29,6 +29,12 @@ type EventBatch struct {
 	Received time.Time
 }
 
+type batchResult struct {
+	Inserted   int
+	Duplicates int
+	Rejected   int
+}
+
 type IngestionConfig struct {
 	BatchSize    int
 	BatchTimeout time.Duration
@@ -82,6 +88,7 @@ func Init() {
 	}
 
 	eventsChan = make(chan *nostr.Event, cfg.QueueSize)
+	metrics.NostrRelayIngestionQueueDepth.Set(0)
 
 	log.Logger.Info("ingestion initialized",
 		zap.Int("batch_size", cfg.BatchSize),
@@ -139,9 +146,11 @@ func Push(event *nostr.Event) bool {
 
 	select {
 	case eventsChan <- event:
+		metrics.NostrRelayIngestionQueueDepth.Set(float64(len(eventsChan)))
 		return true
 	default:
 		metrics.NostrRelayIngestionBackpressure.Inc()
+		metrics.NostrRelayIngestionQueueDepth.Set(float64(len(eventsChan)))
 		return false
 	}
 }
@@ -150,6 +159,7 @@ func (w *worker) run(ctx context.Context, workerID int) {
 	for {
 		select {
 		case event, ok := <-eventsChan:
+			metrics.NostrRelayIngestionQueueDepth.Set(float64(len(eventsChan)))
 			if !ok {
 				w.flush(ctx)
 				return
@@ -190,8 +200,24 @@ func (w *worker) flush(ctx context.Context) {
 	}
 
 	startTime := time.Now()
-	err := insertBatch(ctx, batch)
+	result, err := insertBatch(ctx, batch)
 	duration := time.Since(startTime)
+	outcome := "success"
+	if err != nil {
+		outcome = "error"
+	}
+	metrics.NostrRelayIngestionDuration.WithLabelValues(outcome).Observe(duration.Seconds())
+	if result.Inserted > 0 {
+		statsEventsInserted.Add(int64(result.Inserted))
+		metrics.NostrRelayEventsInserted.Add(float64(result.Inserted))
+	}
+	if result.Duplicates > 0 {
+		statsDuplicates.Add(int64(result.Duplicates))
+		metrics.NostrRelayIngestionDuplicates.Add(float64(result.Duplicates))
+	}
+	if result.Rejected > 0 {
+		metrics.NostrRelayIngestionRejected.Add(float64(result.Rejected))
+	}
 
 	if err != nil {
 		statsErrors.Add(1)
@@ -230,13 +256,12 @@ func (w *worker) flush(ctx context.Context) {
 		log.Logger.Error("batch insert failed", fields...)
 	} else {
 		statsBatchProcessed.Add(1)
-		statsEventsInserted.Add(int64(len(batch)))
 		metrics.NostrRelayBatchProcessed.Inc()
-		metrics.NostrRelayEventsInserted.Add(float64(len(batch)))
-		metrics.NostrRelayIngestionDuration.Observe(duration.Seconds())
 
 		log.Logger.Debug("batch inserted",
-			zap.Int("count", len(batch)),
+			zap.Int("inserted", result.Inserted),
+			zap.Int("duplicates", result.Duplicates),
+			zap.Int("rejected", result.Rejected),
 			zap.Duration("duration", duration),
 		)
 	}
@@ -255,9 +280,10 @@ func (w *worker) isDuplicate(event *nostr.Event) bool {
 	return err == nil && isDup
 }
 
-func insertBatch(ctx context.Context, events []*nostr.Event) error {
+func insertBatch(ctx context.Context, events []*nostr.Event) (batchResult, error) {
+	result := batchResult{}
 	if len(events) == 0 {
-		return nil
+		return result, nil
 	}
 
 	accepted := make([]*nostr.Event, 0, len(events))
@@ -266,18 +292,17 @@ func insertBatch(ctx context.Context, events []*nostr.Event) error {
 	for _, evt := range events {
 		reject, reason := policies.P.ValidateBatchEvent(ctx, evt)
 		if reject {
-			statsErrors.Add(1)
+			result.Rejected++
 			log.Logger.Debug("ingestion policy rejected event", zap.String("event_id", evt.ID), zap.String("reason", reason))
 			continue
 		}
 
 		if err := prepareEventForStorage(ctx, evt); err != nil {
 			if errors.Is(err, dbstore.ErrDupEvent) {
-				statsDuplicates.Add(1)
-				metrics.NostrRelayEventDuplicateRejections.Inc()
+				result.Duplicates++
 				continue
 			}
-			return err
+			return result, err
 		}
 
 		accepted = append(accepted, evt)
@@ -287,8 +312,11 @@ func insertBatch(ctx context.Context, events []*nostr.Event) error {
 	}
 
 	if len(stored) > 0 {
-		if err := db.DbQueries.InsertEventBatch(ctx, stored); err != nil {
-			return err
+		batchInsertResult, err := db.DbQueries.InsertEventBatch(ctx, stored)
+		result.Inserted += batchInsertResult.Inserted
+		result.Duplicates += batchInsertResult.Duplicates
+		if err != nil {
+			return result, err
 		}
 	}
 
@@ -311,7 +339,7 @@ func insertBatch(ctx context.Context, events []*nostr.Event) error {
 		}
 	}
 
-	return nil
+	return result, nil
 }
 
 func prepareEventForStorage(ctx context.Context, evt *nostr.Event) error {
