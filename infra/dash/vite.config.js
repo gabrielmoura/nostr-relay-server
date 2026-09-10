@@ -8,6 +8,16 @@ var appBasePath = (_b = process.env.APP_BASE_PATH) !== null && _b !== void 0 ? _
 export default defineConfig({
     base: appBasePath,
     plugins: [react(), tailwindcss()],
+    build: {
+        rollupOptions: {
+            onwarn: function (warning, warn) {
+                if (warning.code === "COMMONJS_VARIABLE_IN_ESM") {
+                    return;
+                }
+                warn(warning);
+            },
+        },
+    },
     resolve: {
         alias: {
             "@": path.resolve(__dirname, "./src"),

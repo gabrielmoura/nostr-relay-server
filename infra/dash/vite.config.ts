@@ -9,6 +9,17 @@ const appBasePath = process.env.APP_BASE_PATH ?? "/panel/"
 export default defineConfig({
   base: appBasePath,
   plugins: [react(), tailwindcss()],
+  build: {
+    rollupOptions: {
+      onwarn(warning, warn) {
+        if (warning.code === "COMMONJS_VARIABLE_IN_ESM") {
+          return
+        }
+
+        warn(warning)
+      },
+    },
+  },
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),

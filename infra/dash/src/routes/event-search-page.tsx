@@ -12,6 +12,7 @@ import { Separator } from "@/components/ui/separator"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { EventSearchItem } from "@/components/features/event-search/event-search-item"
+import { EventBoundary } from "@/components/features/event-search/event-boundary"
 import { EventSearchAggregates } from "@/components/features/event-search/event-search-aggregates"
 import { EventSearchTimeline } from "@/components/features/event-search/event-search-timeline"
 import { EventImportModal } from "@/components/features/event-search/event-import-modal"
@@ -140,12 +141,13 @@ export function EventSearchPage() {
                     heightClassName="max-h-[calc(100vh-280px)] min-h-[500px]"
                     renderItem={(event, index) => (
                       <div className="py-1">
-                        <EventSearchItem 
-                          key={event.id} 
-                          eventItem={event} 
-                          index={index}
-                          onOpenJSON={() => setSelectedEventJson(JSON.stringify(event, null, 2))}
-                        />
+                        <EventBoundary eventId={event.id} eventPayload={event}>
+                          <EventSearchItem
+                            eventItem={event}
+                            index={index}
+                            onOpenJSON={() => setSelectedEventJson(JSON.stringify(event, null, 2))}
+                          />
+                        </EventBoundary>
                       </div>
                     )}
                  />
