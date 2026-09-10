@@ -10,7 +10,6 @@ import (
 	policies "github.com/gabrielmoura/nostr-relay-server/internal/policies"
 	"github.com/nbd-wtf/go-nostr"
 	"go.uber.org/zap"
-	"time"
 )
 
 func DoCOUNT(ws *dto.WsServer, data dto.Data) string {
@@ -53,7 +52,6 @@ func DoCOUNT(ws *dto.WsServer, data dto.Data) string {
 	}
 
 	ws.ChanSender <- []any{"COUNT", id, map[string]int64{"count": total}}
-	metrics.NostrRequestDuration.WithLabelValues("COUNT").Observe(time.Since(ws.StartTime).Seconds())
 
 	return ""
 }

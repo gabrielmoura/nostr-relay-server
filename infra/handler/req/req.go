@@ -1,8 +1,6 @@
 package req
 
 import (
-	"time"
-
 	"github.com/gabrielmoura/nostr-relay-server/config"
 	"github.com/gabrielmoura/nostr-relay-server/infra/handler/auth"
 	"github.com/gabrielmoura/nostr-relay-server/infra/handler/listener"
@@ -96,7 +94,6 @@ func DoREQ(ws *dto.WsServer, data dto.Data) string {
 	ws.ChanSender <- nostr.EOSEEnvelope(id)
 
 	listener.SetListener(id, ws, normalizedFilters)
-	metrics.NostrRequestDuration.WithLabelValues("REQ").Observe(time.Since(ws.StartTime).Seconds())
 	return ""
 }
 

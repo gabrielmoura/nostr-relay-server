@@ -3,7 +3,6 @@ package event
 import (
 	"errors"
 	"strings"
-	"time"
 
 	"github.com/gabrielmoura/nostr-relay-server/config"
 	"github.com/gabrielmoura/nostr-relay-server/infra/handler/auth"
@@ -74,7 +73,6 @@ func processEvent(ws *dto.WsServer, evt *nostr.Event) string {
 		return ""
 	}
 
-	metrics.NostrRequestDuration.WithLabelValues("EVENT").Observe(time.Since(ws.StartTime).Seconds())
 	return ""
 }
 
@@ -108,6 +106,7 @@ func runEventSideEffects(ws *dto.WsServer, evt *nostr.Event) {
 
 func enqueueEvent(ws *dto.WsServer, evt *nostr.Event) bool {
 	if ingestion.Push(evt) {
+		metrics.NostrEventsAcceptedTotal.Inc()
 		log.Logger.Debug("event queued for ingestion", zap.String("event_id", evt.ID), zap.Int("kind", evt.Kind))
 		ws.ChanSender <- nostr.OKEnvelope{EventID: evt.ID, OK: true}
 		return true

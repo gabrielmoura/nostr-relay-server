@@ -23,6 +23,9 @@ const (
 )
 
 func HandleConnection(wss *dto.WsServer) {
+	metrics.NostrConnectionCounter.Inc()
+	defer metrics.NostrConnectionCounter.Dec()
+
 	if security.S != nil {
 		allowed, reason := security.S.AcquireConnection(wss.RemoteIP)
 		if !allowed {
@@ -37,7 +40,6 @@ func HandleConnection(wss *dto.WsServer) {
 	defer ticker.Stop()
 	defer listener.RemoveListener(wss)
 	listener.Touch(wss)
-	metrics.NostrUserAgentCounter.WithLabelValues(wss.Conn.Locals("ua").(string)).Inc()
 
 	if config.Cfg.Ws.NormalizedAuthMode() == "optional" {
 		if err := auth.SendAuthChallengeNow(wss); err != nil {

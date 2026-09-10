@@ -302,7 +302,6 @@ func insertBatch(ctx context.Context, events []*nostr.Event) error {
 		serialized, _ := json.Marshal(evt)
 		_ = cache.SetEvent(evt.ID, string(serialized))
 		metrics.NostrKindEventCounter.WithLabelValues(metrics.GetKindName(evt.Kind)).Inc()
-		metrics.NostrUserEventCounter.WithLabelValues(evt.PubKey).Inc()
 		if err := groups.AfterStoreEvent(ctx, evt); err != nil {
 			log.Logger.Warn("nip29 post-persist handling failed",
 				zap.String("event_id", evt.ID),

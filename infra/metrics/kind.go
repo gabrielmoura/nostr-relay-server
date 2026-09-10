@@ -1,7 +1,5 @@
 package metrics
 
-import "fmt"
-
 func GetKindName(kind int) string {
 	switch kind {
 	case 0:
@@ -264,6 +262,6 @@ func GetKindName(kind int) string {
 		return "KindCommunityDefinition"
 
 	default:
-		return fmt.Sprintf("Unknown Kind %d", kind)
+		return "other"
 	}
 }

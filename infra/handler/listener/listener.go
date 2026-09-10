@@ -257,7 +257,6 @@ func SetListener(id string, ws *dto.WsServer, filters nostr.Filters) {
 
 	if _, exists := localListeners[ws][id]; !exists {
 		listenerCount.Add(1)
-		metrics.NostrConnectionCounter.Inc()
 		metrics.NostrListenerGauge.Inc()
 		metrics.NostrListenerAddCounter.Inc()
 	}
@@ -325,7 +324,6 @@ func RemoveListenerId(ws *dto.WsServer, id string) {
 		if _, exists := subs[id]; exists {
 			delete(subs, id)
 			listenerCount.Add(-1)
-			metrics.NostrConnectionCounter.Desc()
 			metrics.NostrListenerGauge.Dec()
 			metrics.NostrListenerRemoveCounter.Inc()
 
@@ -362,7 +360,6 @@ func RemoveListener(ws *dto.WsServer) {
 		delete(localListeners, ws)
 		metrics.NostrListenerGauge.Sub(float64(removedCount))
 		metrics.NostrListenerRemoveCounter.Add(float64(removedCount))
-		metrics.NostrConnectionCounter.Sub(float64(removedCount))
 		listenerCount.Add(-int32(removedCount))
 	}
 

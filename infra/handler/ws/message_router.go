@@ -2,6 +2,7 @@ package ws
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/gabrielmoura/nostr-relay-server/config"
 	"github.com/gabrielmoura/nostr-relay-server/infra/handler/auth"
@@ -49,13 +50,18 @@ func handleMessage(ws *dto.WsServer, message []byte) {
 		return
 	}
 
-	metrics.NostrRequestCounter.WithLabelValues(typ).Inc()
 	handler, ok := wsMessageHandlers[typ]
 	if !ok {
 		log.Logger.Error("unknown event type", zap.String("type", typ))
 		ws.ChanSender <- nostr.NoticeEnvelope("unknown event type " + typ)
 		return
 	}
+
+	metrics.NostrRequestCounter.WithLabelValues(typ).Inc()
+	startedAt := time.Now()
+	defer func() {
+		metrics.NostrRequestProcessingDuration.WithLabelValues(typ).Observe(time.Since(startedAt).Seconds())
+	}()
 
 	if notice := handler(ws, data); notice != "" {
 		ws.ChanSender <- nostr.NoticeEnvelope(notice)

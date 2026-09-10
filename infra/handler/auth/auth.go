@@ -44,7 +44,6 @@ func DoAUTH(ws *dto.WsServer, data dto.Data) string {
 			ws.ChanSender <- nostr.OKEnvelope{EventID: evt.ID, OK: false, Reason: "error: failed to authenticate"}
 		}
 	}
-	metrics.NostrRequestDuration.WithLabelValues("AUTH").Observe(time.Since(ws.StartTime).Seconds())
 	return ""
 }
 

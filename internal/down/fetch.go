@@ -79,7 +79,7 @@ func fetchAndStoreEvents(
 		sub.Unsub()
 		cancel()
 		stats.Pages++
-		metrics.NostrDownloadPageLatencySeconds.WithLabelValues(client.URL).Observe(time.Since(pageStart).Seconds())
+		metrics.NostrDownloadPageLatencySeconds.WithLabelValues(metrics.ExternalRelayLabel).Observe(time.Since(pageStart).Seconds())
 
 		if pageCount < pageSize {
 			break

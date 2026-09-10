@@ -5,6 +5,13 @@ import (
 )
 
 var (
+	internalProcessingBuckets = []float64{0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5}
+	externalOperationBuckets  = []float64{1, 2.5, 5, 10, 30, 60, 120, 300, 600}
+)
+
+const ExternalRelayLabel = "external"
+
+var (
 	UploadCounter = prometheus.NewCounter(prometheus.CounterOpts{
 		Name: "nostr_uploads",
 		Help: "The total number of uploads",
@@ -16,36 +23,36 @@ var (
 	NostrDownloadEventsReceivedTotal = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "nostr_download_events_received_total",
-			Help: "Total number of events received by the download command per relay.",
+			Help: "Total number of events received by relay download operations. The relay label is a controlled class, not a raw relay URL.",
 		},
 		[]string{"relay"},
 	)
 	NostrDownloadEventsPersistedTotal = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "nostr_download_events_persisted_total",
-			Help: "Total number of events persisted by the download command per relay.",
+			Help: "Total number of events persisted by relay download operations. The relay label is a controlled class, not a raw relay URL.",
 		},
 		[]string{"relay"},
 	)
 	NostrDownloadDuplicatesTotal = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "nostr_download_duplicates_total",
-			Help: "Total number of duplicate events detected by the download command per relay.",
+			Help: "Total number of duplicate events detected by relay download operations. The relay label is a controlled class, not a raw relay URL.",
 		},
 		[]string{"relay"},
 	)
 	NostrDownloadFailuresTotal = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "nostr_download_failures_total",
-			Help: "Total number of download command failures per relay.",
+			Help: "Total number of relay download failures. The relay label is a controlled class, not a raw relay URL.",
 		},
 		[]string{"relay"},
 	)
 	NostrDownloadPageLatencySeconds = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Name:    "nostr_download_page_latency_seconds",
-			Help:    "Latency per paginated download request by relay.",
-			Buckets: prometheus.DefBuckets,
+			Help:    "End-to-end duration of paginated downloads from external Nostr relays, including external relay/network wait and local event processing. This is not internal relay request processing latency. The relay label is a controlled class, not a raw relay URL.",
+			Buckets: externalOperationBuckets,
 		},
 		[]string{"relay"},
 	)
@@ -58,24 +65,24 @@ var (
 	NostrRequestCounter = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "nostr_request_count",
-			Help: "No of request handled by Nostr handler",
+			Help: "Total decoded Nostr client messages handled by type. The type label is bounded to protocol message types.",
 		},
-		[]string{"method"},
+		[]string{"type"},
 	)
 
-	NostrRequestDuration = prometheus.NewHistogramVec(
+	NostrRequestProcessingDuration = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
-			Name:    "nostr_request_duration",
-			Help:    "Duration of request handled by Nostr handler",
-			Buckets: prometheus.DefBuckets,
+			Name:    "nostr_request_processing_duration_seconds",
+			Help:    "Duration of synchronous Nostr message processing before returning control to the WebSocket connection handler. REQ observations end after the initial query, EOSE, and subscription registration; they do not include subscription lifetime.",
+			Buckets: internalProcessingBuckets,
 		},
-		[]string{"method"},
+		[]string{"type"},
 	)
 
 	NostrConnectionCounter = prometheus.NewGauge(
 		prometheus.GaugeOpts{
 			Name: "nostr_connection_count",
-			Help: "No of connection handled by Nostr handler",
+			Help: "Current number of open Nostr WebSocket connections handled by this relay instance.",
 		},
 	)
 
@@ -97,31 +104,11 @@ var (
 		[]string{"kind"},
 	)
 
-	// NostrUserReqCounter - Qual o consumo de dados por usuário?
-	NostrUserReqCounter = prometheus.NewCounterVec(
+	NostrEventsAcceptedTotal = prometheus.NewCounter(
 		prometheus.CounterOpts{
-			Name: "nostr_user_request_count",
-			Help: "No of Request per User",
+			Name: "nostr_events_accepted_total",
+			Help: "Total EVENT messages accepted into the relay ingestion queue after synchronous validation.",
 		},
-		[]string{"user"},
-	)
-
-	// NostrUserEventCounter - Qual o usuário mais ativo?
-	NostrUserEventCounter = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "nostr_user_event_count",
-			Help: "No of Event per User",
-		},
-		[]string{"user"},
-	)
-
-	// NostrTagReqCounter - Qual o consumo de dados por tag?
-	NostrTagReqCounter = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "nostr_tag_request_count",
-			Help: "No of Tags per REQUEST",
-		},
-		[]string{"tag"},
 	)
 	// NostrNegentropyCounter - Contador de mensagens de Negentropia
 	NostrNegentropyCounter = prometheus.NewCounterVec(
@@ -163,23 +150,6 @@ var (
 			Help: "Total events imported through NEG-HAVE during Negentropy synchronization.",
 		},
 	)
-	// NostrUserAgentCounter - Contador de User-Agent
-	NostrUserAgentCounter = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "nostr_user_agent_count",
-			Help: "No of User-Agent handled by Nostr handler",
-		},
-		[]string{"user_agent"},
-	)
-
-	// NostrTagEventCounter - Qual a tag mais popular?
-	NostrTagEventCounter = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "nostr_tag_event_count",
-			Help: "No of Tags per Event",
-		},
-		[]string{"tag"},
-	)
 	// NostrRelayAuthFailuresTotal - Total de falhas de autenticação ou assinatura inválida.
 	NostrRelayAuthFailuresTotal = prometheus.NewCounter(
 		prometheus.CounterOpts{
@@ -187,12 +157,6 @@ var (
 			Help: "total authentication failures or invalid signature.",
 		})
 
-	// NostrRelayWsMessagesReceived - Total de mensagens WebSocket recebidas pelo relay
-	NostrRelayWsMessagesReceived = prometheus.NewCounter(
-		prometheus.CounterOpts{
-			Name: "nostr_relay_ws_messages_received",
-			Help: "Total WebSocket messages received by the relay",
-		})
 	// NostrRelayWsMessagesSend - Total de mensagens WebSocket enviadas pelo relay.
 	NostrRelayWsMessagesSend = prometheus.NewCounter(
 		prometheus.CounterOpts{
@@ -246,7 +210,7 @@ var (
 	NostrListenerGauge = prometheus.NewGauge(
 		prometheus.GaugeOpts{
 			Name: "nostr_listeners_active",
-			Help: "Number of active listeners on the Nostr server.",
+			Help: "Current number of active Nostr subscriptions on this relay instance.",
 		},
 	)
 	// NostrListenerAddCounter - Contador de listeners adicionados.
@@ -452,14 +416,11 @@ var (
 
 func RegisterMetrics() {
 	prometheus.MustRegister(NostrRequestCounter,
-		NostrRequestDuration,
+		NostrRequestProcessingDuration,
 		NostrConnectionCounter,
 		NostrKindReqCounter,
 		NostrKindEventCounter,
-		NostrUserReqCounter,
-		NostrTagReqCounter,
-		NostrTagEventCounter,
-		NostrUserEventCounter,
+		NostrEventsAcceptedTotal,
 		UploadCounter,
 		DownloadCounter,
 		NostrDownloadEventsReceivedTotal,
@@ -488,7 +449,6 @@ func RegisterMetrics() {
 		NostrNegentropyV2SessionsActive,
 		NostrNegentropyV2ProtocolErrorsTotal,
 		NostrNegentropyV2EventsImportedTotal,
-		NostrUserAgentCounter,
 		// Ingestion metrics
 		NostrRelayBatchProcessed,
 		NostrRelayEventsInserted,

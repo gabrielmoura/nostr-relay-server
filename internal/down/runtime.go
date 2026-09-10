@@ -89,11 +89,12 @@ func DownloadRuntime(ctx context.Context, options *DownloadOptions) (DownloadSum
 
 func downloadRelayRuntime(ctx context.Context, relayURL string, options *DownloadOptions) (RelayDownloadResult, error) {
 	result := RelayDownloadResult{Relay: relayURL, Status: "running"}
+	metricRelay := metrics.ExternalRelayLabel
 	log.Logger.Info("Connecting to relay", zap.String("url", relayURL))
 
 	client, err := nostr.RelayConnect(ctx, relayURL)
 	if err != nil {
-		metrics.NostrDownloadFailuresTotal.WithLabelValues(relayURL).Inc()
+		metrics.NostrDownloadFailuresTotal.WithLabelValues(metricRelay).Inc()
 		result.Status = "failed"
 		result.Error = err.Error()
 		return result, fmt.Errorf("connect relay %q: %w", relayURL, err)
@@ -102,15 +103,15 @@ func downloadRelayRuntime(ctx context.Context, relayURL string, options *Downloa
 
 	stats, err := fetchAndStoreEvents(ctx, client, options.Filter, options.Timeout, db.DbQueries)
 	if err != nil {
-		metrics.NostrDownloadFailuresTotal.WithLabelValues(relayURL).Inc()
+		metrics.NostrDownloadFailuresTotal.WithLabelValues(metricRelay).Inc()
 		result.Status = "failed"
 		result.Error = err.Error()
 		return result, fmt.Errorf("download relay %q: %w", relayURL, err)
 	}
 
-	metrics.NostrDownloadEventsReceivedTotal.WithLabelValues(relayURL).Add(float64(stats.Received))
-	metrics.NostrDownloadEventsPersistedTotal.WithLabelValues(relayURL).Add(float64(stats.Persisted))
-	metrics.NostrDownloadDuplicatesTotal.WithLabelValues(relayURL).Add(float64(stats.Duplicates))
+	metrics.NostrDownloadEventsReceivedTotal.WithLabelValues(metricRelay).Add(float64(stats.Received))
+	metrics.NostrDownloadEventsPersistedTotal.WithLabelValues(metricRelay).Add(float64(stats.Persisted))
+	metrics.NostrDownloadDuplicatesTotal.WithLabelValues(metricRelay).Add(float64(stats.Duplicates))
 
 	result.Status = "completed"
 	result.Received = stats.Received
