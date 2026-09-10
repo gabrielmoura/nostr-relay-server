@@ -80,13 +80,6 @@ func runServer(cmd *cobra.Command, args []string) {
 			log.Logger.Fatal("Erro ao aplicar override de metadata do relay", zap.Error(err))
 		}
 
-		// Inicializar prepared statements (apenas em produção)
-		if config.Cfg.AppEnv == "production" {
-			if err := db.InitPreparedStatements(mainCtx, db.Pool); err != nil {
-				log.Logger.Warn("Prepared statements initialization failed, continuing without them", zap.Error(err))
-			}
-		}
-
 		// Canal para capturar sinais do sistema
 		stopChan := make(chan os.Signal, 1)
 		signal.Notify(stopChan, os.Interrupt, syscall.SIGTERM)
