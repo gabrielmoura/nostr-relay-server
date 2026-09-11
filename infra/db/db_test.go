@@ -39,22 +39,23 @@ CREATE INDEX IF NOT EXISTS idx_example ON public.event (created_at);
 }
 
 func TestInsertEventBatchCountsInsertedAndDuplicateRows(t *testing.T) {
-	queries := New(batchDBTX{results: &batchResults{tags: []pgconn.CommandTag{
-		pgconn.NewCommandTag("INSERT 0 1"),
-		pgconn.NewCommandTag("INSERT 0 0"),
-	}}})
+	queries := New(batchDBTX{rows: &batchRows{ids: []string{"event-1"}}})
 
 	result, err := queries.InsertEventBatch(context.Background(), []*nostr.Event{
-		{ID: "event-1"},
-		{ID: "event-2"},
+		{ID: "event-1", Tags: nostr.Tags{}},
+		{ID: "event-2", Tags: nostr.Tags{}},
 	})
 
 	require.NoError(t, err)
-	require.Equal(t, BatchInsertResult{Inserted: 1, Duplicates: 1}, result)
+	require.Equal(t, BatchInsertResult{
+		Inserted:    1,
+		Duplicates:  1,
+		InsertedIDs: []string{"event-1"},
+	}, result)
 }
 
 type batchDBTX struct {
-	results pgx.BatchResults
+	rows pgx.Rows
 }
 
 func (db batchDBTX) Exec(context.Context, string, ...any) (pgconn.CommandTag, error) {
@@ -62,7 +63,7 @@ func (db batchDBTX) Exec(context.Context, string, ...any) (pgconn.CommandTag, er
 }
 
 func (db batchDBTX) Query(context.Context, string, ...any) (pgx.Rows, error) {
-	return nil, nil
+	return db.rows, nil
 }
 
 func (db batchDBTX) QueryRow(context.Context, string, ...any) pgx.Row {
@@ -70,28 +71,34 @@ func (db batchDBTX) QueryRow(context.Context, string, ...any) pgx.Row {
 }
 
 func (db batchDBTX) SendBatch(context.Context, *pgx.Batch) pgx.BatchResults {
-	return db.results
+	return nil
 }
 
-type batchResults struct {
-	tags []pgconn.CommandTag
+type batchRows struct {
+	ids  []string
 	next int
 }
 
-func (results *batchResults) Exec() (pgconn.CommandTag, error) {
-	tag := results.tags[results.next]
-	results.next++
-	return tag, nil
+func (rows *batchRows) Close() {}
+
+func (*batchRows) Err() error { return nil }
+
+func (*batchRows) CommandTag() pgconn.CommandTag { return pgconn.CommandTag{} }
+
+func (*batchRows) FieldDescriptions() []pgconn.FieldDescription { return nil }
+
+func (rows *batchRows) Next() bool {
+	rows.next++
+	return rows.next <= len(rows.ids)
 }
 
-func (*batchResults) Query() (pgx.Rows, error) {
-	return nil, nil
-}
-
-func (*batchResults) QueryRow() pgx.Row {
+func (rows *batchRows) Scan(dest ...any) error {
+	*dest[0].(*string) = rows.ids[rows.next-1]
 	return nil
 }
 
-func (*batchResults) Close() error {
-	return nil
-}
+func (rows *batchRows) Values() ([]any, error) { return []any{rows.ids[rows.next-1]}, nil }
+
+func (*batchRows) RawValues() [][]byte { return nil }
+
+func (*batchRows) Conn() *pgx.Conn { return nil }

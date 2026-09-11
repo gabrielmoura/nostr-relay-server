@@ -2,13 +2,11 @@ package db
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/gabrielmoura/nostr-relay-server/config"
 	"github.com/gabrielmoura/nostr-relay-server/infra/cache"
 	json "github.com/gabrielmoura/nostr-relay-server/internal/jsonx"
-	"github.com/jackc/pgx/v5"
 	"github.com/nbd-wtf/go-nostr"
 )
 
@@ -24,8 +22,9 @@ type BatchInsertError struct {
 }
 
 type BatchInsertResult struct {
-	Inserted   int
-	Duplicates int
+	Inserted    int
+	Duplicates  int
+	InsertedIDs []string
 }
 
 func (e *BatchInsertError) Error() string {
@@ -132,38 +131,4 @@ func (q *Queries) InsertEvent(ctx context.Context, arg *nostr.Event) error {
 		_ = cache.InvalidateQueryCache()
 	}
 	return err
-}
-
-func (q *Queries) InsertEventBatch(ctx context.Context, arg []*nostr.Event) (BatchInsertResult, error) {
-	result := BatchInsertResult{}
-	if len(arg) == 0 {
-		return result, errors.New("no events to insert")
-	}
-
-	batch := pgx.Batch{}
-	for _, evt := range arg {
-		batch.Queue(insertEvent, evt.ID, evt.PubKey, evt.CreatedAt, evt.Kind, evt.Tags, evt.Content, evt.Sig)
-	}
-
-	results := q.db.SendBatch(ctx, &batch)
-	for i := range arg {
-		commandTag, err := results.Exec()
-		if err != nil {
-			_ = results.Close()
-			return result, newBatchInsertError(i, arg[i], err)
-		}
-		if commandTag.RowsAffected() == 0 {
-			result.Duplicates++
-			continue
-		}
-		result.Inserted++
-	}
-	if err := results.Close(); err != nil {
-		return result, fmt.Errorf("close event batch: %w", err)
-	}
-
-	if result.Inserted > 0 {
-		_ = cache.InvalidateQueryCache()
-	}
-	return result, nil
 }
