@@ -10,16 +10,18 @@ import (
 
 const upsertNIP29Group = `
 INSERT INTO nip29_groups (
-	relay, group_id, name, picture, about, private, closed, restricted, hidden,
+	relay, group_id, name, picture, about, topics, geohashes, private, closed, restricted, hidden,
 	created_by, updated_at, deleted_at, min_pow, require_moderation_timeline_ref,
 	min_timeline_references, timeline_recent_window, allow_late_publication,
 	last_metadata_update, last_admins_update, last_members_update, last_roles_update
 )
-VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,NOW(),$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
+VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,NOW(),$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)
 ON CONFLICT (relay, group_id) DO UPDATE SET
 	name = EXCLUDED.name,
 	picture = EXCLUDED.picture,
 	about = EXCLUDED.about,
+	topics = EXCLUDED.topics,
+	geohashes = EXCLUDED.geohashes,
 	private = EXCLUDED.private,
 	closed = EXCLUDED.closed,
 	restricted = EXCLUDED.restricted,
@@ -47,6 +49,8 @@ func (q *Queries) UpsertNIP29Group(ctx context.Context, group NIP29Group) error 
 		group.Name,
 		group.Picture,
 		group.About,
+		group.Topics,
+		group.Geohashes,
 		group.Private,
 		group.Closed,
 		group.Restricted,
@@ -67,7 +71,7 @@ func (q *Queries) UpsertNIP29Group(ctx context.Context, group NIP29Group) error 
 }
 
 const getNIP29Group = `
-SELECT relay, group_id, name, picture, about, private, closed, restricted, hidden,
+SELECT relay, group_id, name, picture, about, topics, geohashes, private, closed, restricted, hidden,
 	created_by, updated_at, deleted_at, min_pow, require_moderation_timeline_ref,
 	min_timeline_references, timeline_recent_window, allow_late_publication,
 	last_metadata_update, last_admins_update, last_members_update, last_roles_update
@@ -96,6 +100,8 @@ func scanNIP29Group(row interface{ Scan(...any) error }) (*NIP29Group, error) {
 		&group.Name,
 		&group.Picture,
 		&group.About,
+		&group.Topics,
+		&group.Geohashes,
 		&group.Private,
 		&group.Closed,
 		&group.Restricted,
@@ -146,7 +152,7 @@ func (q *Queries) CountNIP29ActiveGroups(ctx context.Context, relay string) (int
 
 const listNIP29Groups = `
 SELECT 
-    g.relay, g.group_id, g.name, g.picture, g.about, g.private, g.closed, g.restricted, g.hidden,
+    g.relay, g.group_id, g.name, g.picture, g.about, g.topics, g.geohashes, g.private, g.closed, g.restricted, g.hidden,
     g.created_by, g.updated_at, g.deleted_at, g.min_pow, g.require_moderation_timeline_ref,
     g.min_timeline_references, g.timeline_recent_window, g.allow_late_publication,
     g.last_metadata_update, g.last_admins_update, g.last_members_update, g.last_roles_update,
@@ -174,7 +180,7 @@ func (q *Queries) ListNIP29Groups(ctx context.Context, relay string, limit, offs
 		var g NIP29GroupWithMemberCount
 		var deletedAt *time.Time
 		err := rows.Scan(
-			&g.Relay, &g.GroupID, &g.Name, &g.Picture, &g.About, &g.Private, &g.Closed, &g.Restricted, &g.Hidden,
+			&g.Relay, &g.GroupID, &g.Name, &g.Picture, &g.About, &g.Topics, &g.Geohashes, &g.Private, &g.Closed, &g.Restricted, &g.Hidden,
 			&g.CreatedBy, &g.UpdatedAt, &deletedAt, &g.MinPoW, &g.RequireModerationTimelineRef,
 			&g.MinTimelineReferences, &g.TimelineRecentWindow, &g.AllowLatePublication,
 			&g.LastMetadataUpdate, &g.LastAdminsUpdate, &g.LastMembersUpdate, &g.LastRolesUpdate,

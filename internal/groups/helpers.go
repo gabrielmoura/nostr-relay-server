@@ -10,10 +10,16 @@ func buildMetadataTags(group *dbstore.NIP29Group) nostr.Tags {
 	appendOptionalTag(&tags, "name", group.Name)
 	appendOptionalTag(&tags, "picture", group.Picture)
 	appendOptionalTag(&tags, "about", group.About)
-	appendStatusTag(&tags, "private", "public", group.Private)
-	appendStatusTag(&tags, "closed", "open", group.Closed)
 	appendMarkerTag(&tags, "restricted", group.Restricted)
 	appendMarkerTag(&tags, "hidden", group.Hidden)
+	appendMarkerTag(&tags, "private", group.Private)
+	appendMarkerTag(&tags, "closed", group.Closed)
+	for _, topic := range group.Topics {
+		appendOptionalTag(&tags, "t", topic)
+	}
+	for _, geohash := range group.Geohashes {
+		appendOptionalTag(&tags, "g", geohash)
+	}
 	return tags
 }
 
@@ -26,14 +32,6 @@ func appendOptionalTag(tags *nostr.Tags, key, value string) {
 func appendMarkerTag(tags *nostr.Tags, key string, enabled bool) {
 	if enabled {
 		*tags = append(*tags, nostr.Tag{key})
-	}
-}
-
-func appendStatusTag(tags *nostr.Tags, trueTag, falseTag string, enabled bool) {
-	if enabled {
-		*tags = append(*tags, nostr.Tag{trueTag})
-	} else {
-		*tags = append(*tags, nostr.Tag{falseTag})
 	}
 }
 
@@ -68,6 +66,25 @@ func allTagValues(evt *nostr.Event, key string) []string {
 
 func tagExists(evt *nostr.Event, key string) bool {
 	return evt.Tags.GetFirst([]string{key}) != nil
+}
+
+// visibilityFlags maps Amethyst's visibility value to NIP-29 metadata flags.
+// Public/open access is represented by the absence of every marker.
+func visibilityFlags(value string) (private, closed, restricted, hidden bool, ok bool) {
+	switch value {
+	case "public", "open":
+		return false, false, false, false, true
+	case "private":
+		return true, false, false, false, true
+	case "closed":
+		return false, true, false, false, true
+	case "restricted":
+		return false, false, true, false, true
+	case "hidden":
+		return false, false, false, true, true
+	default:
+		return false, false, false, false, false
+	}
 }
 
 func isValidGroupID(groupID string) bool {

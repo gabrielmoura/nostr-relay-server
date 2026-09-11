@@ -14,6 +14,11 @@ import (
 	"go.uber.org/zap"
 )
 
+const (
+	kindSimpleGroupUpdatePinList = 9010
+	kindSimpleGroupPinnedEvents  = 39005
+)
+
 func (m *Manager) bootstrapRoles(ctx context.Context) error {
 	memberRole := configRoleMember()
 	if err := m.registerRole(ctx, memberRole); err != nil {
@@ -72,10 +77,7 @@ func (m *Manager) isRelevantEvent(evt *nostr.Event) bool {
 	if isNIP29MetadataKind(evt.Kind) {
 		return true
 	}
-	if !isNIP29ScopedWriteKind(evt.Kind) {
-		return false
-	}
-	return groupIDFromEvent(evt) != ""
+	return isNIP29ScopedWriteKind(evt.Kind) || firstTagValue(evt, "h") != ""
 }
 
 func (m *Manager) forwardAllowedEvents(ctx context.Context, authed string, results <-chan *nostr.Event, out chan<- *nostr.Event) {
@@ -267,6 +269,8 @@ func actionName(kind int) string {
 		return "delete-group"
 	case nostr.KindSimpleGroupCreateInvite:
 		return "create-invite"
+	case kindSimpleGroupUpdatePinList:
+		return "update-pin-list"
 	default:
 		return strconv.Itoa(kind)
 	}
@@ -277,7 +281,7 @@ func isModerationKind(kind int) bool {
 }
 
 func isNIP29MetadataKind(kind int) bool {
-	return kind >= nostr.KindSimpleGroupMetadata && kind <= nostr.KindSimpleGroupRoles
+	return kind >= nostr.KindSimpleGroupMetadata && kind <= kindSimpleGroupPinnedEvents
 }
 
 func isNIP29ScopedWriteKind(kind int) bool {

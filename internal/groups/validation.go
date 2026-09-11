@@ -78,7 +78,8 @@ func (m *Manager) validateIncomingEvent(ctx context.Context, evt *nostr.Event) (
 		nostr.KindSimpleGroupEditMetadata,
 		nostr.KindSimpleGroupDeleteEvent,
 		nostr.KindSimpleGroupDeleteGroup,
-		nostr.KindSimpleGroupCreateInvite:
+		nostr.KindSimpleGroupCreateInvite,
+		kindSimpleGroupUpdatePinList:
 		return m.validateModerationEvent(ctx, evt, group)
 	default:
 		return m.validateGroupContentEvent(ctx, evt, group)
@@ -157,6 +158,9 @@ func (m *Manager) validateModerationEvent(ctx context.Context, evt *nostr.Event,
 }
 
 func (m *Manager) validateGroupContentEvent(ctx context.Context, evt *nostr.Event, group *dbstore.NIP29Group) (bool, string) {
+	if !group.AllowLatePublication && evt.CreatedAt < nostr.Now()-nostr.Timestamp(60*60) {
+		return m.reject("late_publication", "blocked: late publication is not allowed")
+	}
 	if group.Restricted || m.cfg.Admission.RequireMembershipForWrite {
 		member, err := m.isMember(ctx, group.GroupID, evt.PubKey)
 		if err != nil {

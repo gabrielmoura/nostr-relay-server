@@ -80,6 +80,20 @@ func (m *Manager) applyLeaveRequest(ctx context.Context, evt *nostr.Event) error
 	return m.saveInternalEventAndApply(ctx, internal)
 }
 
+func (m *Manager) applyUpdatePinList(ctx context.Context, evt *nostr.Event) error {
+	pins := make([]dbstore.NIP29Pin, 0, len(evt.Tags))
+	for _, tag := range evt.Tags {
+		if len(tag) < 2 || (tag[0] != "e" && tag[0] != "a") {
+			continue
+		}
+		pins = append(pins, dbstore.NIP29Pin{ReferenceType: tag[0], ReferenceValue: tag[1]})
+	}
+	if err := m.queries.ReplaceNIP29Pins(ctx, m.relayScope, groupIDFromEvent(evt), pins); err != nil {
+		return err
+	}
+	return m.emitStateEvents(ctx, groupIDFromEvent(evt))
+}
+
 func (m *Manager) saveInternalEventAndApply(ctx context.Context, evt *nostr.Event) error {
 	if err := evt.Sign(m.relayPrivKey); err != nil {
 		return err

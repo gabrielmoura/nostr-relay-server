@@ -7,7 +7,7 @@ import (
 	"github.com/nbd-wtf/go-nostr"
 )
 
-func TestIsRelevantEventIgnoresNonNIP29KindsWithGroupTag(t *testing.T) {
+func TestIsRelevantEventIncludesGroupContentWithGroupTag(t *testing.T) {
 	t.Parallel()
 
 	m := &Manager{enabled: true}
@@ -16,8 +16,8 @@ func TestIsRelevantEventIgnoresNonNIP29KindsWithGroupTag(t *testing.T) {
 		Tags: nostr.Tags{{"h", "missing-group"}},
 	}
 
-	if m.isRelevantEvent(evt) {
-		t.Fatal("expected non-NIP29 kind with h tag to bypass NIP-29 write validation")
+	if !m.isRelevantEvent(evt) {
+		t.Fatal("expected an event with h tag to be subject to NIP-29 validation")
 	}
 }
 
@@ -62,7 +62,7 @@ func TestFilterScopeSeparatesPreValidationFromResultFiltering(t *testing.T) {
 	}
 }
 
-func TestValidateIncomingEventBypassesGenericKindsWithGroupTag(t *testing.T) {
+func TestValidateIncomingEventBypassesGenericKindsWithoutGroupTag(t *testing.T) {
 	t.Parallel()
 
 	prev := M
@@ -73,12 +73,12 @@ func TestValidateIncomingEventBypassesGenericKindsWithGroupTag(t *testing.T) {
 
 	evt := &nostr.Event{
 		Kind: 1,
-		Tags: nostr.Tags{{"h", "missing-group"}},
+		Tags: nostr.Tags{{"t", "general"}},
 	}
 
 	reject, reason := ValidateIncomingEvent(context.Background(), evt)
 	if reject {
-		t.Fatalf("expected generic event to bypass NIP-29 rejection, got %q", reason)
+		t.Fatalf("expected generic event without h tag to bypass NIP-29 rejection, got %q", reason)
 	}
 	if reason != "" {
 		t.Fatalf("expected empty reason, got %q", reason)

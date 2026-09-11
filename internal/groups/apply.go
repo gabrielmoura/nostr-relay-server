@@ -26,6 +26,10 @@ func (m *Manager) afterStoreEvent(ctx context.Context, evt *nostr.Event) error {
 		return m.applyDeleteGroup(ctx, evt)
 	case nostr.KindSimpleGroupCreateInvite:
 		return m.applyCreateInvite(ctx, evt)
+	case kindSimpleGroupUpdatePinList:
+		return m.applyUpdatePinList(ctx, evt)
+	case nostr.KindSimpleGroupDeleteEvent:
+		return m.applyDeleteEvent(ctx, evt)
 	case nostr.KindSimpleGroupJoinRequest:
 		return m.applyJoinRequest(ctx, evt)
 	case nostr.KindSimpleGroupLeaveRequest:
@@ -72,7 +76,7 @@ func (m *Manager) applyCreateGroup(ctx context.Context, evt *nostr.Event) error 
 	if err := m.queries.ReplaceNIP29GroupRoles(ctx, m.relayScope, groupID, m.defaultGroupRoleIDs()); err != nil {
 		return err
 	}
-	if err := m.queries.ReplaceNIP29MemberRoles(ctx, m.relayScope, groupID, evt.PubKey, []int32{m.creatorRoleID, m.memberRoleID}); err != nil {
+	if err := m.queries.ReplaceNIP29MemberRoles(ctx, m.relayScope, groupID, evt.PubKey, []int32{m.creatorRoleID}); err != nil {
 		return err
 	}
 
@@ -123,6 +127,15 @@ func (m *Manager) applyRemoveUser(ctx context.Context, evt *nostr.Event) error {
 		m.invalidateMemberCache(groupID, pubkey)
 	}
 	return m.updateMembershipTimestamps(ctx, groupID, evt)
+}
+
+func (m *Manager) applyDeleteEvent(ctx context.Context, evt *nostr.Event) error {
+	for _, eventID := range allTagValues(evt, "e") {
+		if err := m.queries.DeleteEvent(ctx, eventID, evt.ID); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (m *Manager) applyDeleteGroup(ctx context.Context, evt *nostr.Event) error {
@@ -199,7 +212,7 @@ func (m *Manager) emitStateEvents(ctx context.Context, groupID string) error {
 }
 
 func (m *Manager) stateEvents(ctx context.Context, group *dbstore.NIP29Group) ([]*nostr.Event, error) {
-	admins, members, roles, err := m.buildStateEvents(ctx, group)
+	admins, members, roles, pinned, err := m.buildStateEvents(ctx, group)
 	if err != nil {
 		return nil, err
 	}
@@ -210,5 +223,5 @@ func (m *Manager) stateEvents(ctx context.Context, group *dbstore.NIP29Group) ([
 		Tags:      buildMetadataTags(group),
 		Content:   "",
 	}
-	return []*nostr.Event{metadata, admins, members, roles}, nil
+	return []*nostr.Event{metadata, admins, members, roles, pinned}, nil
 }

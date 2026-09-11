@@ -80,7 +80,7 @@ func NostrJSON(cfg *config.Config) fiber.Handler {
 func NIP11WithPrivacy(cfg *config.Config) any {
 	doc := cfg.RelayInformation.PublicNIP11()
 	addrs := privacy.GetActiveAddresses()
-	if len(addrs) == 0 {
+	if len(addrs) == 0 && !cfg.NIP29.Enabled {
 		return doc
 	}
 	raw, err := json.Marshal(doc)
@@ -91,8 +91,31 @@ func NIP11WithPrivacy(cfg *config.Config) any {
 	if err := json.Unmarshal(raw, &m); err != nil {
 		return doc
 	}
-	m["privacy_addresses"] = addrs
+	if len(addrs) > 0 {
+		m["privacy_addresses"] = addrs
+	}
+	if cfg.NIP29.Enabled {
+		m["nip29"] = map[string]any{}
+		supported, _ := m["supported_nips"].([]any)
+		for _, nip := range supported {
+			if isNIP29Number(nip) {
+				return m
+			}
+		}
+		m["supported_nips"] = append(supported, 29)
+	}
 	return m
+}
+
+func isNIP29Number(value any) bool {
+	switch value := value.(type) {
+	case int:
+		return value == 29
+	case float64:
+		return value == 29
+	default:
+		return false
+	}
 }
 
 func RootUpgrade(cfg *config.Config) fiber.Handler {

@@ -8,6 +8,8 @@ type NIP29Group struct {
 	Name                         string
 	Picture                      string
 	About                        string
+	Topics                       []string
+	Geohashes                    []string
 	Private                      bool
 	Closed                       bool
 	Restricted                   bool
@@ -50,4 +52,9 @@ type NIP29Invite struct {
 	RevokedAt  *time.Time
 	CreatedAt  time.Time
 	LastUsedAt *time.Time
+}
+
+type NIP29Pin struct {
+	ReferenceType  string
+	ReferenceValue string
 }

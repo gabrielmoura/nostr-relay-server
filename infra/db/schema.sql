@@ -289,6 +289,8 @@ CREATE TABLE IF NOT EXISTS public.nip29_groups (
                                                    name VARCHAR(255) NOT NULL,
                                                    picture TEXT,
                                                    about TEXT,
+	                                                   topics TEXT[] NOT NULL DEFAULT '{}',
+	                                                   geohashes TEXT[] NOT NULL DEFAULT '{}',
                                                    private BOOLEAN NOT NULL DEFAULT FALSE,
                                                    closed BOOLEAN NOT NULL DEFAULT FALSE,
                                                    last_metadata_update TIMESTAMPTZ NOT NULL,
@@ -307,6 +309,9 @@ CREATE TABLE IF NOT EXISTS public.nip29_groups (
                                                    allow_late_publication BOOLEAN NOT NULL DEFAULT FALSE,
                                                    PRIMARY KEY (relay, group_id)
 );
+
+ALTER TABLE public.nip29_groups ADD COLUMN IF NOT EXISTS topics TEXT[] NOT NULL DEFAULT '{}';
+ALTER TABLE public.nip29_groups ADD COLUMN IF NOT EXISTS geohashes TEXT[] NOT NULL DEFAULT '{}';
 
 CREATE TABLE IF NOT EXISTS public.nip29_group_roles (
                                                         relay TEXT NOT NULL,
@@ -353,6 +358,16 @@ CREATE TABLE IF NOT EXISTS public.nip29_group_invites (
                                                           last_used_at TIMESTAMPTZ,
                                                           PRIMARY KEY (relay, group_id, code),
                                                           FOREIGN KEY (relay, group_id) REFERENCES public.nip29_groups(relay, group_id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS public.nip29_group_pins (
+                                                       relay TEXT NOT NULL,
+                                                       group_id TEXT NOT NULL,
+                                                       position INTEGER NOT NULL,
+                                                       reference_type TEXT NOT NULL CHECK (reference_type IN ('e', 'a')),
+                                                       reference_value TEXT NOT NULL,
+                                                       PRIMARY KEY (relay, group_id, position),
+                                                       FOREIGN KEY (relay, group_id) REFERENCES public.nip29_groups(relay, group_id) ON DELETE CASCADE
 );
 
 -- ============================================================
@@ -525,6 +540,9 @@ CREATE INDEX IF NOT EXISTS idx_group_bans_user_lookup
 
 CREATE INDEX IF NOT EXISTS idx_group_invites_expires_at
     ON public.nip29_group_invites (expires_at);
+
+CREATE INDEX IF NOT EXISTS idx_group_pins_lookup
+    ON public.nip29_group_pins (relay, group_id, position);
 
 CREATE INDEX IF NOT EXISTS idx_nip86_allowed_pubkeys_updated_at
     ON public.nip86_allowed_pubkeys (updated_at DESC);
