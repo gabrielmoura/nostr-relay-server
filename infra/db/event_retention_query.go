@@ -48,12 +48,20 @@ func (q *Queries) DeleteEventsOlderThan(ctx context.Context, beforeUnix int64, b
 }
 
 func (q *Queries) DeleteExpiredNIP40Events(ctx context.Context, nowUnix int64, batchSize int) (int64, error) {
-	res, err := q.db.Exec(ctx, deleteExpiredNIP40Events, nowUnix, batchSize)
+	deleted, err := q.deleteExpiredNIP40EventsChunk(ctx, nowUnix, batchSize)
 	if err != nil {
 		return 0, err
 	}
-	if res.RowsAffected() > 0 {
+	if deleted > 0 {
 		_ = cache.InvalidateQueryCache()
+	}
+	return deleted, nil
+}
+
+func (q *Queries) deleteExpiredNIP40EventsChunk(ctx context.Context, nowUnix int64, batchSize int) (int64, error) {
+	res, err := q.db.Exec(ctx, deleteExpiredNIP40Events, nowUnix, batchSize)
+	if err != nil {
+		return 0, err
 	}
 	return res.RowsAffected(), nil
 }

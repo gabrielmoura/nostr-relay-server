@@ -184,18 +184,10 @@ func RunNIP40ExpirationCleanup(ctx context.Context) error {
 	}
 
 	nowUnix := time.Now().UTC().Unix()
-	var totalDeleted int64
-
-	for {
-		deleted, err := db.DbQueries.DeleteExpiredNIP40Events(ctx, nowUnix, batchSize)
-		if err != nil {
-			metrics.NostrCronNIP40RunsTotal.WithLabelValues("error").Inc()
-			return err
-		}
-		totalDeleted += deleted
-		if deleted < int64(batchSize) {
-			break
-		}
+	totalDeleted, err := db.DbQueries.PurgeExpiredNIP40Events(ctx, nowUnix, batchSize)
+	if err != nil {
+		metrics.NostrCronNIP40RunsTotal.WithLabelValues("error").Inc()
+		return err
 	}
 
 	metrics.NostrCronNIP40DeletedEventsTotal.Add(float64(totalDeleted))

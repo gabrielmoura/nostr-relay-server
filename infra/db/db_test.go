@@ -80,6 +80,18 @@ func TestInsertEventBatchIsolatesAndSkipsInvalidEvents(t *testing.T) {
 	}, result)
 }
 
+func TestPurgeExpiredNIP40EventsAccumulatesChunks(t *testing.T) {
+	queries := New(&expirationDBTX{tags: []pgconn.CommandTag{
+		pgconn.NewCommandTag("DELETE 2"),
+		pgconn.NewCommandTag("DELETE 1"),
+	}})
+
+	deleted, err := queries.PurgeExpiredNIP40Events(context.Background(), 100, 2)
+
+	require.NoError(t, err)
+	require.EqualValues(t, 3, deleted)
+}
+
 type batchDBTX struct {
 	rows  pgx.Rows
 	query func(context.Context, string, ...any) (pgx.Rows, error)
@@ -132,3 +144,22 @@ func (rows *batchRows) Values() ([]any, error) { return []any{rows.ids[rows.next
 func (*batchRows) RawValues() [][]byte { return nil }
 
 func (*batchRows) Conn() *pgx.Conn { return nil }
+
+type expirationDBTX struct {
+	tags []pgconn.CommandTag
+	next int
+}
+
+func (db *expirationDBTX) Exec(context.Context, string, ...any) (pgconn.CommandTag, error) {
+	tag := db.tags[db.next]
+	db.next++
+	return tag, nil
+}
+
+func (*expirationDBTX) Query(context.Context, string, ...any) (pgx.Rows, error) {
+	return nil, nil
+}
+
+func (*expirationDBTX) QueryRow(context.Context, string, ...any) pgx.Row { return nil }
+
+func (*expirationDBTX) SendBatch(context.Context, *pgx.Batch) pgx.BatchResults { return nil }
