@@ -2,6 +2,7 @@ package negentropy
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -17,6 +18,7 @@ import (
 	negcachev2 "github.com/gabrielmoura/nostr-relay-server/pkg/negentropyV2/cache"
 	negcontractsv2 "github.com/gabrielmoura/nostr-relay-server/pkg/negentropyV2/contracts"
 	negmodelv2 "github.com/gabrielmoura/nostr-relay-server/pkg/negentropyV2/model"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/nbd-wtf/go-nostr"
 	"go.uber.org/zap"
 )
@@ -285,22 +287,34 @@ func HandleNegHave(ws *dto.WsServer, data dto.Data) error {
 	if err := json.Unmarshal(data[2], &newEvents); err != nil {
 		return err
 	}
-
-	ctx := context.Background()
-	savedCount := 0
-
-	for _, event := range newEvents {
-		err := db.DbQueries.InsertEvent(ctx, event)
-		if err != nil {
-			log.Logger.Debug("Skipping event import", zap.String("id", event.ID), zap.Error(err))
-			continue
-		}
-		savedCount++
+	if len(newEvents) == 0 {
+		return nil
 	}
 
-	if savedCount > 0 {
-		log.Logger.Info("Negentropy imported events", zap.Int("count", savedCount))
-		metrics.NostrNegentropyV2EventsImportedTotal.Add(float64(savedCount))
+	ctx := context.Background()
+	result, err := db.DbQueries.MigrateEventsViaCopy(ctx, newEvents)
+	if err != nil {
+		var pgErr *pgconn.PgError
+		if !errors.As(err, &pgErr) {
+			return fmt.Errorf("migrate NEG-HAVE events: %w", err)
+		}
+
+		result, err = db.DbQueries.InsertEventBatch(ctx, newEvents)
+		if err != nil {
+			return fmt.Errorf("recover NEG-HAVE events after COPY error: %w", err)
+		}
+	}
+
+	if result.Inserted > 0 || len(result.RejectedEventIDs) > 0 {
+		log.Logger.Info(
+			"Negentropy imported events",
+			zap.Int("count", result.Inserted),
+			zap.Int("duplicates", result.Duplicates),
+			zap.Int("rejected", len(result.RejectedEventIDs)),
+		)
+	}
+	if result.Inserted > 0 {
+		metrics.NostrNegentropyV2EventsImportedTotal.Add(float64(result.Inserted))
 	}
 
 	return nil

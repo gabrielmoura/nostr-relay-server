@@ -24,6 +24,7 @@ import (
 	"github.com/fasthttp/websocket"
 	negentropyv2 "github.com/gabrielmoura/nostr-relay-server/pkg/negentropyV2"
 	negmodel "github.com/gabrielmoura/nostr-relay-server/pkg/negentropyV2/model"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/nbd-wtf/go-nostr"
 	"github.com/nbd-wtf/go-nostr/nip19"
 	"github.com/tmthrgd/go-hex"
@@ -935,7 +936,7 @@ func (s *SyncSession) handleNegHave(data []json.NoCopyRawMessage) error {
 
 	log.Logger.Info("Received HAVE events", zap.Int("count", len(newEvents)))
 
-	count := 0
+	validEvents := make([]*nostr.Event, 0, len(newEvents))
 	for _, evt := range newEvents {
 		// Dica: Valide a assinatura do evento aqui antes de salvar
 		ok, err := evt.CheckSignature()
@@ -943,14 +944,32 @@ func (s *SyncSession) handleNegHave(data []json.NoCopyRawMessage) error {
 			log.Logger.Warn("Invalid signature on received event", zap.String("id", evt.ID))
 			continue
 		}
+		validEvents = append(validEvents, evt)
+	}
 
-		if err := db.DbQueries.InsertEvent(s.Context, evt); err == nil {
-			count++
-		} else {
-			log.Logger.Debug("Failed to insert event (duplicate?)", zap.String("id", evt.ID), zap.Error(err))
+	if len(validEvents) == 0 {
+		return nil
+	}
+
+	result, err := db.DbQueries.MigrateEventsViaCopy(s.Context, validEvents)
+	if err != nil {
+		var pgErr *pgconn.PgError
+		if !errors.As(err, &pgErr) {
+			return fmt.Errorf("migrate HAVE events: %w", err)
+		}
+
+		result, err = db.DbQueries.InsertEventBatch(s.Context, validEvents)
+		if err != nil {
+			return fmt.Errorf("recover HAVE events after COPY error: %w", err)
 		}
 	}
-	log.Logger.Info("Events successfully imported", zap.Int("count", count))
+
+	log.Logger.Info(
+		"Events successfully imported",
+		zap.Int("count", result.Inserted),
+		zap.Int("duplicates", result.Duplicates),
+		zap.Int("rejected", len(result.RejectedEventIDs)),
+	)
 	return nil
 }
 

@@ -3,6 +3,7 @@ package _import
 import (
 	"bufio"
 	"fmt"
+	"github.com/gabrielmoura/nostr-relay-server/infra/log"
 	"github.com/nbd-wtf/go-nostr"
 	"os"
 	"os/signal"
@@ -10,15 +11,18 @@ import (
 	"strings"
 	"sync"
 	"syscall"
+
+	"go.uber.org/zap"
 )
 
 func batchWorker(cf *ConfImport, batchChan <-chan Batch, errorChan chan<- ErrorInfo, wg *sync.WaitGroup) {
 	defer wg.Done()
 	for batch := range batchChan {
-		if err := saveBatchToDatabase(cf.ctx, cf.dbc, batch.Items); err != nil {
-			for _, ln := range batch.LineNumbers {
-				errorChan <- ErrorInfo{LineNumber: ln, Err: fmt.Errorf("persistência: %w", err)}
+		for _, importErr := range saveBatchToDatabase(cf.ctx, cf.dbc, batch) {
+			if log.Logger != nil {
+				log.Logger.Warn("JSONL import event rejected", zap.Int("line", importErr.LineNumber), zap.Error(importErr.Err))
 			}
+			errorChan <- importErr
 		}
 	}
 }
