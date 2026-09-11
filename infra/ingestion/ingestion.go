@@ -315,9 +315,11 @@ func insertBatch(ctx context.Context, events []*nostr.Event) (batchResult, error
 		batchInsertResult, err := db.DbQueries.InsertEventBatch(ctx, stored)
 		result.Inserted += batchInsertResult.Inserted
 		result.Duplicates += batchInsertResult.Duplicates
+		result.Rejected += len(batchInsertResult.RejectedEventIDs)
 		if err != nil {
 			return result, err
 		}
+		accepted = removeRejectedEvents(accepted, batchInsertResult.RejectedEventIDs)
 	}
 
 	for _, evt := range accepted {
@@ -340,6 +342,26 @@ func insertBatch(ctx context.Context, events []*nostr.Event) (batchResult, error
 	}
 
 	return result, nil
+}
+
+func removeRejectedEvents(events []*nostr.Event, rejectedIDs []string) []*nostr.Event {
+	if len(rejectedIDs) == 0 {
+		return events
+	}
+
+	rejected := make(map[string]struct{}, len(rejectedIDs))
+	for _, id := range rejectedIDs {
+		rejected[id] = struct{}{}
+	}
+
+	accepted := make([]*nostr.Event, 0, len(events)-len(rejectedIDs))
+	for _, event := range events {
+		if _, ok := rejected[event.ID]; !ok {
+			accepted = append(accepted, event)
+		}
+	}
+
+	return accepted
 }
 
 func prepareEventForStorage(ctx context.Context, evt *nostr.Event) error {

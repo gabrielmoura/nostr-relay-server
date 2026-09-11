@@ -22,9 +22,10 @@ type BatchInsertError struct {
 }
 
 type BatchInsertResult struct {
-	Inserted    int
-	Duplicates  int
-	InsertedIDs []string
+	Inserted         int
+	Duplicates       int
+	InsertedIDs      []string
+	RejectedEventIDs []string
 }
 
 func (e *BatchInsertError) Error() string {

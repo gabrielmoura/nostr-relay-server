@@ -48,21 +48,51 @@ func TestInsertEventBatchCountsInsertedAndDuplicateRows(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Equal(t, BatchInsertResult{
-		Inserted:    1,
-		Duplicates:  1,
-		InsertedIDs: []string{"event-1"},
+		Inserted:         1,
+		Duplicates:       1,
+		InsertedIDs:      []string{"event-1"},
+		RejectedEventIDs: []string{},
+	}, result)
+}
+
+func TestInsertEventBatchIsolatesAndSkipsInvalidEvents(t *testing.T) {
+	queries := New(batchDBTX{query: func(_ context.Context, _ string, args ...any) (pgx.Rows, error) {
+		ids := args[0].([]string)
+		for _, id := range ids {
+			if id == "invalid" {
+				return nil, &pgconn.PgError{Code: "23514", ConstraintName: "chk_event_pubkey_length"}
+			}
+		}
+		return &batchRows{ids: ids}, nil
+	}})
+
+	result, err := queries.InsertEventBatch(context.Background(), []*nostr.Event{
+		{ID: "event-1", Tags: nostr.Tags{}},
+		{ID: "invalid", Tags: nostr.Tags{}},
+		{ID: "event-2", Tags: nostr.Tags{}},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, BatchInsertResult{
+		Inserted:         2,
+		InsertedIDs:      []string{"event-1", "event-2"},
+		RejectedEventIDs: []string{"invalid"},
 	}, result)
 }
 
 type batchDBTX struct {
-	rows pgx.Rows
+	rows  pgx.Rows
+	query func(context.Context, string, ...any) (pgx.Rows, error)
 }
 
 func (db batchDBTX) Exec(context.Context, string, ...any) (pgconn.CommandTag, error) {
 	return pgconn.CommandTag{}, nil
 }
 
-func (db batchDBTX) Query(context.Context, string, ...any) (pgx.Rows, error) {
+func (db batchDBTX) Query(ctx context.Context, query string, args ...any) (pgx.Rows, error) {
+	if db.query != nil {
+		return db.query(ctx, query, args...)
+	}
 	return db.rows, nil
 }
 
