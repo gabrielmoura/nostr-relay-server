@@ -175,7 +175,7 @@ input AdminNip86RelayMetadataInput {
 input AdminNegentropySyncInput {
   remote: String!
   direction: String = "both"
-  filter: JSON
+  filter: [JSON!]
   timeoutSeconds: Int
 }
 

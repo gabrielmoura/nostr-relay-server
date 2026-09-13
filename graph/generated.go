@@ -19681,7 +19681,7 @@ func (ec *executionContext) unmarshalInputAdminNegentropySyncInput(ctx context.C
 			it.Direction = data
 		case "filter":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("filter"))
-			data, err := ec.unmarshalOJSON2map(ctx, v)
+			data, err := ec.unmarshalNJSON2ᚕmapᚄ(ctx, v)
 			if err != nil {
 				return it, err
 			}

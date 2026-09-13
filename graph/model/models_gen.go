@@ -443,10 +443,10 @@ type AdminLoggedUserPage struct {
 }
 
 type AdminNegentropySyncInput struct {
-	Remote         string         `json:"remote"`
-	Direction      *string        `json:"direction,omitempty"`
-	Filter         map[string]any `json:"filter,omitempty"`
-	TimeoutSeconds *int32         `json:"timeoutSeconds,omitempty"`
+	Remote         string           `json:"remote"`
+	Direction      *string          `json:"direction,omitempty"`
+	Filter         []map[string]any `json:"filter,omitempty"`
+	TimeoutSeconds *int32           `json:"timeoutSeconds,omitempty"`
 }
 
 type AdminNip05Identity struct {
