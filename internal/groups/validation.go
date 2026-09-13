@@ -39,8 +39,11 @@ func (m *Manager) validateFilter(ctx context.Context, authed string, filter nost
 }
 
 func (m *Manager) validateIncomingEvent(ctx context.Context, evt *nostr.Event) (bool, string) {
-	if evt.Kind >= nostr.KindSimpleGroupMetadata && evt.Kind <= nostr.KindSimpleGroupRoles {
+	if isNIP29MetadataKind(evt.Kind) {
 		return m.reject("metadata_write", "restricted: group metadata events are relay-generated only")
+	}
+	if requiresGroupTag(evt.Kind) && firstTagValue(evt, "h") == "" {
+		return m.reject("missing_group_tag", "invalid: group events require an h tag")
 	}
 
 	groupID := groupIDFromEvent(evt)
@@ -148,6 +151,11 @@ func (m *Manager) validateModerationEvent(ctx context.Context, evt *nostr.Event,
 	if !m.hasPermission(ctx, group.GroupID, evt.PubKey, actionName(evt.Kind)) {
 		return m.reject("permission", "restricted: insufficient permissions")
 	}
+	if evt.Kind == nostr.KindSimpleGroupDeleteEvent {
+		if ok, reason := m.validateDeleteEventTargets(ctx, group.GroupID, evt); !ok {
+			return m.reject(reason, rejectionMessage(reason))
+		}
+	}
 	if ok, reason := m.validateTimelineRequirement(ctx, group, evt); !ok {
 		return m.reject(reason, rejectionMessage(reason))
 	}
@@ -155,6 +163,19 @@ func (m *Manager) validateModerationEvent(ctx context.Context, evt *nostr.Event,
 		return m.reject(reason, rejectionMessage(reason))
 	}
 	return false, ""
+}
+
+func (m *Manager) validateDeleteEventTargets(ctx context.Context, groupID string, evt *nostr.Event) (bool, string) {
+	for _, eventID := range eventIDsFromTags(evt) {
+		target, err := m.queries.GetEventByID(ctx, eventID)
+		if err != nil {
+			return false, "delete_event_target"
+		}
+		if firstTagValue(target, "h") != groupID {
+			return false, "delete_event_target"
+		}
+	}
+	return true, ""
 }
 
 func (m *Manager) validateGroupContentEvent(ctx context.Context, evt *nostr.Event, group *dbstore.NIP29Group) (bool, string) {
@@ -262,6 +283,8 @@ func rejectionMessage(reason string) string {
 		return "blocked: minimum POW not obtained"
 	case "timeline_reference":
 		return "restricted: invalid timeline references"
+	case "delete_event_target":
+		return "invalid: event does not belong to this group"
 	default:
 		return "restricted: event rejected"
 	}

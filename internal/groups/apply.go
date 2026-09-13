@@ -2,6 +2,7 @@ package groups
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	dbstore "github.com/gabrielmoura/nostr-relay-server/infra/db"
@@ -130,7 +131,15 @@ func (m *Manager) applyRemoveUser(ctx context.Context, evt *nostr.Event) error {
 }
 
 func (m *Manager) applyDeleteEvent(ctx context.Context, evt *nostr.Event) error {
-	for _, eventID := range allTagValues(evt, "e") {
+	groupID := groupIDFromEvent(evt)
+	for _, eventID := range eventIDsFromTags(evt) {
+		target, err := m.queries.GetEventByID(ctx, eventID)
+		if err != nil {
+			return err
+		}
+		if firstTagValue(target, "h") != groupID {
+			return fmt.Errorf("delete event %q does not belong to group %q", eventID, groupID)
+		}
 		if err := m.queries.DeleteEvent(ctx, eventID, evt.ID); err != nil {
 			return err
 		}
@@ -161,6 +170,9 @@ func (m *Manager) applyDeleteGroup(ctx context.Context, evt *nostr.Event) error 
 		return err
 	}
 	if err := m.queries.ReplaceNIP29GroupRoles(ctx, m.relayScope, group.GroupID, m.defaultGroupRoleIDs()); err != nil {
+		return err
+	}
+	if err := m.queries.DeleteNIP29GroupContent(ctx, group.GroupID); err != nil {
 		return err
 	}
 	if err := m.emitStateEvents(ctx, group.GroupID); err != nil {

@@ -88,3 +88,38 @@ func TestPinnedEventKindIsRelayGeneratedMetadata(t *testing.T) {
 		t.Fatal("expected kind 39005 to be treated as relay-generated metadata")
 	}
 }
+
+func TestNIP29EventClassification(t *testing.T) {
+	t.Parallel()
+
+	for _, kind := range []int{9000, 9007, 9010, 9021, 9022} {
+		if !requiresGroupTag(kind) {
+			t.Fatalf("kind %d must require an h tag", kind)
+		}
+	}
+	for _, kind := range []int{39000, 39001, 39002, 39003, 39004, 39005} {
+		if !isNIP29MetadataKind(kind) {
+			t.Fatalf("kind %d must be relay-generated metadata", kind)
+		}
+	}
+}
+
+func TestEventIDsFromTags(t *testing.T) {
+	t.Parallel()
+
+	evt := &nostr.Event{Tags: nostr.Tags{{"e", "event-1", "relay"}, {"p", "pubkey"}, {"e", "event-2"}}}
+	ids := eventIDsFromTags(evt)
+	if len(ids) != 2 || ids[0] != "event-1" || ids[1] != "event-2" {
+		t.Fatalf("event IDs = %v", ids)
+	}
+}
+
+func TestValidateIncomingEvent_RejectsGroupManagementWithoutHTag(t *testing.T) {
+	t.Parallel()
+
+	m := &Manager{}
+	reject, reason := m.validateIncomingEvent(t.Context(), &nostr.Event{Kind: nostr.KindSimpleGroupPutUser})
+	if !reject || reason != "invalid: group events require an h tag" {
+		t.Fatalf("reject=%t reason=%q", reject, reason)
+	}
+}

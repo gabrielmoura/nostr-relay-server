@@ -64,6 +64,19 @@ func allTagValues(evt *nostr.Event, key string) []string {
 	return values
 }
 
+func eventIDsFromTags(evt *nostr.Event) []string {
+	ids := make([]string, 0, 1)
+	if evt == nil {
+		return ids
+	}
+	for _, tag := range evt.Tags {
+		if len(tag) > 1 && tag[0] == "e" {
+			ids = append(ids, tag[1])
+		}
+	}
+	return ids
+}
+
 func tagExists(evt *nostr.Event, key string) bool {
 	return evt.Tags.GetFirst([]string{key}) != nil
 }

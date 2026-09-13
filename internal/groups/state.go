@@ -288,6 +288,10 @@ func isNIP29ScopedWriteKind(kind int) bool {
 	return isNIP29MetadataKind(kind) || (kind >= 9000 && kind <= 9022)
 }
 
+func requiresGroupTag(kind int) bool {
+	return kind >= 9000 && kind <= 9022
+}
+
 func inviteValid(invite *dbstore.NIP29Invite) bool {
 	if invite == nil {
 		return false

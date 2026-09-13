@@ -203,7 +203,7 @@ func setNIP29Defaults() {
 	viper.SetDefault("nip29.timeline_cache_ttl_seconds", 300)
 	viper.SetDefault("nip29.group_creator_role", "admin")
 	viper.SetDefault("nip29.default_roles", []map[string]any{
-		{"name": "admin", "description": "Full group administration", "permissions": []string{"create-group", "put-user", "remove-user", "edit-metadata", "delete-event", "delete-group", "create-invite"}},
+		{"name": "admin", "description": "Full group administration", "permissions": []string{"create-group", "put-user", "remove-user", "edit-metadata", "delete-event", "delete-group", "create-invite", "update-pin-list"}},
 		{"name": "moderator", "description": "Moderation actions without full ownership", "permissions": []string{"put-user", "remove-user", "delete-event", "create-invite"}},
 	})
 	viper.SetDefault("nip29.create.enabled", true)
