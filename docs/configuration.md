@@ -256,7 +256,7 @@ nip29:
     default_min_difficulty: 0
     moderation_min_difficulty: 0
   timeline:
-    enabled: false
+    enabled: true
     required_on_moderation: false
     min_references: 0
     recent_window: 50
@@ -733,7 +733,7 @@ Global switch:
 
 | Key | Type | Default | Description |
 |---|---|---:|---|
-| `enabled` | bool | `false` | Enables timeline reference enforcement. |
+| `enabled` | bool | `true` | Enables timeline reference enforcement. Set `false` to allow group events without validating `previous` references. |
 | `required_on_moderation` | bool | `false` | Requires `previous` on moderation actions. |
 | `min_references` | int | `0` | Minimum accepted `previous` references. |
 | `recent_window` | int | `50` | Number of recent group events tracked for validation. |

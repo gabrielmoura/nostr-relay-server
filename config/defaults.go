@@ -224,7 +224,7 @@ func setNIP29Defaults() {
 	viper.SetDefault("nip29.pow.enabled", false)
 	viper.SetDefault("nip29.pow.default_min_difficulty", 0)
 	viper.SetDefault("nip29.pow.moderation_min_difficulty", 0)
-	viper.SetDefault("nip29.timeline.enabled", false)
+	viper.SetDefault("nip29.timeline.enabled", true)
 	viper.SetDefault("nip29.timeline.required_on_moderation", false)
 	viper.SetDefault("nip29.timeline.min_references", 0)
 	viper.SetDefault("nip29.timeline.recent_window", 50)
