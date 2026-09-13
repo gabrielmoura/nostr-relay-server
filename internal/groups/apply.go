@@ -94,12 +94,18 @@ func (m *Manager) applyEditMetadata(ctx context.Context, evt *nostr.Event) error
 		return err
 	}
 
+	if err := m.applySubgroupMetadata(ctx, group.GroupID, evt); err != nil {
+		return err
+	}
 	applyMetadataEdits(group, evt)
 	if err := m.queries.UpsertNIP29Group(ctx, *group); err != nil {
 		return err
 	}
 	m.invalidateGroupCaches(group.GroupID)
-	return m.emitStateEvents(ctx, group.GroupID)
+	if err := m.emitStateEvents(ctx, group.GroupID); err != nil {
+		return err
+	}
+	return m.emitParentStateEvents(ctx, group.GroupID)
 }
 
 func (m *Manager) applyPutUser(ctx context.Context, evt *nostr.Event) error {
@@ -197,6 +203,9 @@ func (m *Manager) updateMembershipTimestamps(ctx context.Context, groupID string
 }
 
 func (m *Manager) emitStateEvents(ctx context.Context, groupID string) error {
+	if m.rebuilding {
+		return nil
+	}
 	group, ok, err := m.getGroup(ctx, groupID)
 	if err != nil || !ok {
 		return err
@@ -228,11 +237,21 @@ func (m *Manager) stateEvents(ctx context.Context, group *dbstore.NIP29Group) ([
 	if err != nil {
 		return nil, err
 	}
+	metadataTags := buildMetadataTags(group)
+	parent, _, err := m.queries.GetNIP29Parent(ctx, m.relayScope, group.GroupID)
+	if err != nil {
+		return nil, err
+	}
+	children, err := m.queries.ListNIP29Children(ctx, m.relayScope, group.GroupID)
+	if err != nil {
+		return nil, err
+	}
+	appendSubgroupTags(&metadataTags, parent, children)
 	metadata := &nostr.Event{
 		PubKey:    m.relayPubKey,
 		CreatedAt: nostr.Now(),
 		Kind:      nostr.KindSimpleGroupMetadata,
-		Tags:      buildMetadataTags(group),
+		Tags:      metadataTags,
 		Content:   "",
 	}
 	return []*nostr.Event{metadata, admins, members, roles, pinned}, nil

@@ -156,6 +156,11 @@ func (m *Manager) validateModerationEvent(ctx context.Context, evt *nostr.Event,
 			return m.reject(reason, rejectionMessage(reason))
 		}
 	}
+	if evt.Kind == nostr.KindSimpleGroupEditMetadata {
+		if ok, reason := m.validateSubgroupMetadata(ctx, group.GroupID, evt.PubKey, evt); !ok {
+			return m.reject(reason, rejectionMessage(reason))
+		}
+	}
 	if ok, reason := m.validateTimelineRequirement(ctx, group, evt); !ok {
 		return m.reject(reason, rejectionMessage(reason))
 	}
@@ -285,6 +290,10 @@ func rejectionMessage(reason string) string {
 		return "restricted: invalid timeline references"
 	case "delete_event_target":
 		return "invalid: event does not belong to this group"
+	case "subgroup_parent":
+		return "invalid: invalid subgroup parent"
+	case "subgroup_children":
+		return "invalid: child list must contain every existing child"
 	default:
 		return "restricted: event rejected"
 	}

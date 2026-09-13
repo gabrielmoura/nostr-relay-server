@@ -23,6 +23,13 @@ func buildMetadataTags(group *dbstore.NIP29Group) nostr.Tags {
 	return tags
 }
 
+func appendSubgroupTags(tags *nostr.Tags, parent string, children []string) {
+	appendOptionalTag(tags, "parent", parent)
+	for _, child := range children {
+		appendOptionalTag(tags, "child", child)
+	}
+}
+
 func appendOptionalTag(tags *nostr.Tags, key, value string) {
 	if value != "" {
 		*tags = append(*tags, nostr.Tag{key, value})

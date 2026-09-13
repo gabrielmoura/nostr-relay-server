@@ -18,8 +18,12 @@ func TestNIP11WithPrivacy_AdvertisesNIP29(t *testing.T) {
 	if !ok {
 		t.Fatal("expected augmented NIP-11 document")
 	}
-	if _, ok := doc["nip29"].(map[string]any); !ok {
+	nip29, ok := doc["nip29"].(map[string]any)
+	if !ok {
 		t.Fatal("expected nip29 support object")
+	}
+	if enabled, ok := nip29["subgroups"].(bool); !ok || !enabled {
+		t.Fatalf("nip29.subgroups = %v, want true", nip29["subgroups"])
 	}
 
 	supported, ok := doc["supported_nips"].([]any)

@@ -123,3 +123,26 @@ func TestValidateIncomingEvent_RejectsGroupManagementWithoutHTag(t *testing.T) {
 		t.Fatalf("reject=%t reason=%q", reject, reason)
 	}
 }
+
+func TestSameGroupIDs(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		current   []string
+		requested []string
+		want      bool
+	}{
+		{name: "same members reordered", current: []string{"a", "b"}, requested: []string{"b", "a"}, want: true},
+		{name: "missing child", current: []string{"a", "b"}, requested: []string{"a"}},
+		{name: "duplicate child", current: []string{"a", "b"}, requested: []string{"a", "a"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := sameGroupIDs(tt.current, tt.requested); got != tt.want {
+				t.Fatalf("sameGroupIDs(%v, %v) = %t, want %t", tt.current, tt.requested, got, tt.want)
+			}
+		})
+	}
+}

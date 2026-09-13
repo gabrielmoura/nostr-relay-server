@@ -370,6 +370,16 @@ CREATE TABLE IF NOT EXISTS public.nip29_group_pins (
                                                        FOREIGN KEY (relay, group_id) REFERENCES public.nip29_groups(relay, group_id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS public.nip29_group_hierarchy (
+                                                       relay TEXT NOT NULL,
+                                                       child_group_id TEXT NOT NULL,
+                                                       parent_group_id TEXT NOT NULL,
+                                                       position INTEGER NOT NULL,
+                                                       PRIMARY KEY (relay, child_group_id),
+                                                       FOREIGN KEY (relay, child_group_id) REFERENCES public.nip29_groups(relay, group_id) ON DELETE CASCADE,
+                                                       FOREIGN KEY (relay, parent_group_id) REFERENCES public.nip29_groups(relay, group_id) ON DELETE CASCADE
+);
+
 -- ============================================================
 -- NIP-86
 -- ============================================================
@@ -543,6 +553,9 @@ CREATE INDEX IF NOT EXISTS idx_group_invites_expires_at
 
 CREATE INDEX IF NOT EXISTS idx_group_pins_lookup
     ON public.nip29_group_pins (relay, group_id, position);
+
+CREATE INDEX IF NOT EXISTS idx_group_hierarchy_parent
+    ON public.nip29_group_hierarchy (relay, parent_group_id, position);
 
 CREATE INDEX IF NOT EXISTS idx_nip86_allowed_pubkeys_updated_at
     ON public.nip86_allowed_pubkeys (updated_at DESC);

@@ -26,6 +26,7 @@ type Manager struct {
 	roleIDs       map[string]int32
 	memberRoleID  int32
 	creatorRoleID int32
+	rebuilding    bool
 }
 
 type EventQueryFunc func(context.Context, nostr.Filter) (chan *nostr.Event, error)
@@ -60,6 +61,12 @@ func Init(queries *dbstore.Queries) error {
 	}
 
 	if err := mgr.bootstrapRoles(context.Background()); err != nil {
+		return err
+	}
+	if err := mgr.rebuildState(context.Background()); err != nil {
+		return err
+	}
+	if err := mgr.emitRebuiltStateEvents(context.Background()); err != nil {
 		return err
 	}
 	if err := mgr.refreshActiveGroupsMetric(context.Background()); err != nil {

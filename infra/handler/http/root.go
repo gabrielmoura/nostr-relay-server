@@ -95,7 +95,7 @@ func NIP11WithPrivacy(cfg *config.Config) any {
 		m["privacy_addresses"] = addrs
 	}
 	if cfg.NIP29.Enabled {
-		m["nip29"] = map[string]any{}
+		m["nip29"] = map[string]any{"subgroups": true}
 		supported, _ := m["supported_nips"].([]any)
 		for _, nip := range supported {
 			if isNIP29Number(nip) {
