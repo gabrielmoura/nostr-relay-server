@@ -10,7 +10,10 @@ import (
 	"testing"
 
 	"github.com/gabrielmoura/nostr-relay-server/config"
+	"github.com/gabrielmoura/nostr-relay-server/infra/log"
 	jobcore "github.com/gabrielmoura/nostr-relay-server/internal/jobs"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest/observer"
 )
 
 func TestUnmarshalAdminNegentropySyncInputAcceptsFilterList(t *testing.T) {
@@ -43,14 +46,18 @@ func TestStartNegentropySyncAcceptsFilterList(t *testing.T) {
 
 	previousConfig := config.Cfg
 	previousJobs := jobcore.Default()
+	previousLogger := log.Logger
+	core, observedLogs := observer.New(zap.InfoLevel)
 	config.Cfg = &config.Config{
 		Jobs:  config.JobsConfig{Enabled: true},
 		Redis: config.RedisConfig{Enabled: true, Queue: config.RedisQueueConfig{Enabled: true}},
 	}
 	jobcore.SetDefault(nil)
+	log.Logger = zap.New(core)
 	t.Cleanup(func() {
 		config.Cfg = previousConfig
 		jobcore.SetDefault(previousJobs)
+		log.Logger = previousLogger
 	})
 
 	body, err := stdjson.Marshal(map[string]any{
@@ -72,6 +79,7 @@ func TestStartNegentropySyncAcceptsFilterList(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, "/graphql", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set(requestIDHeader, "request-negentropy-test")
 	recorder := httptest.NewRecorder()
 	HTTPHandler().ServeHTTP(recorder, req)
 	if recorder.Code != http.StatusOK {
@@ -90,6 +98,21 @@ func TestStartNegentropySyncAcceptsFilterList(t *testing.T) {
 	}
 	if strings.Contains(response, "[]interface {} is not a map") {
 		t.Fatalf("GraphQL response leaked type assertion error: %s", response)
+	}
+
+	logs := observedLogs.All()
+	if len(logs) != 1 {
+		t.Fatalf("log entries = %d, want 1", len(logs))
+	}
+	fields := logs[0].ContextMap()
+	if fields["requestId"] != "request-negentropy-test" || fields["operationName"] != "StartNegentropySync" {
+		t.Fatalf("log fields = %#v, want request correlation fields", fields)
+	}
+	if fields["remote"] != "wss://relay.example" || fields["filterCount"] != int64(1) {
+		t.Fatalf("log fields = %#v, want sanitized Negentropy input summary", fields)
+	}
+	if fields["result"] != "error" || fields["code"] != GraphQLErrorCodeInternalError {
+		t.Fatalf("log fields = %#v, want error result and code", fields)
 	}
 }
 
@@ -111,11 +134,13 @@ func TestStartNegentropySyncRejectsInvalidFilterWithBadInputError(t *testing.T) 
 
 	req := httptest.NewRequest(http.MethodPost, "/graphql", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set(requestIDHeader, "request-invalid-filter-test")
 	recorder := httptest.NewRecorder()
 	HTTPHandler().ServeHTTP(recorder, req)
 
 	var response struct {
-		Errors []struct {
+		Extensions map[string]any `json:"extensions"`
+		Errors     []struct {
 			Message    string         `json:"message"`
 			Extensions map[string]any `json:"extensions"`
 		} `json:"errors"`
@@ -133,6 +158,9 @@ func TestStartNegentropySyncRejectsInvalidFilterWithBadInputError(t *testing.T) 
 	}
 	if graphqlError.Extensions["code"] != GraphQLErrorCodeBadInput {
 		t.Fatalf("error code = %#v, want %q", graphqlError.Extensions["code"], GraphQLErrorCodeBadInput)
+	}
+	if graphqlError.Extensions["requestId"] != "request-invalid-filter-test" || response.Extensions["requestId"] != "request-invalid-filter-test" {
+		t.Fatalf("request ID extensions = error:%#v response:%#v, want request correlation", graphqlError.Extensions, response.Extensions)
 	}
 	if strings.Contains(graphqlError.Message, "is not a map") {
 		t.Fatalf("GraphQL error leaked Go type assertion: %q", graphqlError.Message)

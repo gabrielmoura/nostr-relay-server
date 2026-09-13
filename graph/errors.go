@@ -68,7 +68,10 @@ func graphQLErrorPresenter(ctx context.Context, err error) *gqlerror.Error {
 	}
 
 	presented.Message = message
-	presented.Extensions = map[string]any{"code": code}
+	presented.Extensions = map[string]any{
+		"code":      code,
+		"requestId": requestIDFromContext(ctx),
+	}
 	if graphQLDebugEnabled() {
 		presented.Extensions["detail"] = graphQLErrorDetail(err)
 	}

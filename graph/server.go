@@ -18,7 +18,8 @@ func HTTPHandler() http.Handler {
 	server := handler.NewDefaultServer(NewExecutableSchema(Config{Resolvers: &Resolver{}}))
 	server.SetErrorPresenter(graphQLErrorPresenter)
 	server.SetRecoverFunc(graphQLRecover)
-	return server
+	server.AroundResponses(withRequestIDResponse)
+	return requestIDMiddleware(server)
 }
 
 func PlaygroundHandler(endpoint string) http.Handler {

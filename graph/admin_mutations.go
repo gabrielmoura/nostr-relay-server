@@ -192,12 +192,22 @@ func (r *Resolver) updateNip86RelayMetadata(ctx context.Context, input model.Adm
 }
 
 func (r *Resolver) startNegentropySync(ctx context.Context, input model.AdminNegentropySyncInput) (*model.AdminAsyncJob, error) {
+	startedAt := time.Now()
 	body := map[string]any{"remote": input.Remote, "direction": stringValue(input.Direction), "filter": input.Filter, "timeout": input.TimeoutSeconds}
 	payload, err := executeAdminRequest(ctx, adminRequest{method: http.MethodPost, route: "/sync/negentropy", path: "/sync/negentropy", body: body, handlerFunc: httphandler.NegentropySync()})
 	if err != nil {
+		logNegentropySyncRequest(ctx, input.Remote, len(input.Filter), time.Since(startedAt), "error", GraphQLErrorCodeInternalError)
 		return nil, newClientGraphQLError(GraphQLErrorCodeInternalError, startNegentropySyncErrorMessage, err)
 	}
-	return decodeRESTModel[model.AdminAsyncJob](payload)
+
+	job, err := decodeRESTModel[model.AdminAsyncJob](payload)
+	if err != nil {
+		logNegentropySyncRequest(ctx, input.Remote, len(input.Filter), time.Since(startedAt), "error", GraphQLErrorCodeInternalError)
+		return nil, newClientGraphQLError(GraphQLErrorCodeInternalError, startNegentropySyncErrorMessage, err)
+	}
+
+	logNegentropySyncRequest(ctx, input.Remote, len(input.Filter), time.Since(startedAt), "success", "OK")
+	return job, nil
 }
 
 func (r *Resolver) downloadEvents(ctx context.Context, input model.AdminDownloadEventsInput) (*model.AdminAsyncJob, error) {
