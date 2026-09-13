@@ -16,6 +16,8 @@ var schemaFS embed.FS
 
 func HTTPHandler() http.Handler {
 	server := handler.NewDefaultServer(NewExecutableSchema(Config{Resolvers: &Resolver{}}))
+	server.SetErrorPresenter(graphQLErrorPresenter)
+	server.SetRecoverFunc(graphQLRecover)
 	return server
 }
 

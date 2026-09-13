@@ -194,7 +194,9 @@ func (r *Resolver) updateNip86RelayMetadata(ctx context.Context, input model.Adm
 func (r *Resolver) startNegentropySync(ctx context.Context, input model.AdminNegentropySyncInput) (*model.AdminAsyncJob, error) {
 	body := map[string]any{"remote": input.Remote, "direction": stringValue(input.Direction), "filter": input.Filter, "timeout": input.TimeoutSeconds}
 	payload, err := executeAdminRequest(ctx, adminRequest{method: http.MethodPost, route: "/sync/negentropy", path: "/sync/negentropy", body: body, handlerFunc: httphandler.NegentropySync()})
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, newClientGraphQLError(GraphQLErrorCodeInternalError, startNegentropySyncErrorMessage, err)
+	}
 	return decodeRESTModel[model.AdminAsyncJob](payload)
 }
 
