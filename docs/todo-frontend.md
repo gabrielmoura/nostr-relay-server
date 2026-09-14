@@ -80,6 +80,14 @@
 - [ ] Review and finalize `docs/components-tree.md`
 - [ ] Review and finalize `docs/state-management.md`
 
+### NIP-29 Group Moderation Workspace
+- [x] Document Smart/Dumb split, progressive detail boundaries and cursor state
+- [ ] Add typed GraphQL group summary/detail/mutation contracts
+- [ ] Implement cursor-based admin group list and panel-admin delete mutation
+- [ ] Implement responsive list with image fallback and accessible delete dialog
+- [ ] Implement detail route with isolated metadata/stats/admin/member boundaries
+- [ ] Add route/service/component tests and verify responsive no-overflow states
+
 ### Rich Event Visualization
 - [ ] Extend `lib/event-parser.ts` with one shared media interpretation model for search and detail
 - [ ] Add alt-aware headline fallback so `(sem conteudo textual)` always appends the `alt` tag when present in list rendering

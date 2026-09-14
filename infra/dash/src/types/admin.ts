@@ -526,10 +526,14 @@ export type AdminGroupResponse = {
   group_id: string
   name: string
   description: string
+	 picture?: string
   private: boolean
   closed: boolean
   hidden: boolean
   member_count: number
+	 created_at?: string
+	 updated_at?: string
+	 estimated: boolean
 }
 
 export type AdminWoTSummaryResponse = {

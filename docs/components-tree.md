@@ -52,6 +52,39 @@ Located in `infra/dash/src/components/shared/`
 
 ## Feature Components
 
+### NIP-29 Groups (`components/features/groups/`) - Planned
+
+```
+GroupsPage (Smart)
+├── GroupsListToolbar (Dumb)
+├── GroupsResponsiveList (Dumb)
+│   ├── GroupCard (Dumb, narrow screens)
+│   └── GroupTableRow (Dumb, wide screens)
+├── GroupDeleteDialog (Smart mutation container)
+└── GroupsPagination (Dumb)
+
+GroupDetailPage (Smart)
+├── GroupMetadataBlock (Smart query boundary)
+├── GroupStatsBlock (Smart query boundary)
+├── GroupAdminsBlock (Smart query boundary)
+└── GroupMembersBlock (Smart query boundary)
+    └── GroupMemberList (Dumb)
+```
+
+| Component | Type | Props / responsibility | Events |
+|-----------|------|------------------------|--------|
+| `GroupAvatar` | Dumb | `src`, `name`, `groupId`; lazy image and fallback | - |
+| `GroupsResponsiveList` | Dumb | `groups`, `onOpen`, `onDelete` | `onOpen`, `onDelete` |
+| `GroupCard` / `GroupTableRow` | Dumb | one group summary; truncation and tooltip | `onOpen`, `onDelete` |
+| `GroupDeleteDialog` | Smart | holds reason/draft; invokes deletion mutation | `onComplete` |
+| `GroupStatsBlock` | Smart | independently loads approximate message count | retry |
+| `GroupAdminsBlock` | Smart | independently loads configured-admin members | retry |
+| `GroupMembersBlock` | Smart | independently loads profiles and membership | retry |
+
+`GroupAvatar`, cards, rows and member list remain transport-agnostic. Each detail
+block has a local fallback with retry; route-level boundaries remain only for
+unrecoverable route failures.
+
 ### Event Detail (`components/features/event-detail/`)
 
 | Component | Type | Props | Events |

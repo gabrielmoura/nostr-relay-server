@@ -39,6 +39,29 @@ Interpretation rules documented from Nostr specifications used by the frontend:
 
 No new backend endpoint is required for the first visual refinement. Optional future enrichment may add a backend helper for referenced-event snippets if the `@nostrify/*` read layer proves insufficient or too slow.
 
+## Planned NIP-29 Admin Group Contracts
+
+All operations remain behind the authenticated internal GraphQL endpoint and require
+panel-admin authorization. The API is deliberately split so `/groups/$groupId` can
+render partial data while slower blocks load.
+
+- `groups(page: CursorPageInput!) -> AdminGroupConnection`: summary fields,
+  `pageInfo { endCursor hasNextPage }`, page size clamped to 20/50/100.
+- `group(groupId: ID!) -> AdminGroup`: metadata, event-derived creation and latest
+  moderation timestamps, each marked `estimated` when reconstructed.
+- `groupStats(groupId: ID!) -> AdminGroupStats`: approximate message count and
+  computation timestamp.
+- `groupAdmins(groupId: ID!) -> [AdminGroupMember!]!` and
+  `groupMembers(groupId: ID!, page: CursorPageInput!) -> AdminGroupMemberConnection`:
+  profile display name, picture, pubkey and roles.
+- `deleteGroup(input: AdminDeleteGroupInput!) -> AdminDeleteGroupPayload`:
+  `{ groupId, reason, note? }`; the server validates authorization, soft-deletes,
+  emits a relay-signed `9008`, logs actor/reason/note without persisting them, and
+  returns the deleted timestamp and event id.
+
+Error responses follow existing GraphQL error normalization and expose request IDs
+through extensions/header without leaking implementation details.
+
 ## WebSocket Protocol (NIP-01)
 
 All Nostr communication happens over WebSocket using JSON messages.

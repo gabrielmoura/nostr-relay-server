@@ -88,6 +88,33 @@ func Enabled() bool {
 	return M != nil && M.enabled
 }
 
+// DeleteGroupAsRelay creates the canonical relay-owned 9008 event and applies
+// its soft-delete projection without removing the group's event history.
+func DeleteGroupAsRelay(ctx context.Context, groupID string) (*nostr.Event, error) {
+	if !Enabled() {
+		return nil, errors.New("NIP-29 groups module is disabled")
+	}
+	if strings.TrimSpace(groupID) == "" {
+		return nil, errors.New("group id is required")
+	}
+
+	event := &nostr.Event{
+		PubKey:    M.relayPubKey,
+		CreatedAt: nostr.Now(),
+		Kind:      nostr.KindSimpleGroupDeleteGroup,
+		Tags:      nostr.Tags{{"h", groupID}},
+		Content:   "deleted by relay moderation",
+	}
+	if err := M.saveInternalEventAndApply(ctx, event); err != nil {
+		return nil, err
+	}
+	return event, nil
+}
+
+func (m *Manager) IsAdminRole(roleNames []string) bool {
+	return m != nil && m.hasAdminRole(roleNames)
+}
+
 func QueryEvents(ctx context.Context, authed string, filter nostr.Filter, upstream EventQueryFunc) (chan *nostr.Event, bool, error) {
 	if !Enabled() || !M.shouldFilterQueryResults(filter) {
 		return nil, false, nil

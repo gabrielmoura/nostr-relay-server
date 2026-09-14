@@ -2,12 +2,15 @@ package http
 
 import (
 	"context"
+	"encoding/base64"
+	stdjson "encoding/json"
 	"fmt"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/gabrielmoura/nostr-relay-server/config"
+	storedb "github.com/gabrielmoura/nostr-relay-server/infra/db"
 	"github.com/gabrielmoura/nostr-relay-server/infra/log"
 	"github.com/gabrielmoura/nostr-relay-server/internal/db"
 	"github.com/gabrielmoura/nostr-relay-server/internal/down"
@@ -47,10 +50,32 @@ type AdminGroupResponse struct {
 	GroupID     string `json:"group_id"`
 	Name        string `json:"name"`
 	Description string `json:"description"`
+	Picture     string `json:"picture"`
 	Private     bool   `json:"private"`
 	Closed      bool   `json:"closed"`
 	Hidden      bool   `json:"hidden"`
 	MemberCount int    `json:"member_count"`
+	CreatedAt   string `json:"created_at,omitempty"`
+	UpdatedAt   string `json:"updated_at,omitempty"`
+	Estimated   bool   `json:"estimated"`
+}
+
+type adminGroupCursor struct {
+	UpdatedAt time.Time `json:"updated_at"`
+	GroupID   string    `json:"group_id"`
+}
+
+type AdminGroupMemberResponse struct {
+	Pubkey      string   `json:"pubkey"`
+	DisplayName string   `json:"display_name"`
+	Picture     string   `json:"picture"`
+	Roles       []string `json:"roles"`
+	Admin       bool     `json:"admin"`
+}
+
+type adminDeleteGroupRequest struct {
+	Reason string `json:"reason"`
+	Note   string `json:"note"`
 }
 
 type AdminWoTSummaryResponse struct {
@@ -490,29 +515,194 @@ func ListGroups() fiber.Handler {
 
 		ctx := c.UserContext()
 		limit := adminLimit(c)
-		offset := adminOffset(c)
+		cursor, err := decodeGroupCursor(c.Query("after"))
+		if err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid group cursor"})
+		}
 
 		scope := groups.M.GetRelayScope()
 
-		dbGroups, total, err := db.DbQueries.ListNIP29Groups(ctx, scope, int32(limit), int32(offset))
+		var updatedAt *time.Time
+		groupID := ""
+		if cursor != nil {
+			updatedAt, groupID = &cursor.UpdatedAt, cursor.GroupID
+		}
+		dbGroups, err := db.DbQueries.ListNIP29GroupsAfter(ctx, scope, updatedAt, groupID, int32(limit+1))
 		if err != nil {
 			return internalServerError(c, err)
 		}
 
+		hasMore := len(dbGroups) > limit
+		if hasMore {
+			dbGroups = dbGroups[:limit]
+		}
 		items := make([]AdminGroupResponse, 0, len(dbGroups))
 		for _, g := range dbGroups {
-			items = append(items, AdminGroupResponse{
-				GroupID:     g.GroupID,
-				Name:        g.Name,
-				Description: g.About,
-				Private:     g.Private,
-				Closed:      g.Closed,
-				Hidden:      g.Hidden,
-				MemberCount: int(g.MemberCount),
-			})
+			items = append(items, adminGroupResponse(ctx, g.NIP29Group, int(g.MemberCount)))
 		}
 
-		return c.JSON(newAdminPage(items, int(total), limit, offset))
+		endCursor := ""
+		if len(dbGroups) > 0 {
+			endCursor = encodeGroupCursor(dbGroups[len(dbGroups)-1].UpdatedAt, dbGroups[len(dbGroups)-1].GroupID)
+		}
+		return c.JSON(fiber.Map{"items": items, "page_info": fiber.Map{"end_cursor": endCursor, "has_next_page": hasMore}})
+	}
+}
+
+func decodeGroupCursor(value string) (*adminGroupCursor, error) {
+	if value == "" {
+		return nil, nil
+	}
+	raw, err := base64.RawURLEncoding.DecodeString(value)
+	if err != nil {
+		return nil, err
+	}
+	var cursor adminGroupCursor
+	if err := stdjson.Unmarshal(raw, &cursor); err != nil {
+		return nil, err
+	}
+	if cursor.UpdatedAt.IsZero() || cursor.GroupID == "" {
+		return nil, fmt.Errorf("incomplete cursor")
+	}
+	return &cursor, nil
+}
+func encodeGroupCursor(updatedAt time.Time, groupID string) string {
+	raw, _ := stdjson.Marshal(adminGroupCursor{UpdatedAt: updatedAt, GroupID: groupID})
+	return base64.RawURLEncoding.EncodeToString(raw)
+}
+
+func GroupDetail() fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		if !groups.Enabled() {
+			return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"error": "NIP-29 groups module is disabled"})
+		}
+
+		group, ok, err := db.DbQueries.GetNIP29Group(c.UserContext(), groups.M.GetRelayScope(), c.Params("groupId"))
+		if err != nil {
+			return internalServerError(c, err)
+		}
+		if !ok || group.DeletedAt != nil {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "group not found"})
+		}
+
+		memberRoles, err := db.DbQueries.ListNIP29MemberRoles(c.UserContext(), group.Relay, group.GroupID)
+		if err != nil {
+			return internalServerError(c, err)
+		}
+		members := distinctGroupMembers(c.UserContext(), memberRoles)
+		return c.JSON(adminGroupResponse(c.UserContext(), *group, len(members)))
+	}
+}
+
+func GroupMessageStats() fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		if !groups.Enabled() {
+			return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"error": "NIP-29 groups module is disabled"})
+		}
+		groupID := c.Params("groupId")
+		count, err := db.DbQueries.CountNIP29GroupMessages(c.UserContext(), groupID)
+		if err != nil {
+			return internalServerError(c, err)
+		}
+		return c.JSON(fiber.Map{"message_count": count, "estimated": true, "computed_at": formatTime(time.Now())})
+	}
+}
+
+func GroupMembers() fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		if !groups.Enabled() {
+			return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"error": "NIP-29 groups module is disabled"})
+		}
+		groupID := c.Params("groupId")
+		roles, err := db.DbQueries.ListNIP29MemberRoles(c.UserContext(), groups.M.GetRelayScope(), groupID)
+		if err != nil {
+			return internalServerError(c, err)
+		}
+		members := distinctGroupMembers(c.UserContext(), roles)
+		return c.JSON(newAdminPage(members, len(members), adminLimit(c), adminOffset(c)))
+	}
+}
+
+func DeleteGroup() fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		if !groups.Enabled() {
+			return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"error": "NIP-29 groups module is disabled"})
+		}
+		var request adminDeleteGroupRequest
+		if err := parseAdminJSONBody(c, &request); err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid delete group request"})
+		}
+		reason := strings.TrimSpace(request.Reason)
+		if !isGroupDeletionReason(reason) {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid moderation reason"})
+		}
+
+		groupID := c.Params("groupId")
+		event, err := groups.DeleteGroupAsRelay(c.UserContext(), groupID)
+		if err != nil {
+			return internalServerError(c, err)
+		}
+		log.Logger.Info("NIP-29 group deleted by panel moderation",
+			zap.String("group_id", groupID),
+			zap.String("actor", "panel-admin"),
+			zap.String("reason", reason),
+			zap.Bool("has_note", strings.TrimSpace(request.Note) != ""),
+			zap.String("event_id", event.ID),
+		)
+		return c.JSON(fiber.Map{"group_id": groupID, "event_id": event.ID, "deleted_at": formatTime(time.Unix(int64(event.CreatedAt), 0))})
+	}
+}
+
+func adminGroupResponse(ctx context.Context, group storedb.NIP29Group, memberCount int) AdminGroupResponse {
+	createdAt, err := db.DbQueries.GetNIP29GroupCreatedAt(ctx, group.GroupID)
+	if err != nil {
+		log.Logger.Debug("failed to resolve group creation timestamp", zap.String("group_id", group.GroupID), zap.Error(err))
+	}
+	lastChange := group.LastMetadataUpdate
+	for _, value := range []time.Time{group.LastAdminsUpdate, group.LastMembersUpdate, group.LastRolesUpdate} {
+		if value.After(lastChange) {
+			lastChange = value
+		}
+	}
+	return AdminGroupResponse{GroupID: group.GroupID, Name: group.Name, Description: group.About, Picture: group.Picture, Private: group.Private, Closed: group.Closed, Hidden: group.Hidden, MemberCount: memberCount, CreatedAt: formatUnix(createdAt), UpdatedAt: formatTime(lastChange), Estimated: true}
+}
+
+func distinctGroupMembers(ctx context.Context, roles []storedb.NIP29MemberRole) []AdminGroupMemberResponse {
+	byPubkey := make(map[string]*AdminGroupMemberResponse, len(roles))
+	keys := make([]string, 0, len(roles))
+	for _, role := range roles {
+		member, ok := byPubkey[role.UserID]
+		if !ok {
+			member = &AdminGroupMemberResponse{Pubkey: role.UserID, DisplayName: role.UserID, Roles: []string{}}
+			byPubkey[role.UserID] = member
+			keys = append(keys, role.UserID)
+		}
+		member.Roles = append(member.Roles, role.RoleName)
+	}
+	profiles, err := db.DbQueries.GetProfilesByPublicKeys(ctx, keys)
+	if err == nil {
+		for _, member := range byPubkey {
+			if profile, ok := profiles[member.Pubkey]; ok {
+				member.DisplayName = firstNonEmpty(profile.DisplayName, profile.Name, member.Pubkey)
+				member.Picture = profile.Picture
+			}
+			member.Admin = groups.M.IsAdminRole(member.Roles)
+		}
+	}
+	members := make([]AdminGroupMemberResponse, 0, len(byPubkey))
+	for _, member := range byPubkey {
+		members = append(members, *member)
+	}
+	sort.Slice(members, func(i, j int) bool { return members[i].Pubkey < members[j].Pubkey })
+	return members
+}
+
+func isGroupDeletionReason(reason string) bool {
+	switch reason {
+	case "spam", "illegal_content", "abuse", "other":
+		return true
+	default:
+		return false
 	}
 }
 

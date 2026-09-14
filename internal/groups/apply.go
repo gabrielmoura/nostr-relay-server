@@ -178,9 +178,6 @@ func (m *Manager) applyDeleteGroup(ctx context.Context, evt *nostr.Event) error 
 	if err := m.queries.ReplaceNIP29GroupRoles(ctx, m.relayScope, group.GroupID, m.defaultGroupRoleIDs()); err != nil {
 		return err
 	}
-	if err := m.queries.DeleteNIP29GroupContent(ctx, group.GroupID); err != nil {
-		return err
-	}
 	if err := m.emitStateEvents(ctx, group.GroupID); err != nil {
 		return err
 	}

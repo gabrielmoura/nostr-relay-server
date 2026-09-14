@@ -20,6 +20,7 @@ import { UserSearchPage } from "@/routes/user-search-page"
 import { SyncPage } from "@/routes/sync-page"
 import { DownloadPage } from "@/routes/download-page"
 import { GroupsPage } from "@/routes/groups-page"
+import { GroupDetailPage } from "@/routes/group-detail-page"
 import { WoTPage } from "@/routes/wot-page"
 import { EventSearchRouteSearch } from "@/lib/event-search"
 import { BlossomPage } from "@/routes/blossom-page"
@@ -191,6 +192,12 @@ const groupsRoute = createRoute({
   component: GroupsPage,
 })
 
+const groupDetailRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/groups/$groupId",
+  component: GroupDetailPage,
+})
+
 const wotRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/wot",
@@ -222,6 +229,7 @@ const routeTree = rootRoute.addChildren([
   syncRoute,
   downloadRoute,
   groupsRoute,
+  groupDetailRoute,
   wotRoute,
 ])
 

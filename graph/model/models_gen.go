@@ -251,6 +251,17 @@ type AdminCreateLabelPayload struct {
 	Stored bool        `json:"stored"`
 }
 
+type AdminDeleteGroupInput struct {
+	Reason string  `json:"reason"`
+	Note   *string `json:"note,omitempty"`
+}
+
+type AdminDeleteGroupPayload struct {
+	GroupID   string `json:"groupId"`
+	EventID   string `json:"eventId"`
+	DeletedAt string `json:"deletedAt"`
+}
+
 type AdminDeleteJobsHistoryInput struct {
 	JobName  string   `json:"jobName"`
 	Statuses []string `json:"statuses,omitempty"`
@@ -333,13 +344,41 @@ type AdminFetchRelayResult struct {
 }
 
 type AdminGroup struct {
-	GroupID     string `json:"groupId"`
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	Private     bool   `json:"private"`
-	Closed      bool   `json:"closed"`
-	Hidden      bool   `json:"hidden"`
-	MemberCount int32  `json:"memberCount"`
+	GroupID     string  `json:"groupId"`
+	Name        string  `json:"name"`
+	Description string  `json:"description"`
+	Picture     *string `json:"picture,omitempty"`
+	Private     bool    `json:"private"`
+	Closed      bool    `json:"closed"`
+	Hidden      bool    `json:"hidden"`
+	MemberCount int32   `json:"memberCount"`
+	CreatedAt   *string `json:"createdAt,omitempty"`
+	UpdatedAt   *string `json:"updatedAt,omitempty"`
+	Estimated   bool    `json:"estimated"`
+}
+
+type AdminGroupMember struct {
+	Pubkey      string   `json:"pubkey"`
+	DisplayName string   `json:"displayName"`
+	Picture     *string  `json:"picture,omitempty"`
+	Roles       []string `json:"roles"`
+	Admin       bool     `json:"admin"`
+}
+
+type AdminGroupMemberPage struct {
+	PageInfo *PageInfo           `json:"pageInfo"`
+	Items    []*AdminGroupMember `json:"items"`
+}
+
+type AdminGroupPage struct {
+	PageInfo *PageInfo     `json:"pageInfo"`
+	Items    []*AdminGroup `json:"items"`
+}
+
+type AdminGroupStats struct {
+	MessageCount int    `json:"messageCount"`
+	Estimated    bool   `json:"estimated"`
+	ComputedAt   string `json:"computedAt"`
 }
 
 type AdminImportEventsPayload struct {

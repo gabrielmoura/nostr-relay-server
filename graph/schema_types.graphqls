@@ -79,7 +79,13 @@ type AdminImportFileResult { filename: String! total: Int! inserted: Int! duplic
 type AdminImportEventsPayload { files: [AdminImportFileResult!]! }
 type AdminCreateLabelPayload { event: NostrEvent! stored: Boolean! }
 type AdminJob { id: ID! queue: String! priority: String! jobName: String! status: String! attempts: Int! maxAttempts: Int! createdAt: String! startedAt: String finishedAt: String runAt: String lastError: String payload: JSON result: JSON }
-type AdminGroup { groupId: ID! name: String! description: String! private: Boolean! closed: Boolean! hidden: Boolean! memberCount: Int! }
+type AdminGroup { groupId: ID! name: String! description: String! picture: String private: Boolean! closed: Boolean! hidden: Boolean! memberCount: Int! createdAt: String updatedAt: String estimated: Boolean! }
+type AdminGroupPage { pageInfo: PageInfo! items: [AdminGroup!]! }
+type AdminGroupStats { messageCount: Int64! estimated: Boolean! computedAt: String! }
+type AdminGroupMember { pubkey: String! displayName: String! picture: String roles: [String!]! admin: Boolean! }
+type AdminGroupMemberPage { pageInfo: PageInfo! items: [AdminGroupMember!]! }
+input AdminDeleteGroupInput { reason: String! note: String }
+type AdminDeleteGroupPayload { groupId: ID! eventId: ID! deletedAt: String! }
 type AdminWoTSummary { totalNodes: Int! totalEdges: Int! trustedPubkeys: [String!]! lastComputedAt: String }
 
 # ---- Privacy network observability (admin dashboard) ----

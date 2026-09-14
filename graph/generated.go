@@ -207,6 +207,12 @@ type ComplexityRoot struct {
 		Stored func(childComplexity int) int
 	}
 
+	AdminDeleteGroupPayload struct {
+		DeletedAt func(childComplexity int) int
+		EventID   func(childComplexity int) int
+		GroupID   func(childComplexity int) int
+	}
+
 	AdminEventAggregates struct {
 		Kinds      func(childComplexity int) int
 		TopAuthors func(childComplexity int) int
@@ -264,12 +270,40 @@ type ComplexityRoot struct {
 
 	AdminGroup struct {
 		Closed      func(childComplexity int) int
+		CreatedAt   func(childComplexity int) int
 		Description func(childComplexity int) int
+		Estimated   func(childComplexity int) int
 		GroupID     func(childComplexity int) int
 		Hidden      func(childComplexity int) int
 		MemberCount func(childComplexity int) int
 		Name        func(childComplexity int) int
+		Picture     func(childComplexity int) int
 		Private     func(childComplexity int) int
+		UpdatedAt   func(childComplexity int) int
+	}
+
+	AdminGroupMember struct {
+		Admin       func(childComplexity int) int
+		DisplayName func(childComplexity int) int
+		Picture     func(childComplexity int) int
+		Pubkey      func(childComplexity int) int
+		Roles       func(childComplexity int) int
+	}
+
+	AdminGroupMemberPage struct {
+		Items    func(childComplexity int) int
+		PageInfo func(childComplexity int) int
+	}
+
+	AdminGroupPage struct {
+		Items    func(childComplexity int) int
+		PageInfo func(childComplexity int) int
+	}
+
+	AdminGroupStats struct {
+		ComputedAt   func(childComplexity int) int
+		Estimated    func(childComplexity int) int
+		MessageCount func(childComplexity int) int
 	}
 
 	AdminImportEventsPayload struct {
@@ -517,6 +551,7 @@ type ComplexityRoot struct {
 		CreateNip86BannedEvent   func(childComplexity int, eventID string, input *model.AdminNip86ReasonInput) int
 		CreateNip86BlockedIP     func(childComplexity int, ip string, input *model.AdminNip86ReasonInput) int
 		DeleteBlossomPlan        func(childComplexity int, id string) int
+		DeleteGroup              func(childComplexity int, groupID string, input model.AdminDeleteGroupInput) int
 		DeleteJobsHistory        func(childComplexity int, input model.AdminDeleteJobsHistoryInput) int
 		DeleteNip05              func(childComplexity int, name string) int
 		DeleteNip86AllowedPubkey func(childComplexity int, pubkey string) int
@@ -631,7 +666,10 @@ type ComplexityRoot struct {
 		EventReports           func(childComplexity int, id string, page *model.OffsetPageInput) int
 		EventTimeline          func(childComplexity int, filter *model.AdminEventSearchInput, bucket *model.TimelineBucket) int
 		Events                 func(childComplexity int, filter *model.AdminEventSearchInput, page *model.OffsetPageInput) int
-		Groups                 func(childComplexity int) int
+		Group                  func(childComplexity int, groupID string) int
+		GroupMembers           func(childComplexity int, groupID string, page *model.OffsetPageInput) int
+		GroupStats             func(childComplexity int, groupID string) int
+		Groups                 func(childComplexity int, page *model.OffsetPageInput) int
 		Job                    func(childComplexity int, id string, queue *string) int
 		Jobs                   func(childComplexity int, filter *model.AdminJobFilterInput, page *model.OffsetPageInput) int
 		Labels                 func(childComplexity int, filter *model.AdminLabelFilterInput, page *model.OffsetPageInput) int
@@ -697,6 +735,7 @@ type MutationResolver interface {
 	DeleteJobsHistory(ctx context.Context, input model.AdminDeleteJobsHistoryInput) (*model.MutationAck, error)
 	AddTrustedPubkey(ctx context.Context, pubkey string) (*model.AdminWoTSummary, error)
 	RemoveTrustedPubkey(ctx context.Context, pubkey string) (*model.AdminWoTSummary, error)
+	DeleteGroup(ctx context.Context, groupID string, input model.AdminDeleteGroupInput) (*model.AdminDeleteGroupPayload, error)
 }
 type QueryResolver interface {
 	AdminOverview(ctx context.Context) (*model.AdminOverview, error)
@@ -738,7 +777,10 @@ type QueryResolver interface {
 	Nip86RelayMetadata(ctx context.Context) (*model.AdminNip86RelayMetadata, error)
 	Jobs(ctx context.Context, filter *model.AdminJobFilterInput, page *model.OffsetPageInput) (*model.AdminJobPage, error)
 	Job(ctx context.Context, id string, queue *string) (*model.AdminJob, error)
-	Groups(ctx context.Context) ([]*model.AdminGroup, error)
+	Groups(ctx context.Context, page *model.OffsetPageInput) (*model.AdminGroupPage, error)
+	Group(ctx context.Context, groupID string) (*model.AdminGroup, error)
+	GroupStats(ctx context.Context, groupID string) (*model.AdminGroupStats, error)
+	GroupMembers(ctx context.Context, groupID string, page *model.OffsetPageInput) (*model.AdminGroupMemberPage, error)
 	WotSummary(ctx context.Context) (*model.AdminWoTSummary, error)
 }
 
@@ -1453,6 +1495,25 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.AdminCreateLabelPayload.Stored(childComplexity), true
 
+	case "AdminDeleteGroupPayload.deletedAt":
+		if e.ComplexityRoot.AdminDeleteGroupPayload.DeletedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminDeleteGroupPayload.DeletedAt(childComplexity), true
+	case "AdminDeleteGroupPayload.eventId":
+		if e.ComplexityRoot.AdminDeleteGroupPayload.EventID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminDeleteGroupPayload.EventID(childComplexity), true
+	case "AdminDeleteGroupPayload.groupId":
+		if e.ComplexityRoot.AdminDeleteGroupPayload.GroupID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminDeleteGroupPayload.GroupID(childComplexity), true
+
 	case "AdminEventAggregates.kinds":
 		if e.ComplexityRoot.AdminEventAggregates.Kinds == nil {
 			break
@@ -1670,12 +1731,24 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.AdminGroup.Closed(childComplexity), true
+	case "AdminGroup.createdAt":
+		if e.ComplexityRoot.AdminGroup.CreatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminGroup.CreatedAt(childComplexity), true
 	case "AdminGroup.description":
 		if e.ComplexityRoot.AdminGroup.Description == nil {
 			break
 		}
 
 		return e.ComplexityRoot.AdminGroup.Description(childComplexity), true
+	case "AdminGroup.estimated":
+		if e.ComplexityRoot.AdminGroup.Estimated == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminGroup.Estimated(childComplexity), true
 	case "AdminGroup.groupId":
 		if e.ComplexityRoot.AdminGroup.GroupID == nil {
 			break
@@ -1700,12 +1773,100 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.AdminGroup.Name(childComplexity), true
+	case "AdminGroup.picture":
+		if e.ComplexityRoot.AdminGroup.Picture == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminGroup.Picture(childComplexity), true
 	case "AdminGroup.private":
 		if e.ComplexityRoot.AdminGroup.Private == nil {
 			break
 		}
 
 		return e.ComplexityRoot.AdminGroup.Private(childComplexity), true
+	case "AdminGroup.updatedAt":
+		if e.ComplexityRoot.AdminGroup.UpdatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminGroup.UpdatedAt(childComplexity), true
+
+	case "AdminGroupMember.admin":
+		if e.ComplexityRoot.AdminGroupMember.Admin == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminGroupMember.Admin(childComplexity), true
+	case "AdminGroupMember.displayName":
+		if e.ComplexityRoot.AdminGroupMember.DisplayName == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminGroupMember.DisplayName(childComplexity), true
+	case "AdminGroupMember.picture":
+		if e.ComplexityRoot.AdminGroupMember.Picture == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminGroupMember.Picture(childComplexity), true
+	case "AdminGroupMember.pubkey":
+		if e.ComplexityRoot.AdminGroupMember.Pubkey == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminGroupMember.Pubkey(childComplexity), true
+	case "AdminGroupMember.roles":
+		if e.ComplexityRoot.AdminGroupMember.Roles == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminGroupMember.Roles(childComplexity), true
+
+	case "AdminGroupMemberPage.items":
+		if e.ComplexityRoot.AdminGroupMemberPage.Items == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminGroupMemberPage.Items(childComplexity), true
+	case "AdminGroupMemberPage.pageInfo":
+		if e.ComplexityRoot.AdminGroupMemberPage.PageInfo == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminGroupMemberPage.PageInfo(childComplexity), true
+
+	case "AdminGroupPage.items":
+		if e.ComplexityRoot.AdminGroupPage.Items == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminGroupPage.Items(childComplexity), true
+	case "AdminGroupPage.pageInfo":
+		if e.ComplexityRoot.AdminGroupPage.PageInfo == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminGroupPage.PageInfo(childComplexity), true
+
+	case "AdminGroupStats.computedAt":
+		if e.ComplexityRoot.AdminGroupStats.ComputedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminGroupStats.ComputedAt(childComplexity), true
+	case "AdminGroupStats.estimated":
+		if e.ComplexityRoot.AdminGroupStats.Estimated == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminGroupStats.Estimated(childComplexity), true
+	case "AdminGroupStats.messageCount":
+		if e.ComplexityRoot.AdminGroupStats.MessageCount == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminGroupStats.MessageCount(childComplexity), true
 
 	case "AdminImportEventsPayload.files":
 		if e.ComplexityRoot.AdminImportEventsPayload.Files == nil {
@@ -2689,6 +2850,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.DeleteBlossomPlan(childComplexity, args["id"].(string)), true
+	case "Mutation.deleteGroup":
+		if e.ComplexityRoot.Mutation.DeleteGroup == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_deleteGroup_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.DeleteGroup(childComplexity, args["groupId"].(string), args["input"].(model.AdminDeleteGroupInput)), true
 	case "Mutation.deleteJobsHistory":
 		if e.ComplexityRoot.Mutation.DeleteJobsHistory == nil {
 			break
@@ -3403,12 +3575,50 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.Events(childComplexity, args["filter"].(*model.AdminEventSearchInput), args["page"].(*model.OffsetPageInput)), true
+	case "Query.group":
+		if e.ComplexityRoot.Query.Group == nil {
+			break
+		}
+
+		args, err := ec.field_Query_group_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.Group(childComplexity, args["groupId"].(string)), true
+	case "Query.groupMembers":
+		if e.ComplexityRoot.Query.GroupMembers == nil {
+			break
+		}
+
+		args, err := ec.field_Query_groupMembers_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.GroupMembers(childComplexity, args["groupId"].(string), args["page"].(*model.OffsetPageInput)), true
+	case "Query.groupStats":
+		if e.ComplexityRoot.Query.GroupStats == nil {
+			break
+		}
+
+		args, err := ec.field_Query_groupStats_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.GroupStats(childComplexity, args["groupId"].(string)), true
 	case "Query.groups":
 		if e.ComplexityRoot.Query.Groups == nil {
 			break
 		}
 
-		return e.ComplexityRoot.Query.Groups(childComplexity), true
+		args, err := ec.field_Query_groups_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.Groups(childComplexity, args["page"].(*model.OffsetPageInput)), true
 
 	case "Query.job":
 		if e.ComplexityRoot.Query.Job == nil {
@@ -3639,6 +3849,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputAdminBlossomUserFilterInput,
 		ec.unmarshalInputAdminBlossomWhitelistInput,
 		ec.unmarshalInputAdminCreateLabelInput,
+		ec.unmarshalInputAdminDeleteGroupInput,
 		ec.unmarshalInputAdminDeleteJobsHistoryInput,
 		ec.unmarshalInputAdminDownloadEventsInput,
 		ec.unmarshalInputAdminEventSearchInput,
@@ -4089,6 +4300,18 @@ func (ec *executionContext) childFields_AdminCreateLabelPayload(ctx context.Cont
 	return nil, fmt.Errorf("no field named %q was found under type AdminCreateLabelPayload", field.Name)
 }
 
+func (ec *executionContext) childFields_AdminDeleteGroupPayload(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "groupId":
+		return ec.fieldContext_AdminDeleteGroupPayload_groupId(ctx, field)
+	case "eventId":
+		return ec.fieldContext_AdminDeleteGroupPayload_eventId(ctx, field)
+	case "deletedAt":
+		return ec.fieldContext_AdminDeleteGroupPayload_deletedAt(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type AdminDeleteGroupPayload", field.Name)
+}
+
 func (ec *executionContext) childFields_AdminEventAggregates(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "total":
@@ -4207,6 +4430,8 @@ func (ec *executionContext) childFields_AdminGroup(ctx context.Context, field gr
 		return ec.fieldContext_AdminGroup_name(ctx, field)
 	case "description":
 		return ec.fieldContext_AdminGroup_description(ctx, field)
+	case "picture":
+		return ec.fieldContext_AdminGroup_picture(ctx, field)
 	case "private":
 		return ec.fieldContext_AdminGroup_private(ctx, field)
 	case "closed":
@@ -4215,8 +4440,62 @@ func (ec *executionContext) childFields_AdminGroup(ctx context.Context, field gr
 		return ec.fieldContext_AdminGroup_hidden(ctx, field)
 	case "memberCount":
 		return ec.fieldContext_AdminGroup_memberCount(ctx, field)
+	case "createdAt":
+		return ec.fieldContext_AdminGroup_createdAt(ctx, field)
+	case "updatedAt":
+		return ec.fieldContext_AdminGroup_updatedAt(ctx, field)
+	case "estimated":
+		return ec.fieldContext_AdminGroup_estimated(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type AdminGroup", field.Name)
+}
+
+func (ec *executionContext) childFields_AdminGroupMember(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "pubkey":
+		return ec.fieldContext_AdminGroupMember_pubkey(ctx, field)
+	case "displayName":
+		return ec.fieldContext_AdminGroupMember_displayName(ctx, field)
+	case "picture":
+		return ec.fieldContext_AdminGroupMember_picture(ctx, field)
+	case "roles":
+		return ec.fieldContext_AdminGroupMember_roles(ctx, field)
+	case "admin":
+		return ec.fieldContext_AdminGroupMember_admin(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type AdminGroupMember", field.Name)
+}
+
+func (ec *executionContext) childFields_AdminGroupMemberPage(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "pageInfo":
+		return ec.fieldContext_AdminGroupMemberPage_pageInfo(ctx, field)
+	case "items":
+		return ec.fieldContext_AdminGroupMemberPage_items(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type AdminGroupMemberPage", field.Name)
+}
+
+func (ec *executionContext) childFields_AdminGroupPage(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "pageInfo":
+		return ec.fieldContext_AdminGroupPage_pageInfo(ctx, field)
+	case "items":
+		return ec.fieldContext_AdminGroupPage_items(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type AdminGroupPage", field.Name)
+}
+
+func (ec *executionContext) childFields_AdminGroupStats(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "messageCount":
+		return ec.fieldContext_AdminGroupStats_messageCount(ctx, field)
+	case "estimated":
+		return ec.fieldContext_AdminGroupStats_estimated(ctx, field)
+	case "computedAt":
+		return ec.fieldContext_AdminGroupStats_computedAt(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type AdminGroupStats", field.Name)
 }
 
 func (ec *executionContext) childFields_AdminImportEventsPayload(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -5129,6 +5408,28 @@ func (ec *executionContext) field_Mutation_deleteBlossomPlan_args(ctx context.Co
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_deleteGroup_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "groupId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["groupId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (model.AdminDeleteGroupInput, error) {
+			return ec.unmarshalNAdminDeleteGroupInput2githubᚗcomᚋgabrielmouraᚋnostrᚑrelayᚑserverᚋgraphᚋmodelᚐAdminDeleteGroupInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg1
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_deleteJobsHistory_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -5836,6 +6137,70 @@ func (ec *executionContext) field_Query_events_args(ctx context.Context, rawArgs
 		return nil, err
 	}
 	args["page"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_groupMembers_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "groupId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["groupId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "page",
+		func(ctx context.Context, v any) (*model.OffsetPageInput, error) {
+			return ec.unmarshalOOffsetPageInput2ᚖgithubᚗcomᚋgabrielmouraᚋnostrᚑrelayᚑserverᚋgraphᚋmodelᚐOffsetPageInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["page"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_groupStats_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "groupId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["groupId"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_group_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "groupId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["groupId"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_groups_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "page",
+		func(ctx context.Context, v any) (*model.OffsetPageInput, error) {
+			return ec.unmarshalOOffsetPageInput2ᚖgithubᚗcomᚋgabrielmouraᚋnostrᚑrelayᚑserverᚋgraphᚋmodelᚐOffsetPageInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["page"] = arg0
 	return args, nil
 }
 
@@ -8937,6 +9302,75 @@ func (ec *executionContext) fieldContext_AdminCreateLabelPayload_stored(_ contex
 	return graphql.NewScalarFieldContext("AdminCreateLabelPayload", field, false, false, errors.New("field of type Boolean does not have child fields"))
 }
 
+func (ec *executionContext) _AdminDeleteGroupPayload_groupId(ctx context.Context, field graphql.CollectedField, obj *model.AdminDeleteGroupPayload) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminDeleteGroupPayload_groupId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.GroupID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNID2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminDeleteGroupPayload_groupId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminDeleteGroupPayload", field, false, false, errors.New("field of type ID does not have child fields"))
+}
+
+func (ec *executionContext) _AdminDeleteGroupPayload_eventId(ctx context.Context, field graphql.CollectedField, obj *model.AdminDeleteGroupPayload) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminDeleteGroupPayload_eventId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.EventID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNID2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminDeleteGroupPayload_eventId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminDeleteGroupPayload", field, false, false, errors.New("field of type ID does not have child fields"))
+}
+
+func (ec *executionContext) _AdminDeleteGroupPayload_deletedAt(ctx context.Context, field graphql.CollectedField, obj *model.AdminDeleteGroupPayload) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminDeleteGroupPayload_deletedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.DeletedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminDeleteGroupPayload_deletedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminDeleteGroupPayload", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
 func (ec *executionContext) _AdminEventAggregates_total(ctx context.Context, field graphql.CollectedField, obj *model.AdminEventAggregates) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -9869,6 +10303,29 @@ func (ec *executionContext) fieldContext_AdminGroup_description(_ context.Contex
 	return graphql.NewScalarFieldContext("AdminGroup", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
+func (ec *executionContext) _AdminGroup_picture(ctx context.Context, field graphql.CollectedField, obj *model.AdminGroup) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminGroup_picture(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Picture, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_AdminGroup_picture(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminGroup", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
 func (ec *executionContext) _AdminGroup_private(ctx context.Context, field graphql.CollectedField, obj *model.AdminGroup) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -9959,6 +10416,387 @@ func (ec *executionContext) _AdminGroup_memberCount(ctx context.Context, field g
 }
 func (ec *executionContext) fieldContext_AdminGroup_memberCount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("AdminGroup", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _AdminGroup_createdAt(ctx context.Context, field graphql.CollectedField, obj *model.AdminGroup) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminGroup_createdAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CreatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_AdminGroup_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminGroup", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _AdminGroup_updatedAt(ctx context.Context, field graphql.CollectedField, obj *model.AdminGroup) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminGroup_updatedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.UpdatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_AdminGroup_updatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminGroup", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _AdminGroup_estimated(ctx context.Context, field graphql.CollectedField, obj *model.AdminGroup) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminGroup_estimated(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Estimated, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminGroup_estimated(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminGroup", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _AdminGroupMember_pubkey(ctx context.Context, field graphql.CollectedField, obj *model.AdminGroupMember) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminGroupMember_pubkey(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Pubkey, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminGroupMember_pubkey(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminGroupMember", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _AdminGroupMember_displayName(ctx context.Context, field graphql.CollectedField, obj *model.AdminGroupMember) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminGroupMember_displayName(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.DisplayName, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminGroupMember_displayName(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminGroupMember", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _AdminGroupMember_picture(ctx context.Context, field graphql.CollectedField, obj *model.AdminGroupMember) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminGroupMember_picture(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Picture, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_AdminGroupMember_picture(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminGroupMember", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _AdminGroupMember_roles(ctx context.Context, field graphql.CollectedField, obj *model.AdminGroupMember) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminGroupMember_roles(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Roles, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []string) graphql.Marshaler {
+			return ec.marshalNString2ᚕstringᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminGroupMember_roles(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminGroupMember", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _AdminGroupMember_admin(ctx context.Context, field graphql.CollectedField, obj *model.AdminGroupMember) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminGroupMember_admin(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Admin, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminGroupMember_admin(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminGroupMember", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _AdminGroupMemberPage_pageInfo(ctx context.Context, field graphql.CollectedField, obj *model.AdminGroupMemberPage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminGroupMemberPage_pageInfo(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.PageInfo, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.PageInfo) graphql.Marshaler {
+			return ec.marshalNPageInfo2ᚖgithubᚗcomᚋgabrielmouraᚋnostrᚑrelayᚑserverᚋgraphᚋmodelᚐPageInfo(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminGroupMemberPage_pageInfo(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AdminGroupMemberPage",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_PageInfo(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _AdminGroupMemberPage_items(ctx context.Context, field graphql.CollectedField, obj *model.AdminGroupMemberPage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminGroupMemberPage_items(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Items, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.AdminGroupMember) graphql.Marshaler {
+			return ec.marshalNAdminGroupMember2ᚕᚖgithubᚗcomᚋgabrielmouraᚋnostrᚑrelayᚑserverᚋgraphᚋmodelᚐAdminGroupMemberᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminGroupMemberPage_items(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AdminGroupMemberPage",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_AdminGroupMember(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _AdminGroupPage_pageInfo(ctx context.Context, field graphql.CollectedField, obj *model.AdminGroupPage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminGroupPage_pageInfo(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.PageInfo, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.PageInfo) graphql.Marshaler {
+			return ec.marshalNPageInfo2ᚖgithubᚗcomᚋgabrielmouraᚋnostrᚑrelayᚑserverᚋgraphᚋmodelᚐPageInfo(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminGroupPage_pageInfo(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AdminGroupPage",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_PageInfo(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _AdminGroupPage_items(ctx context.Context, field graphql.CollectedField, obj *model.AdminGroupPage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminGroupPage_items(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Items, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.AdminGroup) graphql.Marshaler {
+			return ec.marshalNAdminGroup2ᚕᚖgithubᚗcomᚋgabrielmouraᚋnostrᚑrelayᚑserverᚋgraphᚋmodelᚐAdminGroupᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminGroupPage_items(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AdminGroupPage",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_AdminGroup(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _AdminGroupStats_messageCount(ctx context.Context, field graphql.CollectedField, obj *model.AdminGroupStats) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminGroupStats_messageCount(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.MessageCount, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt642int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminGroupStats_messageCount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminGroupStats", field, false, false, errors.New("field of type Int64 does not have child fields"))
+}
+
+func (ec *executionContext) _AdminGroupStats_estimated(ctx context.Context, field graphql.CollectedField, obj *model.AdminGroupStats) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminGroupStats_estimated(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Estimated, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminGroupStats_estimated(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminGroupStats", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _AdminGroupStats_computedAt(ctx context.Context, field graphql.CollectedField, obj *model.AdminGroupStats) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminGroupStats_computedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ComputedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminGroupStats_computedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminGroupStats", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
 func (ec *executionContext) _AdminImportEventsPayload_files(ctx context.Context, field graphql.CollectedField, obj *model.AdminImportEventsPayload) (ret graphql.Marshaler) {
@@ -14967,6 +15805,50 @@ func (ec *executionContext) fieldContext_Mutation_removeTrustedPubkey(ctx contex
 	return fc, nil
 }
 
+func (ec *executionContext) _Mutation_deleteGroup(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_deleteGroup(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().DeleteGroup(ctx, fc.Args["groupId"].(string), fc.Args["input"].(model.AdminDeleteGroupInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.AdminDeleteGroupPayload) graphql.Marshaler {
+			return ec.marshalNAdminDeleteGroupPayload2ᚖgithubᚗcomᚋgabrielmouraᚋnostrᚑrelayᚑserverᚋgraphᚋmodelᚐAdminDeleteGroupPayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_deleteGroup(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_AdminDeleteGroupPayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_deleteGroup_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _MutationAck_ok(ctx context.Context, field graphql.CollectedField, obj *model.MutationAck) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -17488,17 +18370,62 @@ func (ec *executionContext) _Query_groups(ctx context.Context, field graphql.Col
 			return ec.fieldContext_Query_groups(ctx, field)
 		},
 		func(ctx context.Context) (any, error) {
-			return ec.Resolvers.Query().Groups(ctx)
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().Groups(ctx, fc.Args["page"].(*model.OffsetPageInput))
 		},
 		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v []*model.AdminGroup) graphql.Marshaler {
-			return ec.marshalNAdminGroup2ᚕᚖgithubᚗcomᚋgabrielmouraᚋnostrᚑrelayᚑserverᚋgraphᚋmodelᚐAdminGroupᚄ(ctx, selections, v)
+		func(ctx context.Context, selections ast.SelectionSet, v *model.AdminGroupPage) graphql.Marshaler {
+			return ec.marshalNAdminGroupPage2ᚖgithubᚗcomᚋgabrielmouraᚋnostrᚑrelayᚑserverᚋgraphᚋmodelᚐAdminGroupPage(ctx, selections, v)
 		},
 		true,
 		true,
 	)
 }
-func (ec *executionContext) fieldContext_Query_groups(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_Query_groups(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_AdminGroupPage(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_groups_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_group(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_group(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().Group(ctx, fc.Args["groupId"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.AdminGroup) graphql.Marshaler {
+			return ec.marshalNAdminGroup2ᚖgithubᚗcomᚋgabrielmouraᚋnostrᚑrelayᚑserverᚋgraphᚋmodelᚐAdminGroup(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_group(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Query",
 		Field:      field,
@@ -17507,6 +18434,105 @@ func (ec *executionContext) fieldContext_Query_groups(_ context.Context, field g
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return ec.childFields_AdminGroup(ctx, field)
 		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_group_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_groupStats(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_groupStats(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().GroupStats(ctx, fc.Args["groupId"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.AdminGroupStats) graphql.Marshaler {
+			return ec.marshalNAdminGroupStats2ᚖgithubᚗcomᚋgabrielmouraᚋnostrᚑrelayᚑserverᚋgraphᚋmodelᚐAdminGroupStats(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_groupStats(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_AdminGroupStats(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_groupStats_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_groupMembers(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_groupMembers(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().GroupMembers(ctx, fc.Args["groupId"].(string), fc.Args["page"].(*model.OffsetPageInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.AdminGroupMemberPage) graphql.Marshaler {
+			return ec.marshalNAdminGroupMemberPage2ᚖgithubᚗcomᚋgabrielmouraᚋnostrᚑrelayᚑserverᚋgraphᚋmodelᚐAdminGroupMemberPage(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_groupMembers(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_AdminGroupMemberPage(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_groupMembers_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
 	}
 	return fc, nil
 }
@@ -19300,6 +20326,43 @@ func (ec *executionContext) unmarshalInputAdminCreateLabelInput(ctx context.Cont
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputAdminDeleteGroupInput(ctx context.Context, obj any) (model.AdminDeleteGroupInput, error) {
+	var it model.AdminDeleteGroupInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"reason", "note"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "reason":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("reason"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Reason = data
+		case "note":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("note"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Note = data
+		}
+	}
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputAdminDeleteJobsHistoryInput(ctx context.Context, obj any) (model.AdminDeleteJobsHistoryInput, error) {
 	var it model.AdminDeleteJobsHistoryInput
 	if obj == nil {
@@ -19681,7 +20744,7 @@ func (ec *executionContext) unmarshalInputAdminNegentropySyncInput(ctx context.C
 			it.Direction = data
 		case "filter":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("filter"))
-			data, err := ec.unmarshalNJSON2ᚕmapᚄ(ctx, v)
+			data, err := ec.unmarshalOJSON2ᚕmapᚄ(ctx, v)
 			if err != nil {
 				return it, err
 			}
@@ -21004,6 +22067,55 @@ func (ec *executionContext) _AdminCreateLabelPayload(ctx context.Context, sel as
 	return out
 }
 
+var adminDeleteGroupPayloadImplementors = []string{"AdminDeleteGroupPayload"}
+
+func (ec *executionContext) _AdminDeleteGroupPayload(ctx context.Context, sel ast.SelectionSet, obj *model.AdminDeleteGroupPayload) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, adminDeleteGroupPayloadImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("AdminDeleteGroupPayload")
+		case "groupId":
+			out.Values[i] = ec._AdminDeleteGroupPayload_groupId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "eventId":
+			out.Values[i] = ec._AdminDeleteGroupPayload_eventId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "deletedAt":
+			out.Values[i] = ec._AdminDeleteGroupPayload_deletedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferred), math.MaxInt32)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
 var adminEventAggregatesImplementors = []string{"AdminEventAggregates"}
 
 func (ec *executionContext) _AdminEventAggregates(ctx context.Context, sel ast.SelectionSet, obj *model.AdminEventAggregates) graphql.Marshaler {
@@ -21408,6 +22520,8 @@ func (ec *executionContext) _AdminGroup(ctx context.Context, sel ast.SelectionSe
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "picture":
+			out.Values[i] = ec._AdminGroup_picture(ctx, field, obj)
 		case "private":
 			out.Values[i] = ec._AdminGroup_private(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -21425,6 +22539,208 @@ func (ec *executionContext) _AdminGroup(ctx context.Context, sel ast.SelectionSe
 			}
 		case "memberCount":
 			out.Values[i] = ec._AdminGroup_memberCount(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "createdAt":
+			out.Values[i] = ec._AdminGroup_createdAt(ctx, field, obj)
+		case "updatedAt":
+			out.Values[i] = ec._AdminGroup_updatedAt(ctx, field, obj)
+		case "estimated":
+			out.Values[i] = ec._AdminGroup_estimated(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferred), math.MaxInt32)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var adminGroupMemberImplementors = []string{"AdminGroupMember"}
+
+func (ec *executionContext) _AdminGroupMember(ctx context.Context, sel ast.SelectionSet, obj *model.AdminGroupMember) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, adminGroupMemberImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("AdminGroupMember")
+		case "pubkey":
+			out.Values[i] = ec._AdminGroupMember_pubkey(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "displayName":
+			out.Values[i] = ec._AdminGroupMember_displayName(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "picture":
+			out.Values[i] = ec._AdminGroupMember_picture(ctx, field, obj)
+		case "roles":
+			out.Values[i] = ec._AdminGroupMember_roles(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "admin":
+			out.Values[i] = ec._AdminGroupMember_admin(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferred), math.MaxInt32)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var adminGroupMemberPageImplementors = []string{"AdminGroupMemberPage"}
+
+func (ec *executionContext) _AdminGroupMemberPage(ctx context.Context, sel ast.SelectionSet, obj *model.AdminGroupMemberPage) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, adminGroupMemberPageImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("AdminGroupMemberPage")
+		case "pageInfo":
+			out.Values[i] = ec._AdminGroupMemberPage_pageInfo(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "items":
+			out.Values[i] = ec._AdminGroupMemberPage_items(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferred), math.MaxInt32)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var adminGroupPageImplementors = []string{"AdminGroupPage"}
+
+func (ec *executionContext) _AdminGroupPage(ctx context.Context, sel ast.SelectionSet, obj *model.AdminGroupPage) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, adminGroupPageImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("AdminGroupPage")
+		case "pageInfo":
+			out.Values[i] = ec._AdminGroupPage_pageInfo(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "items":
+			out.Values[i] = ec._AdminGroupPage_items(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferred), math.MaxInt32)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var adminGroupStatsImplementors = []string{"AdminGroupStats"}
+
+func (ec *executionContext) _AdminGroupStats(ctx context.Context, sel ast.SelectionSet, obj *model.AdminGroupStats) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, adminGroupStatsImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("AdminGroupStats")
+		case "messageCount":
+			out.Values[i] = ec._AdminGroupStats_messageCount(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "estimated":
+			out.Values[i] = ec._AdminGroupStats_estimated(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "computedAt":
+			out.Values[i] = ec._AdminGroupStats_computedAt(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -23333,6 +24649,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "deleteGroup":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_deleteGroup(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -24727,6 +26050,72 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "group":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_group(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "groupStats":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_groupStats(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "groupMembers":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_groupMembers(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
 		case "wotSummary":
 			field := field
 
@@ -25597,6 +26986,25 @@ func (ec *executionContext) marshalNAdminCreateLabelPayload2ᚖgithubᚗcomᚋga
 	return ec._AdminCreateLabelPayload(ctx, sel, v)
 }
 
+func (ec *executionContext) unmarshalNAdminDeleteGroupInput2githubᚗcomᚋgabrielmouraᚋnostrᚑrelayᚑserverᚋgraphᚋmodelᚐAdminDeleteGroupInput(ctx context.Context, v any) (model.AdminDeleteGroupInput, error) {
+	res, err := ec.unmarshalInputAdminDeleteGroupInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNAdminDeleteGroupPayload2githubᚗcomᚋgabrielmouraᚋnostrᚑrelayᚑserverᚋgraphᚋmodelᚐAdminDeleteGroupPayload(ctx context.Context, sel ast.SelectionSet, v model.AdminDeleteGroupPayload) graphql.Marshaler {
+	return ec._AdminDeleteGroupPayload(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNAdminDeleteGroupPayload2ᚖgithubᚗcomᚋgabrielmouraᚋnostrᚑrelayᚑserverᚋgraphᚋmodelᚐAdminDeleteGroupPayload(ctx context.Context, sel ast.SelectionSet, v *model.AdminDeleteGroupPayload) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._AdminDeleteGroupPayload(ctx, sel, v)
+}
+
 func (ec *executionContext) unmarshalNAdminDeleteJobsHistoryInput2githubᚗcomᚋgabrielmouraᚋnostrᚑrelayᚑserverᚋgraphᚋmodelᚐAdminDeleteJobsHistoryInput(ctx context.Context, v any) (model.AdminDeleteJobsHistoryInput, error) {
 	res, err := ec.unmarshalInputAdminDeleteJobsHistoryInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -25729,6 +27137,10 @@ func (ec *executionContext) marshalNAdminFetchRelayResult2ᚖgithubᚗcomᚋgabr
 	return ec._AdminFetchRelayResult(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalNAdminGroup2githubᚗcomᚋgabrielmouraᚋnostrᚑrelayᚑserverᚋgraphᚋmodelᚐAdminGroup(ctx context.Context, sel ast.SelectionSet, v model.AdminGroup) graphql.Marshaler {
+	return ec._AdminGroup(ctx, sel, &v)
+}
+
 func (ec *executionContext) marshalNAdminGroup2ᚕᚖgithubᚗcomᚋgabrielmouraᚋnostrᚑrelayᚑserverᚋgraphᚋmodelᚐAdminGroupᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.AdminGroup) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
@@ -25753,6 +27165,74 @@ func (ec *executionContext) marshalNAdminGroup2ᚖgithubᚗcomᚋgabrielmouraᚋ
 		return graphql.Null
 	}
 	return ec._AdminGroup(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNAdminGroupMember2ᚕᚖgithubᚗcomᚋgabrielmouraᚋnostrᚑrelayᚑserverᚋgraphᚋmodelᚐAdminGroupMemberᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.AdminGroupMember) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNAdminGroupMember2ᚖgithubᚗcomᚋgabrielmouraᚋnostrᚑrelayᚑserverᚋgraphᚋmodelᚐAdminGroupMember(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNAdminGroupMember2ᚖgithubᚗcomᚋgabrielmouraᚋnostrᚑrelayᚑserverᚋgraphᚋmodelᚐAdminGroupMember(ctx context.Context, sel ast.SelectionSet, v *model.AdminGroupMember) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._AdminGroupMember(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNAdminGroupMemberPage2githubᚗcomᚋgabrielmouraᚋnostrᚑrelayᚑserverᚋgraphᚋmodelᚐAdminGroupMemberPage(ctx context.Context, sel ast.SelectionSet, v model.AdminGroupMemberPage) graphql.Marshaler {
+	return ec._AdminGroupMemberPage(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNAdminGroupMemberPage2ᚖgithubᚗcomᚋgabrielmouraᚋnostrᚑrelayᚑserverᚋgraphᚋmodelᚐAdminGroupMemberPage(ctx context.Context, sel ast.SelectionSet, v *model.AdminGroupMemberPage) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._AdminGroupMemberPage(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNAdminGroupPage2githubᚗcomᚋgabrielmouraᚋnostrᚑrelayᚑserverᚋgraphᚋmodelᚐAdminGroupPage(ctx context.Context, sel ast.SelectionSet, v model.AdminGroupPage) graphql.Marshaler {
+	return ec._AdminGroupPage(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNAdminGroupPage2ᚖgithubᚗcomᚋgabrielmouraᚋnostrᚑrelayᚑserverᚋgraphᚋmodelᚐAdminGroupPage(ctx context.Context, sel ast.SelectionSet, v *model.AdminGroupPage) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._AdminGroupPage(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNAdminGroupStats2githubᚗcomᚋgabrielmouraᚋnostrᚑrelayᚑserverᚋgraphᚋmodelᚐAdminGroupStats(ctx context.Context, sel ast.SelectionSet, v model.AdminGroupStats) graphql.Marshaler {
+	return ec._AdminGroupStats(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNAdminGroupStats2ᚖgithubᚗcomᚋgabrielmouraᚋnostrᚑrelayᚑserverᚋgraphᚋmodelᚐAdminGroupStats(ctx context.Context, sel ast.SelectionSet, v *model.AdminGroupStats) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._AdminGroupStats(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNAdminImportEventsPayload2githubᚗcomᚋgabrielmouraᚋnostrᚑrelayᚑserverᚋgraphᚋmodelᚐAdminImportEventsPayload(ctx context.Context, sel ast.SelectionSet, v model.AdminImportEventsPayload) graphql.Marshaler {
@@ -27290,6 +28770,42 @@ func (ec *executionContext) marshalOJSON2map(ctx context.Context, sel ast.Select
 	_ = ctx
 	res := graphql.MarshalMap(v)
 	return res
+}
+
+func (ec *executionContext) unmarshalOJSON2ᚕmapᚄ(ctx context.Context, v any) ([]map[string]any, error) {
+	if v == nil {
+		return nil, nil
+	}
+	var vSlice []any
+	vSlice = graphql.CoerceList(v)
+	var err error
+	res := make([]map[string]any, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNJSON2map(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
+}
+
+func (ec *executionContext) marshalOJSON2ᚕmapᚄ(ctx context.Context, sel ast.SelectionSet, v []map[string]any) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	ret := make(graphql.Array, len(v))
+	for i := range v {
+		ret[i] = ec.marshalNJSON2map(ctx, sel, v[i])
+	}
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
 }
 
 func (ec *executionContext) unmarshalOLabelTargetType2ᚖgithubᚗcomᚋgabrielmouraᚋnostrᚑrelayᚑserverᚋgraphᚋmodelᚐLabelTargetType(ctx context.Context, v any) (*model.LabelTargetType, error) {

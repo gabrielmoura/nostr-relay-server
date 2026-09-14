@@ -93,6 +93,48 @@ Using `ui-ux-pro-max`, the recommended direction for the new moderation area is 
 
 This should refine the current dashboard instead of replacing it with a marketing-style interface.
 
+## NIP-29 Group Moderation Workspace
+
+### Scope
+
+`/panel/groups` becomes an operational list with cursor pagination, responsive
+card/table presentations and a panel-admin-only moderation action. `/panel/groups/$groupId`
+is a progressive detail route: metadata is available first, while statistics and
+membership information resolve independently.
+
+### Data and component boundaries
+
+- `services/admin-groups.ts` owns GraphQL operations, response adaptation and
+  error normalization; visual components never call Apollo directly.
+- `use-admin-data.ts` owns query/mutation orchestration and cache invalidation.
+- Group list/detail route components are smart containers. Cards, rows, image
+  fallback, statistics and member lists are dumb components receiving typed props.
+- Each independent detail block is placed behind its own `Suspense` and
+  `ErrorBoundary`; a failure in one block cannot hide metadata or membership.
+
+### Interaction and accessibility
+
+- At narrow widths the list is a card grid; at desktop widths it is a compact
+  table with `min-w-0`, truncation and accessible tooltips, never a horizontally
+  scrollable table.
+- Group pictures use native lazy loading, descriptive alt text and an in-place
+  avatar fallback on load failure.
+- The deletion dialog uses the existing accessible dialog primitive, requires a
+  reason selection plus optional explanatory text, and gives an explicit policy
+  moderation warning before submission.
+- Loading and mutation feedback are announced with `aria-live`; buttons retain
+  visible focus and no color is the sole status signal.
+
+### State and error strategy
+
+- Cursor and page size are URL state, preserving list position and 20/50/100
+  operator preference across navigation.
+- Server state is Apollo-backed through the service/hook layer. Successful
+  deletion invalidates the list and detail cache; no optimistic deletion is used
+  because the relay-signed moderation event is authoritative.
+- GraphQL errors retain request IDs through the existing error adapter. Boundary
+  fallbacks provide retry for each block without discarding already-rendered data.
+
 ## Technology Stack
 
 | Layer | Technology | Purpose |

@@ -91,6 +91,20 @@ Planned relevant uses:
 
 ## Feature State Flows
 
+### NIP-29 Groups
+
+| State | Owner | Behavior |
+|-------|-------|----------|
+| Cursor and page size | TanStack Router URL state | `after` cursor and `limit` (20/50/100) are shareable and restored on return. |
+| List and metadata | Apollo-backed service/hook layer | Cursor page cache; list receives only summary fields. |
+| Detail blocks | Independent query hooks | Metadata, stats, admins and members each load/fail/retry independently. |
+| Delete dialog | Local component state | Reason, free text, open/submitting/error state; input stays intact on failure. |
+| Delete result | Mutation hook | Wait for server confirmation, then invalidate relevant group list/detail queries. |
+
+The message total is an approximate server value and always carries its estimate
+marker. A deleted group is removed only after the mutation succeeds; no optimistic
+state is used because the backend must persist and relay the signed `9008` event.
+
 ## Planned GraphQL State Rules
 
 - Apollo Client owns GraphQL transport and normalized client behavior

@@ -177,6 +177,11 @@ func (r *mutationResolver) RemoveTrustedPubkey(ctx context.Context, pubkey strin
 	return r.removeTrustedPubkey(ctx, pubkey)
 }
 
+// DeleteGroup is the resolver for the deleteGroup field.
+func (r *mutationResolver) DeleteGroup(ctx context.Context, groupID string, input model.AdminDeleteGroupInput) (*model.AdminDeleteGroupPayload, error) {
+	return r.deleteGroup(ctx, groupID, input)
+}
+
 // AdminOverview is the resolver for the adminOverview field.
 func (r *queryResolver) AdminOverview(ctx context.Context) (*model.AdminOverview, error) {
 	return r.adminOverview(ctx)
@@ -373,8 +378,23 @@ func (r *queryResolver) Job(ctx context.Context, id string, queue *string) (*mod
 }
 
 // Groups is the resolver for the groups field.
-func (r *queryResolver) Groups(ctx context.Context) ([]*model.AdminGroup, error) {
-	return r.groups(ctx)
+func (r *queryResolver) Groups(ctx context.Context, page *model.OffsetPageInput) (*model.AdminGroupPage, error) {
+	return r.groups(ctx, page)
+}
+
+// Group is the resolver for the group field.
+func (r *queryResolver) Group(ctx context.Context, groupID string) (*model.AdminGroup, error) {
+	return r.group(ctx, groupID)
+}
+
+// GroupStats is the resolver for the groupStats field.
+func (r *queryResolver) GroupStats(ctx context.Context, groupID string) (*model.AdminGroupStats, error) {
+	return r.groupStats(ctx, groupID)
+}
+
+// GroupMembers is the resolver for the groupMembers field.
+func (r *queryResolver) GroupMembers(ctx context.Context, groupID string, page *model.OffsetPageInput) (*model.AdminGroupMemberPage, error) {
+	return r.groupMembers(ctx, groupID, page)
 }
 
 // WotSummary is the resolver for the wotSummary field.

@@ -29,7 +29,7 @@ import { useInfiniteQuery, useMutation, useQuery, useQueryClient, useSuspenseQue
 import { fetchEventFromRelays, getEventDetail, getEventTags, importEventsFiles } from "@/services/admin-event-detail"
 import { getEventSearchAggregates, getEventSearchTimeline, searchEventsPage } from "@/services/admin-event-search"
 import { createLabel, getLabelsPage, getLabelsSummary } from "@/services/admin-labels"
-import { addTrustedPubkey, cancelJob, deleteJobsHistory, getDownloadJob, getDownloadJobs, getGroupsPage, getJob, getJobs, getWoTSummary, removeTrustedPubkey, resumeJob, retryJob, startDownloadEvents, startNegentropySync } from "@/services/admin-jobs-wot"
+import { addTrustedPubkey, cancelJob, deleteGroup, deleteJobsHistory, getDownloadJob, getDownloadJobs, getGroup, getGroupMembers, getGroupsPage, getGroupStats, getJob, getJobs, getWoTSummary, removeTrustedPubkey, resumeJob, retryJob, startDownloadEvents, startNegentropySync } from "@/services/admin-jobs-wot"
 import { allowNIP86PubKey, banNIP86Event, blockNIP86IP, deleteNIP05Identity, getNIP05Page, getNIP86AllowedPubKeysPage, getNIP86BannedEventsPage, getNIP86BlockedIPsPage, getNIP86RelayMetadata, getUserNIP05, unallowNIP86PubKey, unbanNIP86Event, unblockNIP86IP, updateNIP86RelayMetadata, upsertNIP05Identity } from "@/services/admin-nip05-nip86"
 import { getEventReports, getReportedEventsPage, getReportedEventsSummary } from "@/services/admin-reported"
 import { assignBlossomPlan, createBlossomMirrorJob, deleteBlossomPlan, getBlossomAnalytics, getBlossomAudit, getBlossomObjectDetail, getBlossomObjects, getBlossomOverview, getBlossomPlanAssignments, getBlossomPlans, getBlossomPolicy, getBlossomReports, getBlossomUserDetail, getBlossomUsers, getBlossomWorkers, purgeBlossomUser, resolveBlossomReport, reviewBlossomObjects, unassignBlossomPlan, updateBlossomPolicy, upsertBlossomPlan, upsertBlossomWhitelistEntry } from "@/services/admin-blossom"
@@ -670,14 +670,19 @@ export function useDeleteBlossomPlanMutation() {
   })
 }
 
-export function useInfiniteGroups() {
+export function useInfiniteGroups(pageSize = defaultPageSize) {
   return useInfiniteQuery({
     initialPageParam: 0,
-    queryKey: ["groups"],
-    queryFn: ({ pageParam }) => getGroupsPage({ limit: defaultPageSize, offset: pageParam }),
+    queryKey: ["groups", pageSize],
+    queryFn: ({ pageParam }) => getGroupsPage({ limit: pageSize, offset: pageParam }),
     getNextPageParam: (lastPage) => (lastPage.has_more ? lastPage.offset + lastPage.items.length : undefined),
   })
 }
+
+export function useGroup(groupID: string) { return useQuery({ queryKey: ["group", groupID], queryFn: () => getGroup(groupID), enabled: Boolean(groupID) }) }
+export function useGroupStats(groupID: string) { return useQuery({ queryKey: ["group-stats", groupID], queryFn: () => getGroupStats(groupID), enabled: Boolean(groupID) }) }
+export function useGroupMembers(groupID: string) { return useQuery({ queryKey: ["group-members", groupID], queryFn: () => getGroupMembers(groupID), enabled: Boolean(groupID) }) }
+export function useDeleteGroupMutation() { const queryClient = useQueryClient(); return useMutation({ mutationFn: ({ groupID, reason, note }: { groupID: string; reason: "spam" | "illegal_content" | "abuse" | "other"; note?: string }) => deleteGroup(groupID, reason, note), onSuccess: async (_, variables) => { await Promise.all([queryClient.invalidateQueries({ queryKey: ["groups"] }), queryClient.invalidateQueries({ queryKey: ["group", variables.groupID] })]) } }) }
 
 export function useWoTSummary() {
   return useQuery({ queryKey: ["wot-summary"], queryFn: getWoTSummary })

@@ -1,5 +1,24 @@
 # Frontend Decisions
 
+## ADR-F019: Group Details Use Independent Progressive Blocks
+
+**Status:** Proposed
+**Date:** 2026-09-14
+
+### Decision
+
+Keep the list lightweight and fetch group metadata, approximate message statistics,
+admins and members as independently bounded detail blocks. Use cursor pagination
+for the list and URL-backed page size.
+
+### Consequences
+
+- a slow aggregate cannot block identity or membership moderation work;
+- each failed block offers a focused retry;
+- the API gains small purpose-specific GraphQL queries instead of one oversized
+  detail payload;
+- the UI must tolerate partial detail content and clearly label estimates.
+
 ## ADR-F011: Admin Dashboard Migrates From REST + TanStack Query To Internal GraphQL + Apollo Client
 
 **Status:** Proposed  

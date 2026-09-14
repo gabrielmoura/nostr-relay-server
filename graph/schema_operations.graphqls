@@ -38,7 +38,10 @@ type Query {
   nip86RelayMetadata: AdminNip86RelayMetadata!
   jobs(filter: AdminJobFilterInput, page: OffsetPageInput): AdminJobPage!
   job(id: ID!, queue: String): AdminJob!
-  groups: [AdminGroup!]!
+  groups(page: OffsetPageInput): AdminGroupPage!
+  group(groupId: ID!): AdminGroup!
+  groupStats(groupId: ID!): AdminGroupStats!
+  groupMembers(groupId: ID!, page: OffsetPageInput): AdminGroupMemberPage!
   wotSummary: AdminWoTSummary!
 }
 
@@ -76,4 +79,5 @@ type Mutation {
   deleteJobsHistory(input: AdminDeleteJobsHistoryInput!): MutationAck!
   addTrustedPubkey(pubkey: String!): AdminWoTSummary!
   removeTrustedPubkey(pubkey: String!): AdminWoTSummary!
+  deleteGroup(groupId: ID!, input: AdminDeleteGroupInput!): AdminDeleteGroupPayload!
 }

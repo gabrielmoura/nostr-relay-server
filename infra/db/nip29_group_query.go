@@ -176,6 +176,19 @@ ORDER BY g.updated_at DESC
 LIMIT $2 OFFSET $3
 `
 
+const listNIP29GroupsAfter = `
+SELECT g.relay, g.group_id, g.name, g.picture, g.about, g.topics, g.geohashes, g.private, g.closed, g.restricted, g.hidden,
+    g.created_by, g.updated_at, g.deleted_at, g.min_pow, g.require_moderation_timeline_ref,
+    g.min_timeline_references, g.timeline_recent_window, g.allow_late_publication,
+    g.last_metadata_update, g.last_admins_update, g.last_members_update, g.last_roles_update,
+    (SELECT COUNT(*) FROM nip29_group_members m WHERE m.relay = g.relay AND m.group_id = g.group_id) AS member_count
+FROM nip29_groups g
+WHERE g.relay = $1 AND g.deleted_at IS NULL
+  AND ($2::timestamptz IS NULL OR g.updated_at < $2 OR (g.updated_at = $2 AND g.group_id > $3))
+ORDER BY g.updated_at DESC, g.group_id ASC
+LIMIT $4
+`
+
 func (q *Queries) ListNIP29Groups(ctx context.Context, relay string, limit, offset int32) ([]NIP29GroupWithMemberCount, int64, error) {
 	total, err := q.CountNIP29ActiveGroups(ctx, relay)
 	if err != nil {
@@ -209,7 +222,62 @@ func (q *Queries) ListNIP29Groups(ctx context.Context, relay string, limit, offs
 	return groups, int64(total), nil
 }
 
+func (q *Queries) ListNIP29GroupsAfter(ctx context.Context, relay string, updatedAt *time.Time, groupID string, limit int32) ([]NIP29GroupWithMemberCount, error) {
+	rows, err := q.db.Query(ctx, listNIP29GroupsAfter, relay, updatedAt, groupID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	groups := make([]NIP29GroupWithMemberCount, 0, limit)
+	for rows.Next() {
+		var group NIP29GroupWithMemberCount
+		var deletedAt *time.Time
+		if err := rows.Scan(&group.Relay, &group.GroupID, &group.Name, &group.Picture, &group.About, &group.Topics, &group.Geohashes, &group.Private, &group.Closed, &group.Restricted, &group.Hidden, &group.CreatedBy, &group.UpdatedAt, &deletedAt, &group.MinPoW, &group.RequireModerationTimelineRef, &group.MinTimelineReferences, &group.TimelineRecentWindow, &group.AllowLatePublication, &group.LastMetadataUpdate, &group.LastAdminsUpdate, &group.LastMembersUpdate, &group.LastRolesUpdate, &group.MemberCount); err != nil {
+			return nil, err
+		}
+		group.DeletedAt = deletedAt
+		groups = append(groups, group)
+	}
+	return groups, rows.Err()
+}
+
 type NIP29GroupWithMemberCount struct {
 	NIP29Group
 	MemberCount int64
+}
+
+const countNIP29GroupMessages = `
+SELECT COUNT(*)
+FROM event
+WHERE deleted_by IS NULL
+  AND kind NOT BETWEEN 9000 AND 9022
+  AND kind NOT BETWEEN 39000 AND 39005
+  AND tags @> $1::jsonb
+`
+
+func (q *Queries) CountNIP29GroupMessages(ctx context.Context, groupID string) (int64, error) {
+	var total int64
+	tag := `[["h","` + groupID + `"]]`
+	err := q.db.QueryRow(ctx, countNIP29GroupMessages, tag).Scan(&total)
+	return total, err
+}
+
+const getNIP29GroupCreatedAt = `
+SELECT MIN(created_at)
+FROM event
+WHERE kind = 9007
+  AND (tags @> $1::jsonb OR tags @> $2::jsonb)
+`
+
+func (q *Queries) GetNIP29GroupCreatedAt(ctx context.Context, groupID string) (int64, error) {
+	var createdAt *int64
+	hTag := `[["h","` + groupID + `"]]`
+	dTag := `[["d","` + groupID + `"]]`
+	if err := q.db.QueryRow(ctx, getNIP29GroupCreatedAt, hTag, dTag).Scan(&createdAt); err != nil {
+		return 0, err
+	}
+	if createdAt == nil {
+		return 0, nil
+	}
+	return *createdAt, nil
 }

@@ -279,6 +279,18 @@ export type AdminCreateLabelPayload = {
   stored: Scalars['Boolean']['output'];
 };
 
+export type AdminDeleteGroupInput = {
+  note?: InputMaybe<Scalars['String']['input']>;
+  reason: Scalars['String']['input'];
+};
+
+export type AdminDeleteGroupPayload = {
+  __typename: 'AdminDeleteGroupPayload';
+  deletedAt: Scalars['String']['output'];
+  eventId: Scalars['ID']['output'];
+  groupId: Scalars['ID']['output'];
+};
+
 export type AdminDeleteJobsHistoryInput = {
   jobName: Scalars['String']['input'];
   statuses?: InputMaybe<Array<Scalars['String']['input']>>;
@@ -370,12 +382,44 @@ export type AdminFetchRelayResult = {
 export type AdminGroup = {
   __typename: 'AdminGroup';
   closed: Scalars['Boolean']['output'];
+  createdAt?: Maybe<Scalars['String']['output']>;
   description: Scalars['String']['output'];
+  estimated: Scalars['Boolean']['output'];
   groupId: Scalars['ID']['output'];
   hidden: Scalars['Boolean']['output'];
   memberCount: Scalars['Int']['output'];
   name: Scalars['String']['output'];
+  picture?: Maybe<Scalars['String']['output']>;
   private: Scalars['Boolean']['output'];
+  updatedAt?: Maybe<Scalars['String']['output']>;
+};
+
+export type AdminGroupMember = {
+  __typename: 'AdminGroupMember';
+  admin: Scalars['Boolean']['output'];
+  displayName: Scalars['String']['output'];
+  picture?: Maybe<Scalars['String']['output']>;
+  pubkey: Scalars['String']['output'];
+  roles: Array<Scalars['String']['output']>;
+};
+
+export type AdminGroupMemberPage = {
+  __typename: 'AdminGroupMemberPage';
+  items: Array<AdminGroupMember>;
+  pageInfo: PageInfo;
+};
+
+export type AdminGroupPage = {
+  __typename: 'AdminGroupPage';
+  items: Array<AdminGroup>;
+  pageInfo: PageInfo;
+};
+
+export type AdminGroupStats = {
+  __typename: 'AdminGroupStats';
+  computedAt: Scalars['String']['output'];
+  estimated: Scalars['Boolean']['output'];
+  messageCount: Scalars['Int64']['output'];
 };
 
 export type AdminImportEventsPayload = {
@@ -490,7 +534,7 @@ export type AdminLoggedUserPage = {
 
 export type AdminNegentropySyncInput = {
   direction?: InputMaybe<Scalars['String']['input']>;
-  filter?: InputMaybe<Scalars['JSON']['input']>;
+  filter?: InputMaybe<Array<Scalars['JSON']['input']>>;
   remote: Scalars['String']['input'];
   timeoutSeconds?: InputMaybe<Scalars['Int']['input']>;
 };
@@ -728,6 +772,7 @@ export type Mutation = {
   createNip86BannedEvent: MutationAck;
   createNip86BlockedIp: MutationAck;
   deleteBlossomPlan: MutationAck;
+  deleteGroup: AdminDeleteGroupPayload;
   deleteJobsHistory: MutationAck;
   deleteNip05: MutationAck;
   deleteNip86AllowedPubkey: MutationAck;
@@ -803,6 +848,12 @@ export type MutationCreateNip86BlockedIpArgs = {
 
 export type MutationDeleteBlossomPlanArgs = {
   id: Scalars['ID']['input'];
+};
+
+
+export type MutationDeleteGroupArgs = {
+  groupId: Scalars['ID']['input'];
+  input: AdminDeleteGroupInput;
 };
 
 
@@ -1045,7 +1096,10 @@ export type Query = {
   eventReports: AdminEventReportPage;
   eventTimeline: AdminTimeline;
   events: AdminEventPage;
-  groups: Array<AdminGroup>;
+  group: AdminGroup;
+  groupMembers: AdminGroupMemberPage;
+  groupStats: AdminGroupStats;
+  groups: AdminGroupPage;
   job: AdminJob;
   jobs: AdminJobPage;
   labels: AdminLabelPage;
@@ -1154,6 +1208,27 @@ export type QueryEventTimelineArgs = {
 
 export type QueryEventsArgs = {
   filter?: InputMaybe<AdminEventSearchInput>;
+  page?: InputMaybe<OffsetPageInput>;
+};
+
+
+export type QueryGroupArgs = {
+  groupId: Scalars['ID']['input'];
+};
+
+
+export type QueryGroupMembersArgs = {
+  groupId: Scalars['ID']['input'];
+  page?: InputMaybe<OffsetPageInput>;
+};
+
+
+export type QueryGroupStatsArgs = {
+  groupId: Scalars['ID']['input'];
+};
+
+
+export type QueryGroupsArgs = {
   page?: InputMaybe<OffsetPageInput>;
 };
 
@@ -1616,10 +1691,42 @@ export type DeleteJobsHistoryMutationVariables = Exact<{
 
 export type DeleteJobsHistoryMutation = { __typename: 'Mutation', deleteJobsHistory: { __typename: 'MutationAck', ok: boolean, message?: string | null } };
 
-export type GroupsQueryVariables = Exact<{ [key: string]: never; }>;
+export type GroupsQueryVariables = Exact<{
+  page?: InputMaybe<OffsetPageInput>;
+}>;
 
 
-export type GroupsQuery = { __typename: 'Query', groups: Array<{ __typename: 'AdminGroup', groupId: string, name: string, description: string, private: boolean, closed: boolean, hidden: boolean, memberCount: number }> };
+export type GroupsQuery = { __typename: 'Query', groups: { __typename: 'AdminGroupPage', pageInfo: { __typename: 'PageInfo', total: number, limit: number, offset: number, hasMore: boolean }, items: Array<{ __typename: 'AdminGroup', groupId: string, name: string, description: string, picture?: string | null, private: boolean, closed: boolean, hidden: boolean, memberCount: number, createdAt?: string | null, updatedAt?: string | null, estimated: boolean }> } };
+
+export type GroupQueryVariables = Exact<{
+  groupId: Scalars['ID']['input'];
+}>;
+
+
+export type GroupQuery = { __typename: 'Query', group: { __typename: 'AdminGroup', groupId: string, name: string, description: string, picture?: string | null, private: boolean, closed: boolean, hidden: boolean, memberCount: number, createdAt?: string | null, updatedAt?: string | null, estimated: boolean } };
+
+export type GroupStatsQueryVariables = Exact<{
+  groupId: Scalars['ID']['input'];
+}>;
+
+
+export type GroupStatsQuery = { __typename: 'Query', groupStats: { __typename: 'AdminGroupStats', messageCount: number, estimated: boolean, computedAt: string } };
+
+export type GroupMembersQueryVariables = Exact<{
+  groupId: Scalars['ID']['input'];
+  page?: InputMaybe<OffsetPageInput>;
+}>;
+
+
+export type GroupMembersQuery = { __typename: 'Query', groupMembers: { __typename: 'AdminGroupMemberPage', pageInfo: { __typename: 'PageInfo', total: number, limit: number, offset: number, hasMore: boolean }, items: Array<{ __typename: 'AdminGroupMember', pubkey: string, displayName: string, picture?: string | null, roles: Array<string>, admin: boolean }> } };
+
+export type DeleteGroupMutationVariables = Exact<{
+  groupId: Scalars['ID']['input'];
+  input: AdminDeleteGroupInput;
+}>;
+
+
+export type DeleteGroupMutation = { __typename: 'Mutation', deleteGroup: { __typename: 'AdminDeleteGroupPayload', groupId: string, eventId: string, deletedAt: string } };
 
 export type WotSummaryQueryVariables = Exact<{ [key: string]: never; }>;
 
@@ -1844,7 +1951,11 @@ export const RetryJobDocument = {"kind":"Document","definitions":[{"kind":"Opera
 export const ResumeJobDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"ResumeJob"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"id"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"ID"}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"queue"}},"type":{"kind":"NamedType","name":{"kind":"Name","value":"String"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"resumeJob"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"id"},"value":{"kind":"Variable","name":{"kind":"Name","value":"id"}}},{"kind":"Argument","name":{"kind":"Name","value":"queue"},"value":{"kind":"Variable","name":{"kind":"Name","value":"queue"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"ok"}}]}}]}}]} as unknown as DocumentNode<ResumeJobMutation, ResumeJobMutationVariables>;
 export const CancelJobDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"CancelJob"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"id"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"ID"}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"queue"}},"type":{"kind":"NamedType","name":{"kind":"Name","value":"String"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"cancelJob"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"id"},"value":{"kind":"Variable","name":{"kind":"Name","value":"id"}}},{"kind":"Argument","name":{"kind":"Name","value":"queue"},"value":{"kind":"Variable","name":{"kind":"Name","value":"queue"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"ok"}}]}}]}}]} as unknown as DocumentNode<CancelJobMutation, CancelJobMutationVariables>;
 export const DeleteJobsHistoryDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"DeleteJobsHistory"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"input"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"AdminDeleteJobsHistoryInput"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"deleteJobsHistory"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"input"},"value":{"kind":"Variable","name":{"kind":"Name","value":"input"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"ok"}},{"kind":"Field","name":{"kind":"Name","value":"message"}}]}}]}}]} as unknown as DocumentNode<DeleteJobsHistoryMutation, DeleteJobsHistoryMutationVariables>;
-export const GroupsDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"Groups"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"groups"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"groupId"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"description"}},{"kind":"Field","name":{"kind":"Name","value":"private"}},{"kind":"Field","name":{"kind":"Name","value":"closed"}},{"kind":"Field","name":{"kind":"Name","value":"hidden"}},{"kind":"Field","name":{"kind":"Name","value":"memberCount"}}]}}]}}]} as unknown as DocumentNode<GroupsQuery, GroupsQueryVariables>;
+export const GroupsDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"Groups"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"page"}},"type":{"kind":"NamedType","name":{"kind":"Name","value":"OffsetPageInput"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"groups"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"page"},"value":{"kind":"Variable","name":{"kind":"Name","value":"page"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"pageInfo"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"total"}},{"kind":"Field","name":{"kind":"Name","value":"limit"}},{"kind":"Field","name":{"kind":"Name","value":"offset"}},{"kind":"Field","name":{"kind":"Name","value":"hasMore"}}]}},{"kind":"Field","name":{"kind":"Name","value":"items"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"groupId"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"description"}},{"kind":"Field","name":{"kind":"Name","value":"picture"}},{"kind":"Field","name":{"kind":"Name","value":"private"}},{"kind":"Field","name":{"kind":"Name","value":"closed"}},{"kind":"Field","name":{"kind":"Name","value":"hidden"}},{"kind":"Field","name":{"kind":"Name","value":"memberCount"}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}},{"kind":"Field","name":{"kind":"Name","value":"updatedAt"}},{"kind":"Field","name":{"kind":"Name","value":"estimated"}}]}}]}}]}}]} as unknown as DocumentNode<GroupsQuery, GroupsQueryVariables>;
+export const GroupDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"Group"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"groupId"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"ID"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"group"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"groupId"},"value":{"kind":"Variable","name":{"kind":"Name","value":"groupId"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"groupId"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"description"}},{"kind":"Field","name":{"kind":"Name","value":"picture"}},{"kind":"Field","name":{"kind":"Name","value":"private"}},{"kind":"Field","name":{"kind":"Name","value":"closed"}},{"kind":"Field","name":{"kind":"Name","value":"hidden"}},{"kind":"Field","name":{"kind":"Name","value":"memberCount"}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}},{"kind":"Field","name":{"kind":"Name","value":"updatedAt"}},{"kind":"Field","name":{"kind":"Name","value":"estimated"}}]}}]}}]} as unknown as DocumentNode<GroupQuery, GroupQueryVariables>;
+export const GroupStatsDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"GroupStats"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"groupId"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"ID"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"groupStats"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"groupId"},"value":{"kind":"Variable","name":{"kind":"Name","value":"groupId"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"messageCount"}},{"kind":"Field","name":{"kind":"Name","value":"estimated"}},{"kind":"Field","name":{"kind":"Name","value":"computedAt"}}]}}]}}]} as unknown as DocumentNode<GroupStatsQuery, GroupStatsQueryVariables>;
+export const GroupMembersDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"GroupMembers"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"groupId"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"ID"}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"page"}},"type":{"kind":"NamedType","name":{"kind":"Name","value":"OffsetPageInput"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"groupMembers"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"groupId"},"value":{"kind":"Variable","name":{"kind":"Name","value":"groupId"}}},{"kind":"Argument","name":{"kind":"Name","value":"page"},"value":{"kind":"Variable","name":{"kind":"Name","value":"page"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"pageInfo"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"total"}},{"kind":"Field","name":{"kind":"Name","value":"limit"}},{"kind":"Field","name":{"kind":"Name","value":"offset"}},{"kind":"Field","name":{"kind":"Name","value":"hasMore"}}]}},{"kind":"Field","name":{"kind":"Name","value":"items"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"pubkey"}},{"kind":"Field","name":{"kind":"Name","value":"displayName"}},{"kind":"Field","name":{"kind":"Name","value":"picture"}},{"kind":"Field","name":{"kind":"Name","value":"roles"}},{"kind":"Field","name":{"kind":"Name","value":"admin"}}]}}]}}]}}]} as unknown as DocumentNode<GroupMembersQuery, GroupMembersQueryVariables>;
+export const DeleteGroupDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"DeleteGroup"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"groupId"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"ID"}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"input"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"AdminDeleteGroupInput"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"deleteGroup"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"groupId"},"value":{"kind":"Variable","name":{"kind":"Name","value":"groupId"}}},{"kind":"Argument","name":{"kind":"Name","value":"input"},"value":{"kind":"Variable","name":{"kind":"Name","value":"input"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"groupId"}},{"kind":"Field","name":{"kind":"Name","value":"eventId"}},{"kind":"Field","name":{"kind":"Name","value":"deletedAt"}}]}}]}}]} as unknown as DocumentNode<DeleteGroupMutation, DeleteGroupMutationVariables>;
 export const WotSummaryDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"WotSummary"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"wotSummary"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"totalNodes"}},{"kind":"Field","name":{"kind":"Name","value":"totalEdges"}},{"kind":"Field","name":{"kind":"Name","value":"trustedPubkeys"}},{"kind":"Field","name":{"kind":"Name","value":"lastComputedAt"}}]}}]}}]} as unknown as DocumentNode<WotSummaryQuery, WotSummaryQueryVariables>;
 export const AddTrustedPubkeyDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"AddTrustedPubkey"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"pubkey"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"String"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"addTrustedPubkey"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"pubkey"},"value":{"kind":"Variable","name":{"kind":"Name","value":"pubkey"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"trustedPubkeys"}}]}}]}}]} as unknown as DocumentNode<AddTrustedPubkeyMutation, AddTrustedPubkeyMutationVariables>;
 export const RemoveTrustedPubkeyDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"RemoveTrustedPubkey"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"pubkey"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"String"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"removeTrustedPubkey"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"pubkey"},"value":{"kind":"Variable","name":{"kind":"Name","value":"pubkey"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"trustedPubkeys"}}]}}]}}]} as unknown as DocumentNode<RemoveTrustedPubkeyMutation, RemoveTrustedPubkeyMutationVariables>;
