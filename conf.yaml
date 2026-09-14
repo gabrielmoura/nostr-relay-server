@@ -224,3 +224,5 @@ nip29:
         cache_group_metadata: true
     permissions:
         create_invite: true
+nip70:
+    enabled: true

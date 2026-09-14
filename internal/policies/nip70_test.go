@@ -10,11 +10,21 @@ import (
 
 func newNIP70PolicyConfig() *config.Config {
 	return &config.Config{
+		NIP70: config.NIP70Config{Enabled: true},
 		Relay: config.RelayConfig{
 			MaxEventSize:      1024 * 1024,
 			MaxTagValueLength: 512,
 			FilterLimit:       100,
 		},
+	}
+}
+
+func TestRejectProtectedEvent_Disabled(t *testing.T) {
+	p := Policies{Config: &config.Config{NIP70: config.NIP70Config{Enabled: false}}}
+	evt := &nostr.Event{Tags: nostr.Tags{{"-"}}}
+
+	if reject, reason := p.rejectProtectedEvent(evt, ""); reject || reason != "" {
+		t.Fatalf("rejectProtectedEvent() = (%v, %q), want (false, empty)", reject, reason)
 	}
 }
 
@@ -147,6 +157,19 @@ func TestRejectRepostOfProtectedEvent_EmbeddedProtectedEvent(t *testing.T) {
 	}
 }
 
+func TestRejectRepostOfProtectedEvent_Disabled(t *testing.T) {
+	p := Policies{Config: &config.Config{NIP70: config.NIP70Config{Enabled: false}}}
+	protected := &nostr.Event{Tags: nostr.Tags{{"-"}}}
+	content, err := json.Marshal(protected)
+	if err != nil {
+		t.Fatalf("marshal protected event: %v", err)
+	}
+
+	if reject, reason := p.rejectRepostOfProtectedEvent(&nostr.Event{Kind: nostr.KindRepost, Content: string(content)}); reject || reason != "" {
+		t.Fatalf("rejectRepostOfProtectedEvent() = (%v, %q), want (false, empty)", reject, reason)
+	}
+}
+
 func TestRejectRepostOfProtectedEvent_EmbeddedNonProtectedEvent(t *testing.T) {
 	p := Policies{Config: newNIP70PolicyConfig()}
 
@@ -237,5 +260,11 @@ func TestHasProtectedTag(t *testing.T) {
 				t.Errorf("hasProtectedTag() = %v, want %v", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestHasProtectedTag_NilEvent(t *testing.T) {
+	if hasProtectedTag(nil) {
+		t.Fatal("hasProtectedTag(nil) = true, want false")
 	}
 }

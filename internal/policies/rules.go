@@ -197,6 +197,9 @@ func (p Policies) checkDirectMessageAccess(filter nostr.Filter, ws *dto.WsServer
 // If the client is not authenticated, the relay sends an auth-required message.
 // If authenticated but the pubkey does not match, the event is rejected.
 func (p Policies) rejectProtectedEvent(evt *nostr.Event, authedPubkey string) (bool, string) {
+	if p.Config == nil || !p.Config.NIP70.Enabled {
+		return false, ""
+	}
 	if !hasProtectedTag(evt) {
 		return false, ""
 	}
@@ -212,6 +215,9 @@ func (p Policies) rejectProtectedEvent(evt *nostr.Event, authedPubkey string) (b
 // rejectRepostOfProtectedEvent implements the NIP-70 repost rule:
 // reposts (kind 6 and kind 16) MUST NOT embed a protected event.
 func (p Policies) rejectRepostOfProtectedEvent(evt *nostr.Event) (bool, string) {
+	if p.Config == nil || !p.Config.NIP70.Enabled {
+		return false, ""
+	}
 	if evt.Kind != nostr.KindRepost && evt.Kind != nostr.KindGenericRepost {
 		return false, ""
 	}
@@ -231,6 +237,9 @@ func (p Policies) rejectRepostOfProtectedEvent(evt *nostr.Event) (bool, string) 
 
 // hasProtectedTag returns true when the event contains the NIP-70 ["-"] tag.
 func hasProtectedTag(evt *nostr.Event) bool {
+	if evt == nil {
+		return false
+	}
 	for _, tag := range evt.Tags {
 		if len(tag) == 1 && tag[0] == "-" {
 			return true

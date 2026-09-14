@@ -37,3 +37,28 @@ func TestNIP11WithPrivacy_AdvertisesNIP29(t *testing.T) {
 	}
 	t.Fatalf("supported_nips = %v, want 29", supported)
 }
+
+func TestNIP11WithPrivacy_AdvertisesNIP70(t *testing.T) {
+	t.Parallel()
+
+	doc, ok := NIP11WithPrivacy(&config.Config{
+		NIP70: config.NIP70Config{Enabled: true},
+		RelayInformation: config.RelayInformationDocument{
+			SupportedNIPs: []int{1, 11},
+		},
+	}).(map[string]any)
+	if !ok {
+		t.Fatal("expected augmented NIP-11 document")
+	}
+
+	supported, ok := doc["supported_nips"].([]any)
+	if !ok {
+		t.Fatalf("supported_nips type = %T", doc["supported_nips"])
+	}
+	for _, nip := range supported {
+		if isNIPNumber(nip, 70) {
+			return
+		}
+	}
+	t.Fatalf("supported_nips = %v, want 70", supported)
+}

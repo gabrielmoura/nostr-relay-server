@@ -1,0 +1,83 @@
+@import "tailwindcss" source(none);
+@source "./todash.html";
+
+@theme {
+  --font-sans: "Inter", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", "Fira Code", ui-monospace, monospace;
+  --color-space-950: #050816;
+  --color-space-900: #090d1d;
+  --color-space-800: #10172a;
+  --color-electric: #8b5cf6;
+  --color-cyan-glow: #22d3ee;
+  --color-emerald-glow: #34d399;
+}
+
+@keyframes pulse-soft {
+  0%, 100% { opacity: .45; transform: scale(1); }
+  50% { opacity: .8; transform: scale(1.06); }
+}
+
+@keyframes grid-drift {
+  from { background-position: 0 0; }
+  to { background-position: 48px 48px; }
+}
+
+@keyframes scan {
+  from { transform: translateY(-100%); }
+  to { transform: translateY(500%); }
+}
+
+.bg-grid {
+  background-image: linear-gradient(rgba(139, 92, 246, .08) 1px, transparent 1px), linear-gradient(90deg, rgba(34, 211, 238, .06) 1px, transparent 1px);
+  background-size: 48px 48px;
+  animation: grid-drift 22s linear infinite;
+}
+
+.glass {
+  background: linear-gradient(135deg, rgba(255,255,255,.075), rgba(255,255,255,.025));
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+.glass-strong {
+  background: linear-gradient(135deg, rgba(16, 23, 42, .92), rgba(5, 8, 22, .78));
+  backdrop-filter: blur(22px);
+  -webkit-backdrop-filter: blur(22px);
+}
+
+.text-gradient {
+  background: linear-gradient(90deg, #f8fafc 0%, #a5f3fc 38%, #c4b5fd 70%, #f8fafc 100%);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.scan-line {
+  background: linear-gradient(to bottom, transparent, rgba(34, 211, 238, .06), transparent);
+  animation: scan 7s linear infinite;
+}
+
+.glow-border { position: relative; }
+
+.glow-border::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  z-index: -1;
+  opacity: .55;
+  background: linear-gradient(120deg, rgba(34, 211, 238, .55), rgba(139, 92, 246, .4), rgba(52, 211, 153, .28));
+  filter: blur(.2px);
+}
+
+.orb {
+  filter: blur(90px);
+  animation: pulse-soft 8s ease-in-out infinite;
+}
+
+.terminal-line::before {
+  content: "›";
+  color: #34d399;
+  margin-right: .65rem;
+}

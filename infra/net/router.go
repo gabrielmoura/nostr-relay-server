@@ -5,8 +5,8 @@ import (
 	"path/filepath"
 	"strconv"
 
-	"github.com/gabrielmoura/nostr-relay-server/graph"
 	"github.com/gabrielmoura/nostr-relay-server/config"
+	"github.com/gabrielmoura/nostr-relay-server/graph"
 	httphandler "github.com/gabrielmoura/nostr-relay-server/infra/handler/http"
 	httpblossom "github.com/gabrielmoura/nostr-relay-server/infra/handler/http/blossom"
 	wshandler "github.com/gabrielmoura/nostr-relay-server/infra/handler/ws"
@@ -82,6 +82,8 @@ func (r *RouterFactory) setupLifecycleHooks(app *fiber.App, serverName string) {
 // setupInternalRoutes configura rotas administrativas e métricas
 func (r *RouterFactory) setupInternalRoutes(app *fiber.App) {
 	p := fasthttpadaptor.NewFastHTTPHandler(promhttp.Handler())
+	app.Get("/", httphandler.AdminUILanding())
+	app.Get("/todash.css", httphandler.AdminUILandingCSS())
 
 	app.Get("/metrics", func(c *fiber.Ctx) error {
 		p(c.Context())

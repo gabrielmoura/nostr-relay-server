@@ -80,7 +80,7 @@ func NostrJSON(cfg *config.Config) fiber.Handler {
 func NIP11WithPrivacy(cfg *config.Config) any {
 	doc := cfg.RelayInformation.PublicNIP11()
 	addrs := privacy.GetActiveAddresses()
-	if len(addrs) == 0 && !cfg.NIP29.Enabled {
+	if len(addrs) == 0 && !cfg.NIP29.Enabled && !cfg.NIP70.Enabled {
 		return doc
 	}
 	raw, err := json.Marshal(doc)
@@ -97,22 +97,39 @@ func NIP11WithPrivacy(cfg *config.Config) any {
 	if cfg.NIP29.Enabled {
 		m["nip29"] = map[string]any{"subgroups": true}
 		supported, _ := m["supported_nips"].([]any)
+		hasNIP29 := false
 		for _, nip := range supported {
 			if isNIP29Number(nip) {
+				hasNIP29 = true
+				break
+			}
+		}
+		if !hasNIP29 {
+			m["supported_nips"] = append(supported, 29)
+		}
+	}
+	if cfg.NIP70.Enabled {
+		supported, _ := m["supported_nips"].([]any)
+		for _, nip := range supported {
+			if isNIPNumber(nip, 70) {
 				return m
 			}
 		}
-		m["supported_nips"] = append(supported, 29)
+		m["supported_nips"] = append(supported, 70)
 	}
 	return m
 }
 
 func isNIP29Number(value any) bool {
+	return isNIPNumber(value, 29)
+}
+
+func isNIPNumber(value any, nip int) bool {
 	switch value := value.(type) {
 	case int:
-		return value == 29
+		return value == nip
 	case float64:
-		return value == 29
+		return value == float64(nip)
 	default:
 		return false
 	}

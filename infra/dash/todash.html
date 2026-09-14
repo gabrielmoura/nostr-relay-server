@@ -1,0 +1,601 @@
+<!doctype html>
+<html lang="pt-BR" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#050816" />
+  <meta
+    name="description"
+    data-i18n-content="meta.description"
+    content="NRServer — Relay Nostr de alta performance, observável e preparado para produção."
+  />
+
+  <title data-i18n="meta.title">NRServer — Nostr Relay</title>
+
+  <link rel="stylesheet" href="/todash.css" />
+</head>
+
+<body class="min-h-screen overflow-x-hidden bg-space-950 font-sans text-slate-100 antialiased selection:bg-violet-500/30 selection:text-white">
+  <!-- Background -->
+  <div aria-hidden="true" class="pointer-events-none fixed inset-0 -z-30 bg-space-950"></div>
+  <div aria-hidden="true" class="pointer-events-none fixed inset-0 -z-20 bg-grid opacity-70"></div>
+
+  <div
+    aria-hidden="true"
+    class="orb pointer-events-none fixed -left-40 -top-40 -z-10 h-[34rem] w-[34rem] rounded-full bg-violet-600/20"
+  ></div>
+  <div
+    aria-hidden="true"
+    class="orb pointer-events-none fixed -right-52 top-40 -z-10 h-[38rem] w-[38rem] rounded-full bg-cyan-400/15 [animation-delay:-3s]"
+  ></div>
+  <div
+    aria-hidden="true"
+    class="pointer-events-none fixed inset-x-0 top-0 -z-10 h-[45rem] bg-[radial-gradient(circle_at_top,rgba(124,58,237,.15),transparent_55%)]"
+  ></div>
+
+  <div aria-hidden="true" class="scan-line pointer-events-none fixed inset-x-0 top-0 -z-10 h-40 opacity-50"></div>
+
+  <!-- Header -->
+  <header class="sticky top-0 z-50 border-b border-white/5 bg-space-950/70 backdrop-blur-xl">
+    <div class="mx-auto flex max-w-7xl items-center justify-between px-5 py-4 sm:px-8 lg:px-10">
+      <a href="/" class="group flex items-center gap-3">
+        <div class="relative grid size-10 place-items-center rounded-xl border border-violet-400/25 bg-violet-500/10 shadow-[0_0_30px_rgba(139,92,246,.12)]">
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            class="size-5 text-violet-300 transition-transform duration-300 group-hover:scale-110"
+            aria-hidden="true"
+          >
+            <path
+              d="M13.8 2.5 5.6 13h5.7l-1.1 8.5L18.4 11h-5.7l1.1-8.5Z"
+              stroke="currentColor"
+              stroke-width="1.7"
+              stroke-linejoin="round"
+            />
+          </svg>
+          <span class="absolute -right-1 -top-1 size-2.5 rounded-full border-2 border-space-950 bg-emerald-400 shadow-[0_0_12px_rgba(52,211,153,.9)]"></span>
+        </div>
+
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="font-semibold tracking-tight text-white">NRServer</span>
+            <span class="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 font-mono text-[10px] uppercase tracking-[.18em] text-slate-400">
+              Nostr Relay
+            </span>
+          </div>
+          <p class="hidden text-xs text-slate-500 sm:block" data-i18n="header.tagline">Infraestrutura descentralizada, simples de operar.</p>
+        </div>
+      </a>
+
+      <nav class="flex items-center gap-2">
+        <button
+          id="language-toggle"
+          type="button"
+          class="rounded-xl px-3 py-2 text-sm font-medium text-slate-400 transition hover:bg-white/5 hover:text-white"
+          aria-label="Switch language"
+        >
+          EN
+        </button>
+        <a
+          href="/metrics"
+          class="hidden rounded-xl px-4 py-2 text-sm font-medium text-slate-400 transition hover:bg-white/5 hover:text-white sm:inline-flex"
+        >
+          <span data-i18n="header.metrics">Métricas</span>
+        </a>
+
+        <a
+          href="/panel"
+          class="inline-flex items-center gap-2 rounded-xl border border-violet-400/30 bg-violet-500/10 px-4 py-2 text-sm font-medium text-violet-100 transition hover:border-violet-300/45 hover:bg-violet-500/20"
+        >
+          <span data-i18n="header.panel">Painel</span>
+          <svg viewBox="0 0 20 20" fill="none" class="size-4" aria-hidden="true">
+            <path d="m7.5 5 5 5-5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+        </a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <!-- Hero -->
+    <section class="relative">
+      <div class="mx-auto grid max-w-7xl items-center gap-16 px-5 pb-20 pt-20 sm:px-8 lg:grid-cols-[1.08fr_.92fr] lg:px-10 lg:pb-28 lg:pt-28">
+        <div>
+          <div class="mb-6 inline-flex items-center gap-2 rounded-full border border-emerald-400/15 bg-emerald-400/[.06] px-3 py-1.5">
+            <span class="relative flex size-2">
+              <span class="absolute inline-flex size-full animate-ping rounded-full bg-emerald-400 opacity-50"></span>
+              <span class="relative inline-flex size-2 rounded-full bg-emerald-400"></span>
+            </span>
+            <span class="font-mono text-xs tracking-wide text-emerald-300" data-i18n="hero.status">relay interface disponível</span>
+          </div>
+
+          <h1 class="max-w-4xl text-5xl font-semibold leading-[1.02] tracking-[-.045em] text-white sm:text-6xl lg:text-7xl">
+            <span data-i18n="hero.titlePrefix">Seu ponto de acesso à</span>
+            <span class="text-gradient" data-i18n="hero.titleHighlight">rede Nostr.</span>
+          </h1>
+
+          <p class="mt-7 max-w-2xl text-lg leading-8 text-slate-400 sm:text-xl">
+            <span data-i18n="hero.description">O NRServer é um relay Nostr construído em Go para alta performance, observabilidade e operação previsível. Esta página é a central de acesso rápido aos serviços operacionais do servidor.</span>
+          </p>
+
+          <div class="mt-9 flex flex-col gap-3 sm:flex-row">
+            <a
+              href="/panel"
+              class="group inline-flex items-center justify-center gap-3 rounded-2xl bg-white px-6 py-3.5 text-sm font-semibold text-space-950 shadow-[0_12px_40px_rgba(255,255,255,.08)] transition duration-300 hover:-translate-y-0.5 hover:bg-cyan-50 hover:shadow-[0_18px_50px_rgba(34,211,238,.12)]"
+            >
+              <svg viewBox="0 0 24 24" fill="none" class="size-5 text-violet-600" aria-hidden="true">
+                <rect x="3.5" y="3.5" width="17" height="17" rx="3.5" stroke="currentColor" stroke-width="1.5" />
+                <path d="M7 16v-3m5 3V8m5 8v-5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" />
+              </svg>
+              <span data-i18n="hero.openPanel">Abrir dashboard administrativo</span>
+              <svg viewBox="0 0 20 20" fill="none" class="size-4 transition group-hover:translate-x-0.5" aria-hidden="true">
+                <path d="M4 10h12m-4-4 4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            </a>
+
+            <a
+              href="/metrics"
+              class="group inline-flex items-center justify-center gap-3 rounded-2xl border border-cyan-300/20 bg-cyan-300/[.055] px-6 py-3.5 text-sm font-semibold text-cyan-100 transition duration-300 hover:-translate-y-0.5 hover:border-cyan-300/35 hover:bg-cyan-300/[.09]"
+            >
+              <svg viewBox="0 0 24 24" fill="none" class="size-5 text-cyan-300" aria-hidden="true">
+                <path d="M4 18V9m5 9V5m5 13v-7m5 7V7" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" />
+              </svg>
+              <span data-i18n="hero.viewMetrics">Ver métricas Prometheus</span>
+            </a>
+          </div>
+
+          <div class="mt-8 flex flex-wrap gap-x-6 gap-y-3 text-sm text-slate-500">
+            <span class="inline-flex items-center gap-2">
+              <svg viewBox="0 0 20 20" fill="none" class="size-4 text-emerald-400" aria-hidden="true">
+                <path d="m5 10 3 3 7-7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+              Go
+            </span>
+            <span class="inline-flex items-center gap-2">
+              <svg viewBox="0 0 20 20" fill="none" class="size-4 text-emerald-400" aria-hidden="true">
+                <path d="m5 10 3 3 7-7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+              PostgreSQL
+            </span>
+            <span class="inline-flex items-center gap-2">
+              <svg viewBox="0 0 20 20" fill="none" class="size-4 text-emerald-400" aria-hidden="true">
+                <path d="m5 10 3 3 7-7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+              Prometheus
+            </span>
+            <span class="inline-flex items-center gap-2">
+              <svg viewBox="0 0 20 20" fill="none" class="size-4 text-emerald-400" aria-hidden="true">
+                <path d="m5 10 3 3 7-7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+              <span data-i18n="hero.optionalRedis">Redis opcional</span>
+            </span>
+          </div>
+        </div>
+
+        <!-- Visual terminal -->
+        <div class="relative mx-auto w-full max-w-xl lg:mx-0">
+          <div aria-hidden="true" class="absolute -inset-8 -z-10 rounded-full bg-violet-500/10 blur-3xl"></div>
+
+          <div class="glow-border overflow-hidden rounded-[1.7rem]">
+            <div class="glass-strong rounded-[1.65rem] border border-white/10 shadow-2xl shadow-black/30">
+              <div class="flex items-center justify-between border-b border-white/[.07] px-5 py-4">
+                <div class="flex gap-2">
+                  <span class="size-2.5 rounded-full bg-rose-400/70"></span>
+                  <span class="size-2.5 rounded-full bg-amber-300/70"></span>
+                  <span class="size-2.5 rounded-full bg-emerald-400/70"></span>
+                </div>
+                <span class="font-mono text-[11px] uppercase tracking-[.22em] text-slate-500">NRServer / runtime</span>
+                <span class="size-8"></span>
+              </div>
+
+              <div class="p-5 sm:p-7">
+                <div class="rounded-2xl border border-white/[.06] bg-black/20 p-5 font-mono text-[13px] leading-7 text-slate-400">
+                  <p class="terminal-line" data-i18n="terminal.relay"><span class="text-slate-200">relay</span> websocket ready</p>
+                  <p class="terminal-line" data-i18n="terminal.storage"><span class="text-slate-200">storage</span> postgresql connected</p>
+                  <p class="terminal-line" data-i18n="terminal.metrics"><span class="text-slate-200">metrics</span> prometheus endpoint active</p>
+                  <p class="terminal-line" data-i18n="terminal.admin"><span class="text-slate-200">admin</span> panel available</p>
+                  <p class="terminal-line" data-i18n="terminal.sync"><span class="text-slate-200">sync</span> negentropy enabled</p>
+
+                  <div class="my-4 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent"></div>
+
+                  <div class="flex items-center justify-between gap-4">
+                    <span class="text-slate-500" data-i18n="terminal.status">status</span>
+                    <span class="inline-flex items-center gap-2 text-emerald-300">
+                      <span class="size-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,.9)]"></span>
+                      <span data-i18n="terminal.operational">operational</span>
+                    </span>
+                  </div>
+                </div>
+
+                <div class="mt-5 grid grid-cols-2 gap-3">
+                  <a
+                    href="/panel"
+                    class="rounded-2xl border border-violet-400/15 bg-violet-400/[.055] p-4 transition hover:border-violet-300/25 hover:bg-violet-400/[.09]"
+                  >
+                    <span class="mb-5 grid size-9 place-items-center rounded-xl border border-violet-300/15 bg-violet-400/10 text-violet-300">
+                      <svg viewBox="0 0 24 24" fill="none" class="size-4" aria-hidden="true">
+                        <path d="M4 4h7v7H4V4Zm9 0h7v4h-7V4ZM4 13h7v7H4v-7Zm9-3h7v10h-7V10Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" />
+                      </svg>
+                    </span>
+                    <strong class="block text-sm font-medium text-slate-200" data-i18n="cards.panelTitle">Admin Panel</strong>
+                    <span class="mt-1 block text-xs leading-5 text-slate-500" data-i18n="cards.panelDescription">Moderação e operação</span>
+                  </a>
+
+                  <a
+                    href="/metrics"
+                    class="rounded-2xl border border-cyan-400/15 bg-cyan-400/[.045] p-4 transition hover:border-cyan-300/25 hover:bg-cyan-400/[.08]"
+                  >
+                    <span class="mb-5 grid size-9 place-items-center rounded-xl border border-cyan-300/15 bg-cyan-400/10 text-cyan-300">
+                      <svg viewBox="0 0 24 24" fill="none" class="size-4" aria-hidden="true">
+                        <path d="M4 18V9m5 9V5m5 13v-7m5 7V7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
+                      </svg>
+                    </span>
+                    <strong class="block text-sm font-medium text-slate-200">Prometheus</strong>
+                    <span class="mt-1 block text-xs leading-5 text-slate-500" data-i18n="cards.metricsDescription">Telemetria do relay</span>
+                  </a>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- What is it -->
+    <section class="border-y border-white/[.055] bg-white/[.012]">
+      <div class="mx-auto max-w-7xl px-5 py-20 sm:px-8 lg:px-10">
+        <div class="grid gap-10 lg:grid-cols-[.75fr_1.25fr] lg:gap-20">
+          <div>
+            <span class="font-mono text-xs uppercase tracking-[.25em] text-violet-300" data-i18n="overview.eyebrow">Visão geral</span>
+            <h2 class="mt-4 text-3xl font-semibold tracking-tight text-white sm:text-4xl">
+              <span data-i18n="overview.title">O que é este servidor?</span>
+            </h2>
+            <p class="mt-5 max-w-xl leading-7 text-slate-400">
+              <span data-i18n="overview.description">Um relay funciona como infraestrutura de transporte para clientes Nostr: recebe eventos, aplica políticas, consulta o armazenamento e distribui dados para aplicações conectadas.</span>
+            </p>
+          </div>
+
+          <div class="grid gap-4 sm:grid-cols-2">
+            <article class="glass rounded-3xl border border-white/[.07] p-6 transition duration-300 hover:-translate-y-1 hover:border-violet-400/20">
+              <div class="mb-6 grid size-11 place-items-center rounded-2xl border border-violet-300/15 bg-violet-400/[.08] text-violet-300">
+                <svg viewBox="0 0 24 24" fill="none" class="size-5" aria-hidden="true">
+                  <path d="M5 8.5h14M5 15.5h14M8.5 5v14m7-14v14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                </svg>
+              </div>
+              <h3 class="text-base font-semibold text-slate-100" data-i18n="features.nostr.title">Nostr nativo</h3>
+              <p class="mt-2 text-sm leading-6 text-slate-500">
+                <span data-i18n="features.nostr.description">WebSocket, eventos Nostr e recursos avançados para operar um relay moderno.</span>
+              </p>
+            </article>
+
+            <article class="glass rounded-3xl border border-white/[.07] p-6 transition duration-300 hover:-translate-y-1 hover:border-cyan-400/20">
+              <div class="mb-6 grid size-11 place-items-center rounded-2xl border border-cyan-300/15 bg-cyan-400/[.08] text-cyan-300">
+                <svg viewBox="0 0 24 24" fill="none" class="size-5" aria-hidden="true">
+                  <path d="M4 17.5 9 12l3 3 7-8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </div>
+              <h3 class="text-base font-semibold text-slate-100" data-i18n="features.observability.title">Observabilidade</h3>
+              <p class="mt-2 text-sm leading-6 text-slate-500">
+                <span data-i18n="features.observability.description">Métricas Prometheus ajudam a acompanhar conexões, tráfego e comportamento operacional.</span>
+              </p>
+            </article>
+
+            <article class="glass rounded-3xl border border-white/[.07] p-6 transition duration-300 hover:-translate-y-1 hover:border-emerald-400/20">
+              <div class="mb-6 grid size-11 place-items-center rounded-2xl border border-emerald-300/15 bg-emerald-400/[.08] text-emerald-300">
+                <svg viewBox="0 0 24 24" fill="none" class="size-5" aria-hidden="true">
+                  <ellipse cx="12" cy="6" rx="7" ry="3" stroke="currentColor" stroke-width="1.5"/>
+                  <path d="M5 6v6c0 1.7 3.1 3 7 3s7-1.3 7-3V6m-14 6v6c0 1.7 3.1 3 7 3s7-1.3 7-3v-6" stroke="currentColor" stroke-width="1.5"/>
+                </svg>
+              </div>
+              <h3 class="text-base font-semibold text-slate-100" data-i18n="features.storage.title">Persistência robusta</h3>
+              <p class="mt-2 text-sm leading-6 text-slate-500">
+                <span data-i18n="features.storage.description">PostgreSQL como armazenamento principal, com integração opcional ao Redis.</span>
+              </p>
+            </article>
+
+            <article class="glass rounded-3xl border border-white/[.07] p-6 transition duration-300 hover:-translate-y-1 hover:border-fuchsia-400/20">
+              <div class="mb-6 grid size-11 place-items-center rounded-2xl border border-fuchsia-300/15 bg-fuchsia-400/[.08] text-fuchsia-300">
+                <svg viewBox="0 0 24 24" fill="none" class="size-5" aria-hidden="true">
+                  <path d="M12 3 5 6v5c0 4.5 2.8 8.2 7 10 4.2-1.8 7-5.5 7-10V6l-7-3Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+                  <path d="m9 12 2 2 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </div>
+              <h3 class="text-base font-semibold text-slate-100" data-i18n="features.operations.title">Operação centralizada</h3>
+              <p class="mt-2 text-sm leading-6 text-slate-500">
+                <span data-i18n="features.operations.description">O painel administrativo reúne controles de moderação, sincronização e gestão do relay.</span>
+              </p>
+            </article>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Access cards -->
+    <section class="mx-auto max-w-7xl px-5 py-24 sm:px-8 lg:px-10">
+      <div class="mx-auto max-w-3xl text-center">
+        <span class="font-mono text-xs uppercase tracking-[.25em] text-cyan-300" data-i18n="access.eyebrow">Acesso operacional</span>
+        <h2 class="mt-4 text-3xl font-semibold tracking-tight text-white sm:text-4xl">
+          <span data-i18n="access.title">Escolha onde deseja entrar</span>
+        </h2>
+        <p class="mx-auto mt-5 max-w-2xl leading-7 text-slate-400">
+          <span data-i18n="access.description">Para uso administrativo, abra o dashboard. Para integração com Prometheus ou inspeção direta da telemetria, use o endpoint de métricas.</span>
+        </p>
+      </div>
+
+      <div class="mx-auto mt-12 grid max-w-5xl gap-5 md:grid-cols-2">
+        <a
+          href="/panel"
+          class="group relative overflow-hidden rounded-[2rem] border border-violet-400/20 bg-violet-500/[.055] p-7 transition duration-300 hover:-translate-y-1 hover:border-violet-300/35 hover:bg-violet-500/[.085] sm:p-8"
+        >
+          <div aria-hidden="true" class="absolute -right-20 -top-20 size-48 rounded-full bg-violet-500/10 blur-3xl transition group-hover:bg-violet-500/20"></div>
+
+          <div class="relative">
+            <div class="flex items-start justify-between gap-4">
+              <span class="grid size-13 place-items-center rounded-2xl border border-violet-300/20 bg-violet-400/10 text-violet-200">
+                <svg viewBox="0 0 24 24" fill="none" class="size-6" aria-hidden="true">
+                  <rect x="3.5" y="3.5" width="17" height="17" rx="3" stroke="currentColor" stroke-width="1.5"/>
+                  <path d="M8 15v-3m4 3V8m4 7v-5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+                </svg>
+              </span>
+
+              <span class="grid size-10 place-items-center rounded-full border border-white/10 bg-white/5 text-slate-400 transition group-hover:translate-x-1 group-hover:text-white">
+                <svg viewBox="0 0 20 20" fill="none" class="size-4" aria-hidden="true">
+                  <path d="M4 10h12m-4-4 4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </span>
+            </div>
+
+            <p class="mt-10 font-mono text-xs uppercase tracking-[.2em] text-violet-300">/panel</p>
+            <h3 class="mt-2 text-2xl font-semibold text-white" data-i18n="access.panelTitle">Dashboard administrativo</h3>
+            <p class="mt-4 max-w-md text-sm leading-7 text-slate-400">
+              <span data-i18n="access.panelDescription">Interface visual para acompanhar e administrar o relay, acessar recursos operacionais e executar tarefas de manutenção com mais contexto.</span>
+            </p>
+
+            <div class="mt-7 flex flex-wrap gap-2">
+              <span class="rounded-full border border-white/[.07] bg-white/[.035] px-3 py-1 text-xs text-slate-400">Admin</span>
+              <span class="rounded-full border border-white/[.07] bg-white/[.035] px-3 py-1 text-xs text-slate-400" data-i18n="access.moderation">Moderação</span>
+              <span class="rounded-full border border-white/[.07] bg-white/[.035] px-3 py-1 text-xs text-slate-400">Sync</span>
+              <span class="rounded-full border border-white/[.07] bg-white/[.035] px-3 py-1 text-xs text-slate-400">NIP-29 / WoT</span>
+            </div>
+          </div>
+        </a>
+
+        <a
+          href="/metrics"
+          class="group relative overflow-hidden rounded-[2rem] border border-cyan-400/20 bg-cyan-400/[.045] p-7 transition duration-300 hover:-translate-y-1 hover:border-cyan-300/35 hover:bg-cyan-400/[.075] sm:p-8"
+        >
+          <div aria-hidden="true" class="absolute -right-20 -top-20 size-48 rounded-full bg-cyan-400/10 blur-3xl transition group-hover:bg-cyan-400/20"></div>
+
+          <div class="relative">
+            <div class="flex items-start justify-between gap-4">
+              <span class="grid size-13 place-items-center rounded-2xl border border-cyan-300/20 bg-cyan-400/10 text-cyan-200">
+                <svg viewBox="0 0 24 24" fill="none" class="size-6" aria-hidden="true">
+                  <path d="M4 18V9m5 9V5m5 13v-7m5 7V7" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+                </svg>
+              </span>
+
+              <span class="grid size-10 place-items-center rounded-full border border-white/10 bg-white/5 text-slate-400 transition group-hover:translate-x-1 group-hover:text-white">
+                <svg viewBox="0 0 20 20" fill="none" class="size-4" aria-hidden="true">
+                  <path d="M4 10h12m-4-4 4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </span>
+            </div>
+
+            <p class="mt-10 font-mono text-xs uppercase tracking-[.2em] text-cyan-300">/metrics</p>
+            <h3 class="mt-2 text-2xl font-semibold text-white" data-i18n="access.metricsTitle">Métricas Prometheus</h3>
+            <p class="mt-4 max-w-md text-sm leading-7 text-slate-400">
+              <span data-i18n="access.metricsDescription">Endpoint técnico em formato Prometheus para coleta de métricas, dashboards externos, alertas e diagnóstico de comportamento do servidor.</span>
+            </p>
+
+            <div class="mt-7 flex flex-wrap gap-2">
+              <span class="rounded-full border border-white/[.07] bg-white/[.035] px-3 py-1 text-xs text-slate-400">Prometheus</span>
+              <span class="rounded-full border border-white/[.07] bg-white/[.035] px-3 py-1 text-xs text-slate-400">Grafana</span>
+              <span class="rounded-full border border-white/[.07] bg-white/[.035] px-3 py-1 text-xs text-slate-400" data-i18n="access.observability">Observabilidade</span>
+            </div>
+          </div>
+        </a>
+      </div>
+    </section>
+
+    <!-- Friendly explanation -->
+    <section class="mx-auto max-w-7xl px-5 pb-24 sm:px-8 lg:px-10">
+      <div class="overflow-hidden rounded-[2rem] border border-white/[.07] bg-gradient-to-br from-white/[.045] to-white/[.015]">
+        <div class="grid gap-10 p-7 sm:p-10 lg:grid-cols-[1fr_.85fr] lg:p-12">
+          <div>
+            <span class="font-mono text-xs uppercase tracking-[.2em] text-emerald-300" data-i18n="visitors.eyebrow">Para visitantes</span>
+            <h2 class="mt-4 text-2xl font-semibold tracking-tight text-white sm:text-3xl">
+              <span data-i18n="visitors.title">Não precisa administrar o relay?</span>
+            </h2>
+            <p class="mt-4 max-w-2xl leading-7 text-slate-400">
+              <span data-i18n="visitors.description">Se você chegou aqui através de um cliente Nostr, provavelmente não precisa abrir nenhuma das áreas administrativas. Seu aplicativo se conecta ao relay através do protocolo Nostr e cuida dessa comunicação automaticamente.</span>
+            </p>
+          </div>
+
+          <div class="rounded-3xl border border-emerald-400/15 bg-emerald-400/[.045] p-6">
+            <div class="flex items-center gap-3">
+              <span class="grid size-10 place-items-center rounded-xl border border-emerald-300/15 bg-emerald-400/10 text-emerald-300">
+                <svg viewBox="0 0 24 24" fill="none" class="size-5" aria-hidden="true">
+                  <path d="M8 12.5 10.5 15 16 9.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+                  <circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="1.5"/>
+                </svg>
+              </span>
+              <div>
+                <strong class="block text-sm font-semibold text-slate-100" data-i18n="visitors.readyTitle">Tudo certo.</strong>
+                <span class="text-xs text-slate-500" data-i18n="visitors.readyDescription">O endpoint principal está respondendo.</span>
+              </div>
+            </div>
+
+            <p class="mt-5 font-mono text-xs leading-6 text-slate-500">
+              <span data-i18n="visitors.tip">Para operadores, use os atalhos acima. Para clientes Nostr, configure este host como relay.</span>
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="border-t border-white/[.055]">
+    <div class="mx-auto flex max-w-7xl flex-col gap-5 px-5 py-8 text-sm text-slate-500 sm:px-8 md:flex-row md:items-center md:justify-between lg:px-10">
+      <div class="flex items-center gap-3">
+        <span class="grid size-8 place-items-center rounded-lg border border-violet-400/15 bg-violet-500/[.06] text-violet-300">
+          <svg viewBox="0 0 24 24" fill="none" class="size-4" aria-hidden="true">
+            <path d="M13.8 2.5 5.6 13h5.7l-1.1 8.5L18.4 11h-5.7l1.1-8.5Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+          </svg>
+        </span>
+        <span>NRServer · Nostr Relay Server</span>
+      </div>
+
+      <div class="flex flex-wrap items-center gap-x-5 gap-y-2">
+        <a href="/metrics" class="transition hover:text-cyan-300">Prometheus</a>
+        <a href="/panel" class="transition hover:text-violet-300" data-i18n="footer.panel">Admin Panel</a>
+        <a
+          href="https://github.com/gabrielmoura/nostr-relay-server"
+          target="_blank"
+          rel="noreferrer"
+          class="transition hover:text-white"
+        >
+          GitHub
+        </a>
+      </div>
+    </div>
+  </footer>
+
+  <script id="translations" type="application/json">
+    {
+      "pt": {
+        "meta.title": "NRServer — Relay Nostr",
+        "meta.description": "NRServer — Relay Nostr de alta performance, observável e preparado para produção.",
+        "header.tagline": "Infraestrutura descentralizada, simples de operar.",
+        "header.metrics": "Métricas",
+        "header.panel": "Painel",
+        "hero.status": "interface do relay disponível",
+        "hero.titlePrefix": "Seu ponto de acesso à",
+        "hero.titleHighlight": "rede Nostr.",
+        "hero.description": "O NRServer é um relay Nostr construído em Go para alta performance, observabilidade e operação previsível. Esta página é a central de acesso rápido aos serviços operacionais do servidor.",
+        "hero.openPanel": "Abrir dashboard administrativo",
+        "hero.viewMetrics": "Ver métricas Prometheus",
+        "hero.optionalRedis": "Redis opcional",
+        "terminal.relay": "relay websocket pronto",
+        "terminal.storage": "armazenamento postgresql conectado",
+        "terminal.metrics": "métricas endpoint prometheus ativo",
+        "terminal.admin": "admin painel disponível",
+        "terminal.sync": "sync negentropy habilitado",
+        "terminal.status": "status",
+        "terminal.operational": "operacional",
+        "cards.panelTitle": "Painel administrativo",
+        "cards.panelDescription": "Moderação e operação",
+        "cards.metricsDescription": "Telemetria do relay",
+        "overview.eyebrow": "Visão geral",
+        "overview.title": "O que é este servidor?",
+        "overview.description": "Um relay funciona como infraestrutura de transporte para clientes Nostr: recebe eventos, aplica políticas, consulta o armazenamento e distribui dados para aplicações conectadas.",
+        "features.nostr.title": "Nostr nativo",
+        "features.nostr.description": "WebSocket, eventos Nostr e recursos avançados para operar um relay moderno.",
+        "features.observability.title": "Observabilidade",
+        "features.observability.description": "Métricas Prometheus ajudam a acompanhar conexões, tráfego e comportamento operacional.",
+        "features.storage.title": "Persistência robusta",
+        "features.storage.description": "PostgreSQL como armazenamento principal, com integração opcional ao Redis.",
+        "features.operations.title": "Operação centralizada",
+        "features.operations.description": "O painel administrativo reúne controles de moderação, sincronização e gestão do relay.",
+        "access.eyebrow": "Acesso operacional",
+        "access.title": "Escolha onde deseja entrar",
+        "access.description": "Para uso administrativo, abra o dashboard. Para integração com Prometheus ou inspeção direta da telemetria, use o endpoint de métricas.",
+        "access.panelTitle": "Dashboard administrativo",
+        "access.panelDescription": "Interface visual para acompanhar e administrar o relay, acessar recursos operacionais e executar tarefas de manutenção com mais contexto.",
+        "access.moderation": "Moderação",
+        "access.metricsTitle": "Métricas Prometheus",
+        "access.metricsDescription": "Endpoint técnico em formato Prometheus para coleta de métricas, dashboards externos, alertas e diagnóstico de comportamento do servidor.",
+        "access.observability": "Observabilidade",
+        "visitors.eyebrow": "Para visitantes",
+        "visitors.title": "Não precisa administrar o relay?",
+        "visitors.description": "Se você chegou aqui através de um cliente Nostr, provavelmente não precisa abrir nenhuma das áreas administrativas. Seu aplicativo se conecta ao relay através do protocolo Nostr e cuida dessa comunicação automaticamente.",
+        "visitors.readyTitle": "Tudo certo.",
+        "visitors.readyDescription": "O endpoint principal está respondendo.",
+        "visitors.tip": "Para operadores, use os atalhos acima. Para clientes Nostr, configure este host como relay.",
+        "footer.panel": "Painel administrativo"
+      },
+      "en": {
+        "meta.title": "NRServer — Nostr Relay",
+        "meta.description": "NRServer — A high-performance, observable, production-ready Nostr relay.",
+        "header.tagline": "Decentralized infrastructure, simple to operate.",
+        "header.metrics": "Metrics",
+        "header.panel": "Panel",
+        "hero.status": "relay interface available",
+        "hero.titlePrefix": "Your gateway to the",
+        "hero.titleHighlight": "Nostr network.",
+        "hero.description": "NRServer is a Go-built Nostr relay for high performance, observability, and predictable operation. This page provides quick access to the server's operational services.",
+        "hero.openPanel": "Open admin dashboard",
+        "hero.viewMetrics": "View Prometheus metrics",
+        "hero.optionalRedis": "Optional Redis",
+        "terminal.relay": "relay websocket ready",
+        "terminal.storage": "storage postgresql connected",
+        "terminal.metrics": "metrics prometheus endpoint active",
+        "terminal.admin": "admin panel available",
+        "terminal.sync": "sync negentropy enabled",
+        "terminal.status": "status",
+        "terminal.operational": "operational",
+        "cards.panelTitle": "Admin Panel",
+        "cards.panelDescription": "Moderation and operations",
+        "cards.metricsDescription": "Relay telemetry",
+        "overview.eyebrow": "Overview",
+        "overview.title": "What is this server?",
+        "overview.description": "A relay is transport infrastructure for Nostr clients: it receives events, applies policies, queries storage, and distributes data to connected applications.",
+        "features.nostr.title": "Native Nostr",
+        "features.nostr.description": "WebSocket, Nostr events, and advanced capabilities for operating a modern relay.",
+        "features.observability.title": "Observability",
+        "features.observability.description": "Prometheus metrics help monitor connections, traffic, and operational behavior.",
+        "features.storage.title": "Reliable persistence",
+        "features.storage.description": "PostgreSQL as primary storage, with optional Redis integration.",
+        "features.operations.title": "Centralized operations",
+        "features.operations.description": "The admin panel brings together moderation, synchronization, and relay management controls.",
+        "access.eyebrow": "Operational access",
+        "access.title": "Choose where to go",
+        "access.description": "For administration, open the dashboard. For Prometheus integration or direct telemetry inspection, use the metrics endpoint.",
+        "access.panelTitle": "Admin dashboard",
+        "access.panelDescription": "A visual interface to monitor and manage the relay, access operational features, and run maintenance tasks with more context.",
+        "access.moderation": "Moderation",
+        "access.metricsTitle": "Prometheus metrics",
+        "access.metricsDescription": "A Prometheus-format technical endpoint for metric collection, external dashboards, alerts, and server behavior diagnostics.",
+        "access.observability": "Observability",
+        "visitors.eyebrow": "For visitors",
+        "visitors.title": "Do not need to administer the relay?",
+        "visitors.description": "If you arrived here through a Nostr client, you probably do not need to open any admin area. Your application connects to the relay through the Nostr protocol and handles that communication automatically.",
+        "visitors.readyTitle": "All set.",
+        "visitors.readyDescription": "The main endpoint is responding.",
+        "visitors.tip": "Operators can use the shortcuts above. Nostr clients should configure this host as a relay.",
+        "footer.panel": "Admin Panel"
+      }
+    }
+  </script>
+  <script>
+    (() => {
+      const translations = JSON.parse(document.getElementById("translations").textContent);
+      const toggle = document.getElementById("language-toggle");
+      const storedLanguage = localStorage.getItem("nrserver-language");
+      const browserLanguage = navigator.language.toLowerCase().startsWith("pt") ? "pt" : "en";
+      let language = translations[storedLanguage] ? storedLanguage : browserLanguage;
+
+      const applyLanguage = (nextLanguage) => {
+        const dictionary = translations[nextLanguage];
+        document.documentElement.lang = nextLanguage === "pt" ? "pt-BR" : "en";
+        document.querySelectorAll("[data-i18n]").forEach((element) => {
+          const value = dictionary[element.dataset.i18n];
+          if (value) element.textContent = value;
+        });
+        document.querySelectorAll("[data-i18n-content]").forEach((element) => {
+          const value = dictionary[element.dataset.i18nContent];
+          if (value) element.setAttribute("content", value);
+        });
+        toggle.textContent = nextLanguage === "pt" ? "EN" : "PT";
+        toggle.setAttribute("aria-label", nextLanguage === "pt" ? "Switch language to English" : "Mudar idioma para português");
+        localStorage.setItem("nrserver-language", nextLanguage);
+      };
+
+      applyLanguage(language);
+      toggle.addEventListener("click", () => {
+        language = language === "pt" ? "en" : "pt";
+        applyLanguage(language);
+      });
+    })();
+  </script>
+</body>
+</html>

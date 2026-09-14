@@ -33,6 +33,20 @@ func readEmbeddedAdminAsset(name string) ([]byte, error) {
 	return fs.ReadFile(uiFS, name)
 }
 
+func AdminUILanding() fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		c.Type("html", "utf-8")
+		return c.SendString(adminui.ToDashHTML())
+	}
+}
+
+func AdminUILandingCSS() fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		c.Set(fiber.HeaderContentType, "text/css; charset=utf-8")
+		return c.Send(adminui.ToDashCSS())
+	}
+}
+
 func AdminUIIndex() fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		content, err := readEmbeddedAdminAsset("index.html")

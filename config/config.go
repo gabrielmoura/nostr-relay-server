@@ -74,6 +74,11 @@ func applyLoadedConfig() error {
 	if cfg.NIP86Enabled() {
 		cfg.RelayInformation.SupportedNIPs = appendSupportedNIP(cfg.RelayInformation.SupportedNIPs, 86)
 	}
+	if cfg.NIP70.Enabled {
+		cfg.RelayInformation.SupportedNIPs = appendSupportedNIP(cfg.RelayInformation.SupportedNIPs, 70)
+	} else {
+		cfg.RelayInformation.SupportedNIPs = removeSupportedNIP(cfg.RelayInformation.SupportedNIPs, 70)
+	}
 	if cfg.Ws.AuthEnabled() {
 		cfg.RelayInformation.SupportedNIPs = appendSupportedNIP(cfg.RelayInformation.SupportedNIPs, 42)
 	}
@@ -90,6 +95,16 @@ func appendSupportedNIP(values []int, nip int) []int {
 		}
 	}
 	return append(values, nip)
+}
+
+func removeSupportedNIP(values []int, nip int) []int {
+	filtered := values[:0]
+	for _, value := range values {
+		if value != nip {
+			filtered = append(filtered, value)
+		}
+	}
+	return filtered
 }
 
 // PrintYamlConfig exibe a configuração atual no formato YAML.
@@ -116,6 +131,11 @@ func DefaultConfig() (*Config, error) {
 
 	if cfg.AppEnv == "" {
 		cfg.AppEnv = "production"
+	}
+	if cfg.NIP70.Enabled {
+		cfg.RelayInformation.SupportedNIPs = appendSupportedNIP(cfg.RelayInformation.SupportedNIPs, 70)
+	} else {
+		cfg.RelayInformation.SupportedNIPs = removeSupportedNIP(cfg.RelayInformation.SupportedNIPs, 70)
 	}
 
 	return cfg, nil

@@ -8,6 +8,7 @@ badger_data
 /export*
 *.jsonl
 *.yaml
+!infra/dash/pnpm-workspace.yaml
 ref
 conf.yaml
 nrserver32.exe
