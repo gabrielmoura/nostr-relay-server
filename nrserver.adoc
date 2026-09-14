@@ -349,7 +349,8 @@ Metodos suportados atualmente:
 
 === 7.2 Auxiliares operacionais
 
-* `seed` para migracao/bootstrap
+* `migrate` para evolucao versionada do schema
+* `seed` para bootstrap opcional
 * `proxy` para instanciar sub-processos lightweight que consultam upstreams (`Stream.Relays`)
 * `import` e `export` (jsonl/tsv)
 * `download` com filtro JSON e merge strategy
@@ -429,6 +430,7 @@ Compatibilidade:
 === 9.1 Comandos principais
 
 * `server`: sobe runtime do relay
+* `migrate`: aplica, reverte, consulta status e cria migrations PostgreSQL
 * `proxy`: edge-router focado em throughput extraindo/deduplicando de varios upstream relays
 * `seed`: migracao e bootstrap opcional
 * `cron`: scheduler/list/run-once de jobs
@@ -463,8 +465,9 @@ Tabelas chave (ver `docs/data-schema.md` para definicao completa):
 
 Migracao:
 
-* SQL embedado em `infra/db/schema.sql`
-* executado por `Queries.Migrate()`
+* migrations versionadas em `infra/db/migrations/`, embutidas no binario
+* aplicar explicitamente com `nrserver migrate up` antes de iniciar o servidor
+* o servidor recusa o boot se a versao aplicada estiver desatualizada ou dirty
 
 === 10.2 Redis
 
@@ -686,7 +689,7 @@ docker service logs -f nrserver_nrserver
 === 13.5 Rotina de manutencao
 
 * validar config antes de deploy (`conf validate`)
-* executar migracao em janela controlada (`seed`)
+* executar migracao em janela controlada (`migrate up`)
 * monitorar `/metrics` + logs
 * usar `cron --list` e `cron --run-once` para validacao de jobs
 

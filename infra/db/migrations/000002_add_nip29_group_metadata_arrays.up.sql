@@ -1,0 +1,3 @@
+ALTER TABLE public.nip29_groups
+    ADD COLUMN IF NOT EXISTS topics TEXT[] NOT NULL DEFAULT '{}',
+    ADD COLUMN IF NOT EXISTS geohashes TEXT[] NOT NULL DEFAULT '{}';

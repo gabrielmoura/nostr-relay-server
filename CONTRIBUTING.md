@@ -2,6 +2,23 @@ Crie uma Issue para Erros e caso seja um pedido de funcionalidade use o prefixo 
 Seja educado, descreva ao máximo o problema use logs se possível para ser possível repoduzir o problema e resolver o
 ocorrido.
 
+## Database migrations
+
+Schema changes live in `infra/db/migrations/` as paired `.up.sql` and
+`.down.sql` files. Do not edit an existing migration after it has been merged.
+Create a new pair with `nrserver migrate create <name>`, review both SQL files,
+then validate the complete roundtrip against a disposable PostgreSQL database:
+
+```bash
+nrserver migrate up
+nrserver migrate down --all
+nrserver migrate up
+```
+
+Before deploying a binary, run `nrserver migrate up` against its target
+database. The server validates the applied version at boot and refuses to start
+when the schema is outdated or dirty.
+
 
 *   [Documento de informações do relé](https://github.com/nostr-protocol/nips/blob/master/11.md)
 *   [Descrição básica do fluxo do protocolo](https://github.com/nostr-protocol/nips/blob/master/01.md)

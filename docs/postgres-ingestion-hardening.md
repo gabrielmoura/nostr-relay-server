@@ -60,14 +60,11 @@ Important observation: `go-nostr/nip42.ValidateAuthEvent` already normalizes tra
 
 The relay websocket endpoint is mounted on `/`, while the current config default still advertises `ws://localhost:<port>/relay`.
 
-#### 5. Embedded schema migration splitting is fragile
+#### 5. Schema migration execution must be versioned
 
-`infra/db/db.go` splits `schema.sql` on semicolons but only understands single quotes. It does not treat dollar-quoted PostgreSQL bodies (`$$ ... $$`) as atomic blocks.
-
-This is unsafe because `schema.sql` contains:
-
-- `CREATE FUNCTION ... $$ ... $$;`
-- `DO $$ ... $$;`
+Schema evolution is handled by paired, embedded `golang-migrate` files under
+`infra/db/migrations/`. The relay validates the applied migration version at
+startup and does not execute schema changes implicitly.
 
 ### Production Impact
 
@@ -76,7 +73,7 @@ This is unsafe because `schema.sql` contains:
 1. Inserts of large Nostr events can fail even when the table itself accepts the row.
 2. Ingestion workers can keep failing on the same schema condition until operators manually change indexes.
 3. NIP-42 incidents are difficult to diagnose due to missing structured reasons.
-4. Schema evolution through embedded SQL is not reliable enough for index maintenance.
+4. Schema evolution must remain versioned and independently deployable.
 
 #### Medium-term risks
 
@@ -193,8 +190,8 @@ Notes:
 - `docs/configuration.md`
 - `docs/decisions.md`
 - `docs/todo.md`
-- `infra/db/schema.sql`
-- `infra/db/db.go`
+- `infra/db/migrations/`
+- `infra/db/migration_runner.go`
 - `infra/db/helper/sql_builder.go`
 - `infra/db/helper/common_test.go`
 - `infra/db/event_write_query.go`

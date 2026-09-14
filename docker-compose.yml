@@ -6,12 +6,12 @@ services:
       dockerfile: Dockerfile
     container_name: nrserver-migrate
     restart: "no"
-    command: ["seed"]
+    command: ["migrate", "up"]
     depends_on:
       postgres:
         condition: service_healthy
     volumes:
-      - ./conf.yaml:/app/conf.yaml:ro
+      - ./deploy/conf.yaml:/app/conf.yaml:ro
     networks:
       - backend
 

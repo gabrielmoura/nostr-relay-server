@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/gabrielmoura/nostr-relay-server/config"
+	storedb "github.com/gabrielmoura/nostr-relay-server/infra/db"
 	"github.com/gabrielmoura/nostr-relay-server/infra/log"
 	"github.com/gabrielmoura/nostr-relay-server/internal/bootstrap"
 	"github.com/gabrielmoura/nostr-relay-server/internal/db"
@@ -28,18 +29,17 @@ func Run(options *CLIOptions) error {
 	log.Init()
 
 	mainCtx := context.Background()
-	if err := db.Init(mainCtx); err != nil {
-		return fmt.Errorf("init database: %w", err)
-	}
-
 	if !options.SkipMigrate {
 		migrateCtx, cancel := context.WithTimeout(mainCtx, options.Timeout)
 		defer cancel()
 
-		if err := db.DbQueries.Migrate(migrateCtx); err != nil {
+		if err := storedb.MigrateUp(migrateCtx, config.Cfg.DB.PostgresURI); err != nil {
 			return fmt.Errorf("migrate database: %w", err)
 		}
 		log.Logger.Info("database schema migration completed")
+	}
+	if err := db.Init(mainCtx); err != nil {
+		return fmt.Errorf("init database: %w", err)
 	}
 
 	if options.Bootstrap {

@@ -9,11 +9,14 @@ on:
   pull_request:
     branches: [ "main" ]
 
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set up pnpm
         uses: pnpm/action-setup@v4
@@ -28,7 +31,7 @@ jobs:
           cache-dependency-path: infra/dash/pnpm-lock.yaml
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v7
         with:
           go-version: '1.26.0'
 
@@ -38,3 +41,44 @@ jobs:
 
       - name: Build
         run: CGO_ENABLED=0 go build -v -a -installsuffix cgo -ldflags="-w -s" -o nrserver cmd/nrserver/main.go
+
+      - name: Run Go unit tests
+        run: go test -race -shuffle=on ./...
+
+  migrations:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18.4-alpine3.23
+        env:
+          POSTGRES_DB: nrserver_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        options: >-
+          --health-cmd "pg_isready -U postgres -d nrserver_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+        ports:
+          - 5432:5432
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version: '1.26.3'
+
+      - name: Run migration roundtrip
+        env:
+          TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/nrserver_test?sslmode=disable
+        run: |
+          sed 's#postgres://postgres:change-me@postgres:5432/nostr?sslmode=disable#'"$TEST_DATABASE_URL"'#' deploy/conf.yaml > conf.yaml
+          go run ./cmd/nrserver migrate up
+          go run ./cmd/nrserver migrate down --all
+          rm conf.yaml
+
+      - name: Replay NIP-29 fixture against migrated schema
+        env:
+          TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/nrserver_test?sslmode=disable
+        run: go test -tags=integration -count=1 ./internal/groups

@@ -45,7 +45,7 @@ systemctl enable nrserver
 ### 5. Preparar o banco
 
 ```bash
-/opt/nrs/nrserver/nrserver seed
+/opt/nrs/nrserver/nrserver migrate up
 ```
 
 ### 6. Subir o serviço

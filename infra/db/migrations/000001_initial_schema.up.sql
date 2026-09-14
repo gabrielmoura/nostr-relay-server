@@ -126,15 +126,17 @@ DO $$
         IF NOT EXISTS (
             SELECT 1 FROM pg_constraint WHERE conname = 'chk_event_pubkey_length'
         ) THEN
+            -- Bancos legados podem conter eventos históricos fora desta regra.
+            -- NOT VALID preserva esses registros e ainda valida toda escrita nova.
             ALTER TABLE public.event
-                ADD CONSTRAINT chk_event_pubkey_length CHECK (length(pubkey) = 64);
+                ADD CONSTRAINT chk_event_pubkey_length CHECK (length(pubkey) = 64) NOT VALID;
         END IF;
 
         IF NOT EXISTS (
             SELECT 1 FROM pg_constraint WHERE conname = 'chk_event_sig_length'
         ) THEN
             ALTER TABLE public.event
-                ADD CONSTRAINT chk_event_sig_length CHECK (length(sig) = 128);
+                ADD CONSTRAINT chk_event_sig_length CHECK (length(sig) = 128) NOT VALID;
         END IF;
     END $$;
 
@@ -289,8 +291,6 @@ CREATE TABLE IF NOT EXISTS public.nip29_groups (
                                                    name VARCHAR(255) NOT NULL,
                                                    picture TEXT,
                                                    about TEXT,
-	                                                   topics TEXT[] NOT NULL DEFAULT '{}',
-	                                                   geohashes TEXT[] NOT NULL DEFAULT '{}',
                                                    private BOOLEAN NOT NULL DEFAULT FALSE,
                                                    closed BOOLEAN NOT NULL DEFAULT FALSE,
                                                    last_metadata_update TIMESTAMPTZ NOT NULL,
@@ -309,9 +309,6 @@ CREATE TABLE IF NOT EXISTS public.nip29_groups (
                                                    allow_late_publication BOOLEAN NOT NULL DEFAULT FALSE,
                                                    PRIMARY KEY (relay, group_id)
 );
-
-ALTER TABLE public.nip29_groups ADD COLUMN IF NOT EXISTS topics TEXT[] NOT NULL DEFAULT '{}';
-ALTER TABLE public.nip29_groups ADD COLUMN IF NOT EXISTS geohashes TEXT[] NOT NULL DEFAULT '{}';
 
 CREATE TABLE IF NOT EXISTS public.nip29_group_roles (
                                                         relay TEXT NOT NULL,
@@ -568,16 +565,18 @@ CREATE INDEX IF NOT EXISTS idx_nip86_blocked_ips_updated_at
 
 -- ============================================================
 -- Índices avançados
--- Rode estes FORA de uma transaction block.
+-- Esta é a migration-base, executada em bancos vazios. Não use CONCURRENTLY
+-- aqui: o driver do golang-migrate recebe o arquivo inteiro como uma unidade
+-- e o PostgreSQL rejeita CREATE/DROP INDEX CONCURRENTLY nesse contexto.
 -- ============================================================
 
 -- Índices antigos de covering podem exceder o limite de tamanho por
 -- tupla de índice do PostgreSQL (~2712 bytes) — problema real com
 -- eventos de até ~2000 tags. GIN não sofre dessa limitação, por isso
 -- toda a indexação de tags/tagvalues abaixo usa GIN.
-DROP INDEX CONCURRENTLY IF EXISTS idx_event_covering_author;
-DROP INDEX CONCURRENTLY IF EXISTS idx_event_covering;
-DROP INDEX CONCURRENTLY IF EXISTS arbitrarytagvalues;
+DROP INDEX IF EXISTS idx_event_covering_author;
+DROP INDEX IF EXISTS idx_event_covering;
+DROP INDEX IF EXISTS arbitrarytagvalues;
 
 -- idx_event_recent removido: dependia de um epoch hardcoded e exigiria
 -- recriação manual periódica. A estratégia definida para eventos
@@ -585,20 +584,20 @@ DROP INDEX CONCURRENTLY IF EXISTS arbitrarytagvalues;
 -- ex.: reter no máximo os últimos 5 anos em `event`), não manter um
 -- índice parcial com data fixa.
 
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_event_deletions
+CREATE INDEX IF NOT EXISTS idx_event_deletions
     ON public.event (created_at DESC, id)
     WHERE deleted_by IS NOT NULL;
 
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_event_pubkey_created_at
+CREATE INDEX IF NOT EXISTS idx_event_pubkey_created_at
     ON public.event (pubkey, created_at DESC);
 
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_event_tags_gin
+CREATE INDEX IF NOT EXISTS idx_event_tags_gin
     ON public.event USING gin (tags jsonb_path_ops);
 
 -- Índice que faltava para a coluna gerada `tagvalues` (estava sem
 -- suporte de índice, pagando custo de escrita sem ganho de leitura).
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_event_tagvalues_gin
+CREATE INDEX IF NOT EXISTS idx_event_tagvalues_gin
     ON public.event USING gin (tagvalues array_ops);
 
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_event_author_kind
+CREATE INDEX IF NOT EXISTS idx_event_author_kind
     ON public.event (pubkey, kind, created_at DESC);

@@ -15,7 +15,7 @@ INSERT INTO nip29_groups (
 	min_timeline_references, timeline_recent_window, allow_late_publication,
 	last_metadata_update, last_admins_update, last_members_update, last_roles_update
 )
-VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,NOW(),$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)
+VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,NOW(),$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)
 ON CONFLICT (relay, group_id) DO UPDATE SET
 	name = EXCLUDED.name,
 	picture = EXCLUDED.picture,
@@ -44,13 +44,20 @@ func (q *Queries) UpsertNIP29Group(ctx context.Context, group NIP29Group) error 
 	_, err := q.db.Exec(
 		ctx,
 		upsertNIP29Group,
+		upsertNIP29GroupArgs(group)...,
+	)
+	return err
+}
+
+func upsertNIP29GroupArgs(group NIP29Group) []any {
+	return []any{
 		group.Relay,
 		group.GroupID,
 		group.Name,
 		group.Picture,
 		group.About,
-		group.Topics,
-		group.Geohashes,
+		nonNilStringSlice(group.Topics),
+		nonNilStringSlice(group.Geohashes),
 		group.Private,
 		group.Closed,
 		group.Restricted,
@@ -66,8 +73,14 @@ func (q *Queries) UpsertNIP29Group(ctx context.Context, group NIP29Group) error 
 		group.LastAdminsUpdate,
 		group.LastMembersUpdate,
 		group.LastRolesUpdate,
-	)
-	return err
+	}
+}
+
+func nonNilStringSlice(values []string) []string {
+	if values != nil {
+		return values
+	}
+	return []string{}
 }
 
 const getNIP29Group = `

@@ -5,7 +5,7 @@
 The CLI is built with Cobra and follows a command-oriented operations model:
 
 - runtime control (`server`)
-- data maintenance (`seed`, `cron`)
+- schema and data maintenance (`migrate`, `seed`, `cron`)
 - configuration workflows (`conf`)
 - data mobility (`import`, `export`, `download`, `sync`)
 
@@ -15,6 +15,7 @@ This document focuses on command ergonomics and operational behavior for:
 - `import`
 - `export`
 - `seed`
+- `migrate`
 - `cron`
 - `conf`
 
@@ -36,11 +37,39 @@ Highlights:
 - supports merge strategy (`--filter-merge=override|strict-conflict`)
 - emits per-relay metrics for received/persisted/duplicates/failures/page latency
 
+## `migrate`
+
+### Purpose
+
+Apply the embedded, versioned PostgreSQL migrations independently from relay
+startup. This is the required deployment path for every new binary.
+
+### Commands
+
+| Command | Description |
+|---|---|
+| `migrate up` | apply all pending migrations |
+| `migrate down` | revert one migration |
+| `migrate down --all` | revert every migration; only for disposable databases |
+| `migrate status` | show applied, expected and dirty state |
+| `migrate force <version>` | mark a verified existing schema as clean at a version; it does not execute SQL |
+| `migrate create <name>` | create paired `.up.sql` and `.down.sql` files |
+
+The server validates this version at boot and refuses to start if it is stale
+or dirty. Run `migrate up` before restarting the relay.
+
+If a prior migration was interrupted, inspect the schema first. Only when it
+already matches the recorded version, run `migrate force <version>` to clear
+the dirty marker, then run `migrate up`. To replay a partially applied first
+migration, use `migrate force -- -1` after validating that its statements are
+idempotent. Never use `force` to skip schema SQL.
+
 ## `seed`
 
 ### Purpose
 
-Prepare local DB schema and optionally generate relay bootstrap events.
+Optionally generate relay bootstrap events. Its migration behavior is retained
+for backward compatibility; use `migrate up` for normal schema deployment.
 
 ### Flags
 
@@ -56,8 +85,8 @@ Prepare local DB schema and optionally generate relay bootstrap events.
 
 1. Build and validate CLI options
 2. If `--dry-run`, print execution plan and exit
-3. Load config and initialize logger + DB connection
-4. Run migration unless `--skip-migrate`
+3. Load config and initialize logger
+4. Run migration unless `--skip-migrate`, then initialize the DB connection
 5. Optionally run bootstrap event creation
 
 ### Dependencies
@@ -73,8 +102,8 @@ Prepare local DB schema and optionally generate relay bootstrap events.
 
 ### When to Use
 
-- initial environment setup
-- schema refresh in controlled environments
+- bootstrap an already migrated environment
+- legacy schema refresh in controlled environments
 - explicit relay bootstrap generation
 
 ### When Not to Use

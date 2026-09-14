@@ -2,10 +2,7 @@ package db
 
 import (
 	"context"
-	_ "embed"
 	"errors"
-	"fmt"
-	"strings"
 	"sync"
 	"time"
 
@@ -16,9 +13,6 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"go.uber.org/zap"
 )
-
-//go:embed schema.sql
-var schema string
 
 var (
 	dbPool    *pgxpool.Pool
@@ -37,92 +31,6 @@ func New(db DBTX) *Queries {
 	return &Queries{
 		db: db,
 	}
-}
-
-func (q *Queries) Migrate(ctx context.Context) error {
-	for idx, statement := range splitSQLStatements(schema) {
-		if _, err := q.db.Exec(ctx, statement); err != nil {
-			return fmt.Errorf("schema statement %d failed: %w", idx+1, err)
-		}
-	}
-	return nil
-}
-
-func splitSQLStatements(input string) []string {
-	statements := make([]string, 0, 64)
-	var builder strings.Builder
-	inSingleQuote := false
-	dollarQuoteTag := ""
-	for i := 0; i < len(input); i++ {
-		if dollarQuoteTag != "" {
-			if strings.HasPrefix(input[i:], dollarQuoteTag) {
-				builder.WriteString(dollarQuoteTag)
-				i += len(dollarQuoteTag) - 1
-				dollarQuoteTag = ""
-				continue
-			}
-			builder.WriteByte(input[i])
-			continue
-		}
-
-		ch := input[i]
-		builder.WriteByte(ch)
-		if ch == '\'' {
-			nextIsQuote := i+1 < len(input) && input[i+1] == '\''
-			if nextIsQuote {
-				builder.WriteByte(input[i+1])
-				i++
-				continue
-			}
-			inSingleQuote = !inSingleQuote
-			continue
-		}
-
-		if !inSingleQuote && ch == '$' {
-			tag, ok := readDollarQuoteTag(input[i:])
-			if ok {
-				builder.WriteString(tag[1:])
-				i += len(tag) - 1
-				dollarQuoteTag = tag
-				continue
-			}
-		}
-
-		if ch == ';' && !inSingleQuote {
-			statement := strings.TrimSpace(builder.String())
-			if statement != ";" && statement != "" {
-				statements = append(statements, statement)
-			}
-			builder.Reset()
-		}
-	}
-	if tail := strings.TrimSpace(builder.String()); tail != "" {
-		statements = append(statements, tail)
-	}
-	return statements
-}
-
-func readDollarQuoteTag(input string) (string, bool) {
-	if input == "" || input[0] != '$' {
-		return "", false
-	}
-
-	end := strings.IndexByte(input[1:], '$')
-	if end < 0 {
-		return "", false
-	}
-	end++
-
-	tag := input[:end+1]
-	for i := 1; i < len(tag)-1; i++ {
-		ch := tag[i]
-		if ch == '_' || ch >= '0' && ch <= '9' || ch >= 'a' && ch <= 'z' || ch >= 'A' && ch <= 'Z' {
-			continue
-		}
-		return "", false
-	}
-
-	return tag, true
 }
 
 func (q *Queries) StatPool() *pgxpool.Stat {
@@ -195,26 +103,13 @@ func Init(ctx context.Context) error {
 		zap.Int("max", int(poolConfig.MaxConns)),
 	)
 
-	// Ensure schema_version table
-	_, _ = dbPool.Exec(ctx, `
-		CREATE TABLE IF NOT EXISTS schema_version (
-			version VARCHAR(14) PRIMARY KEY,
-			applied_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-			description TEXT NOT NULL
-		)
-	`)
-
-	// Run schema migration
-	q := New(dbPool)
-	if err := q.Migrate(ctx); err != nil {
-		log.Logger.Warn("schema migration", zap.Error(err))
+	if err := CheckMigrationsCurrent(ctx, connStr); err != nil {
+		dbPool.Close()
+		dbPool = nil
+		return err
 	}
 
-	// Record migration
-	_, _ = dbPool.Exec(ctx,
-		"INSERT INTO schema_version (version, description) VALUES ('001', 'Initial schema') ON CONFLICT (version) DO NOTHING",
-	)
-
+	q := New(dbPool)
 	dbQueries = q
 	log.Logger.Info("database initialized")
 	return nil

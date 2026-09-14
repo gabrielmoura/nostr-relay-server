@@ -73,6 +73,10 @@ func Init(ctx context.Context) error {
 		pool.Close()
 		return err
 	}
+	if err := db.CheckMigrationsCurrent(ctx, config.Cfg.DB.PostgresURI); err != nil {
+		pool.Close()
+		return err
+	}
 
 	DbQueries = db.New(pool)
 	Pool = pool

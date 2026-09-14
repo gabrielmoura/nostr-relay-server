@@ -103,7 +103,7 @@ At minimum, review and adjust:
 ### 3. Run database migrations
 
 ```bash
-go run ./cmd/nrserver seed
+go run ./cmd/nrserver migrate up
 ```
 
 ### 4. Start the relay
@@ -181,7 +181,8 @@ nrserver server [flags]
 
 ### `seed`
 
-Prepares database schema and optional bootstrap relay events.
+Runs the legacy schema-preparation flow and optional bootstrap relay events.
+Prefer `nrserver migrate up` for schema deployment.
 
 ```bash
 nrserver seed [flags]
@@ -198,7 +199,7 @@ nrserver seed [flags]
 Examples:
 
 ```bash
-nrserver seed
+nrserver migrate up
 nrserver seed --bootstrap
 nrserver seed --bootstrap --bootstrap-idempotent
 nrserver seed --bootstrap --skip-migrate
@@ -208,6 +209,7 @@ nrserver seed --dry-run
 Operational notes:
 
 - Requires valid config and DB connectivity (except `--dry-run`).
+- Use `nrserver migrate up` before deploying a new binary; `seed` retains its migration behavior for backward compatibility.
 - `--bootstrap` generates a new keypair and inserts bootstrap events.
 - `--bootstrap-idempotent` checks marker tag `nrserver-bootstrap:<canonical_url>` before insertion.
 - Re-running `--bootstrap` creates additional events; use with operational intent.
@@ -630,6 +632,27 @@ cron:
 
 ### Important configuration notes
 
+### Database migrations
+
+The PostgreSQL schema is versioned in `infra/db/migrations/` and embedded in the
+binary. Apply it explicitly before deploying a new NRServer binary:
+
+```bash
+nrserver migrate status
+nrserver migrate up
+```
+
+The server never changes the schema during startup. It refuses to start when
+the database is behind the embedded migration version or has a dirty migration,
+and reports the command needed to recover. `nrserver migrate down` reverts one
+migration; use `nrserver migrate down --all` only for a disposable database.
+
+For a new migration during development, create both directions together:
+
+```bash
+nrserver migrate create add_nip29_group_field
+```
+
 Some especially relevant settings:
 
 * `ws.auth_mode`: `strict` | `flexible` | `optional` | `none`
@@ -1013,12 +1036,12 @@ If `port` in `conf.yaml` is changed, remember that:
 
 ### Run schema preparation with Docker
 
-You can use the same image for operational commands such as `seed`:
+You can use the same image for explicit schema deployment:
 
 ```bash
 docker run --rm \
   -v "$PWD/conf.yaml:/app/conf.yaml:ro" \
-  nostr-relay-server:local seed
+  nostr-relay-server:local migrate up
 ```
 
 ### Validate the container
