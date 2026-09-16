@@ -2,6 +2,8 @@ package cache
 
 import (
 	"context"
+	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/gabrielmoura/nostr-relay-server/config"
@@ -13,6 +15,39 @@ import (
 type UserBanned struct {
 	Reason string `json:"r"`
 	Banned bool   `json:"b"`
+}
+
+func FindAndAddContentSimhash(fingerprint uint64, ttl time.Duration) ([]uint64, error) {
+	if !IsEnabled() {
+		return []uint64{}, nil
+	}
+	ctx, cancel := cacheContext()
+	defer cancel()
+	raw := redisClient.Raw()
+	values := map[uint64]struct{}{}
+	for band := range 4 {
+		key := fmt.Sprintf("simhash:%d:%04x", band, uint16(fingerprint>>(band*16)))
+		members, err := raw.SMembers(ctx, key).Result()
+		if err != nil {
+			return nil, err
+		}
+		for _, member := range members {
+			if value, err := strconv.ParseUint(member, 16, 64); err == nil {
+				values[value] = struct{}{}
+			}
+		}
+		if err := raw.SAdd(ctx, key, fmt.Sprintf("%016x", fingerprint)).Err(); err != nil {
+			return nil, err
+		}
+		if err := raw.Expire(ctx, key, ttl).Err(); err != nil {
+			return nil, err
+		}
+	}
+	result := make([]uint64, 0, len(values))
+	for value := range values {
+		result = append(result, value)
+	}
+	return result, nil
 }
 
 type GetUserBannedByKey func(ctx context.Context, key string) (reason string, exists bool, err error)

@@ -28,6 +28,7 @@ func Init() {
 		Config: config.Cfg,
 		contentSpamCheckers: []ContentSpamChecker{
 			newContentDedupChecker(config.Cfg.Security.Defense.ContentDedup, cache.AddContentPubkey),
+			newContentSimilarityChecker(config.Cfg.Security.Defense.ContentSimilarity),
 		},
 	}
 }
