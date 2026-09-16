@@ -30,6 +30,7 @@ require (
 	github.com/vektah/gqlparser/v2 v2.5.33
 	github.com/voluminor/ratatoskr v1.1.0
 	github.com/yggdrasil-network/yggdrasil-go v0.5.14
+	github.com/zeebo/blake3 v0.2.4
 	go.uber.org/zap v1.27.1
 	golang.org/x/net v0.56.0
 	golang.org/x/time v0.15.0

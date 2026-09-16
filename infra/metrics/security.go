@@ -65,6 +65,18 @@ var (
 			Help: "Total events blocked because author is not in the Web of Trust.",
 		},
 	)
+	NostrContentDedupHitsTotal = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "nostr_content_dedup_hits_total",
+			Help: "Total repeated normalized content observations across pubkeys.",
+		},
+	)
+	NostrContentDedupThresholdExceededTotal = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "nostr_content_dedup_threshold_exceeded_total",
+			Help: "Total content dedup observations meeting the configured pubkey threshold.",
+		},
+	)
 )
 
 func RegisterSecurityMetrics() {
@@ -78,5 +90,7 @@ func RegisterSecurityMetrics() {
 		NostrSecuritySignatureChecksTotal,
 		NostrBlockedKindsTotal,
 		NostrBlockedWOTTotal,
+		NostrContentDedupHitsTotal,
+		NostrContentDedupThresholdExceededTotal,
 	)
 }

@@ -87,6 +87,39 @@ func SetDedup(eventID string) (bool, error) {
 	return !set, err
 }
 
+func AddContentPubkey(hash string, pubkey string, ttl time.Duration) (int64, error) {
+	if !IsEnabled() {
+		return 0, nil
+	}
+
+	ctx, cancel := cacheContext()
+	defer cancel()
+
+	key := contentPubkeyKey(hash)
+	pipeline := redisClient.Raw().TxPipeline()
+	pipeline.SAdd(ctx, key, pubkey)
+	pipeline.Expire(ctx, key, ttl)
+	count := pipeline.SCard(ctx, key)
+	if _, err := pipeline.Exec(ctx); err != nil {
+		return 0, err
+	}
+	return count.Val(), nil
+}
+
+func ContentPubkeyCount(hash string) (int64, error) {
+	if !IsEnabled() {
+		return 0, nil
+	}
+
+	ctx, cancel := cacheContext()
+	defer cancel()
+	return redisClient.Raw().SCard(ctx, contentPubkeyKey(hash)).Result()
+}
+
+func contentPubkeyKey(hash string) string {
+	return "content:" + hash + ":pubkeys"
+}
+
 func WrapGetBanned(internalLookup GetUserBannedByKey) GetUserBannedByKey {
 	return func(ctx context.Context, key string) (reason string, exists bool, err error) {
 		if !IsEnabled() {

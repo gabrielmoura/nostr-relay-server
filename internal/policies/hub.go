@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/gabrielmoura/nostr-relay-server/config"
+	"github.com/gabrielmoura/nostr-relay-server/infra/cache"
 	"github.com/gabrielmoura/nostr-relay-server/infra/metrics"
 	"github.com/gabrielmoura/nostr-relay-server/internal/dto"
 	"github.com/gabrielmoura/nostr-relay-server/internal/groups"
@@ -16,13 +17,19 @@ import (
 )
 
 type Policies struct {
-	Config *config.Config
+	Config              *config.Config
+	contentSpamCheckers []ContentSpamChecker
 }
 
 var P *Policies
 
 func Init() {
-	P = &Policies{Config: config.Cfg}
+	P = &Policies{
+		Config: config.Cfg,
+		contentSpamCheckers: []ContentSpamChecker{
+			newContentDedupChecker(config.Cfg.Security.Defense.ContentDedup, cache.AddContentPubkey),
+		},
+	}
 }
 
 func (p Policies) ValidateIncomingEvent(ctx context.Context, evt *nostr.Event) (bool, string) {
@@ -177,8 +184,21 @@ func (p Policies) validateStorageEvent(ctx context.Context, evt *nostr.Event) (b
 	if reject, reason := p.validateWhitelistBlacklist(evt); reject {
 		return true, reason
 	}
+	if reject, reason := p.checkContentSpam(ctx, evt); reject {
+		return true, reason
+	}
 	if !wot.Validate(evt.PubKey) {
 		return true, security.Reason(security.PrefixRestricted, "pubkey not in web of trust")
+	}
+	return false, ""
+}
+
+func (p Policies) checkContentSpam(ctx context.Context, evt *nostr.Event) (bool, string) {
+	for _, checker := range p.contentSpamCheckers {
+		reject, _, reason := checker.Check(ctx, evt)
+		if reject {
+			return true, reason
+		}
 	}
 	return false, ""
 }
