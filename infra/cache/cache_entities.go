@@ -116,8 +116,21 @@ func ContentPubkeyCount(hash string) (int64, error) {
 	return redisClient.Raw().SCard(ctx, contentPubkeyKey(hash)).Result()
 }
 
+func GetContentAction(hash string) (string, bool) {
+	value, err := Get(contentActionKey(hash))
+	return value, err == nil
+}
+
+func SetContentAction(hash string, action string, ttl time.Duration) error {
+	return SetWithTTL(contentActionKey(hash), action, ttl)
+}
+
 func contentPubkeyKey(hash string) string {
 	return "content:" + hash + ":pubkeys"
+}
+
+func contentActionKey(hash string) string {
+	return "content:" + hash + ":action"
 }
 
 func WrapGetBanned(internalLookup GetUserBannedByKey) GetUserBannedByKey {

@@ -139,6 +139,7 @@ function EventDetailPageContent({ eventID }: { eventID: string }) {
             <h2 className="text-xl font-bold tracking-tight mb-4">{t("eventDetail.event")}</h2>
             <div className="min-w-0 space-y-4">
               <EventMetadata event={event} author={detail.author} kindLabel={kindLabel} />
+              {detail.content_spam_flagged ? <Badge variant="danger">{t("eventDetail.contentSpamFlagged", "Conteúdo sinalizado como spam")}</Badge> : null}
               <EventContentWarnings contentWarning={contentWarning} />
               <EventStructuredData alt={alt} createdAt={event.created_at} eventD={eventD} publishedAt={publishedAt} summary={summary} title={title} />
 

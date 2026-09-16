@@ -251,6 +251,7 @@ export type EventDetail = {
   author: EventAuthor
   hashtags: string[]
   image_urls: string[]
+	content_spam_flagged: boolean
 }
 
 export type EventAggregateKind = {

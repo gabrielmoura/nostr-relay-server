@@ -191,9 +191,44 @@ func TestContentDedupChecker_ObservesThresholdWithoutRejecting(t *testing.T) {
 	}
 }
 
+func TestContentDedupChecker_AppliesConfiguredAction(t *testing.T) {
+	for _, tt := range []struct {
+		name        string
+		mode        string
+		wantReject  bool
+		wantFlagged bool
+	}{
+		{name: "flag", mode: "flag", wantFlagged: true},
+		{name: "reject", mode: "reject", wantReject: true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := contentDedupTestConfig()
+			cfg.Mode = tt.mode
+			checker := newContentDedupChecker(cfg, func(string, string, time.Duration) (int64, error) { return 2, nil })
+			checker.isCacheEnabled = func() bool { return true }
+			checker.getAction = func(string) (string, bool) { return "", false }
+			checker.setAction = func(_ string, action string, _ time.Duration) error {
+				if action != tt.mode {
+					t.Fatalf("cached action = %q, want %q", action, tt.mode)
+				}
+				return nil
+			}
+
+			reject, flagged, reason := checker.Check(context.Background(), &nostr.Event{Kind: nostr.KindTextNote, Content: "content", PubKey: "pubkey"})
+			if reject != tt.wantReject || flagged != tt.wantFlagged {
+				t.Fatalf("Check() = reject %t, flagged %t", reject, flagged)
+			}
+			if tt.wantReject && reason != "restricted: duplicate content across multiple accounts" {
+				t.Fatalf("reject reason = %q", reason)
+			}
+		})
+	}
+}
+
 func contentDedupTestConfig() config.ContentDedupConfig {
 	return config.ContentDedupConfig{
 		Enabled:          true,
+		Mode:             "observe",
 		WindowSeconds:    60,
 		ThresholdPubkeys: 2,
 		MinContentLength: 1,

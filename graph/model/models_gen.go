@@ -284,11 +284,12 @@ type AdminEventAggregates struct {
 }
 
 type AdminEventDetail struct {
-	Event       *NostrEvent    `json:"event"`
-	Identifiers map[string]any `json:"identifiers"`
-	Author      map[string]any `json:"author"`
-	Hashtags    []string       `json:"hashtags"`
-	ImageUrls   []string       `json:"imageUrls"`
+	Event              *NostrEvent    `json:"event"`
+	Identifiers        map[string]any `json:"identifiers"`
+	Author             map[string]any `json:"author"`
+	Hashtags           []string       `json:"hashtags"`
+	ImageUrls          []string       `json:"imageUrls"`
+	ContentSpamFlagged bool           `json:"contentSpamFlagged"`
 }
 
 type AdminEventPage struct {

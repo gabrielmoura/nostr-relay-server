@@ -49,7 +49,7 @@ type AdminJobPage { pageInfo: PageInfo! items: [AdminJob!]! }
 type AdminEventAggregates { total: Int64! kinds: [KindCount!]! topAuthors: [PubkeyCount!]! topTags: [TagCount!]! trends: JSON! }
 type AdminTimelinePoint { ts: Int64! count: Int64! }
 type AdminTimeline { bucket: TimelineBucket! points: [AdminTimelinePoint!]! }
-type AdminEventDetail { event: NostrEvent! identifiers: JSON! author: JSON! hashtags: [String!]! imageUrls: [String!]! }
+type AdminEventDetail { event: NostrEvent! identifiers: JSON! author: JSON! hashtags: [String!]! imageUrls: [String!]! contentSpamFlagged: Boolean! }
 type AdminEventReport { reportEventId: ID! reporterPubkey: String! reporterNpub: String reporterDisplayName: String! reporterPicture: String reportedEventId: String reportedPubkey: String reportType: String content: String createdAt: Int64! }
 type AdminReportedEvent { targetEventId: ID! targetPubkey: String targetNevent: String targetCreatedAt: Int64 targetCreatedAtIso: String targetAuthor: JSON! reportCount: Int64! lastReported: Int64! lastReportedAt: String reportTypes: [String!]! targetEvent: NostrEvent }
 type AdminReportedEventsSummary { totalEvents: Int64! totalReports: Int64! uniqueTargetAuthors: Int64! timeline: [NameCount!]! reportTypes: [NameCount!]! topAuthors: [PubkeyCount!]! topTargets: [TargetCount!]! }

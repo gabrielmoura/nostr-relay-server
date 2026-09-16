@@ -210,6 +210,14 @@ security:
       throttle_after: 0
       restrict_after: 0
       temporary_block_after: 0
+    content_dedup:
+      enabled: false
+      mode: observe # observe, flag, or reject
+      window_seconds: 3600
+      threshold_pubkeys: 3
+      min_content_length: 32
+      kinds: [1]
+      bypass_pubkeys: []
 
 store:
   enabled: false

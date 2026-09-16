@@ -8,6 +8,8 @@ This document consolidates the policies currently enforced by the relay and defi
 
 ### Event Policies
 
+Content deduplication can operate in `observe`, `flag`, or `reject` mode. `flag` records an internal admin-review flag only after an event is persisted; `reject` returns `restricted: duplicate content across multiple accounts`.
+
 | Policy | Current Location | Purpose |
 |---|---|---|
 | Event ID validation | `infra/handler/event/event.go` | Validates that `event.id` matches the serialized SHA256 |

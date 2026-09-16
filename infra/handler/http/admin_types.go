@@ -153,11 +153,12 @@ type adminEventAuthor struct {
 }
 
 type adminEventDetailResponse struct {
-	Event       *nostr.Event          `json:"event"`
-	Identifiers adminEventIdentifiers `json:"identifiers"`
-	Author      adminEventAuthor      `json:"author"`
-	Hashtags    []string              `json:"hashtags"`
-	ImageURLs   []string              `json:"image_urls"`
+	Event              *nostr.Event          `json:"event"`
+	Identifiers        adminEventIdentifiers `json:"identifiers"`
+	Author             adminEventAuthor      `json:"author"`
+	Hashtags           []string              `json:"hashtags"`
+	ImageURLs          []string              `json:"image_urls"`
+	ContentSpamFlagged bool                  `json:"content_spam_flagged"`
 }
 
 type adminEventReportItem struct {

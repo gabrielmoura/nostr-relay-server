@@ -323,6 +323,11 @@ func insertBatch(ctx context.Context, events []*nostr.Event) (batchResult, error
 	}
 
 	for _, evt := range accepted {
+		if !nostr.IsEphemeralKind(evt.Kind) && policies.ContentDedupFlagged(evt) {
+			if err := db.DbQueries.UpsertContentSpamFlag(ctx, evt.ID); err != nil {
+				log.Logger.Warn("content spam flag persistence failed", zap.String("event_id", evt.ID), zap.Error(err))
+			}
+		}
 		listener.NotifyListeners(evt)
 		stream.ForwardEvent(*evt)
 		if ps := pubsub.GetPubSub(); ps != nil && ps.IsEnabled() {

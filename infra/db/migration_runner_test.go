@@ -35,7 +35,7 @@ func TestEmbeddedMigrationsHaveMatchingUpAndDownFiles(t *testing.T) {
 	require.Equal(t, upVersions, downVersions)
 	version, err := LatestMigrationVersion()
 	require.NoError(t, err)
-	require.EqualValues(t, 2, version)
+	require.EqualValues(t, 3, version)
 }
 
 func TestCreateMigrationCreatesAnUpAndDownPair(t *testing.T) {

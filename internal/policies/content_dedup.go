@@ -19,11 +19,15 @@ import (
 )
 
 type contentPubkeyAdder func(hash string, pubkey string, ttl time.Duration) (int64, error)
+type contentActionLookup func(hash string) (string, bool)
+type contentActionSetter func(hash string, action string, ttl time.Duration) error
 
 type contentDedupChecker struct {
 	cfg            config.ContentDedupConfig
 	addPubkey      contentPubkeyAdder
 	isCacheEnabled func() bool
+	getAction      contentActionLookup
+	setAction      contentActionSetter
 }
 
 func newContentDedupChecker(cfg config.ContentDedupConfig, addPubkey contentPubkeyAdder) *contentDedupChecker {
@@ -31,6 +35,8 @@ func newContentDedupChecker(cfg config.ContentDedupConfig, addPubkey contentPubk
 		cfg:            cfg,
 		addPubkey:      addPubkey,
 		isCacheEnabled: cache.IsEnabled,
+		getAction:      cache.GetContentAction,
+		setAction:      cache.SetContentAction,
 	}
 }
 
@@ -39,8 +45,13 @@ func (c *contentDedupChecker) Check(ctx context.Context, evt *nostr.Event) (bool
 		return false, false, ""
 	}
 
+	hash := contentHash(normalizeContent(evt.Content))
+	if action, found := c.getAction(hash); found {
+		return contentDedupDecision(action)
+	}
+
 	count, err := c.addPubkey(
-		contentHash(normalizeContent(evt.Content)),
+		hash,
 		evt.PubKey,
 		time.Duration(c.cfg.WindowSeconds)*time.Second,
 	)
@@ -61,7 +72,24 @@ func (c *contentDedupChecker) Check(ctx context.Context, evt *nostr.Event) (bool
 	if log.Logger != nil {
 		log.Logger.Info("content dedup threshold observed", zap.Int64("distinct_pubkeys", count))
 	}
-	return false, true, ""
+	if c.cfg.Mode == "observe" {
+		return false, true, ""
+	}
+	if err := c.setAction(hash, c.cfg.Mode, time.Duration(c.cfg.WindowSeconds)*time.Second); err != nil && log.Logger != nil {
+		log.Logger.Debug("content dedup action cache update failed", zap.Error(err))
+	}
+	return contentDedupDecision(c.cfg.Mode)
+}
+
+func contentDedupDecision(action string) (bool, bool, string) {
+	switch action {
+	case "reject":
+		return true, false, security.Reason(security.PrefixRestricted, "duplicate content across multiple accounts")
+	case "flag", "observe":
+		return false, true, ""
+	default:
+		return false, false, ""
+	}
 }
 
 func (c *contentDedupChecker) shouldCheck(ctx context.Context, evt *nostr.Event) bool {
@@ -92,4 +120,12 @@ func normalizeContent(content string) string {
 func contentHash(normalizedContent string) string {
 	hash := blake3.Sum256([]byte(normalizedContent))
 	return hex.EncodeToString(hash[:])
+}
+
+func ContentDedupFlagged(evt *nostr.Event) bool {
+	if evt == nil || config.Cfg == nil || config.Cfg.Security.Defense.ContentDedup.Mode != "flag" {
+		return false
+	}
+	_, found := cache.GetContentAction(contentHash(normalizeContent(evt.Content)))
+	return found
 }

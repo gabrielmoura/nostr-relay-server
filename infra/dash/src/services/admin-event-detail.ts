@@ -27,6 +27,7 @@ export async function getEventDetail(eventID: string) {
       author: keysToSnake(data.eventDetail.author),
       hashtags: data.eventDetail.hashtags,
       image_urls: data.eventDetail.imageUrls,
+		content_spam_flagged: data.eventDetail.contentSpamFlagged,
     } satisfies EventDetail
 
     const pubkey = response.event?.pubkey ?? response.author?.pubkey ?? ""

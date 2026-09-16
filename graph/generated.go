@@ -222,11 +222,12 @@ type ComplexityRoot struct {
 	}
 
 	AdminEventDetail struct {
-		Author      func(childComplexity int) int
-		Event       func(childComplexity int) int
-		Hashtags    func(childComplexity int) int
-		Identifiers func(childComplexity int) int
-		ImageUrls   func(childComplexity int) int
+		Author             func(childComplexity int) int
+		ContentSpamFlagged func(childComplexity int) int
+		Event              func(childComplexity int) int
+		Hashtags           func(childComplexity int) int
+		Identifiers        func(childComplexity int) int
+		ImageUrls          func(childComplexity int) int
 	}
 
 	AdminEventPage struct {
@@ -1551,6 +1552,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.AdminEventDetail.Author(childComplexity), true
+	case "AdminEventDetail.contentSpamFlagged":
+		if e.ComplexityRoot.AdminEventDetail.ContentSpamFlagged == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminEventDetail.ContentSpamFlagged(childComplexity), true
 	case "AdminEventDetail.event":
 		if e.ComplexityRoot.AdminEventDetail.Event == nil {
 			break
@@ -4340,6 +4347,8 @@ func (ec *executionContext) childFields_AdminEventDetail(ctx context.Context, fi
 		return ec.fieldContext_AdminEventDetail_hashtags(ctx, field)
 	case "imageUrls":
 		return ec.fieldContext_AdminEventDetail_imageUrls(ctx, field)
+	case "contentSpamFlagged":
+		return ec.fieldContext_AdminEventDetail_contentSpamFlagged(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type AdminEventDetail", field.Name)
 }
@@ -9635,6 +9644,29 @@ func (ec *executionContext) _AdminEventDetail_imageUrls(ctx context.Context, fie
 }
 func (ec *executionContext) fieldContext_AdminEventDetail_imageUrls(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("AdminEventDetail", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _AdminEventDetail_contentSpamFlagged(ctx context.Context, field graphql.CollectedField, obj *model.AdminEventDetail) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminEventDetail_contentSpamFlagged(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ContentSpamFlagged, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminEventDetail_contentSpamFlagged(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminEventDetail", field, false, false, errors.New("field of type Boolean does not have child fields"))
 }
 
 func (ec *executionContext) _AdminEventPage_pageInfo(ctx context.Context, field graphql.CollectedField, obj *model.AdminEventPage) (ret graphql.Marshaler) {
@@ -22208,6 +22240,11 @@ func (ec *executionContext) _AdminEventDetail(ctx context.Context, sel ast.Selec
 			}
 		case "imageUrls":
 			out.Values[i] = ec._AdminEventDetail_imageUrls(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "contentSpamFlagged":
+			out.Values[i] = ec._AdminEventDetail_contentSpamFlagged(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}

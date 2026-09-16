@@ -63,6 +63,10 @@ func EventDetail() fiber.Handler {
 		if errors.Is(err, sql.ErrNoRows) {
 			authorProfile = dbmodel.Profile{PublicKey: evt.PubKey, Name: evt.PubKey}
 		}
+		contentSpamFlagged, err := db.DbQueries.HasContentSpamFlag(c.UserContext(), evt.ID)
+		if err != nil {
+			return internalServerError(c, err)
+		}
 
 		return c.JSON(adminEventDetailResponse{
 			Event: evt,
@@ -75,8 +79,9 @@ func EventDetail() fiber.Handler {
 				Picture:     authorProfile.Picture,
 				NIP05:       authorProfile.Nip05,
 			},
-			Hashtags:  extractHashtags(evt),
-			ImageURLs: extractImageURLs(evt),
+			Hashtags:           extractHashtags(evt),
+			ImageURLs:          extractImageURLs(evt),
+			ContentSpamFlagged: contentSpamFlagged,
 		})
 	}
 }
