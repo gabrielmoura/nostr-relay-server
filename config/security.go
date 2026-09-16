@@ -24,11 +24,34 @@ type SecurityLimitsConfig struct {
 }
 
 type SecurityDefenseConfig struct {
-	Enabled         bool                      `json:"enabled" yaml:"enabled" mapstructure:"enabled"`
-	UseRedis        bool                      `json:"use_redis" yaml:"use_redis" mapstructure:"use_redis"`
-	BlockTTLSeconds int                       `json:"block_ttl_seconds" yaml:"block_ttl_seconds" mapstructure:"block_ttl_seconds"`
-	Event           SecurityWindowLimitConfig `json:"event" yaml:"event" mapstructure:"event"`
-	Req             SecurityWindowLimitConfig `json:"req" yaml:"req" mapstructure:"req"`
+	Enabled           bool                      `json:"enabled" yaml:"enabled" mapstructure:"enabled"`
+	UseRedis          bool                      `json:"use_redis" yaml:"use_redis" mapstructure:"use_redis"`
+	BlockTTLSeconds   int                       `json:"block_ttl_seconds" yaml:"block_ttl_seconds" mapstructure:"block_ttl_seconds"`
+	Event             SecurityWindowLimitConfig `json:"event" yaml:"event" mapstructure:"event"`
+	Req               SecurityWindowLimitConfig `json:"req" yaml:"req" mapstructure:"req"`
+	ContentDedup      ContentDedupConfig        `json:"content_dedup" yaml:"content_dedup" mapstructure:"content_dedup"`
+	ContentSimilarity ContentSimilarityConfig   `json:"content_similarity" yaml:"content_similarity" mapstructure:"content_similarity"`
+}
+
+type ContentDedupConfig struct {
+	Enabled          bool     `json:"enabled" yaml:"enabled" mapstructure:"enabled"`
+	Mode             string   `json:"mode" yaml:"mode" mapstructure:"mode"`
+	WindowSeconds    int      `json:"window_seconds" yaml:"window_seconds" mapstructure:"window_seconds"`
+	ThresholdPubkeys int      `json:"threshold_pubkeys" yaml:"threshold_pubkeys" mapstructure:"threshold_pubkeys"`
+	MinContentLength int      `json:"min_content_length" yaml:"min_content_length" mapstructure:"min_content_length"`
+	Kinds            []int    `json:"kinds" yaml:"kinds" mapstructure:"kinds"`
+	BypassPubkeys    []string `json:"bypass_pubkeys" yaml:"bypass_pubkeys" mapstructure:"bypass_pubkeys"`
+}
+
+type ContentSimilarityConfig struct {
+	Enabled          bool     `json:"enabled" yaml:"enabled" mapstructure:"enabled"`
+	Mode             string   `json:"mode" yaml:"mode" mapstructure:"mode"`
+	WindowSeconds    int      `json:"window_seconds" yaml:"window_seconds" mapstructure:"window_seconds"`
+	ThresholdPubkeys int      `json:"threshold_pubkeys" yaml:"threshold_pubkeys" mapstructure:"threshold_pubkeys"`
+	HammingThreshold int      `json:"hamming_threshold" yaml:"hamming_threshold" mapstructure:"hamming_threshold"`
+	MinContentLength int      `json:"min_content_length" yaml:"min_content_length" mapstructure:"min_content_length"`
+	Kinds            []int    `json:"kinds" yaml:"kinds" mapstructure:"kinds"`
+	BypassPubkeys    []string `json:"bypass_pubkeys" yaml:"bypass_pubkeys" mapstructure:"bypass_pubkeys"`
 }
 
 type SecurityWindowLimitConfig struct {

@@ -65,6 +65,9 @@ func applyLoadedConfig() error {
 	if err := cfg.ValidateMarmotFeatures(); err != nil {
 		return err
 	}
+	if err := cfg.ValidateContentDefenseFeatures(); err != nil {
+		return err
+	}
 
 	Cfg = cfg
 	cfg.applySecurityRelayInformationDefaults()
