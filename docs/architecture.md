@@ -2,7 +2,7 @@
 
 ## Overview
 
-Nostr Relay Server is a high-performance Nostr relay implementation in Go, supporting multiple NIPs, Blossom file storage (NIP-96), Negentropy synchronization, and Prometheus metrics.
+Nostr Relay Server is a high-performance Nostr relay implementation in Go, supporting multiple NIPs, HTTP file storage (NIP-96), separate Blossom functionality, Negentropy synchronization, and Prometheus metrics.
 
 ## C4 Model
 
@@ -720,7 +720,7 @@ See `docs/redis-queue-worker-architecture.md` for the detailed design, increment
 
 ## Planned Blossom Admin Workspace
 
-The relay already exposes the public Blossom/NIP-96 surface (`POST|PUT /upload`, `GET|HEAD /blob/:id`, `GET /list/:pubkey`) and stores minimal object metadata in the `objects` table. The next operational step is a first-class internal management workspace for media governance, optimization and storage control.
+The relay exposes public NIP-96 HTTP file-storage information and separate Blossom-style upload/blob/list endpoints (`POST|PUT /upload`, `GET|HEAD /blob/:id`, `GET /list/:pubkey`), storing minimal object metadata in the `objects` table. The next operational step is a first-class internal management workspace for media governance, optimization and storage control.
 
 ### Backend shape
 

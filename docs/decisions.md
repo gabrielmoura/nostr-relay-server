@@ -134,7 +134,7 @@ Clients needed a way to upload and share media files.
 
 ### Decision
 
-Implement **NIP-96 Blossom** file storage server.
+Implement NIP-96 HTTP file-storage support alongside separate Blossom-compatible storage endpoints.
 
 ### Reasons
 
@@ -1451,7 +1451,7 @@ Use `relay_information.pub_key` as the sole authorized pubkey when `negentropy_a
 
 ### Context
 
-The relay already supports public Blossom/NIP-96 uploads and blob delivery, but operational control is still minimal: there is no paginated media browser, no first-class review queue, no uploader quota management, no BUD-04 mirroring workflow, and no durable audit trail for destructive media actions.
+The relay already supports public NIP-96 file-storage information and separate Blossom-compatible uploads and blob delivery, but operational control is still minimal: there is no paginated media browser, no first-class review queue, no uploader quota management, no BUD-04 mirroring workflow, and no durable audit trail for destructive media actions.
 
 At the same time, the repository already has the pieces needed for a safe rollout: internal `/admin/*` transport, Redis-backed background jobs, object metadata persistence, and an embedded React admin dashboard.
 

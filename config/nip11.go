@@ -1,24 +1,29 @@
 package config
 
 type publicRelayInformationDocument struct {
-	Name           string                   `json:"name,omitempty"`
-	Description    string                   `json:"description,omitempty"`
-	Banner         string                   `json:"banner,omitempty"`
-	Icon           string                   `json:"icon,omitempty"`
-	PubKey         string                   `json:"pubkey,omitempty"`
-	Self           string                   `json:"self,omitempty"`
-	Contact        string                   `json:"contact,omitempty"`
-	SupportedNIPs  []int                    `json:"supported_nips,omitempty"`
-	Software       string                   `json:"software,omitempty"`
-	Version        string                   `json:"version,omitempty"`
-	TermsOfService string                   `json:"terms_of_service,omitempty"`
-	Limitation     *RelayLimitationDocument `json:"limitation,omitempty"`
-	RelayCountries []string                 `json:"relay_countries,omitempty"`
-	LanguageTags   []string                 `json:"language_tags,omitempty"`
-	Tags           []string                 `json:"tags,omitempty"`
-	PostingPolicy  string                   `json:"posting_policy,omitempty"`
-	PaymentsURL    string                   `json:"payments_url,omitempty"`
-	Fees           *RelayFeesDocument       `json:"fees,omitempty"`
+	Name                   string                   `json:"name,omitempty"`
+	Description            string                   `json:"description,omitempty"`
+	Banner                 string                   `json:"banner,omitempty"`
+	Icon                   string                   `json:"icon,omitempty"`
+	PubKey                 string                   `json:"pubkey,omitempty"`
+	Self                   string                   `json:"self,omitempty"`
+	Contact                string                   `json:"contact,omitempty"`
+	SupportedNIPs          []int                    `json:"supported_nips,omitempty"`
+	Software               string                   `json:"software,omitempty"`
+	Version                string                   `json:"version,omitempty"`
+	TermsOfService         string                   `json:"terms_of_service,omitempty"`
+	Limitation             *RelayLimitationDocument `json:"limitation,omitempty"`
+	RelayCountries         []string                 `json:"relay_countries,omitempty"`
+	LanguageTags           []string                 `json:"language_tags,omitempty"`
+	Tags                   []string                 `json:"tags,omitempty"`
+	PostingPolicy          string                   `json:"posting_policy,omitempty"`
+	PrivacyPolicy          string                   `json:"privacy_policy,omitempty"`
+	PaymentsURL            string                   `json:"payments_url,omitempty"`
+	Fees                   *RelayFeesDocument       `json:"fees,omitempty"`
+	Retention              []RelayRetentionDocument `json:"retention,omitempty"`
+	NIP50                  []string                 `json:"nip50,omitempty"`
+	SupportedNIPExtensions []string                 `json:"supported_nip_extensions,omitempty"`
+	SupportedGRASPs        []string                 `json:"supported_grasps,omitempty"`
 }
 
 func (cfg *RelayInformationDocument) PublicNIP11() any {
@@ -27,22 +32,27 @@ func (cfg *RelayInformationDocument) PublicNIP11() any {
 	}
 
 	doc := publicRelayInformationDocument{
-		Name:           cfg.Name,
-		Description:    cfg.Description,
-		Banner:         cfg.Banner,
-		Icon:           cfg.Icon,
-		PubKey:         cfg.PubKey,
-		Self:           cfg.Self,
-		Contact:        cfg.Contact,
-		SupportedNIPs:  cfg.SupportedNIPs,
-		Software:       cfg.Software,
-		Version:        cfg.Version,
-		TermsOfService: cfg.TermsOfService,
-		RelayCountries: cfg.RelayCountries,
-		LanguageTags:   cfg.LanguageTags,
-		Tags:           cfg.Tags,
-		PostingPolicy:  cfg.PostingPolicy,
-		PaymentsURL:    cfg.PaymentsURL,
+		Name:                   cfg.Name,
+		Description:            cfg.Description,
+		Banner:                 cfg.Banner,
+		Icon:                   cfg.Icon,
+		PubKey:                 cfg.PubKey,
+		Self:                   cfg.Self,
+		Contact:                cfg.Contact,
+		SupportedNIPs:          cfg.SupportedNIPs,
+		Software:               cfg.Software,
+		Version:                cfg.Version,
+		TermsOfService:         cfg.TermsOfService,
+		RelayCountries:         cfg.RelayCountries,
+		LanguageTags:           cfg.LanguageTags,
+		Tags:                   cfg.Tags,
+		PostingPolicy:          cfg.PostingPolicy,
+		PrivacyPolicy:          cfg.PrivacyPolicy,
+		PaymentsURL:            cfg.PaymentsURL,
+		Retention:              cfg.Retention,
+		NIP50:                  cfg.NIP50,
+		SupportedNIPExtensions: cfg.SupportedNIPExtensions,
+		SupportedGRASPs:        cfg.SupportedGRASPs,
 	}
 
 	if cfg.Limitation != nil && cfg.Limitation.HasValues() {

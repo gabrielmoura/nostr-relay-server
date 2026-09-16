@@ -138,7 +138,7 @@ That means the relay can still persist and query them through the normal event p
 
 **Upgrade:** WebSocket connection for Nostr protocol
 
-**NIP-11:** Returns relay information when `Accept: application/nostr+json`
+**NIP-11:** Returns relay information with `Content-Type: application/nostr+json` when `Accept: application/nostr+json`
 
 **NIP-86:** Accepts JSON-RPC over HTTP on the same `/` route when `Content-Type: application/nostr+json+rpc`
 
@@ -151,19 +151,26 @@ Accept: application/nostr+json
 ```
 
 #### Response (NIP-11)
+```http
+Content-Type: application/nostr+json
+Access-Control-Allow-Origin: *
+Access-Control-Allow-Headers: Accept, Content-Type
+Access-Control-Allow-Methods: GET, OPTIONS
+```
+
 ```json
 {
   "name": "Nostr Relay Server",
   "description": "A Nostr Relay Server",
-  "pub_key": "7ef721e77149c737...",
-  "supported_nips": [1, 2, 4, 9, 11, 17, 25, 42, 45],
+  "supported_nips": [1, 9, 11, 40, 45, 70],
   "software": "https://github.com/gabrielmoura/nostr-relay-server",
   "version": "0.1.0",
   "limitation": {
-    "max_message_length": 1048576,
-    "max_subscriptions": 20,
-    "max_filters": 100,
-    "max_limit": 5000,
+    "max_message_length": 131072,
+    "max_filters": 16,
+    "max_limit": 500,
+    "max_event_tags": 400,
+    "max_content_length": 65535,
     "auth_required": false
   }
 }
@@ -212,7 +219,7 @@ Operational note:
 }
 ```
 
-#### Planned Supported NIP-86 Methods
+#### Supported NIP-86 Methods
 
 - `supportedmethods`
 - `banpubkey`
@@ -247,7 +254,7 @@ Operational note:
 
 #### `/.well-known/nostr/nip96.json`
 
-Blossom server configuration (NIP-96).
+NIP-96 HTTP file-storage configuration. Blossom-compatible storage endpoints are documented separately below.
 
 **Response:**
 ```json
@@ -291,7 +298,7 @@ NIP-05 and media configuration.
 }
 ```
 
-### Blossom Upload/Download (NIP-96)
+### Blossom-Compatible Upload/Download Endpoints
 
 #### `POST /upload`
 
@@ -1339,23 +1346,13 @@ The relay may answer with:
 
 | NIP | Name | Status |
 |-----|------|--------|
-| 01 | Basic Protocol | ✅ |
-| 02 | Follow List | ✅ |
-| 04 | Encrypted Direct Messages | ✅ |
-| 09 | Event Deletion | ✅ |
-| 11 | Relay Information | ✅ |
-| 17 | Relay List Metadata | ✅ |
-| 18 | Public Chat | ✅ |
-| 25 | Reactions | ✅ |
-| 40 | Expiration Timestamp | ✅ |
-| 42 | Authentication | ✅ |
-| 45 | Event Counts | ✅ |
-| 50 | Search | ✅ |
-| 62 | Request to Vanish | ✅ |
-| 77 | Kind 30078 | ✅ |
-| 96 | Blossom Storage | ✅ |
-| 98 | HTTP Auth | ✅ |
-| 86 | Relay Management API | planned |
+| 01, 09, 11, 40, 45 | Dedicated relay behavior | enabled |
+| 13, 29, 42, 62, 70, 77, 86, 96, 98 | Dedicated optional relay behavior | advertised only when enabled |
+| 02, 04, 17, 18, 25 | Client/event formats | stored generically; not automatically advertised |
+| 32 | Labels | admin creation/query support for kind `1985` |
+| 50 | Search filter | partial; not automatically advertised until relevance ordering is implemented |
+
+See [NIP support matrix](nip-support.md) for exact feature gates. NIP-86 is implemented but disabled by default; it is not planned.
 
 ## Error Responses
 

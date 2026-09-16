@@ -141,7 +141,7 @@ func RootUpgrade(cfg *config.Config) fiber.Handler {
 			return err
 		}
 		if strings.Contains(c.Get("Accept"), "application/nostr+json") {
-			return c.JSON(NIP11WithPrivacy(cfg))
+			return serveNIP11(c, cfg)
 		}
 		if websocket.IsWebSocketUpgrade(c) {
 			if nip86.S != nil && nip86.S.Enabled() {
@@ -172,4 +172,17 @@ func RootUpgrade(cfg *config.Config) fiber.Handler {
 		}
 		return c.Status(fiber.StatusUpgradeRequired).SendString("Please use a Nostr client to connect.")
 	}
+}
+
+func serveNIP11(c *fiber.Ctx, cfg *config.Config) error {
+	payload, err := json.Marshal(NIP11WithPrivacy(cfg))
+	if err != nil {
+		return err
+	}
+
+	c.Set(fiber.HeaderContentType, "application/nostr+json")
+	c.Set(fiber.HeaderAccessControlAllowOrigin, "*")
+	c.Set(fiber.HeaderAccessControlAllowHeaders, "Accept, Content-Type")
+	c.Set(fiber.HeaderAccessControlAllowMethods, fiber.MethodGet+", "+fiber.MethodOptions)
+	return c.Send(payload)
 }

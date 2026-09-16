@@ -74,11 +74,11 @@
 - [x] NIP-11: Relay info document
 - [x] NIP-42: Authentication
 - [x] NIP-45: Event counts
-- [x] NIP-50: Search capability
+- [~] NIP-50: Search filter is available; relevance ordering remains before full support
 - [x] NIP-62: Request to vanish
-- [x] NIP-96: Blossom storage
+- [x] NIP-96: HTTP file-storage information and endpoints
 - [x] NIP-98: HTTP auth
-- [x] NIP-77: Kind 30078 (bookmarks)
+- [x] NIP-77: Negentropy synchronization
 
 ## Phase 10: Blossom Storage ✅
 

@@ -76,7 +76,12 @@ func setDefaults(export bool) {
 
 	viper.SetDefault("relay_information.name", "Nostr Relay Server")
 	viper.SetDefault("relay_information.description", "A Nostr Relay Server")
-	viper.SetDefault("relay_information.supported_nips", []int{11, 1, 2, 4, 25, 70})
+	viper.SetDefault("relay_information.supported_nips", []int{})
+	viper.SetDefault("relay_information.privacy_policy", "")
+	viper.SetDefault("relay_information.retention", []RelayRetentionDocument{})
+	viper.SetDefault("relay_information.nip50", []string{})
+	viper.SetDefault("relay_information.supported_nip_extensions", []string{})
+	viper.SetDefault("relay_information.supported_grasps", []string{})
 	viper.SetDefault("relay_information.software", "https://github.com/gabrielmoura/nostr-relay-server")
 	viper.SetDefault("relay_information.version", version.Version)
 	viper.SetDefault("relay_information.icon", fmt.Sprintf("http://localhost:%s/nostr.png", viper.GetString("port")))

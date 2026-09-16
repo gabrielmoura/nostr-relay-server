@@ -71,23 +71,7 @@ func applyLoadedConfig() error {
 
 	Cfg = cfg
 	cfg.applySecurityRelayInformationDefaults()
-	if cfg.NIP29.Enabled {
-		cfg.RelayInformation.SupportedNIPs = appendSupportedNIP(cfg.RelayInformation.SupportedNIPs, 29)
-	}
-	if cfg.NIP86Enabled() {
-		cfg.RelayInformation.SupportedNIPs = appendSupportedNIP(cfg.RelayInformation.SupportedNIPs, 86)
-	}
-	if cfg.NIP70.Enabled {
-		cfg.RelayInformation.SupportedNIPs = appendSupportedNIP(cfg.RelayInformation.SupportedNIPs, 70)
-	} else {
-		cfg.RelayInformation.SupportedNIPs = removeSupportedNIP(cfg.RelayInformation.SupportedNIPs, 70)
-	}
-	if cfg.Ws.AuthEnabled() {
-		cfg.RelayInformation.SupportedNIPs = appendSupportedNIP(cfg.RelayInformation.SupportedNIPs, 42)
-	}
-	if cfg.EnableNegentropy {
-		cfg.RelayInformation.SupportedNIPs = appendSupportedNIP(cfg.RelayInformation.SupportedNIPs, 77)
-	}
+	cfg.applyNIP11Capabilities()
 	return nil
 }
 
@@ -108,6 +92,34 @@ func removeSupportedNIP(values []int, nip int) []int {
 		}
 	}
 	return filtered
+}
+
+func (cfg *Config) applyNIP11Capabilities() {
+	if cfg == nil {
+		return
+	}
+
+	for _, nip := range []int{1, 9, 11, 40, 45} {
+		cfg.RelayInformation.SupportedNIPs = appendSupportedNIP(cfg.RelayInformation.SupportedNIPs, nip)
+	}
+
+	cfg.setNIP11Capability(13, cfg.Relay.MinimumPOWLimit > 0)
+	cfg.setNIP11Capability(29, cfg.NIP29.Enabled)
+	cfg.setNIP11Capability(42, cfg.Ws.AuthEnabled())
+	cfg.setNIP11Capability(62, cfg.Relay.VanishEvent)
+	cfg.setNIP11Capability(70, cfg.NIP70.Enabled)
+	cfg.setNIP11Capability(77, cfg.EnableNegentropy)
+	cfg.setNIP11Capability(86, cfg.NIP86Enabled())
+	cfg.setNIP11Capability(96, cfg.Store.Enabled)
+	cfg.setNIP11Capability(98, cfg.NIP86Enabled())
+}
+
+func (cfg *Config) setNIP11Capability(nip int, enabled bool) {
+	if enabled {
+		cfg.RelayInformation.SupportedNIPs = appendSupportedNIP(cfg.RelayInformation.SupportedNIPs, nip)
+		return
+	}
+	cfg.RelayInformation.SupportedNIPs = removeSupportedNIP(cfg.RelayInformation.SupportedNIPs, nip)
 }
 
 // PrintYamlConfig exibe a configuração atual no formato YAML.
@@ -135,11 +147,8 @@ func DefaultConfig() (*Config, error) {
 	if cfg.AppEnv == "" {
 		cfg.AppEnv = "production"
 	}
-	if cfg.NIP70.Enabled {
-		cfg.RelayInformation.SupportedNIPs = appendSupportedNIP(cfg.RelayInformation.SupportedNIPs, 70)
-	} else {
-		cfg.RelayInformation.SupportedNIPs = removeSupportedNIP(cfg.RelayInformation.SupportedNIPs, 70)
-	}
+	cfg.applySecurityRelayInformationDefaults()
+	cfg.applyNIP11Capabilities()
 
 	return cfg, nil
 }

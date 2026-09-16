@@ -1,17 +1,16 @@
-# NIP-86 Management Plan
+# NIP-86 Management Reference
 
-## Current Diagnosis
+## Current Implementation
 
-- External root `/` currently serves only two behaviors: NIP-11 on `Accept: application/nostr+json` and WebSocket upgrade for the relay protocol.
+- External root `/` serves NIP-86 JSON-RPC when enabled, NIP-11 on `Accept: application/nostr+json`, and WebSocket upgrade for the relay protocol.
 - Internal admin actions already exist on `/admin/*`, protected by optional `X-Admin-Token`.
 - The codebase already has reusable parts for this feature:
   - `infra/handler/listener` tracks live websocket connections and can disconnect them by admin id.
   - `infra/cache` and `infra/redis` already provide exact-key TTL cache helpers.
   - `infra/handler/store/blossom/util.go` already decodes `Authorization: Nostr <base64-event>` and verifies event signatures.
   - `infra/db/profile_query.sql.go` and `infra/db/admin_query.go` already implement ban-related persistence patterns with `pgx`.
-- There is no local `ref/nips` directory in the repository at the moment, so the protocol baseline comes from MCP `nostr` plus existing project docs.
-- There is no current `admin_pubkey` configuration; only `admin_token` exists today.
-- The implementation should stay dormant unless `nip86.enabled=true`.
+- `admin_pubkey` identifies the authorized NIP-98 caller.
+- The implementation stays dormant unless `nip86.enabled=true`.
 
 ## End-User Guidance
 
@@ -20,7 +19,7 @@
 - Treat `admin_pubkey` as a privileged operator identity, not as a convenience setting.
 - Keep `relay_information.url` stable and externally correct before enabling NIP-86, otherwise NIP-98 `u` tag validation will fail.
 
-## Schema Change Plan
+## Persistence
 
 ### Reuse Without Change
 
@@ -28,7 +27,7 @@
 - `banned_users`
 - `event`
 
-### New Tables
+### NIP-86 Tables
 
 1. `nip86_allowed_pubkeys`
 2. `nip86_banned_events`
@@ -41,7 +40,7 @@
 - NIP-86 also needs explicit allowlist state, event-level moderation state, network block state, and runtime NIP-11 metadata overrides; none of these exist in PostgreSQL today.
 - Storing relay metadata overrides in PostgreSQL avoids mutating `conf.yaml` at runtime and keeps behavior stable across restarts.
 
-## Transport Plan
+## Transport
 
 Root route decision order on external `/`:
 
@@ -50,7 +49,7 @@ Root route decision order on external `/`:
 3. Else if request is a WebSocket upgrade, continue with current relay behavior.
 4. Else return upgrade-required / method-not-allowed response as appropriate.
 
-## Configuration Plan
+## Configuration
 
 - `nip86.enabled`: feature flag for the whole management API
 - `admin_pubkey`: required when NIP-86 is enabled
@@ -73,7 +72,7 @@ All NIP-86 requests require NIP-98 auth with stricter validation than the curren
 
 Keep abstractions small and local to the consumer.
 
-### Planned Service Split
+### Runtime Service Split
 
 - `infra/handler/http/nip86.go` - HTTP decode/encode only
 - `internal/nip86/service.go` - dispatcher + business orchestration
@@ -92,7 +91,7 @@ Keep abstractions small and local to the consumer.
 
 ## Method Mapping
 
-| NIP-86 method | Planned backing path |
+| NIP-86 method | Backing path |
 |---|---|
 | `supportedmethods` | static service list |
 | `banpubkey` | `banned_users` + cache invalidation |

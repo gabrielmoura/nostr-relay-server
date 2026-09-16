@@ -53,7 +53,7 @@ relay_information:
   self: ""
   priv_key: ""
   contact: ""
-  supported_nips: [11, 1, 2, 4, 25]
+  supported_nips: [] # runtime adds only capabilities implemented and enabled
   software: https://github.com/gabrielmoura/nostr-relay-server
   version: 0.1.0
   canonical_url: ws://localhost:9090
@@ -77,7 +77,12 @@ relay_information:
   language_tags: []
   tags: []
   posting_policy: ""
+  privacy_policy: ""
   payments_url: ""
+  retention: []
+  nip50: []
+  supported_nip_extensions: []
+  supported_grasps: []
   fees:
     admission: []
     subscription: []
@@ -481,11 +486,11 @@ Authentication modes:
 | `relay_information.name` | string | `Nostr Relay Server` | Display name. |
 | `relay_information.description` | string | `A Nostr Relay Server` | Description for NIP-11. |
 | `relay_information.banner` | string | `""` | Optional banner URL for NIP-11. |
-| `relay_information.pub_key` | string | `""` | Relay pubkey. Accepts 32-byte hex or `npub`; runtime stores normalized hex. If empty and `priv_key` is present, runtime derives it automatically. |
-| `relay_information.self` | string | `""` | Optional relay identity pubkey for NIP-11 `self`. |
+| `relay_information.pub_key` | string | `""` | Administrative contact pubkey. Accepts 32-byte hex or `npub`; runtime stores normalized hex. If empty and `priv_key` is present, runtime derives it automatically. |
+| `relay_information.self` | string | `""` | Relay identity pubkey for NIP-11 `self`. If `priv_key` is set, it is derived automatically and an explicit value must match that key. |
 | `relay_information.priv_key` | string | `""` | Relay private key (keep secret). Accepts 32-byte hex or `nsec`; runtime stores normalized hex. |
 | `relay_information.contact` | string | `""` | Contact metadata. |
-| `relay_information.supported_nips` | int[] | `[11,1,2,4,25]` | Advertised supported NIPs. |
+| `relay_information.supported_nips` | int[] | `[]` | Additional operator-declared NIPs. Runtime always reconciles known relay capabilities; see [NIP support matrix](nip-support.md). |
 | `relay_information.software` | string | repo URL | Software URL. |
 | `relay_information.version` | string | `0.1.0` | Version string. |
 | `relay_information.canonical_url` | string | `ws://localhost:<port>` | Canonical websocket URL. This must match the real websocket endpoint path and scheme used by clients. Trailing `/` is tolerated, but `/relay` and `/` are different paths for NIP-42 validation. |
@@ -494,12 +499,17 @@ Authentication modes:
 | `relay_information.language_tags` | string[] | `[]` | Optional language tags exposed in NIP-11. |
 | `relay_information.tags` | string[] | `[]` | Optional topical tags exposed in NIP-11. |
 | `relay_information.posting_policy` | string | `""` | Optional posting policy URL/text reference exposed in NIP-11. |
+| `relay_information.privacy_policy` | string | `""` | Optional privacy policy URL exposed for clients such as Amethyst. |
 | `relay_information.payments_url` | string | `""` | Optional payments page for pay-to-relay setups. |
+| `relay_information.retention` | list | `[]` | Optional retention entries with `kinds`, `time` (seconds), and `count`; advertise only rules the relay enforces. |
+| `relay_information.nip50` | string[] | `[]` | Optional NIP-50 search metadata. It must describe the implemented search behavior. |
+| `relay_information.supported_nip_extensions` | string[] | `[]` | Optional non-numeric NIP extensions recognized by compatible clients. |
+| `relay_information.supported_grasps` | string[] | `[]` | Optional GRASP extension identifiers recognized by compatible clients. |
 | `relay_information.icon` | string | `http://localhost:<port>/nostr.png` | Relay icon URL. |
 
 `relay_information.limitation`:
 
-All fields are optional and are only emitted in the public NIP-11 document when explicitly configured.
+All fields are optional. At runtime, the relay fills `max_message_length`, `max_filters`, `max_limit`, `max_event_tags`, `max_content_length`, `min_pow_difficulty`, and `auth_required` from the effective security/relay configuration when they were not explicitly set here. Do not treat this block as the enforcement source of truth.
 
 | Key | Type | Default | Description |
 |---|---|---:|---|

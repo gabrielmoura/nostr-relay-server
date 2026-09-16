@@ -29,14 +29,19 @@ type RelayInformationDocument struct {
 	TermsOfService string `json:"terms_of_service,omitempty" yaml:"terms_of_service" mapstructure:"terms_of_service"`
 	CanonicalURL   string `json:"canonical_url,omitempty" yaml:"canonical_url" mapstructure:"canonical_url"`
 
-	Limitation     *RelayLimitationDocument `json:"limitation,omitempty" yaml:"limitation" mapstructure:"limitation"`
-	RelayCountries []string                 `json:"relay_countries,omitempty" yaml:"relay_countries" mapstructure:"relay_countries"`
-	LanguageTags   []string                 `json:"language_tags,omitempty" yaml:"language_tags" mapstructure:"language_tags"`
-	Tags           []string                 `json:"tags,omitempty" yaml:"tags" mapstructure:"tags"`
-	PostingPolicy  string                   `json:"posting_policy,omitempty" yaml:"posting_policy" mapstructure:"posting_policy"`
-	PaymentsURL    string                   `json:"payments_url,omitempty" yaml:"payments_url" mapstructure:"payments_url"`
-	Fees           *RelayFeesDocument       `json:"fees,omitempty" yaml:"fees" mapstructure:"fees"`
-	Icon           string                   `json:"icon,omitempty" yaml:"icon" mapstructure:"icon"`
+	Limitation             *RelayLimitationDocument `json:"limitation,omitempty" yaml:"limitation" mapstructure:"limitation"`
+	RelayCountries         []string                 `json:"relay_countries,omitempty" yaml:"relay_countries" mapstructure:"relay_countries"`
+	LanguageTags           []string                 `json:"language_tags,omitempty" yaml:"language_tags" mapstructure:"language_tags"`
+	Tags                   []string                 `json:"tags,omitempty" yaml:"tags" mapstructure:"tags"`
+	PostingPolicy          string                   `json:"posting_policy,omitempty" yaml:"posting_policy" mapstructure:"posting_policy"`
+	PrivacyPolicy          string                   `json:"privacy_policy,omitempty" yaml:"privacy_policy" mapstructure:"privacy_policy"`
+	PaymentsURL            string                   `json:"payments_url,omitempty" yaml:"payments_url" mapstructure:"payments_url"`
+	Fees                   *RelayFeesDocument       `json:"fees,omitempty" yaml:"fees" mapstructure:"fees"`
+	Retention              []RelayRetentionDocument `json:"retention,omitempty" yaml:"retention" mapstructure:"retention"`
+	NIP50                  []string                 `json:"nip50,omitempty" yaml:"nip50" mapstructure:"nip50"`
+	SupportedNIPExtensions []string                 `json:"supported_nip_extensions,omitempty" yaml:"supported_nip_extensions" mapstructure:"supported_nip_extensions"`
+	SupportedGRASPs        []string                 `json:"supported_grasps,omitempty" yaml:"supported_grasps" mapstructure:"supported_grasps"`
+	Icon                   string                   `json:"icon,omitempty" yaml:"icon" mapstructure:"icon"`
 }
 
 func (cfg *RelayInformationDocument) GetPrivKey() string {
@@ -102,6 +107,14 @@ type RelayFeesDocument struct {
 		Amount int    `json:"amount" yaml:"amount" mapstructure:"amount"`
 		Unit   string `json:"unit" yaml:"unit" mapstructure:"unit"`
 	} `json:"publication,omitempty" yaml:"publication" mapstructure:"publication"`
+}
+
+// RelayRetentionDocument describes an optional NIP-11 retention policy.
+// Operators must only advertise values enforced by the relay.
+type RelayRetentionDocument struct {
+	Kinds []int `json:"kinds,omitempty" yaml:"kinds" mapstructure:"kinds"`
+	Time  int   `json:"time,omitempty" yaml:"time" mapstructure:"time"`
+	Count int   `json:"count,omitempty" yaml:"count" mapstructure:"count"`
 }
 
 type FileServerConfig struct {

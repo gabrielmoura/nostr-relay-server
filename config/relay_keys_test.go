@@ -27,6 +27,20 @@ func TestRelayInformationNormalizeKeysAcceptsNIP19AndDerivesPubKey(t *testing.T)
 	if cfg.PubKey != wantPub {
 		t.Fatalf("PubKey = %q, want %q", cfg.PubKey, wantPub)
 	}
+	if cfg.Self != wantPub {
+		t.Fatalf("Self = %q, want %q", cfg.Self, wantPub)
+	}
+}
+
+func TestRelayInformationNormalizeKeysRejectsSelfThatDoesNotMatchPrivateKey(t *testing.T) {
+	cfg := RelayInformationDocument{
+		Self:    "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+		PrivKey: "98ee1fe7cf2b55d0242ec7771ce0e1f709451390d8e9b29fc719fc18382f0789",
+	}
+
+	if err := cfg.NormalizeKeys(); err == nil {
+		t.Fatal("NormalizeKeys() error = nil, want a self/private-key mismatch error")
+	}
 }
 
 func TestRelayInformationNormalizeKeysAcceptsNpubAndHex(t *testing.T) {

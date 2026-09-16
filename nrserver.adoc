@@ -246,7 +246,7 @@ Para REQ/COUNT:
 
 === 6.1 Protocolos suportados
 
-NIPs/BUDs suportados estao documentados em `README.md` e `docs/api-spec.md`.
+NIPs/BUDs suportados estao documentados de forma canonica em `docs/nip-support.md`.
 No runtime, os contratos principais incluem:
 
 * NIP-01 envelopes WS (`REQ`, `EVENT`, `EOSE`, `OK`, `NOTICE`, `CLOSED`)
@@ -256,7 +256,7 @@ No runtime, os contratos principais incluem:
 * NIP-29 relay-based groups com kinds `9000`-`9009`, `9021`, `9022`, `39000`-`39003`
 * NIP-42 auth challenge/response
 * NIP-45 (`COUNT`)
-* NIP-96 upload/download de blobs
+* NIP-96 HTTP file-storage; Blossom/BUDs sao uma superficie separada
 * Negentropy (`NEG-OPEN`, `NEG-MSG`, `NEG-CLOSE` e compatibilidade legada)
 
 === 6.2 Contrato WS (entrada)

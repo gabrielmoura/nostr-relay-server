@@ -270,7 +270,9 @@ Rules:
 
 ---
 
-### NIP-86 (`components/features/nip86/`) - Planned
+### NIP-86 (`components/features/nip86/`) - Planned dashboard surface
+
+The NIP-86 relay-management backend is implemented and optional; this section describes dashboard components that are not yet built.
 
 | Component | Type | Purpose |
 |-----------|------|---------|

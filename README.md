@@ -567,7 +567,8 @@ relay_information:
   description: High-performance Nostr relay in Go
   pub_key: ""
   priv_key: ""
-  supported_nips: [1, 2, 4, 9, 11, 17, 18, 25, 40, 42, 45, 50, 62, 77, 96, 98]
+  self: "" # derived from priv_key when configured
+  supported_nips: [] # runtime adds implemented, enabled relay capabilities
   software: https://github.com/gabrielmoura/nostr-relay-server
   version: 0.1.0
   canonical_url: ws://localhost:9090
@@ -888,29 +889,11 @@ When NIP-29 is enabled, these metrics are especially useful:
 
 ### NIPs
 
-The project currently documents support for:
-
-* NIP-01 — Basic protocol
-* NIP-02 — Follow list
-* NIP-04 — Encrypted direct messages
-* NIP-09 — Event deletion
-* NIP-13 — Proof of work
-* NIP-11 — Relay information document
-* NIP-17 — Relay list metadata
-* NIP-18 — Public chat
-* NIP-29 — Relay-based groups *(optional)*
-* NIP-25 — Reactions
-* NIP-40 — Expiration timestamp
-* NIP-42 — Authentication of clients to relays
-* NIP-45 — Event counts
-* NIP-50 — Search capability
-* NIP-62 — Request to vanish
-* NIP-77
-* NIP-86 — Relay management *(optional)*
-* NIP-96 — File storage / Blossom
-* NIP-98 — HTTP auth
+The authoritative implementation and NIP-11 advertisement rules are in [docs/nip-support.md](docs/nip-support.md). In short, NIP-01, 09, 11, 40, and 45 are active relay capabilities; NIP-13, 29, 42, 62, 70, 77, 86, 96, and 98 are advertised only when their runtime feature is enabled. NIP-02, 04, 17, 18, and 25 are accepted as ordinary events but do not have dedicated relay semantics. NIP-50 search is currently partial and is not advertised automatically.
 
 ### Blossom / BUDs
+
+Blossom/BUD support is separate from NIP-96 HTTP file storage.
 
 * BUD-01
 * BUD-02

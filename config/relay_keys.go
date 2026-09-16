@@ -48,6 +48,11 @@ func (cfg *RelayInformationDocument) NormalizeKeys() error {
 		return err
 	}
 
+	self, err := normalizeOptionalRelaySelf(cfg.Self)
+	if err != nil {
+		return err
+	}
+
 	if privKey != "" {
 		derivedPubKey, err := nostr.GetPublicKey(privKey)
 		if err != nil {
@@ -57,12 +62,32 @@ func (cfg *RelayInformationDocument) NormalizeKeys() error {
 		if pubKey == "" {
 			pubKey = derivedPubKey
 		}
+		if self == "" {
+			self = derivedPubKey
+		}
+		if self != derivedPubKey {
+			return fmt.Errorf("relay_information.self must match relay_information.priv_key")
+		}
 	}
 
 	cfg.PubKey = pubKey
 	cfg.PrivKey = privKey
+	cfg.Self = self
 
 	return nil
+}
+
+func normalizeOptionalRelaySelf(value string) (string, error) {
+	if strings.TrimSpace(value) == "" {
+		return "", nil
+	}
+
+	decoded, err := normalizeKeyValue(value, "npub", "relay_information.self")
+	if err != nil {
+		return "", err
+	}
+
+	return decoded, nil
 }
 
 func normalizeOptionalPublicKey(value string) (string, error) {
