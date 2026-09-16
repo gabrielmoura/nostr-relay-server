@@ -7,7 +7,9 @@ import (
 	"time"
 
 	"github.com/gabrielmoura/nostr-relay-server/config"
+	"github.com/gabrielmoura/nostr-relay-server/infra/metrics"
 	"github.com/nbd-wtf/go-nostr"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 )
 
 func TestContentSimhash(t *testing.T) {
@@ -112,6 +114,114 @@ func TestContentSimilarityCheckerObserve(t *testing.T) {
 				t.Fatalf("add calls = %d, want %d", addCalls, tt.addCalls)
 			}
 		})
+	}
+}
+
+func TestContentSimilarityChecker_ObservesThresholdMetrics(t *testing.T) {
+	checker := newContentSimilarityChecker(similarityTestConfig())
+	checker.isCacheEnabled = func() bool { return true }
+	checker.findCandidates = func(uint64, time.Duration) ([]uint64, error) { return []uint64{}, nil }
+	checker.addPubkey = func(string, string, time.Duration) (int64, error) { return 2, nil }
+
+	hitsBefore := testutil.ToFloat64(metrics.NostrContentSimilarityHitsTotal)
+	thresholdBefore := testutil.ToFloat64(metrics.NostrContentSimilarityThresholdExceededTotal)
+	reject, flagged, reason := checker.Check(
+		context.Background(),
+		similarityTestEvent(nostr.KindTextNote, "pubkey-1", "similar content"),
+	)
+	if reject || !flagged || reason != "" {
+		t.Fatalf("Check() = reject %t, flagged %t, reason %q", reject, flagged, reason)
+	}
+	if after := testutil.ToFloat64(metrics.NostrContentSimilarityHitsTotal); after != hitsBefore+1 {
+		t.Fatalf("similarity hit metric delta = %v, want 1", after-hitsBefore)
+	}
+	if after := testutil.ToFloat64(metrics.NostrContentSimilarityThresholdExceededTotal); after != thresholdBefore+1 {
+		t.Fatalf("threshold metric delta = %v, want 1", after-thresholdBefore)
+	}
+}
+
+func TestContentSimilarityChecker_AppliesConfiguredAction(t *testing.T) {
+	for _, tt := range []struct {
+		name        string
+		mode        string
+		wantReject  bool
+		wantFlagged bool
+	}{
+		{name: "flag", mode: "flag", wantFlagged: true},
+		{name: "reject", mode: "reject", wantReject: true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := similarityTestConfig()
+			cfg.Mode = tt.mode
+			checker := newContentSimilarityChecker(cfg)
+			checker.isCacheEnabled = func() bool { return true }
+			checker.findCandidates = func(uint64, time.Duration) ([]uint64, error) { return []uint64{}, nil }
+			checker.addPubkey = func(string, string, time.Duration) (int64, error) { return 2, nil }
+			checker.getAction = func(string) (string, bool) { return "", false }
+			checker.setAction = func(_ string, action string, _ time.Duration) error {
+				if action != tt.mode {
+					t.Fatalf("cached action = %q, want %q", action, tt.mode)
+				}
+				return nil
+			}
+
+			reject, flagged, reason := checker.Check(
+				context.Background(),
+				similarityTestEvent(nostr.KindTextNote, "pubkey-1", "similar content"),
+			)
+			if reject != tt.wantReject || flagged != tt.wantFlagged {
+				t.Fatalf("Check() = reject %t, flagged %t", reject, flagged)
+			}
+			if tt.wantReject && reason != "restricted: similar content across multiple accounts" {
+				t.Fatalf("reject reason = %q", reason)
+			}
+		})
+	}
+}
+
+func TestContentSimilarityChecker_UsesCachedAction(t *testing.T) {
+	checker := newContentSimilarityChecker(similarityTestConfig())
+	checker.isCacheEnabled = func() bool { return true }
+	checker.getAction = func(string) (string, bool) { return "reject", true }
+	checker.findCandidates = func(uint64, time.Duration) ([]uint64, error) {
+		t.Fatal("candidate lookup must not run for a cached action")
+		return nil, nil
+	}
+
+	reject, flagged, reason := checker.Check(
+		context.Background(),
+		similarityTestEvent(nostr.KindTextNote, "pubkey-1", "similar content"),
+	)
+	if !reject || flagged || reason != "restricted: similar content across multiple accounts" {
+		t.Fatalf("Check() = reject %t, flagged %t, reason %q", reject, flagged, reason)
+	}
+}
+
+func TestContentSimilarityChecker_IgnoresDistantCandidate(t *testing.T) {
+	content := "similar content"
+	fingerprint := contentSimhash(content)
+	cfg := similarityTestConfig()
+	cfg.HammingThreshold = 0
+	checker := newContentSimilarityChecker(cfg)
+	checker.isCacheEnabled = func() bool { return true }
+	checker.findCandidates = func(uint64, time.Duration) ([]uint64, error) {
+		return []uint64{^fingerprint}, nil
+	}
+	addCalls := 0
+	checker.addPubkey = func(string, string, time.Duration) (int64, error) {
+		addCalls++
+		return 1, nil
+	}
+
+	reject, flagged, reason := checker.Check(
+		context.Background(),
+		similarityTestEvent(nostr.KindTextNote, "pubkey-1", content),
+	)
+	if reject || flagged || reason != "" {
+		t.Fatalf("Check() = reject %t, flagged %t, reason %q", reject, flagged, reason)
+	}
+	if addCalls != 1 {
+		t.Fatalf("pubkey cache calls = %d, want 1 for the event fingerprint only", addCalls)
 	}
 }
 

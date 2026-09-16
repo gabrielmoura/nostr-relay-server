@@ -18,7 +18,7 @@ Admin GraphQL migration note:
 
 ### `content_spam_flags`
 
-Relay-generated flags for events accepted while `security.defense.content_dedup.mode=flag`. It stores only the event ID and timestamp; normalized content and its hash are never persisted here.
+Relay-generated flags for events accepted while `security.defense.content_dedup.mode=flag` or `security.defense.content_similarity.mode=flag`. It stores only the event ID and timestamp; normalized content, hashes, and fingerprints are never persisted here.
 
 ## Tables
 

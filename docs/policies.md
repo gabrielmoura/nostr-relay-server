@@ -8,7 +8,7 @@ This document consolidates the policies currently enforced by the relay and defi
 
 ### Event Policies
 
-Content deduplication can operate in `observe`, `flag`, or `reject` mode. `flag` records an internal admin-review flag only after an event is persisted; `reject` returns `restricted: duplicate content across multiple accounts`.
+Content deduplication and similarity checks can operate in `observe`, `flag`, or `reject` mode. Deduplication uses normalized exact content; similarity uses 64-bit SimHash with four LSH bands. `flag` records an internal admin-review flag only after an event is persisted. `reject` returns a protocol-safe `restricted` reason without storing the content, normalized content, hash, or fingerprint.
 
 | Policy | Current Location | Purpose |
 |---|---|---|

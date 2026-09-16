@@ -12,9 +12,11 @@ import (
 
 	"github.com/gabrielmoura/nostr-relay-server/config"
 	"github.com/gabrielmoura/nostr-relay-server/infra/cache"
+	"github.com/gabrielmoura/nostr-relay-server/infra/log"
 	"github.com/gabrielmoura/nostr-relay-server/infra/metrics"
 	"github.com/gabrielmoura/nostr-relay-server/internal/security"
 	"github.com/nbd-wtf/go-nostr"
+	"go.uber.org/zap"
 )
 
 const simhashBands = 4
@@ -26,6 +28,8 @@ type contentSimilarityChecker struct {
 	isCacheEnabled func() bool
 	findCandidates contentSimilarityFinder
 	addPubkey      contentPubkeyAdder
+	getAction      contentActionLookup
+	setAction      contentActionSetter
 }
 
 func newContentSimilarityChecker(cfg config.ContentSimilarityConfig) *contentSimilarityChecker {
@@ -34,6 +38,8 @@ func newContentSimilarityChecker(cfg config.ContentSimilarityConfig) *contentSim
 		isCacheEnabled: cache.IsEnabled,
 		findCandidates: cache.FindAndAddContentSimhash,
 		addPubkey:      cache.AddContentPubkey,
+		getAction:      cache.GetContentAction,
+		setAction:      cache.SetContentAction,
 	}
 }
 
@@ -43,8 +49,15 @@ func (c *contentSimilarityChecker) Check(ctx context.Context, evt *nostr.Event) 
 	}
 	fingerprint := contentSimhash(evt.Content)
 	ttl := time.Duration(c.cfg.WindowSeconds) * time.Second
+	actionKey := contentSimilarityActionKey(fingerprint)
+	if action, found := c.getAction(actionKey); found {
+		return contentSimilarityDecision(action)
+	}
 	candidates, err := c.findCandidates(fingerprint, ttl)
 	if err != nil {
+		if log.Logger != nil {
+			log.Logger.Debug("content similarity cache lookup failed", zap.Error(err))
+		}
 		return false, false, ""
 	}
 	candidates = append(candidates, fingerprint)
@@ -59,15 +72,30 @@ func (c *contentSimilarityChecker) Check(ctx context.Context, evt *nostr.Event) 
 			continue
 		}
 		count, err := c.addPubkey(fmt.Sprintf("%016x", candidate), evt.PubKey, ttl)
+		if err != nil && log.Logger != nil {
+			log.Logger.Debug("content similarity cache update failed", zap.Error(err))
+		}
 		if err == nil && count > maxCount {
 			maxCount = count
 		}
+	}
+	if maxCount > 1 {
+		metrics.NostrContentSimilarityHitsTotal.Inc()
 	}
 	if maxCount < int64(c.cfg.ThresholdPubkeys) {
 		return false, false, ""
 	}
 	metrics.NostrContentSimilarityThresholdExceededTotal.Inc()
-	return false, true, ""
+	if log.Logger != nil {
+		log.Logger.Info("content similarity threshold observed", zap.Int64("distinct_pubkeys", maxCount))
+	}
+	if c.cfg.Mode == "observe" {
+		return false, true, ""
+	}
+	if err := c.setAction(actionKey, c.cfg.Mode, ttl); err != nil && log.Logger != nil {
+		log.Logger.Debug("content similarity action cache update failed", zap.Error(err))
+	}
+	return contentSimilarityDecision(c.cfg.Mode)
 }
 
 func (c *contentSimilarityChecker) shouldCheck(ctx context.Context, evt *nostr.Event) bool {
@@ -118,4 +146,27 @@ func simhashDistance(left uint64, right uint64) int {
 
 func simhashBandValue(fingerprint uint64, band int) uint16 {
 	return uint16(fingerprint >> (band * 16))
+}
+
+func contentSimilarityActionKey(fingerprint uint64) string {
+	return fmt.Sprintf("similarity:%016x", fingerprint)
+}
+
+func contentSimilarityDecision(action string) (bool, bool, string) {
+	switch action {
+	case "reject":
+		return true, false, security.Reason(security.PrefixRestricted, "similar content across multiple accounts")
+	case "flag", "observe":
+		return false, true, ""
+	default:
+		return false, false, ""
+	}
+}
+
+func ContentSimilarityFlagged(evt *nostr.Event) bool {
+	if evt == nil || config.Cfg == nil || config.Cfg.Security.Defense.ContentSimilarity.Mode != "flag" {
+		return false
+	}
+	_, found := cache.GetContentAction(contentSimilarityActionKey(contentSimhash(evt.Content)))
+	return found
 }

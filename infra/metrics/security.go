@@ -83,6 +83,12 @@ var (
 			Help: "Total similar content observations meeting the configured pubkey threshold.",
 		},
 	)
+	NostrContentSimilarityHitsTotal = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "nostr_content_similarity_hits_total",
+			Help: "Total similar content observations with more than one distinct pubkey.",
+		},
+	)
 )
 
 func RegisterSecurityMetrics() {
@@ -99,5 +105,6 @@ func RegisterSecurityMetrics() {
 		NostrContentDedupHitsTotal,
 		NostrContentDedupThresholdExceededTotal,
 		NostrContentSimilarityThresholdExceededTotal,
+		NostrContentSimilarityHitsTotal,
 	)
 }

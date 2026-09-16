@@ -218,6 +218,15 @@ security:
       min_content_length: 32
       kinds: [1]
       bypass_pubkeys: []
+    content_similarity:
+      enabled: false
+      mode: observe # observe, flag, or reject
+      window_seconds: 3600
+      threshold_pubkeys: 3
+      hamming_threshold: 3
+      min_content_length: 32
+      kinds: [1]
+      bypass_pubkeys: []
 
 store:
   enabled: false

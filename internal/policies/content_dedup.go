@@ -129,3 +129,7 @@ func ContentDedupFlagged(evt *nostr.Event) bool {
 	_, found := cache.GetContentAction(contentHash(normalizeContent(evt.Content)))
 	return found
 }
+
+func ContentSpamFlagged(evt *nostr.Event) bool {
+	return ContentDedupFlagged(evt) || ContentSimilarityFlagged(evt)
+}
