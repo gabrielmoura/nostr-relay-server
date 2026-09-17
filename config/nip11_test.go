@@ -1,6 +1,10 @@
 package config
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/stretchr/testify/require"
+)
 
 func TestNIP11CapabilitiesReflectEnabledRelayFeatures(t *testing.T) {
 	cfg := &Config{
@@ -8,6 +12,7 @@ func TestNIP11CapabilitiesReflectEnabledRelayFeatures(t *testing.T) {
 		NIP29:            NIP29Config{Enabled: true},
 		NIP70:            NIP70Config{Enabled: true},
 		NIP86:            NIP86Config{Enabled: true},
+		Search:           SearchConfig{Enabled: true},
 		Relay: RelayConfig{
 			MinimumPOWLimit: 20,
 			VanishEvent:     true,
@@ -39,13 +44,20 @@ func TestNIP11CapabilitiesRemoveDisabledOptionalFeatures(t *testing.T) {
 	}
 }
 
-func TestNIP11CapabilitiesAdvertiseNIP50(t *testing.T) {
-	cfg := &Config{}
+func TestNIP11CapabilitiesAdvertiseEnabledNIP50(t *testing.T) {
+	cfg := &Config{Search: SearchConfig{Enabled: true}}
 
 	cfg.applyNIP11Capabilities()
 	if !containsNIP(cfg.RelayInformation.SupportedNIPs, 50) {
 		t.Fatalf("supported_nips = %v, want 50", cfg.RelayInformation.SupportedNIPs)
 	}
+}
+
+func TestNIP11CapabilitiesDoNotAdvertiseDisabledNIP50(t *testing.T) {
+	cfg := &Config{RelayInformation: RelayInformationDocument{SupportedNIPs: []int{50}}}
+
+	cfg.applyNIP11Capabilities()
+	require.False(t, containsNIP(cfg.RelayInformation.SupportedNIPs, 50))
 }
 
 func TestPublicNIP11IncludesAmethystCompatibleMetadataWithoutPrivateKey(t *testing.T) {

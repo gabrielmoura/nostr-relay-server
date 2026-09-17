@@ -209,6 +209,7 @@ func setDefaults(export bool) {
 	viper.SetDefault("negentropy_auth", false)
 
 	setNIP29Defaults()
+	viper.SetDefault("search.enabled", true)
 	setPrivacyDefaults()
 	if export {
 		setExportDefaults()

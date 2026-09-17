@@ -26,6 +26,7 @@ type Config struct {
 	EnableNegentropy bool                     `json:"enable_negentropy" yaml:"enable_negentropy" mapstructure:"enable_negentropy"`
 	NegentropyAuth   bool                     `json:"negentropy_auth" yaml:"negentropy_auth" mapstructure:"negentropy_auth"`
 	NIP70            NIP70Config              `json:"nip70" yaml:"nip70" mapstructure:"nip70"`
+	Search           SearchConfig             `json:"search" yaml:"search" mapstructure:"search"`
 	NIP86            NIP86Config              `json:"nip86" yaml:"nip86" mapstructure:"nip86"`
 	Store            StoreConfig              `json:"store" yaml:"store" mapstructure:"store"`
 	NIP29            NIP29Config              `json:"nip29" yaml:"nip29" mapstructure:"nip29"`
@@ -337,6 +338,10 @@ type NIP86Config struct {
 }
 
 type NIP70Config struct {
+	Enabled bool `json:"enabled" yaml:"enabled" mapstructure:"enabled"`
+}
+
+type SearchConfig struct {
 	Enabled bool `json:"enabled" yaml:"enabled" mapstructure:"enabled"`
 }
 

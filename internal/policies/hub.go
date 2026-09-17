@@ -86,7 +86,11 @@ func (p Policies) validateRequestFilters(ctx context.Context, ws *dto.WsServer, 
 		return nil, true, reason
 	}
 
-	for _, filter := range normalized {
+	for i := range normalized {
+		if !p.Config.Search.Enabled {
+			normalized[i].Search = ""
+		}
+		filter := normalized[i]
 		if reject, reason := p.noEmptyFilters(filter); reject {
 			return nil, true, reason
 		}

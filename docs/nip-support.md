@@ -14,7 +14,7 @@ This file is the canonical source for protocol-support claims. `supported_nips` 
 | 40 | Expiration-tag validation and cleanup | Always |
 | 42 | WebSocket authentication | An auth mode is enabled |
 | 45 | `COUNT` command | Always |
-| 50 | Full-text `search` filter with relevance ordering | Always |
+| 50 | Full-text `search` filter with relevance ordering | `search.enabled=true` |
 | 62 | Request to vanish | `relay.vanish_event=true` |
 | 70 | Protected-event rules | `nip70.enabled=true` |
 | 77 | Negentropy synchronization | `enable_negentropy=true` |

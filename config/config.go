@@ -99,12 +99,13 @@ func (cfg *Config) applyNIP11Capabilities() {
 		return
 	}
 
-	for _, nip := range []int{1, 9, 11, 40, 45, 50} {
+	for _, nip := range []int{1, 9, 11, 40, 45} {
 		cfg.RelayInformation.SupportedNIPs = appendSupportedNIP(cfg.RelayInformation.SupportedNIPs, nip)
 	}
 
 	cfg.setNIP11Capability(13, cfg.Relay.MinimumPOWLimit > 0)
 	cfg.setNIP11Capability(29, cfg.NIP29.Enabled)
+	cfg.setNIP11Capability(50, cfg.Search.Enabled)
 	cfg.setNIP11Capability(42, cfg.Ws.AuthEnabled())
 	cfg.setNIP11Capability(62, cfg.Relay.VanishEvent)
 	cfg.setNIP11Capability(70, cfg.NIP70.Enabled)
