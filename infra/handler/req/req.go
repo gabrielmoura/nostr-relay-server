@@ -53,6 +53,7 @@ func DoREQ(ws *dto.WsServer, data dto.Data) string {
 		return ""
 	}
 
+	seenEventIDs := make(map[string]struct{})
 	for _, filter := range normalizedFilters {
 
 		events, handled, err := groups.QueryEvents(ws.Ctx, ws.Authed, filter, db.DbQueries.QueryEventsChan)
@@ -64,23 +65,25 @@ func DoREQ(ws *dto.WsServer, data dto.Data) string {
 			continue
 		}
 
-		i := 0
+		sent := 0
 		if events != nil {
 			for event := range events {
-				// regra para filtrar eventos que não devem ser enviados
 				if ws.SkipEventFunc(event) {
 					continue
 				}
-
-				ws.ChanSender <- nostr.EventEnvelope{SubscriptionID: &id, Event: *event}
-
-				i++
-				if i > filter.Limit {
+				if _, seen := seenEventIDs[event.ID]; seen {
+					continue
+				}
+				if sent >= filter.Limit {
 					break
 				}
+
+				ws.ChanSender <- nostr.EventEnvelope{SubscriptionID: &id, Event: *event}
+				seenEventIDs[event.ID] = struct{}{}
+				sent++
 			}
 
-			if i == 0 {
+			if sent == 0 {
 				stream.ForwardRequest(ws, filter, &id)
 			}
 
