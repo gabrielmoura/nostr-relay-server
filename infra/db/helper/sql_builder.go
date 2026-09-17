@@ -9,7 +9,8 @@ import (
 )
 
 func BuildQuery(filter nostr.Filter, cfg *config.RelayConfig, doCount bool) (string, []any, error) {
-	whereClause, params := BuildWhereClause(filter, cfg)
+	search := ParseSearchQuery(filter.Search)
+	whereClause, params, searchPlaceholder := buildWhereClause(filter, cfg, search)
 
 	var builder strings.Builder
 	if doCount {
@@ -20,7 +21,13 @@ func BuildQuery(filter nostr.Filter, cfg *config.RelayConfig, doCount bool) (str
 	builder.WriteString(whereClause)
 
 	if !doCount {
-		builder.WriteString(" ORDER BY created_at DESC, id")
+		if searchPlaceholder != "" {
+			builder.WriteString(" ORDER BY ts_rank_cd(content_search, plainto_tsquery('simple', ")
+			builder.WriteString(searchPlaceholder)
+			builder.WriteString(")) DESC, created_at DESC, id")
+		} else {
+			builder.WriteString(" ORDER BY created_at DESC, id")
+		}
 	}
 
 	builder.WriteString(" LIMIT ")
@@ -30,6 +37,11 @@ func BuildQuery(filter nostr.Filter, cfg *config.RelayConfig, doCount bool) (str
 }
 
 func BuildWhereClause(filter nostr.Filter, cfg *config.RelayConfig) (string, []any) {
+	whereClause, params, _ := buildWhereClause(filter, cfg, ParseSearchQuery(filter.Search))
+	return whereClause, params
+}
+
+func buildWhereClause(filter nostr.Filter, cfg *config.RelayConfig, search SearchQuery) (string, []any, string) {
 	conditions := make([]string, 0, 8)
 	params := make([]any, 0, 8)
 
@@ -38,62 +50,51 @@ func BuildWhereClause(filter nostr.Filter, cfg *config.RelayConfig) (string, []a
 	addKindsCondition(&conditions, &params, filter.Kinds)
 	addTagsCondition(&conditions, &params, filter.Tags)
 	addTimeConditions(&conditions, &params, filter.Since, filter.Until)
-	addSearchCondition(&conditions, &params, filter.Search)
+	searchPlaceholder := addSearchCondition(&conditions, &params, search)
 	addDeletionCondition(&conditions, cfg.FakeDeletion)
 
 	if len(conditions) == 0 {
-		return "true", params
+		return "true", params, searchPlaceholder
 	}
 
-	return strings.Join(conditions, " AND "), params
+	return strings.Join(conditions, " AND "), params, searchPlaceholder
 }
 
 func addIDsCondition(conditions *[]string, params *[]any, ids []string) {
 	if len(ids) == 0 {
 		return
 	}
-	placeholders := make([]string, 0, len(ids))
-	for _, id := range ids {
-		placeholders = append(placeholders, addParam(params, id))
-	}
-	*conditions = append(*conditions, fmt.Sprintf("id IN (%s)", strings.Join(placeholders, ",")))
+	*conditions = append(*conditions, "id = ANY("+addParam(params, ids)+"::text[])")
 }
 
 func addAuthorsCondition(conditions *[]string, params *[]any, authors []string) {
 	if len(authors) == 0 {
 		return
 	}
-	placeholders := make([]string, 0, len(authors))
-	for _, author := range authors {
-		placeholders = append(placeholders, addParam(params, author))
-	}
-	*conditions = append(*conditions, fmt.Sprintf("pubkey IN (%s)", strings.Join(placeholders, ",")))
+	*conditions = append(*conditions, "pubkey = ANY("+addParam(params, authors)+"::text[])")
 }
 
 func addKindsCondition(conditions *[]string, params *[]any, kinds []int) {
 	if len(kinds) == 0 {
 		return
 	}
-	placeholders := make([]string, 0, len(kinds))
-	for _, kind := range kinds {
-		placeholders = append(placeholders, addParam(params, kind))
-	}
-	*conditions = append(*conditions, fmt.Sprintf("kind IN (%s)", strings.Join(placeholders, ",")))
+	*conditions = append(*conditions, "kind = ANY("+addParam(params, kinds)+"::integer[])")
 }
 
 func addTagsCondition(conditions *[]string, params *[]any, tags nostr.TagMap) {
 	for tagName, values := range tags {
 		tagName = strings.TrimPrefix(tagName, "#")
 		clauses := make([]string, 0, len(values))
+		valuesPlaceholder := addParam(params, values)
 		for _, value := range values {
 			payload := fmt.Sprintf(`[[%q,%q]]`, tagName, value)
 			clauses = append(clauses, "tags @> "+addParam(params, payload)+"::jsonb")
 		}
-		if len(clauses) == 1 {
-			*conditions = append(*conditions, clauses[0])
-			continue
+		exactCondition := clauses[0]
+		if len(clauses) > 1 {
+			exactCondition = "(" + strings.Join(clauses, " OR ") + ")"
 		}
-		*conditions = append(*conditions, "("+strings.Join(clauses, " OR ")+")")
+		*conditions = append(*conditions, "(tagvalues && "+valuesPlaceholder+"::text[] AND "+exactCondition+")")
 	}
 }
 
@@ -106,21 +107,17 @@ func addTimeConditions(conditions *[]string, params *[]any, since, until *nostr.
 	}
 }
 
-func addSearchCondition(conditions *[]string, params *[]any, search string) {
-	if search == "" {
-		return
+func addSearchCondition(conditions *[]string, params *[]any, search SearchQuery) string {
+	if len(search.Terms) == 0 {
+		if search.HasInput {
+			*conditions = append(*conditions, "FALSE")
+		}
+		return ""
 	}
-	terms := strings.Fields(search)
-	tsQuery := strings.Join(terms, " & ")
-	tsPlaceholder := addParam(params, tsQuery)
-	likePlaceholder := addParam(params, "%"+search+"%")
-	*conditions = append(*conditions, `(
-		content_search @@ to_tsquery('portuguese', `+tsPlaceholder+`)
-		OR EXISTS (
-			SELECT 1 FROM jsonb_array_elements(tags) tag
-			WHERE lower(tag->>0) = 'description' AND tag->>1 ILIKE `+likePlaceholder+`
-		)
-	)`)
+
+	placeholder := addParam(params, strings.Join(search.Terms, " "))
+	*conditions = append(*conditions, "content_search @@ plainto_tsquery('simple', "+placeholder+")")
+	return placeholder
 }
 
 func addDeletionCondition(conditions *[]string, fakeDeletion bool) {

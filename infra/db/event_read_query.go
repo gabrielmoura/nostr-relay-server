@@ -36,8 +36,11 @@ func (q *Queries) QueryEventsChan(ctx context.Context, filter nostr.Filter) (cha
 }
 
 func (q *Queries) QueryEvents(ctx context.Context, filter nostr.Filter) ([]*nostr.Event, error) {
-	filter = helper.NormalizeFilter(&config.Cfg.Relay, filter)
-	cacheKey := helper.FilterHash(&config.Cfg.Relay, filter, false)
+	filter, err := helper.NormalizeAndValidateFilter(&config.Cfg.Relay, filter)
+	if err != nil {
+		return nil, err
+	}
+	cacheKey := helper.NormalizedFilterHash(filter, false)
 	if raw, ok := cache.GetQueryResult(cacheKey); ok {
 		cache.QueryCacheHit(cacheKey)
 		metrics.NostrRedisQueryCacheResult.WithLabelValues("hit").Inc()
@@ -82,8 +85,11 @@ func (q *Queries) QueryEvents(ctx context.Context, filter nostr.Filter) ([]*nost
 }
 
 func (q *Queries) CountEvents(ctx context.Context, filter nostr.Filter) (int64, error) {
-	filter = helper.NormalizeFilter(&config.Cfg.Relay, filter)
-	cacheKey := helper.FilterHash(&config.Cfg.Relay, filter, true)
+	filter, err := helper.NormalizeAndValidateFilter(&config.Cfg.Relay, filter)
+	if err != nil {
+		return 0, err
+	}
+	cacheKey := helper.NormalizedFilterHash(filter, true)
 	if raw, ok := cache.GetQueryResult(cacheKey); ok {
 		cache.QueryCacheHit(cacheKey)
 		metrics.NostrRedisQueryCacheResult.WithLabelValues("hit").Inc()
@@ -109,23 +115,15 @@ func (q *Queries) CountEvents(ctx context.Context, filter nostr.Filter) (int64, 
 }
 
 func queryEventsStatement(filter nostr.Filter) (string, []any, error) {
-	query, params, err := helper.QueryEventsSql(&config.Cfg.Relay, filter, false)
-	if err != nil {
-		return "", nil, err
-	}
-	if stmt, stmtParams, ok := preparedQueryForFilter(filter); ok {
+	if stmt, stmtParams, ok := preparedQueryForFilter(&config.Cfg.Relay, filter); ok {
 		return stmt, stmtParams, nil
 	}
-	return query, params, nil
+	return helper.BuildQuery(filter, &config.Cfg.Relay, false)
 }
 
 func countEventsStatement(filter nostr.Filter) (string, []any, error) {
-	query, params, err := helper.QueryEventsSql(&config.Cfg.Relay, filter, true)
-	if err != nil {
-		return "", nil, err
-	}
-	if stmt, stmtParams, ok := preparedCountForFilter(filter); ok {
+	if stmt, stmtParams, ok := preparedCountForFilter(&config.Cfg.Relay, filter); ok {
 		return stmt, stmtParams, nil
 	}
-	return query, params, nil
+	return helper.BuildQuery(filter, &config.Cfg.Relay, true)
 }

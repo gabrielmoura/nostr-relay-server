@@ -57,14 +57,14 @@ func TestQueryEventsSQL_BuildsEventQuery(t *testing.T) {
 	require.NoError(t, err)
 	require.NotContains(t, query, "?")
 	require.Contains(t, query, "SELECT id, pubkey, created_at, kind, tags, content, sig FROM event WHERE")
-	require.Contains(t, query, "id IN ($1,$2)")
-	require.Contains(t, query, "pubkey IN ($3)")
-	require.Contains(t, query, "kind IN ($4)")
-	require.Contains(t, query, "(tags @> $5::jsonb OR tags @> $6::jsonb)")
-	require.Contains(t, query, "content_search @@ to_tsquery('portuguese', $7)")
-	require.Contains(t, query, "tag->>1 ILIKE $8")
-	require.Contains(t, query, "ORDER BY created_at DESC, id LIMIT $9")
-	require.Equal(t, []any{"id1", "id2", "author1", 1, `[["p","val1"]]`, `[["p","val2"]]`, "nostr & relay", "%nostr relay%", 3}, params)
+	require.Contains(t, query, "id = ANY($1::text[])")
+	require.Contains(t, query, "pubkey = ANY($2::text[])")
+	require.Contains(t, query, "kind = ANY($3::integer[])")
+	require.Contains(t, query, "(tagvalues && $4::text[] AND (tags @> $5::jsonb OR tags @> $6::jsonb))")
+	require.Contains(t, query, "content_search @@ plainto_tsquery('simple', $7)")
+	require.Contains(t, query, "ORDER BY ts_rank_cd(content_search, plainto_tsquery('simple', $7)) DESC, created_at DESC, id LIMIT $8")
+	require.NotContains(t, query, "ILIKE")
+	require.Equal(t, []any{[]string{"id1", "id2"}, []string{"author1"}, []int{1}, []string{"val1", "val2"}, `[["p","val1"]]`, `[["p","val2"]]`, "nostr relay", 3}, params)
 }
 
 func TestQueryEventsSQL_BuildsCountQuery(t *testing.T) {
@@ -73,7 +73,7 @@ func TestQueryEventsSQL_BuildsCountQuery(t *testing.T) {
 	require.NoError(t, err)
 	require.Contains(t, query, "SELECT COUNT(*) FROM event WHERE")
 	require.NotContains(t, query, "ORDER BY")
-	require.Equal(t, []any{"author1", "author2", cfg.QueryLimit}, params)
+	require.Equal(t, []any{[]string{"author1", "author2"}, cfg.QueryLimit}, params)
 }
 
 func TestQueryEventsSQL_ValidatesLimits(t *testing.T) {
@@ -94,6 +94,29 @@ func TestQueryEventsSQL_FakeDeletion(t *testing.T) {
 	query, _, err := QueryEventsSql(cfg, nostr.Filter{Authors: []string{"author1"}}, false)
 	require.NoError(t, err)
 	require.Contains(t, query, "deleted_by IS NULL")
+}
+
+func TestQueryEventsSQL_SearchWithoutTermsReturnsNoRows(t *testing.T) {
+	cfg := testConfig()
+
+	for name, search := range map[string]string{
+		"spaces":     "   ",
+		"extensions": "domain:example.com include:spam",
+		"emoji":      "👩🏽‍💻",
+	} {
+		t.Run(name, func(t *testing.T) {
+			query, params, err := QueryEventsSql(cfg, nostr.Filter{Search: search}, false)
+			require.NoError(t, err)
+			require.Contains(t, query, "WHERE FALSE")
+			require.Empty(t, params[:len(params)-1])
+		})
+	}
+}
+
+func TestQueryEventsSQL_RejectsTooLongSearch(t *testing.T) {
+	cfg := testConfig()
+	_, _, err := QueryEventsSql(cfg, nostr.Filter{Search: string(make([]byte, maxSearchLength+1))}, false)
+	require.ErrorIs(t, err, ErrSearchTooLong)
 }
 
 func TestFilterHash_IsStable(t *testing.T) {

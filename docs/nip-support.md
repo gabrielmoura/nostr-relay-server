@@ -14,6 +14,7 @@ This file is the canonical source for protocol-support claims. `supported_nips` 
 | 40 | Expiration-tag validation and cleanup | Always |
 | 42 | WebSocket authentication | An auth mode is enabled |
 | 45 | `COUNT` command | Always |
+| 50 | Full-text `search` filter with relevance ordering | Always |
 | 62 | Request to vanish | `relay.vanish_event=true` |
 | 70 | Protected-event rules | `nip70.enabled=true` |
 | 77 | Negentropy synchronization | `enable_negentropy=true` |
@@ -23,7 +24,7 @@ This file is the canonical source for protocol-support claims. `supported_nips` 
 
 NIP-29 additionally exposes `nip29: {"subgroups": true}`. NIP-11 fields are omitted when no real relay policy backs them. In particular, `max_event_tags` is an advertisement; the enforced value remains `security.limits.max_event_tags`.
 
-NIP-50 is currently **partial**: the relay accepts the `search` filter and runs PostgreSQL full-text matching, but orders results by creation time rather than search quality. It is therefore not added automatically to `supported_nips` until relevance ordering and the remaining NIP-50 expectations are implemented.
+NIP-50 searches `content` (weight A) and `description` tag values (weight B) with PostgreSQL's `simple` text-search configuration. Results with text terms are ordered by `ts_rank_cd`, then `created_at` and `id`; `limit` is applied after that ordering. The relay recognizes `domain:`, `language:`, `sentiment:`, `nsfw:`, and `include:` extensions case-insensitively, removes them from the free-text expression, and currently ignores them rather than claiming SQL filtering. A search with no remaining terms deliberately returns no results.
 
 ## Accepted event formats without relay-specific semantics
 

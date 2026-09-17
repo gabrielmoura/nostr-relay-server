@@ -6,6 +6,9 @@ import (
 )
 
 func ValidateFilterLimits(cfg *config.RelayConfig, filter nostr.Filter) error {
+	if len(filter.Search) > maxSearchLength {
+		return ErrSearchTooLong
+	}
 	if len(filter.IDs) > cfg.QueryIDsLimit {
 		return ErrTooManyIDs
 	}

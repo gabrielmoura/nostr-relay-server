@@ -99,7 +99,7 @@ func (cfg *Config) applyNIP11Capabilities() {
 		return
 	}
 
-	for _, nip := range []int{1, 9, 11, 40, 45} {
+	for _, nip := range []int{1, 9, 11, 40, 45, 50} {
 		cfg.RelayInformation.SupportedNIPs = appendSupportedNIP(cfg.RelayInformation.SupportedNIPs, nip)
 	}
 

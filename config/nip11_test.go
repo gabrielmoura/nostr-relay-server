@@ -17,7 +17,7 @@ func TestNIP11CapabilitiesReflectEnabledRelayFeatures(t *testing.T) {
 	}
 
 	cfg.applyNIP11Capabilities()
-	for _, nip := range []int{1, 9, 11, 13, 29, 40, 42, 45, 62, 70, 77, 86, 96, 98} {
+	for _, nip := range []int{1, 9, 11, 13, 29, 40, 42, 45, 50, 62, 70, 77, 86, 96, 98} {
 		if !containsNIP(cfg.RelayInformation.SupportedNIPs, nip) {
 			t.Fatalf("supported_nips = %v, want %d", cfg.RelayInformation.SupportedNIPs, nip)
 		}
@@ -27,7 +27,7 @@ func TestNIP11CapabilitiesReflectEnabledRelayFeatures(t *testing.T) {
 func TestNIP11CapabilitiesRemoveDisabledOptionalFeatures(t *testing.T) {
 	cfg := &Config{
 		RelayInformation: RelayInformationDocument{
-			SupportedNIPs: []int{1, 9, 11, 13, 29, 40, 42, 45, 62, 70, 77, 86, 96, 98},
+			SupportedNIPs: []int{1, 9, 11, 13, 29, 40, 42, 45, 50, 62, 70, 77, 86, 96, 98},
 		},
 	}
 
@@ -39,12 +39,12 @@ func TestNIP11CapabilitiesRemoveDisabledOptionalFeatures(t *testing.T) {
 	}
 }
 
-func TestNIP11CapabilitiesDoesNotAdvertisePartialNIP50(t *testing.T) {
+func TestNIP11CapabilitiesAdvertiseNIP50(t *testing.T) {
 	cfg := &Config{}
 
 	cfg.applyNIP11Capabilities()
-	if containsNIP(cfg.RelayInformation.SupportedNIPs, 50) {
-		t.Fatalf("supported_nips = %v, unexpectedly contains 50", cfg.RelayInformation.SupportedNIPs)
+	if !containsNIP(cfg.RelayInformation.SupportedNIPs, 50) {
+		t.Fatalf("supported_nips = %v, want 50", cfg.RelayInformation.SupportedNIPs)
 	}
 }
 

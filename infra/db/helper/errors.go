@@ -7,5 +7,6 @@ var (
 	ErrTooManyAuthors   = errors.New("too many authors")
 	ErrTooManyKinds     = errors.New("too many kinds")
 	ErrTooManyTagValues = errors.New("too many tag values")
+	ErrSearchTooLong    = errors.New("search is too long")
 	ErrEmptyTagSet      = errors.New("empty tag set")
 )

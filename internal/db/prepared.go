@@ -34,21 +34,21 @@ var stmtSQLs = map[string]string{
 		SELECT id, pubkey, created_at, kind, tags, content, sig 
 		FROM event 
 		WHERE pubkey = $1 
-		ORDER BY created_at DESC 
+		ORDER BY created_at DESC, id
 		LIMIT $2
 	`,
 	StmtEventsByKind: `
 		SELECT id, pubkey, created_at, kind, tags, content, sig 
 		FROM event 
-		WHERE kind = $1 AND created_at > $2 
-		ORDER BY created_at DESC 
+		WHERE kind = $1 AND created_at >= $2
+		ORDER BY created_at DESC, id
 		LIMIT $3
 	`,
 	StmtEventsByPubkeyKind: `
 		SELECT id, pubkey, created_at, kind, tags, content, sig 
 		FROM event 
 		WHERE pubkey = $1 AND kind = $2 
-		ORDER BY created_at DESC 
+		ORDER BY created_at DESC, id
 		LIMIT $3
 	`,
 	StmtCountByFilter: `
@@ -60,7 +60,7 @@ var stmtSQLs = map[string]string{
 		SELECT id, pubkey, created_at, kind, tags, content, sig 
 		FROM event 
 		WHERE $1 = ANY(tagvalues) 
-		ORDER BY created_at DESC 
+		ORDER BY created_at DESC, id
 		LIMIT $2
 	`,
 	StmtEventsRecent: `

@@ -74,7 +74,7 @@
 - [x] NIP-11: Relay info document
 - [x] NIP-42: Authentication
 - [x] NIP-45: Event counts
-- [~] NIP-50: Search filter is available; relevance ordering remains before full support
+- [x] NIP-50: Full-text search with relevance ordering; extensions are parsed but not filtered
 - [x] NIP-62: Request to vanish
 - [x] NIP-96: HTTP file-storage information and endpoints
 - [x] NIP-98: HTTP auth
