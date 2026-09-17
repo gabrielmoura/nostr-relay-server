@@ -119,6 +119,10 @@ func TestQueryEventsSQL_RejectsTooLongSearch(t *testing.T) {
 	require.ErrorIs(t, err, ErrSearchTooLong)
 }
 
+func TestTagPayload_EscapesJSONStrings(t *testing.T) {
+	require.Equal(t, `[["p","value\"with\\escape"]]`, tagPayload("p", `value"with\escape`))
+}
+
 func TestFilterHash_IsStable(t *testing.T) {
 	cfg := testConfig()
 	first := nostr.Filter{

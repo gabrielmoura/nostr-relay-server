@@ -1,7 +1,7 @@
 package helper
 
 import (
-	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/gabrielmoura/nostr-relay-server/config"
@@ -87,7 +87,7 @@ func addTagsCondition(conditions *[]string, params *[]any, tags nostr.TagMap) {
 		clauses := make([]string, 0, len(values))
 		valuesPlaceholder := addParam(params, values)
 		for _, value := range values {
-			payload := fmt.Sprintf(`[[%q,%q]]`, tagName, value)
+			payload := tagPayload(tagName, value)
 			clauses = append(clauses, "tags @> "+addParam(params, payload)+"::jsonb")
 		}
 		exactCondition := clauses[0]
@@ -128,5 +128,15 @@ func addDeletionCondition(conditions *[]string, fakeDeletion bool) {
 
 func addParam(params *[]any, value any) string {
 	*params = append(*params, value)
-	return fmt.Sprintf("$%d", len(*params))
+	return "$" + strconv.Itoa(len(*params))
+}
+
+func tagPayload(name, value string) string {
+	payload := make([]byte, 0, len(name)+len(value)+8)
+	payload = append(payload, '[', '[')
+	payload = strconv.AppendQuote(payload, name)
+	payload = append(payload, ',')
+	payload = strconv.AppendQuote(payload, value)
+	payload = append(payload, ']', ']')
+	return string(payload)
 }
