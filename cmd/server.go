@@ -2,13 +2,14 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	stdnet "net"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"sync"
-	"syscall"
 
 	croncmd "github.com/gabrielmoura/nostr-relay-server/cmd/internal/cron"
 	"github.com/gabrielmoura/nostr-relay-server/config"
@@ -59,6 +60,29 @@ func runServer(cmd *cobra.Command, args []string) {
 		}
 
 		log.Init()
+		instanceLockPath := filepath.Join("data", "nrserver.lock")
+		instanceLock, err := acquireServerLock(instanceLockPath, log.Logger)
+		if err != nil {
+			var runningErr *serverAlreadyRunningError
+			if errors.As(err, &runningErr) {
+				log.Logger.Error("já existe uma instância do nrserver em execução",
+					zap.Int("pid", runningErr.PID),
+					zap.String("lock", runningErr.Path))
+				return
+			}
+			log.Logger.Error("falha ao adquirir lock de instância do nrserver",
+				zap.String("lock", instanceLockPath),
+				zap.Error(err))
+			return
+		}
+		defer func() {
+			if err := instanceLock.Release(); err != nil {
+				log.Logger.Warn("falha ao remover lock de instância do nrserver",
+					zap.String("lock", instanceLock.Path()),
+					zap.Error(err))
+			}
+		}()
+
 		mainCtx, mainCancel := context.WithCancel(context.Background())
 		var (
 			in           *fiber.App
@@ -120,7 +144,7 @@ func runServer(cmd *cobra.Command, args []string) {
 
 		// Canal para capturar sinais do sistema
 		stopChan := make(chan os.Signal, 1)
-		signal.Notify(stopChan, os.Interrupt, syscall.SIGTERM)
+		signal.Notify(stopChan, shutdownSignals()...)
 
 		metrics.RegisterMetrics()
 		metrics.RegisterSecurityMetrics()
