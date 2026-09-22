@@ -4,8 +4,10 @@ import (
 	"context"
 	"fmt"
 
+	stdnet "net"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 
 	croncmd "github.com/gabrielmoura/nostr-relay-server/cmd/internal/cron"
@@ -14,7 +16,7 @@ import (
 	"github.com/gabrielmoura/nostr-relay-server/infra/handler/listener"
 	"github.com/gabrielmoura/nostr-relay-server/infra/ingestion"
 	"github.com/gabrielmoura/nostr-relay-server/infra/metrics"
-	"github.com/gabrielmoura/nostr-relay-server/infra/net"
+	relaynet "github.com/gabrielmoura/nostr-relay-server/infra/net"
 	"github.com/gabrielmoura/nostr-relay-server/infra/net/privacy"
 	"github.com/gabrielmoura/nostr-relay-server/infra/pubsub"
 	redisqueue "github.com/gabrielmoura/nostr-relay-server/infra/queue/redis"
@@ -32,6 +34,7 @@ import (
 	syncjob "github.com/gabrielmoura/nostr-relay-server/internal/sync"
 	"github.com/gabrielmoura/nostr-relay-server/internal/wot"
 	"github.com/gabrielmoura/nostr-relay-server/pkg/nostrpool"
+	"github.com/gofiber/fiber/v2"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
@@ -57,7 +60,42 @@ func runServer(cmd *cobra.Command, args []string) {
 
 		log.Init()
 		mainCtx, mainCancel := context.WithCancel(context.Background())
-		defer mainCancel()
+		var (
+			in           *fiber.App
+			ex           *fiber.App
+			pm           *privacy.Manager
+			shutdownOnce sync.Once
+		)
+		shutdown := func() {
+			shutdownOnce.Do(func() {
+				mainCancel()
+
+				ingestion.Stop()
+
+				if ps := pubsub.GetPubSub(); ps != nil {
+					ps.Close()
+				}
+
+				shutdownFiberApp(ex, "external")
+				shutdownFiberApp(in, "internal")
+
+				if pm != nil {
+					pm.Close()
+				}
+
+				if client := redis.GetClient(); client != nil {
+					if err := client.Close(); err != nil {
+						log.Logger.Warn("failed to close Redis client", zap.Error(err))
+					}
+				}
+			})
+		}
+		defer func() {
+			if recovered := recover(); recovered != nil {
+				log.Logger.Error("server panic during startup or runtime", zap.Any("panic", recovered))
+			}
+			shutdown()
+		}()
 
 		// Iniciar Redis (cache + pub/sub)
 		if err := redis.Init(&config.Cfg.Redis); err != nil {
@@ -124,10 +162,9 @@ func runServer(cmd *cobra.Command, args []string) {
 		stream.Start(mainCtx)
 
 		// Inicializa o handler dentro do contexto principal
-		in, ex := net.Router()
+		in, ex = relaynet.Router()
 
 		// Camada de privacidade opcional (Tor / I2P / Yggdrasil)
-		var pm *privacy.Manager
 		if config.Cfg.Privacy.Enabled {
 			pm = privacy.NewManager(config.Cfg.Privacy, log.Logger)
 			if err := pm.Start(mainCtx, config.Cfg.Port); err != nil {
@@ -151,49 +188,77 @@ func runServer(cmd *cobra.Command, args []string) {
 			<-stopChan
 
 			log.Logger.Info("Sinal de desligamento recebido. Finalizando...")
-
-			mainCancel()
-
-			// Shutdown ingestion
-			ingestion.Stop()
-
-			// Shutdown pubsub
-			if ps := pubsub.GetPubSub(); ps != nil {
-				ps.Close()
-			}
-
-			// Chamar o método Shutdown do servidor
-			if err := ex.Shutdown(); err != nil {
-				log.Logger.Fatal("Erro ao desligar o servidor", zap.Error(err))
-			}
-			if err := in.Shutdown(); err != nil {
-				log.Logger.Fatal("Erro ao desligar o servidor", zap.Error(err))
-			}
-
-			// Encerra a camada de privacidade (Tor / I2P / Yggdrasil)
-			if pm != nil {
-				pm.Close()
-			}
-
-			// Fechar conexão Redis
-			if client := redis.GetClient(); client != nil {
-				client.Close()
-			}
+			shutdown()
 		}()
 
 		if bootstrapFlag {
 			bootstrap.CreateInitialEvents()
 		}
-		lnIn, _ := net.PrepareListen(fmt.Sprintf(":%d", config.Cfg.Port+1))
-		lnEx, _ := net.PrepareListen(fmt.Sprintf(":%d", config.Cfg.Port))
+		internalAddress := fmt.Sprintf(":%d", config.Cfg.Port+1)
+		lnIn, err := prepareFiberListener(internalAddress)
+		if err != nil {
+			log.Logger.Error("falha ao abrir listener interno",
+				zap.String("address", internalAddress),
+				zap.Int("port", config.Cfg.Port+1),
+				zap.Error(err))
+			return
+		}
 
-		go in.Listener(lnIn)
-		go ex.Listener(lnEx)
+		externalAddress := fmt.Sprintf(":%d", config.Cfg.Port)
+		lnEx, err := prepareFiberListener(externalAddress)
+		if err != nil {
+			_ = lnIn.Close()
+			log.Logger.Error("falha ao abrir listener externo",
+				zap.String("address", externalAddress),
+				zap.Int("port", config.Cfg.Port),
+				zap.Error(err))
+			return
+		}
+
+		startFiberListener(mainCtx, in, lnIn, "internal", internalAddress)
+		startFiberListener(mainCtx, ex, lnEx, "external", externalAddress)
 
 		// Aguarda pelo término do contexto principal
 		<-mainCtx.Done()
 
 		log.Logger.Info("Servidor finalizado com sucesso.")
+	}
+}
+
+func prepareFiberListener(address string) (stdnet.Listener, error) {
+	listener, err := relaynet.PrepareListen(address)
+	if err != nil {
+		return nil, fmt.Errorf("prepare listener: %w", err)
+	}
+	return listener, nil
+}
+
+func startFiberListener(ctx context.Context, app *fiber.App, listener stdnet.Listener, name, address string) {
+	go func() {
+		if err := app.Listener(listener); err != nil {
+			if ctx.Err() != nil {
+				log.Logger.Debug("Fiber listener stopped during shutdown",
+					zap.String("server", name),
+					zap.String("address", address),
+					zap.Error(err))
+				return
+			}
+			log.Logger.Error("Fiber listener stopped unexpectedly",
+				zap.String("server", name),
+				zap.String("address", address),
+				zap.Error(err))
+		}
+	}()
+}
+
+func shutdownFiberApp(app *fiber.App, name string) {
+	if app == nil {
+		return
+	}
+	if err := app.Shutdown(); err != nil {
+		log.Logger.Warn("failed to shut down Fiber server",
+			zap.String("server", name),
+			zap.Error(err))
 	}
 }
 
