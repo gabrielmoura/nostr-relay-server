@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto"
 	"crypto/ed25519"
+	"errors"
 	"fmt"
 	"net"
 	"strconv"
@@ -15,6 +16,11 @@ import (
 	"github.com/gabrielmoura/nostr-relay-server/config"
 	"go.uber.org/zap"
 	"golang.org/x/net/proxy"
+)
+
+const (
+	torGracefulShutdownTimeout = 5 * time.Second
+	torForcedShutdownTimeout   = 5 * time.Second
 )
 
 // torService exposes the relay on a Tor onion address and provides outbound
@@ -92,6 +98,10 @@ func (s *torService) Start(ctx context.Context, relayPort int) error {
 // forwards the onion ports to 127.0.0.1:relayPort (the relay's own listener),
 // keeping the relay reachable on the onion address.
 func (s *torService) startNative(ctx context.Context, relayPort int) error {
+	if err := prepareTorDataDir(s.cfg.DataDir, s.logger); err != nil {
+		return err
+	}
+
 	conf := &tor.StartConf{EnableNetwork: true}
 	if s.cfg.DataDir != "" {
 		conf.DataDir = s.cfg.DataDir
@@ -102,6 +112,12 @@ func (s *torService) startNative(ctx context.Context, relayPort int) error {
 
 	t, err := tor.Start(ctx, conf)
 	if err != nil {
+		if t != nil && t.Process != nil {
+			s.logger.Debug("recovering Tor process after failed startup")
+			if closeErr := stopTorProcess(t, s.logger); closeErr != nil {
+				return errors.Join(err, fmt.Errorf("recover failed Tor process: %w", closeErr))
+			}
+		}
 		return err
 	}
 	s.proc = t
@@ -176,16 +192,86 @@ func (s *torService) DialContext() (func(ctx context.Context, network, addr stri
 func (s *torService) Close() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	var closeErrs []error
 	if s.onion != nil {
-		_ = s.onion.Close()
-		s.onion = nil
+		s.logger.Debug("closing Tor onion service")
+		if err := s.onion.Close(); err != nil {
+			closeErrs = append(closeErrs, fmt.Errorf("close onion service: %w", err))
+		} else {
+			s.onion = nil
+		}
 	}
 	if s.proc != nil {
-		_ = s.proc.Close()
-		s.proc = nil
+		if err := stopTorProcess(s.proc, s.logger); err != nil {
+			closeErrs = append(closeErrs, err)
+		} else {
+			s.proc = nil
+		}
 	}
-	s.started = false
+	if s.proc == nil {
+		s.started = false
+		s.startedAt = time.Time{}
+		s.onionID = ""
+	}
+	if len(closeErrs) > 0 {
+		return errors.Join(closeErrs...)
+	}
+	s.logger.Info("Tor network stopped")
 	return nil
+}
+
+func stopTorProcess(proc *tor.Tor, logger *zap.Logger) error {
+	startedAt := time.Now()
+	if proc.Control != nil {
+		if proc.Control.Authenticated && proc.StopProcessOnClose {
+			logger.Debug("sending HALT to Tor process")
+			if err := proc.Control.Signal("HALT"); err != nil {
+				logger.Warn("failed to send HALT to Tor process", zap.Error(err))
+			} else {
+				logger.Debug("HALT sent to Tor process")
+			}
+		}
+		if err := proc.Control.Close(); err != nil {
+			logger.Warn("failed to close Tor control connection", zap.Error(err))
+		}
+		proc.Control = nil
+	}
+	if proc.Process == nil {
+		return nil
+	}
+
+	waitCh := make(chan error, 1)
+	go func() { waitCh <- proc.Process.Wait() }()
+	select {
+	case err := <-waitCh:
+		proc.Process = nil
+		if err != nil {
+			return fmt.Errorf("Tor process exited after HALT: %w", err)
+		}
+		logger.Info("Tor process stopped", zap.Duration("duration", time.Since(startedAt)))
+		return nil
+	case <-time.After(torGracefulShutdownTimeout):
+		logger.Warn("Tor process did not stop after HALT; forcing termination",
+			zap.Duration("timeout", torGracefulShutdownTimeout))
+	}
+
+	if proc.ProcessCancelFunc == nil {
+		return fmt.Errorf("Tor process did not stop after HALT and has no cancellation function")
+	}
+	logger.Debug("forcing Tor process termination")
+	proc.ProcessCancelFunc()
+	select {
+	case err := <-waitCh:
+		proc.Process = nil
+		if err != nil {
+			logger.Warn("Tor process was forcefully terminated", zap.Duration("duration", time.Since(startedAt)), zap.Error(err))
+			return nil
+		}
+		logger.Warn("Tor process stopped after forced termination", zap.Duration("duration", time.Since(startedAt)))
+		return nil
+	case <-time.After(torForcedShutdownTimeout):
+		return fmt.Errorf("Tor process did not exit after forced termination within %s", torForcedShutdownTimeout)
+	}
 }
 
 // Status returns a copy of the Tor network's observability snapshot.

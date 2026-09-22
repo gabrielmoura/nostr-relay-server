@@ -36,6 +36,9 @@ func LoadConfigFromFile(path string) error {
 }
 
 func applyLoadedConfig() error {
+	if err := validatePrivacyRequiredValue(); err != nil {
+		return err
+	}
 
 	cfg := &Config{}
 	if err := viper.Unmarshal(cfg); err != nil {
@@ -72,6 +75,16 @@ func applyLoadedConfig() error {
 	Cfg = cfg
 	cfg.applySecurityRelayInformationDefaults()
 	cfg.applyNIP11Capabilities()
+	return nil
+}
+
+func validatePrivacyRequiredValue() error {
+	if !viper.IsSet("privacy.required") {
+		return nil
+	}
+	if _, ok := viper.Get("privacy.required").(bool); !ok {
+		return fmt.Errorf("privacy.required must be a boolean")
+	}
 	return nil
 }
 

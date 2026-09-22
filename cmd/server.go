@@ -68,8 +68,6 @@ func runServer(cmd *cobra.Command, args []string) {
 		)
 		shutdown := func() {
 			shutdownOnce.Do(func() {
-				mainCancel()
-
 				ingestion.Stop()
 
 				if ps := pubsub.GetPubSub(); ps != nil {
@@ -82,6 +80,8 @@ func runServer(cmd *cobra.Command, args []string) {
 				if pm != nil {
 					pm.Close()
 				}
+
+				mainCancel()
 
 				if client := redis.GetClient(); client != nil {
 					if err := client.Close(); err != nil {
@@ -168,6 +168,10 @@ func runServer(cmd *cobra.Command, args []string) {
 		if config.Cfg.Privacy.Enabled {
 			pm = privacy.NewManager(config.Cfg.Privacy, log.Logger)
 			if err := pm.Start(mainCtx, config.Cfg.Port); err != nil {
+				if config.Cfg.Privacy.Required {
+					log.Logger.Error("required privacy layer failed to start", zap.Error(err))
+					return
+				}
 				log.Logger.Error("Erro ao iniciar camada de privacidade", zap.Error(err))
 			}
 		}

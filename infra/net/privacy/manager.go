@@ -13,6 +13,7 @@ package privacy
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -91,10 +92,14 @@ func (m *Manager) Start(ctx context.Context, relayPort int) error {
 		return err
 	}
 
+	var startErrs []error
 	for _, svc := range m.services {
 		if err := svc.Start(ctx, relayPort); err != nil {
-			m.logger.Warn("privacy network failed to start",
-				zap.String("network", svc.Name()), zap.Error(err))
+			startErrs = append(startErrs, fmt.Errorf("%s: %w", svc.Name(), err))
+			if !m.cfg.Required {
+				m.logger.Warn("privacy network failed to start; continuing in fail-open mode",
+					zap.String("network", svc.Name()), zap.Error(err))
+			}
 			continue
 		}
 		m.logger.Info("privacy network started",
@@ -106,6 +111,9 @@ func (m *Manager) Start(ctx context.Context, relayPort int) error {
 		addresses = append(addresses, svc.Addresses()...)
 	}
 	setActiveAddresses(addresses)
+	if m.cfg.Required && len(startErrs) > 0 {
+		return fmt.Errorf("required privacy network failed to start: %w", errors.Join(startErrs...))
+	}
 	return nil
 }
 

@@ -278,6 +278,7 @@ func setExportDefaults() {
 // setPrivacyDefaults define os padrões do bloco privacy.
 func setPrivacyDefaults() {
 	viper.SetDefault("privacy.enabled", false)
+	viper.SetDefault("privacy.required", false)
 	viper.SetDefault("privacy.persistence", true)
 	viper.SetDefault("privacy.state_dir", "./data/privacy")
 	viper.SetDefault("privacy.tor.mode", "disabled")

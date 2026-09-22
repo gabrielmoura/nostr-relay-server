@@ -13,6 +13,7 @@ package config
 //	"disabled" - do not start this network.
 type PrivacyConfig struct {
 	Enabled     bool      `json:"enabled" yaml:"enabled" mapstructure:"enabled"`
+	Required    bool      `json:"required" yaml:"required" mapstructure:"required"`          // fail startup when a configured network cannot start
 	Persistence bool      `json:"persistence" yaml:"persistence" mapstructure:"persistence"` // persist/reuse identities (default true)
 	StateDir    string    `json:"state_dir" yaml:"state_dir" mapstructure:"state_dir"`       // root for persistent identity keys
 	Tor         TorConfig `json:"tor" yaml:"tor" mapstructure:"tor"`
