@@ -84,7 +84,10 @@ func prepareAll(ctx context.Context, conn statementPreparer) error {
 		if err != nil {
 			return fmt.Errorf("failed to prepare %s: %w", name, err)
 		}
-		log.Logger.Debug("prepared statement created", zap.String("name", name))
+		log.Logger.Debug("PostgreSQL prepared statement created",
+			zap.String("component", "postgres"),
+			zap.String("operation", "prepare"),
+			zap.String("statement", name))
 	}
 	return nil
 }

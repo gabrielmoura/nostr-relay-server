@@ -27,8 +27,8 @@ const (
 // connectivity through Tor's SOCKS proxy.
 //
 // Modes:
-//   - native: bine spawns/attaches a `tor` process (from PATH or ExePath) and
-//     creates the onion service in-process. Requires a `tor` binary available.
+//   - native: bine starts and manages a local `tor` process (from PATH or
+//     ExePath) and creates the onion service. Requires a `tor` binary.
 //   - external: an already-running Tor daemon (e.g. via torrc / Docker) provides
 //     the onion address; we reuse its SOCKS proxy for outbound and expose the
 //     configured onion URL via relay_information.
@@ -98,6 +98,9 @@ func (s *torService) Start(ctx context.Context, relayPort int) error {
 // forwards the onion ports to 127.0.0.1:relayPort (the relay's own listener),
 // keeping the relay reachable on the onion address.
 func (s *torService) startNative(ctx context.Context, relayPort int) error {
+	if !s.cfg.UseV3 {
+		return errors.New("only Tor v3 onion services are supported; set privacy.tor.v3 to true")
+	}
 	if err := prepareTorDataDir(s.cfg.DataDir, s.logger); err != nil {
 		return err
 	}
@@ -130,11 +133,6 @@ func (s *torService) startNative(ctx context.Context, relayPort int) error {
 	if len(remotePorts) == 0 {
 		remotePorts = []int{80}
 	}
-	v3 := s.cfg.UseV3
-	if !s.cfg.UseV3 {
-		v3 = true // default to v3
-	}
-
 	// Persistent identity: reuse the same v3 ed25519 key across restarts so the
 	// .onion address stays stable. Load-or-create a 64-byte ed25519 private key.
 	var key crypto.PrivateKey
@@ -156,7 +154,7 @@ func (s *torService) startNative(ctx context.Context, relayPort int) error {
 	onion, err := t.Listen(ctx, &tor.ListenConf{
 		LocalPort:   localPort, // bine dials 127.0.0.1:<localPort> -> the relay's own port
 		RemotePorts: remotePorts,
-		Version3:    v3,
+		Version3:    true,
 		Key:         key,
 	})
 	if err != nil {

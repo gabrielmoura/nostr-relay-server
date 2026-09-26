@@ -13,7 +13,6 @@ import (
 
 	croncmd "github.com/gabrielmoura/nostr-relay-server/cmd/internal/cron"
 	"github.com/gabrielmoura/nostr-relay-server/config"
-	"github.com/gabrielmoura/nostr-relay-server/infra/cache"
 	"github.com/gabrielmoura/nostr-relay-server/infra/handler/listener"
 	"github.com/gabrielmoura/nostr-relay-server/infra/ingestion"
 	"github.com/gabrielmoura/nostr-relay-server/infra/metrics"
@@ -88,10 +87,16 @@ func runServer(cmd *cobra.Command, args []string) {
 			in           *fiber.App
 			ex           *fiber.App
 			pm           *privacy.Manager
+			lnIn         stdnet.Listener
+			lnEx         stdnet.Listener
 			shutdownOnce sync.Once
 		)
 		shutdown := func() {
 			shutdownOnce.Do(func() {
+				// Cancel first so every long-running component, including the Fiber
+				// listener goroutines, can classify its close as an expected shutdown.
+				mainCancel()
+
 				ingestion.Stop()
 
 				if ps := pubsub.GetPubSub(); ps != nil {
@@ -100,12 +105,12 @@ func runServer(cmd *cobra.Command, args []string) {
 
 				shutdownFiberApp(ex, "external")
 				shutdownFiberApp(in, "internal")
+				closeFiberListener(lnEx, "external")
+				closeFiberListener(lnIn, "internal")
 
 				if pm != nil {
 					pm.Close()
 				}
-
-				mainCancel()
 
 				if client := redis.GetClient(); client != nil {
 					if err := client.Close(); err != nil {
@@ -121,11 +126,25 @@ func runServer(cmd *cobra.Command, args []string) {
 			shutdown()
 		}()
 
+		// Bind both sockets before initializing any dependency. Keeping these
+		// listeners open through startup prevents another process from taking a
+		// relay port between validation and Fiber.Listener.
+		in, ex = relaynet.Router()
+		internalAddress := fmt.Sprintf(":%d", config.Cfg.Port+1)
+		externalAddress := fmt.Sprintf(":%d", config.Cfg.Port)
+		lnIn, lnEx, err = prepareFiberListeners(internalAddress, externalAddress)
+		if err != nil {
+			log.Logger.Error("falha ao abrir listeners do relay",
+				zap.String("internal_address", internalAddress),
+				zap.String("external_address", externalAddress),
+				zap.Error(err))
+			return
+		}
+
 		// Iniciar Redis (cache + pub/sub)
 		if err := redis.Init(&config.Cfg.Redis); err != nil {
 			log.Logger.Warn("Redis initialization failed, continuing without Redis", zap.Error(err))
 		}
-		cache.Init()
 		if err := pubsub.Init(); err != nil {
 			log.Logger.Warn("PubSub initialization failed, continuing without pub/sub", zap.Error(err))
 		}
@@ -133,18 +152,22 @@ func runServer(cmd *cobra.Command, args []string) {
 
 		// Iniciar Conexão com o banco de dados
 		if err := db.Init(mainCtx); err != nil {
-			log.Logger.Fatal("Erro ao iniciar conexão com o banco de dados", zap.Error(err))
+			log.Logger.Error("Erro ao iniciar conexão com o banco de dados", zap.Error(err))
+			return
 		}
 		if err := nip86.Init(db.DbQueries); err != nil {
-			log.Logger.Fatal("Erro ao inicializar NIP-86", zap.Error(err))
+			log.Logger.Error("Erro ao inicializar NIP-86", zap.Error(err))
+			return
 		}
 		if err := nip86.ApplyRelayMetadataOverride(mainCtx); err != nil {
-			log.Logger.Fatal("Erro ao aplicar override de metadata do relay", zap.Error(err))
+			log.Logger.Error("Erro ao aplicar override de metadata do relay", zap.Error(err))
+			return
 		}
 
 		// Canal para capturar sinais do sistema
 		stopChan := make(chan os.Signal, 1)
 		signal.Notify(stopChan, shutdownSignals()...)
+		defer signal.Stop(stopChan)
 
 		metrics.RegisterMetrics()
 		metrics.RegisterSecurityMetrics()
@@ -154,28 +177,35 @@ func runServer(cmd *cobra.Command, args []string) {
 				log.Logger.Warn("queue runtime initialization failed", zap.Error(err))
 			} else {
 				if err := down.RegisterQueueHandlers(queueRuntime.Registry()); err != nil {
-					log.Logger.Fatal("failed to register download queue handlers", zap.Error(err))
+					log.Logger.Error("failed to register download queue handlers", zap.Error(err))
+					return
 				}
 				if err := syncjob.RegisterQueueHandlers(queueRuntime.Registry()); err != nil {
-					log.Logger.Fatal("failed to register sync queue handlers", zap.Error(err))
+					log.Logger.Error("failed to register sync queue handlers", zap.Error(err))
+					return
 				}
 				if err := internalblossom.RegisterQueueHandlers(queueRuntime.Registry()); err != nil {
-					log.Logger.Fatal("failed to register blossom queue handlers", zap.Error(err))
+					log.Logger.Error("failed to register blossom queue handlers", zap.Error(err))
+					return
 				}
 				if err := croncmd.RegisterQueueHandlers(queueRuntime.Registry()); err != nil {
-					log.Logger.Fatal("failed to register cron queue handlers", zap.Error(err))
+					log.Logger.Error("failed to register cron queue handlers", zap.Error(err))
+					return
 				}
 				jobcore.SetDefault(queueRuntime.Service())
 				if err := queueRuntime.Start(mainCtx); err != nil {
-					log.Logger.Fatal("failed to start queue runtime", zap.Error(err))
+					log.Logger.Error("failed to start queue runtime", zap.Error(err))
+					return
 				}
 			}
 		}
 		if err := groups.Init(db.DbQueries); err != nil {
-			log.Logger.Fatal("Erro ao inicializar NIP-29", zap.Error(err))
+			log.Logger.Error("Erro ao inicializar NIP-29", zap.Error(err))
+			return
 		}
 		if err := security.Init(); err != nil {
-			log.Logger.Fatal("Erro ao inicializar a camada de seguranca", zap.Error(err))
+			log.Logger.Error("Erro ao inicializar a camada de seguranca", zap.Error(err))
+			return
 		}
 		policies2.Init()
 
@@ -184,9 +214,6 @@ func runServer(cmd *cobra.Command, args []string) {
 		ingestion.Start(mainCtx)
 		wot.Start(mainCtx)
 		stream.Start(mainCtx)
-
-		// Inicializa o handler dentro do contexto principal
-		in, ex = relaynet.Router()
 
 		// Camada de privacidade opcional (Tor / I2P / Yggdrasil)
 		if config.Cfg.Privacy.Enabled {
@@ -197,6 +224,10 @@ func runServer(cmd *cobra.Command, args []string) {
 					return
 				}
 				log.Logger.Error("Erro ao iniciar camada de privacidade", zap.Error(err))
+			}
+			if pm.Status().Degraded {
+				log.Logger.Warn("privacy layer degraded; relay will continue in fail-open mode",
+					zap.Bool("required", config.Cfg.Privacy.Required))
 			}
 		}
 		// Expose the manager to the admin dashboard /privacy/status handler.
@@ -213,38 +244,20 @@ func runServer(cmd *cobra.Command, args []string) {
 
 		// Goroutine para aguardar sinais de desligamento
 		go func() {
-			<-stopChan
-
-			log.Logger.Info("Sinal de desligamento recebido. Finalizando...")
-			shutdown()
+			select {
+			case <-mainCtx.Done():
+				return
+			case sig := <-stopChan:
+				log.Logger.Info("Sinal de desligamento recebido. Finalizando...", zap.String("signal", sig.String()))
+				shutdown()
+			}
 		}()
 
 		if bootstrapFlag {
 			bootstrap.CreateInitialEvents()
 		}
-		internalAddress := fmt.Sprintf(":%d", config.Cfg.Port+1)
-		lnIn, err := prepareFiberListener(internalAddress)
-		if err != nil {
-			log.Logger.Error("falha ao abrir listener interno",
-				zap.String("address", internalAddress),
-				zap.Int("port", config.Cfg.Port+1),
-				zap.Error(err))
-			return
-		}
-
-		externalAddress := fmt.Sprintf(":%d", config.Cfg.Port)
-		lnEx, err := prepareFiberListener(externalAddress)
-		if err != nil {
-			_ = lnIn.Close()
-			log.Logger.Error("falha ao abrir listener externo",
-				zap.String("address", externalAddress),
-				zap.Int("port", config.Cfg.Port),
-				zap.Error(err))
-			return
-		}
-
-		startFiberListener(mainCtx, in, lnIn, "internal", internalAddress)
-		startFiberListener(mainCtx, ex, lnEx, "external", externalAddress)
+		startFiberListener(mainCtx, in, lnIn, "internal", internalAddress, shutdown)
+		startFiberListener(mainCtx, ex, lnEx, "external", externalAddress, shutdown)
 
 		// Aguarda pelo término do contexto principal
 		<-mainCtx.Done()
@@ -261,7 +274,27 @@ func prepareFiberListener(address string) (stdnet.Listener, error) {
 	return listener, nil
 }
 
-func startFiberListener(ctx context.Context, app *fiber.App, listener stdnet.Listener, name, address string) {
+func prepareFiberListeners(internalAddress, externalAddress string) (stdnet.Listener, stdnet.Listener, error) {
+	internalListener, err := prepareFiberListener(internalAddress)
+	if err != nil {
+		return nil, nil, fmt.Errorf("prepare internal listener: %w", err)
+	}
+
+	externalListener, err := prepareFiberListener(externalAddress)
+	if err != nil {
+		if closeErr := internalListener.Close(); closeErr != nil {
+			return nil, nil, errors.Join(
+				fmt.Errorf("prepare external listener: %w", err),
+				fmt.Errorf("close internal listener after external bind failure: %w", closeErr),
+			)
+		}
+		return nil, nil, fmt.Errorf("prepare external listener: %w", err)
+	}
+
+	return internalListener, externalListener, nil
+}
+
+func startFiberListener(ctx context.Context, app *fiber.App, listener stdnet.Listener, name, address string, shutdown func()) {
 	go func() {
 		if err := app.Listener(listener); err != nil {
 			if ctx.Err() != nil {
@@ -275,6 +308,7 @@ func startFiberListener(ctx context.Context, app *fiber.App, listener stdnet.Lis
 				zap.String("server", name),
 				zap.String("address", address),
 				zap.Error(err))
+			shutdown()
 		}
 	}()
 }
@@ -285,6 +319,17 @@ func shutdownFiberApp(app *fiber.App, name string) {
 	}
 	if err := app.Shutdown(); err != nil {
 		log.Logger.Warn("failed to shut down Fiber server",
+			zap.String("server", name),
+			zap.Error(err))
+	}
+}
+
+func closeFiberListener(listener stdnet.Listener, name string) {
+	if listener == nil {
+		return
+	}
+	if err := listener.Close(); err != nil && !errors.Is(err, stdnet.ErrClosed) {
+		log.Logger.Warn("failed to close Fiber listener",
 			zap.String("server", name),
 			zap.Error(err))
 	}

@@ -42,7 +42,11 @@ func (m *Manager) afterStoreEvent(ctx context.Context, evt *nostr.Event) error {
 }
 
 func (m *Manager) applyCreateGroup(ctx context.Context, evt *nostr.Event) error {
-	log.Logger.Debug("applyCreateGroup", zap.Any("event", evt))
+	log.Logger.Debug("applying NIP-29 group creation",
+		zap.String("event_id", evt.ID),
+		zap.String("group_id", groupIDFromEvent(evt)),
+		zap.String("pubkey", evt.PubKey),
+		zap.Int("kind", evt.Kind))
 	now := time.Now().UTC()
 	groupID := groupIDFromEvent(evt)
 	group := dbstore.NIP29Group{

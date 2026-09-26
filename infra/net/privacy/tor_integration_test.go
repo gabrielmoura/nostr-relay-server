@@ -22,7 +22,7 @@ func TestTorServicePersistentDataDirRestart(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = listener.Close() })
 	port := listener.Addr().(*net.TCPAddr).Port
-	cfg := config.TorConfig{Mode: "native", DataDir: t.TempDir(), RemotePorts: []int{80}}
+	cfg := config.TorConfig{Mode: "native", DataDir: t.TempDir(), RemotePorts: []int{80}, UseV3: true}
 	for range 2 {
 		svc := newTorService(cfg, zap.NewNop(), NewKeyStore(t.TempDir()))
 		if err := svc.Start(context.Background(), port); err != nil {

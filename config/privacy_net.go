@@ -6,7 +6,8 @@ package config
 // The whole block is opt-in: nothing is enabled until `privacy.enabled` is
 // true. Each network can run in one of two modes:
 //
-//	"native"   - run the network in-process (pure Go, no external daemon).
+//	"native"   - run and manage a local process. Tor requires the `tor` binary;
+//	             I2P native remains experimental.
 //	"external" - connect to an already-running daemon/proxy (recommended for
 //	             production; interoperates with stock Tor/i2pd/Java-I2P).
 //	"auto"     - try native first, fall back to external.
@@ -28,7 +29,7 @@ type TorConfig struct {
 	SocksPort   int    `json:"socks_port" yaml:"socks_port" mapstructure:"socks_port"`       // external: SOCKS proxy port
 	RemotePorts []int  `json:"remote_ports" yaml:"remote_ports" mapstructure:"remote_ports"` // onion virtual ports
 	OnionPort   int    `json:"onion_port" yaml:"onion_port" mapstructure:"onion_port"`       // local port the onion forwards to (0 = relay port)
-	UseV3       bool   `json:"v3" yaml:"v3" mapstructure:"v3"`
+	UseV3       bool   `json:"v3" yaml:"v3" mapstructure:"v3"`                               // v3 is the only supported onion-service version
 	KeyFile     string `json:"key_file" yaml:"key_file" mapstructure:"key_file"`
 }
 

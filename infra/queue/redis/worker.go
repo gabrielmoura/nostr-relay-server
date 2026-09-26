@@ -82,6 +82,9 @@ func (w *Worker) Run(ctx context.Context) {
 			}
 			processed, err := w.processQueue(ctx, queueName)
 			if err != nil {
+				if isExpectedShutdown(ctx, err) {
+					return
+				}
 				log.Logger.Warn("queue worker iteration failed", zap.String("worker", w.name), zap.String("queue", queueName), zap.Error(err))
 			}
 			if processed > 0 {
@@ -112,6 +115,9 @@ func (w *Worker) processQueue(ctx context.Context, queueName string) (int, error
 	}
 	results, err := w.client.Raw().XReadGroup(ctx, args).Result()
 	if err != nil {
+		if isExpectedShutdown(ctx, err) {
+			return 0, nil
+		}
 		if errors.Is(err, goredis.Nil) {
 			return 0, w.reclaimPending(ctx, queueName)
 		}
@@ -135,6 +141,10 @@ func (w *Worker) processQueue(ctx context.Context, queueName string) (int, error
 	}
 
 	return processed, nil
+}
+
+func isExpectedShutdown(ctx context.Context, err error) bool {
+	return ctx.Err() != nil && errors.Is(err, ctx.Err())
 }
 
 func (w *Worker) handleMessage(ctx context.Context, queueName string, priority jobs.Priority, streamKey string, message goredis.XMessage) error {

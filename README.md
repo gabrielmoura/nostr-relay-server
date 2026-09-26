@@ -1065,10 +1065,10 @@ If you already use containerized infrastructure, Docker is usually the easiest o
 
 Yes. A common approach is:
 
-1. Install and configure Tor on the server
-2. Create a `HiddenService` in `torrc`
-3. Point the hidden service to the local relay port
-4. Update `canonical_url` in `conf.yaml` to the `.onion` address
+1. Use `privacy.tor.mode: external` with an existing Tor daemon and a `HiddenService` in `torrc`, or use `native` with the `tor` binary installed so bine can manage a local Tor process
+2. Point the hidden service to the local relay port
+3. Update `canonical_url` in `conf.yaml` to the `.onion` address
+4. Tor v3 onion services are the only supported version (`privacy.tor.v3: true`)
 5. Optionally use `HTTP_PROXY` / environment-based proxy routing if required by your deployment model
 
 ---
