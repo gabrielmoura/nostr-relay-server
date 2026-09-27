@@ -1,4 +1,7 @@
 # Nostr Relay Server ⚡
+<p align="center">
+<img src="nostr.webp" alt="Nostr Relay Server" width="300"/>
+</p>
 
 ![GitHub issues](https://img.shields.io/github/issues/gabrielmoura/nostr-relay-server?style=for-the-badge)
 ![GitHub forks](https://img.shields.io/github/forks/gabrielmoura/nostr-relay-server?style=for-the-badge)
