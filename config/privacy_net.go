@@ -6,8 +6,8 @@ package config
 // The whole block is opt-in: nothing is enabled until `privacy.enabled` is
 // true. Each network can run in one of two modes:
 //
-//	"native"   - run and manage a local process. Tor requires the `tor` binary;
-//	             I2P native remains experimental.
+//	"native"   - run and manage the network locally. Tor requires the `tor`
+//	             binary; I2P embeds a Go router and local SAM bridge.
 //	"external" - connect to an already-running daemon/proxy (recommended for
 //	             production; interoperates with stock Tor/i2pd/Java-I2P).
 //	"auto"     - try native first, fall back to external.

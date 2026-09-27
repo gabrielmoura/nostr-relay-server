@@ -1,3 +1,6 @@
 [submodule "pkg/webc/nostrudel"]
 	path = pkg/webc/nostrudel
 	url = https://github.com/gabrielmoura/nostrudel.git
+[submodule "pkg/go-sam-bridge"]
+	path = pkg/go-sam-bridge
+	url = git@github.com:gabrielmoura/go-sam-bridge.git

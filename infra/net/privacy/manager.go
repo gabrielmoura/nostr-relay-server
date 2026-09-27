@@ -3,12 +3,10 @@
 // in-process ("native") or by connecting to an already-running daemon
 // ("external").
 //
-// Everything is opt-in via the `privacy:` block in conf.yaml. Native modes are
-// pure Go (no external binaries, no root). I2P native mode is EXPERIMENTAL:
-// the embedded router is early-stage software, so it is gated behind an
-// explicit `privacy.i2p.mode: native` and logs a warning. The production
-// default for I2P is `external` via the standard SAM API (port 7656), which
-// interoperates with stock i2pd / Java-I2P routers.
+// Everything is opt-in via the `privacy:` block in conf.yaml. I2P native mode
+// owns an embedded Go router and a loopback-only SAM bridge. The interoperable
+// I2P external mode uses the standard SAM API (port 7656) with i2pd or
+// Java-I2P routers.
 package privacy
 
 import (
@@ -26,8 +24,9 @@ import (
 // advertised, used by the NIP-11 handler to publish them without coupling the
 // config package to the privacy implementation.
 var (
-	activeMu    sync.RWMutex
-	activeAddrs []string
+	activeMu       sync.RWMutex
+	activeAddrs    []string
+	activeAuthURLs []string
 )
 
 // GetActiveAddresses returns the currently advertised privacy addresses.
@@ -44,6 +43,27 @@ func setActiveAddresses(addrs []string) {
 	activeMu.Lock()
 	defer activeMu.Unlock()
 	activeAddrs = append([]string(nil), addrs...)
+}
+
+// GetActiveAuthURLs returns relay URLs authorized for NIP-42 while their
+// privacy services are active in this process. Persisted state is deliberately
+// not consulted: an old onion address must not remain authorized after close.
+func GetActiveAuthURLs() []string {
+	activeMu.RLock()
+	defer activeMu.RUnlock()
+	out := make([]string, len(activeAuthURLs))
+	copy(out, activeAuthURLs)
+	return out
+}
+
+func setActiveAuthURLs(urls []string) {
+	activeMu.Lock()
+	defer activeMu.Unlock()
+	activeAuthURLs = append([]string(nil), urls...)
+}
+
+type authURLService interface {
+	AuthURLs() []string
 }
 
 // Service is a single privacy network instance. Start brings up the network and
@@ -85,6 +105,10 @@ func (m *Manager) Start(ctx context.Context, relayPort int) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	// A manager may be restarted after a failed or closed attempt. Never leave
+	// the previous lifecycle's endpoints authorized while this one is starting.
+	setActiveAddresses(nil)
+	setActiveAuthURLs(nil)
 	if !m.cfg.Enabled {
 		return nil
 	}
@@ -111,10 +135,15 @@ func (m *Manager) Start(ctx context.Context, relayPort int) error {
 			zap.Strings("addresses", svc.Addresses()))
 	}
 	var addresses []string
+	var authURLs []string
 	for _, svc := range m.services {
 		addresses = append(addresses, svc.Addresses()...)
+		if authSvc, ok := svc.(authURLService); ok {
+			authURLs = append(authURLs, authSvc.AuthURLs()...)
+		}
 	}
 	setActiveAddresses(addresses)
+	setActiveAuthURLs(authURLs)
 	if m.cfg.Required && len(startErrs) > 0 {
 		return fmt.Errorf("required privacy network failed to start: %w", errors.Join(startErrs...))
 	}
@@ -163,6 +192,20 @@ func (m *Manager) Addresses() []string {
 	return out
 }
 
+// AuthURLs returns the privacy relay URLs currently authorized for NIP-42.
+// It is derived from started services, never from persisted identity metadata.
+func (m *Manager) AuthURLs() []string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	var urls []string
+	for _, svc := range m.services {
+		if authSvc, ok := svc.(authURLService); ok {
+			urls = append(urls, authSvc.AuthURLs()...)
+		}
+	}
+	return urls
+}
+
 // Close stops all services. Idempotent.
 func (m *Manager) Close() {
 	m.mu.Lock()
@@ -177,6 +220,7 @@ func (m *Manager) Close() {
 	}
 	m.services = nil
 	setActiveAddresses(nil)
+	setActiveAuthURLs(nil)
 }
 
 // resolveMode picks a concrete mode for an "auto"/empty value.

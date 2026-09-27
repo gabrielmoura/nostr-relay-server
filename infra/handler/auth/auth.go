@@ -10,6 +10,7 @@ import (
 	"github.com/gabrielmoura/nostr-relay-server/config"
 	"github.com/gabrielmoura/nostr-relay-server/infra/log"
 	"github.com/gabrielmoura/nostr-relay-server/infra/metrics"
+	"github.com/gabrielmoura/nostr-relay-server/infra/net/privacy"
 	"github.com/gabrielmoura/nostr-relay-server/internal/dto"
 	json "github.com/gabrielmoura/nostr-relay-server/internal/jsonx"
 	"github.com/nbd-wtf/go-nostr"
@@ -24,7 +25,8 @@ func DoAUTH(ws *dto.WsServer, data dto.Data) string {
 		if err := json.Unmarshal(data[1], &evt); err != nil {
 			return "failed to decode auth event: " + err.Error()
 		}
-		if pubkey, reason := validateAuthEvent(&evt, ws.Challenge, config.Cfg.RelayInformation.CanonicalURL); reason == "" {
+		allowedRelayURLs := append([]string{config.Cfg.RelayInformation.CanonicalURL}, privacy.GetActiveAuthURLs()...)
+		if pubkey, reason := validateAuthEvent(&evt, ws.Challenge, allowedRelayURLs...); reason == "" {
 			ws.Authed = pubkey
 			ws.Ctx = context.WithValue(ws.Ctx, AuthContextKey, pubkey)
 			ws.ChanSender <- nostr.OKEnvelope{EventID: evt.ID, OK: true}
@@ -71,7 +73,7 @@ func SendAuthChallengeNow(ws *dto.WsServer) error {
 	return nil
 }
 
-func validateAuthEvent(evt *nostr.Event, challenge, relayURL string) (string, string) {
+func validateAuthEvent(evt *nostr.Event, challenge string, relayURLs ...string) (string, string) {
 	if evt.Kind != nostr.KindClientAuthentication {
 		return "", "invalid_kind"
 	}
@@ -79,9 +81,16 @@ func validateAuthEvent(evt *nostr.Event, challenge, relayURL string) (string, st
 		return "", "challenge_mismatch"
 	}
 
-	expected, err := parseAuthRelayURL(relayURL)
-	if err != nil {
-		return "", "invalid_canonical_url"
+	allowedURLs := make([]*url.URL, 0, len(relayURLs))
+	for index, relayURL := range relayURLs {
+		expected, parseErr := parseAuthRelayURL(relayURL)
+		if parseErr != nil {
+			if index == 0 {
+				return "", "invalid_canonical_url"
+			}
+			continue
+		}
+		allowedURLs = append(allowedURLs, expected)
 	}
 
 	relayTag := evt.Tags.Find("relay")
@@ -93,7 +102,15 @@ func validateAuthEvent(evt *nostr.Event, challenge, relayURL string) (string, st
 	if err != nil {
 		return "", "invalid_relay_tag"
 	}
-	if expected.Scheme != found.Scheme || expected.Host != found.Host || expected.Path != found.Path {
+
+	matched := false
+	for _, expected := range allowedURLs {
+		if authRelayURLsEqual(expected, found) {
+			matched = true
+			break
+		}
+	}
+	if !matched {
 		return "", "relay_mismatch"
 	}
 
@@ -110,7 +127,36 @@ func validateAuthEvent(evt *nostr.Event, challenge, relayURL string) (string, st
 }
 
 func parseAuthRelayURL(raw string) (*url.URL, error) {
-	return url.Parse(strings.ToLower(strings.TrimSuffix(strings.TrimSpace(raw), "/")))
+	parsed, err := url.Parse(strings.TrimSuffix(strings.TrimSpace(raw), "/"))
+	if err != nil {
+		return nil, err
+	}
+	parsed.Scheme = strings.ToLower(parsed.Scheme)
+	parsed.Host = strings.ToLower(parsed.Host)
+	if (parsed.Scheme != "ws" && parsed.Scheme != "wss") || parsed.Host == "" {
+		return nil, fmt.Errorf("relay URL must be an absolute ws or wss URL")
+	}
+	if parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" {
+		return nil, fmt.Errorf("relay URL must not contain credentials, query, or fragment")
+	}
+	return parsed, nil
+}
+
+func authRelayURLsEqual(expected, found *url.URL) bool {
+	return expected.Scheme == found.Scheme &&
+		strings.EqualFold(expected.Hostname(), found.Hostname()) &&
+		authRelayPort(expected) == authRelayPort(found) &&
+		expected.Path == found.Path
+}
+
+func authRelayPort(relayURL *url.URL) string {
+	if port := relayURL.Port(); port != "" {
+		return port
+	}
+	if relayURL.Scheme == "wss" {
+		return "443"
+	}
+	return "80"
 }
 
 func authRelayTagValue(tags nostr.Tags) string {

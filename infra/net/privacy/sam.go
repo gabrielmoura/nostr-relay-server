@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/base32"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"net"
 	"strings"
@@ -21,6 +22,9 @@ type samClient struct {
 	addr        string
 	sessionName string
 	conn        net.Conn
+	reader      *bufio.Reader
+	forwardConn net.Conn
+	dial        func(network, address string, timeout time.Duration) (net.Conn, error)
 	mu          sync.Mutex
 	destination string // base64 destination (public key)
 	b32address  string // .b32.i2p base-address
@@ -42,29 +46,28 @@ func newSAMClient(host string, port int, sessionName string, persisted string) *
 // connect performs the SAM v3 handshake and creates a transient STREAM session.
 // The session is preserved so the same destination remains reachable until Close.
 func (c *samClient) connect(timeout time.Duration) error {
-	d := net.Dialer{Timeout: timeout}
-	conn, err := d.Dial("tcp", c.addr)
+	conn, err := c.dialSAM(timeout)
 	if err != nil {
 		return fmt.Errorf("sam connect %s: %w", c.addr, err)
 	}
 	c.conn = conn
+	c.reader = bufio.NewReader(conn)
 
 	if err := c.handshake(timeout); err != nil {
 		_ = conn.Close()
+		c.conn = nil
 		return err
 	}
 	if err := c.createSession(timeout); err != nil {
 		_ = conn.Close()
+		c.conn = nil
 		return err
 	}
 	return nil
 }
 
 func (c *samClient) handshake(timeout time.Duration) error {
-	if err := c.writeLine("HELLO VERSION MIN=3.2 MAX=3.3"); err != nil {
-		return err
-	}
-	reply, err := c.readLine(timeout)
+	reply, err := c.request("HELLO VERSION MIN=3.2 MAX=3.3", timeout)
 	if err != nil {
 		return err
 	}
@@ -80,10 +83,7 @@ func (c *samClient) createSession(timeout time.Duration) error {
 		dest = "TRANSIENT"
 	}
 	cmd := fmt.Sprintf("SESSION CREATE STYLE=STREAM ID=%s DESTINATION=%s", c.sessionName, dest)
-	if err := c.writeLine(cmd); err != nil {
-		return err
-	}
-	reply, err := c.readLine(timeout)
+	reply, err := c.request(cmd, timeout)
 	if err != nil {
 		return err
 	}
@@ -110,27 +110,94 @@ func (c *samClient) createSession(timeout time.Duration) error {
 	return nil
 }
 
+// startForward asks the router to bridge inbound I2P STREAM connections to the
+// relay's loopback TCP listener. SILENT=true is required: SAM must proxy the
+// stream unchanged, without sending the peer destination before relay bytes.
+func (c *samClient) startForward(host string, port int, timeout time.Duration) error {
+	if host == "" || port <= 0 || port > 65535 {
+		return fmt.Errorf("sam stream forward: invalid target %q:%d", host, port)
+	}
+
+	// SAM v3 requires FORWARD on a second control connection. The original
+	// connection owns the session and the forwarding connection keeps the
+	// mapping alive; closing it tells conforming routers to stop listening.
+	conn, err := c.dialSAM(timeout)
+	if err != nil {
+		return fmt.Errorf("sam forward connect %s: %w", c.addr, err)
+	}
+	reader := bufio.NewReader(conn)
+	reply, err := samRequest(conn, reader, "HELLO VERSION MIN=3.2 MAX=3.3", timeout)
+	if err != nil || !strings.HasPrefix(reply, "HELLO REPLY RESULT=OK") {
+		_ = conn.Close()
+		if err != nil {
+			return fmt.Errorf("sam forward handshake: %w", err)
+		}
+		return fmt.Errorf("sam forward handshake failed: %s", reply)
+	}
+
+	cmd := fmt.Sprintf(
+		"STREAM FORWARD ID=%s HOST=%s PORT=%d SILENT=true",
+		c.sessionName,
+		host,
+		port,
+	)
+	reply, err = samRequest(conn, reader, cmd, timeout)
+	if err != nil {
+		_ = conn.Close()
+		return err
+	}
+	if !strings.HasPrefix(reply, "STREAM STATUS RESULT=OK") {
+		_ = conn.Close()
+		return fmt.Errorf("sam stream forward failed: %s", reply)
+	}
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.closed {
+		_ = conn.Close()
+		return net.ErrClosed
+	}
+	if c.forwardConn != nil {
+		_ = c.forwardConn.Close()
+	}
+	c.forwardConn = conn
+	return nil
+}
+
+func (c *samClient) dialSAM(timeout time.Duration) (net.Conn, error) {
+	if c.dial != nil {
+		return c.dial("tcp", c.addr, timeout)
+	}
+	d := net.Dialer{Timeout: timeout}
+	return d.Dial("tcp", c.addr)
+}
+
 // Destination returns the base64 destination blob for this session. When it was
 // created from a persisted identity this is the reusable value; otherwise it is
 // the router-generated destination that can be persisted for reuse.
 func (c *samClient) Destination() string { return c.destination }
 
-func (c *samClient) writeLine(line string) error {
+func (c *samClient) request(line string, timeout time.Duration) (string, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	_, err := fmt.Fprintf(c.conn, "%s\n", line)
-	return err
+	if c.closed || c.conn == nil || c.reader == nil {
+		return "", net.ErrClosed
+	}
+	return samRequest(c.conn, c.reader, line, timeout)
 }
 
-func (c *samClient) readLine(timeout time.Duration) (string, error) {
-	if err := c.conn.SetReadDeadline(time.Now().Add(timeout)); err != nil {
+func samRequest(conn net.Conn, reader *bufio.Reader, line string, timeout time.Duration) (string, error) {
+	if _, err := fmt.Fprintf(conn, "%s\n", line); err != nil {
 		return "", err
 	}
-	line, err := bufio.NewReader(c.conn).ReadString('\n')
+	if err := conn.SetReadDeadline(time.Now().Add(timeout)); err != nil {
+		return "", err
+	}
+	reply, err := reader.ReadString('\n')
 	if err != nil {
 		return "", err
 	}
-	return strings.TrimSpace(line), nil
+	return strings.TrimSpace(reply), nil
 }
 
 // B32Address returns the .b32.i2p base-address of this session's destination.
@@ -143,10 +210,14 @@ func (c *samClient) Close() error {
 		return nil
 	}
 	c.closed = true
+	var closeErr error
 	if c.conn != nil {
-		return c.conn.Close()
+		closeErr = errors.Join(closeErr, c.conn.Close())
 	}
-	return nil
+	if c.forwardConn != nil {
+		closeErr = errors.Join(closeErr, c.forwardConn.Close())
+	}
+	return closeErr
 }
 
 // samField extracts the value of a KEY=VALUE token from a SAM reply.
@@ -159,14 +230,24 @@ func samField(reply, key string) string {
 	return ""
 }
 
-// b32FromDestination computes the .b32.i2p base-address from a base64 destination:
-// SHA-256 of the public key bytes, base32-encoded, lowercased, first 52 chars.
+// b32FromDestination computes the .b32.i2p base-address from a base64 I2P
+// destination: SHA-256 of its public destination portion, base32-encoded and
+// lowercased. SAM SESSION STATUS may append private keys; they are never part
+// of a b32 address.
 func b32FromDestination(destB64 string) string {
 	raw, err := base64.StdEncoding.DecodeString(destB64)
-	if err != nil || len(raw) < 32 {
+	if err != nil || len(raw) < 387 {
 		return ""
 	}
-	sum := sha256.Sum256(raw[:32])
+	// A Destination starts with 256-byte crypto and 128-byte signing public
+	// keys, followed by a 3-byte certificate. The certificate length extends
+	// only the public destination (for non-DSA signing types).
+	certLen := int(raw[385])<<8 | int(raw[386])
+	destinationLen := 387 + certLen
+	if destinationLen > len(raw) {
+		return ""
+	}
+	sum := sha256.Sum256(raw[:destinationLen])
 	s := base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(sum[:])
 	return strings.ToLower(s[:52]) + ".b32.i2p"
 }

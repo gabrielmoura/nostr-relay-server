@@ -3,6 +3,7 @@ package privacy
 import (
 	"context"
 	"crypto/ed25519"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
@@ -157,6 +158,43 @@ func (s *torService) startNative(ctx context.Context, relayPort int) error {
 	if err := waitForTorOnionPublication(ctx, t, s.onionID); err != nil {
 		return s.cleanupFailedNativeStart(fmt.Errorf("wait for onion service publication: %w", err))
 	}
+	if err := s.saveNativeManifest(remotePorts, localPort); err != nil {
+		s.logger.Warn("could not persist active Tor onion metadata", zap.Error(err))
+	}
+	return nil
+}
+
+type torManifest struct {
+	SchemaVersion       int       `json:"schema_version"`
+	OnionAddress        string    `json:"onion_address"`
+	OnionServiceVersion int       `json:"onion_service_version"`
+	RelayURLs           []string  `json:"relay_urls"`
+	RemotePorts         []int     `json:"remote_ports"`
+	Target              string    `json:"target"`
+	PublishedAt         time.Time `json:"published_at"`
+}
+
+func (s *torService) saveNativeManifest(remotePorts []int, localPort int) error {
+	if s.store == nil {
+		return nil
+	}
+
+	manifest := torManifest{
+		SchemaVersion:       1,
+		OnionAddress:        s.onionID + ".onion",
+		OnionServiceVersion: 3,
+		RelayURLs:           torAuthURLs(s.onionID, remotePorts),
+		RemotePorts:         append([]int(nil), remotePorts...),
+		Target:              net.JoinHostPort("127.0.0.1", strconv.Itoa(localPort)),
+		PublishedAt:         time.Now().UTC(),
+	}
+	data, err := json.Marshal(manifest)
+	if err != nil {
+		return fmt.Errorf("marshal Tor manifest: %w", err)
+	}
+	if err := s.store.Save("tor.json", data); err != nil {
+		return fmt.Errorf("save Tor manifest: %w", err)
+	}
 	return nil
 }
 
@@ -237,6 +275,37 @@ func (s *torService) Addresses() []string {
 		return []string{s.onionID + ".onion"}
 	}
 	return nil
+}
+
+// AuthURLs returns only URLs derived from the currently published native onion
+// service. It intentionally does not use persisted tor.json metadata.
+func (s *torService) AuthURLs() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if !s.started || resolveMode(s.cfg.Mode, true) != "native" || s.onionID == "" {
+		return nil
+	}
+	return torAuthURLs(s.onionID, s.cfg.RemotePorts)
+}
+
+func torAuthURLs(onionID string, remotePorts []int) []string {
+	if onionID == "" {
+		return nil
+	}
+	if len(remotePorts) == 0 {
+		remotePorts = []int{80}
+	}
+
+	host := onionID + ".onion"
+	urls := make([]string, 0, len(remotePorts))
+	for _, remotePort := range remotePorts {
+		if remotePort == 80 {
+			urls = append(urls, "ws://"+host)
+			continue
+		}
+		urls = append(urls, "ws://"+net.JoinHostPort(host, strconv.Itoa(remotePort)))
+	}
+	return urls
 }
 
 // DialContext returns an outbound dialer through Tor's SOCKS proxy. Used when

@@ -13,7 +13,7 @@ without exposing a cleartext TCP port to the public internet.
 privacy:
   enabled: true
   tor:
-    mode: native          # spawns an in-process Tor daemon; no external setup
+    mode: native          # starts and manages a local `tor` process from PATH
   yggdrasil:
     mode: native          # embeds a Yggdrasil mesh node (ratatoskr)
   i2p:
@@ -49,6 +49,11 @@ document (`/` with `Accept: application/nostr+json`) under the
 | `external` | Connects to an already-running Tor daemon on SOCKS port (default 9050). Requires manual torrc or Docker setup. | Production; Docker/Kubernetes deployments |
 
 **Default virtual port:** 80 (maps to the relay's HTTP listener on the configured port).
+After a native onion descriptor is published, its active `ws://` URL is accepted
+for NIP-42 authentication. Port 80 is represented without an explicit port;
+other configured `remote_ports` retain their port. Only URLs from the active
+process are authorized — a persisted `tor.json` diagnostic manifest never
+authorizes an onion address after the service stops.
 
 ### Yggdrasil (Encrypted Mesh)
 
@@ -59,17 +64,19 @@ document (`/` with `Accept: application/nostr+json`) under the
 Yggdrasil is always embedded (there is no external daemon); `native` and `external`
 both run the embedded node. The embedded node discovers peers via links and
 multicast. The relay's port is forwarded from the Yggdrasil IPv6 address to
-`127.0.0.1:<relay_port>`.
+`127.0.0.1:<relay_port>`. Its NIP-42 URL is advertised only after that forward
+is active, as `ws://[IPv6]:effective_port`.
 
 ### I2P (Eepsite)
 
 | Mode | How it works | When to use |
 |------|-------------|-------------|
-| `external` **(default)** | Minimal SAM v3 client connects to an already-running i2pd or Java-I2P router on port 7656. Publishes the `.b32.i2p` address. | Production; recommended path |
-| `native` | **EXPERIMENTAL.** Attempts to embed go-i2p's router. Currently falls back to SAM with a warning. | Do not use in production yet |
+| `external` **(default)** | Minimal SAM v3 client connects to an already-running i2pd or Java-I2P router on port 7656, creates `STREAM FORWARD SILENT=true` to the relay loopback listener, then publishes the `.b32.i2p` address. | Production; recommended path |
+| `native` | Starts a managed Go I2P router plus a loopback-only SAM bridge, then creates `STREAM FORWARD SILENT=true` to the relay. No Java-I2P/i2pd process is required. | Development and self-contained deployments; validate against your target I2P network |
 
-**Production recommendation:** run i2pd or Java-I2P as a separate service and
-set `i2p.mode: external`.
+`native` is isolated under `i2p.data_dir` and does not alter NRServer's global
+configuration. `external` remains the best interoperability choice when an
+operator already runs Java-I2P or i2pd.
 
 ## Configuration Reference
 
@@ -92,6 +99,7 @@ privacy:
     mode: external         # native | external | auto | disabled
     sam_host: 127.0.0.1    # SAM API host
     sam_port: 7656         # SAM API port
+    i2cp_port: 7654        # native: embedded router I2CP listener
     session_name: nostr-relay  # SAM session identifier
     data_dir: ""           # native: embedded router data directory
 
@@ -111,11 +119,18 @@ By default the relay **reuses the same privacy identities across restarts**
 |---------|-------------------|----------------|
 | Tor | v3 onion **ed25519 key** (`tor.key`) | Same key → same `.onion` |
 | Yggdrasil | node **ed25519 private key** (`ygg.key`) | Same key → same IPv6 |
-| I2P | SAM **destination blob** (`i2p.key`) | Same destination → same `.b32.i2p` |
+| I2P | SAM **destination blob** (`i2p.key`) and router state under `i2p.data_dir` | Same destination → same `.b32.i2p` |
 
 Keys are stored under `privacy.state_dir` (default `./data/privacy`) with
 **0600 file / 0700 directory** permissions, written **atomically** (temp file +
 rename) so a crash can never corrupt an existing identity.
+
+Native Tor additionally writes a non-secret `tor.json` diagnostic manifest with
+the published onion address, onion-service version, active relay URLs, virtual
+ports, local target and publication time. A manifest write failure is logged but does not
+change the active service or its authorization set. Active I2P and Yggdrasil
+forwards similarly write non-secret `i2p.json` and `ygg.json` manifests. These
+diagnostics do not authorize addresses after their live services stop.
 
 Set `privacy.persistence: false` (or leave `state_dir` unset) to rotate
 identities every run — e.g. for disposable/test relays that must not be
@@ -123,10 +138,10 @@ reachable at a known address.
 
 ### I2P note
 
-Persistent I2P reuse requires the external SAM daemon (i2pd/Java-I2P) to accept
-the same `DESTINATION` blob on session create, which it does for a
-fixed/locally-generated destination. For the strongest persistence guarantee,
-run your router with a fixed destination configured for this relay.
+Native I2P keeps its router state in `i2p.data_dir`; external I2P reuse requires
+the SAM daemon (i2pd/Java-I2P) to accept the same `DESTINATION` blob on session
+create. For the strongest external persistence guarantee, run the router with a
+fixed destination configured for this relay.
 
 ## Architecture
 
@@ -181,15 +196,19 @@ alternative connection URLs.
 | Network | Library | License |
 |---------|---------|---------|
 | Tor | `github.com/cretz/bine` | MIT |
-| I2P | SAM v3 client (in-repo) | — |
-| I2P native | `github.com/go-i2p/go-i2p` | BSD-3 |
+| I2P | `github.com/go-i2p/go-i2p` and the maintained `go-sam-bridge` fork; external mode uses the in-repo SAM v3 client | MIT |
 | Yggdrasil | `github.com/voluminor/ratatoskr` | BSD-3 |
+
+The native path owns a Go router, its I2CP client and a loopback-only SAM bridge.
+It never falls back to an operator's external SAM daemon: if its local listener,
+router or inbound forward cannot start, the privacy manager applies the configured
+required/fail-open policy.
 
 ## Production Checklist
 
 - [ ] `privacy.enabled: true` in `conf.yaml`
 - [ ] Tor: ensure `tor` binary is in PATH (native) or a Tor daemon is running (external)
-- [ ] I2P: ensure i2pd/Java-I2P is running with SAM enabled on port 7656 (external)
+- [ ] I2P external: ensure i2pd/Java-I2P is running with SAM enabled on port 7656; native has no external daemon prerequisite
 - [ ] Yggdrasil: no external setup needed; the embedded node handles peer discovery
 - [ ] Verify addresses appear in NIP-11 (`curl -H 'Accept: application/nostr+json' http://localhost:PORT/`)
 - [ ] Confirm identities persist: restart the relay and check the addresses are unchanged (verify files under `privacy.state_dir`)

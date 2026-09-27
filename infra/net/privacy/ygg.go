@@ -2,6 +2,7 @@ package privacy
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net"
 	"strconv"
@@ -33,6 +34,8 @@ type yggService struct {
 	node    *ratatoskr.Obj
 	fwd     *forward.Obj
 	addr    *net.TCPAddr
+	forward bool
+	target  string
 
 	// observability (see Status)
 	startedAt     time.Time
@@ -131,7 +134,12 @@ func (s *yggService) Start(ctx context.Context, relayPort int) (err error) {
 	}
 	s.fwd = fwd
 	s.addr = &net.TCPAddr{IP: node.Address(), Port: listenPort}
+	s.forward = true
+	s.target = net.JoinHostPort("127.0.0.1", strconv.Itoa(relayPort))
 	s.started = true
+	if err := s.saveManifest(); err != nil {
+		s.logger.Warn("could not persist active Yggdrasil metadata", zap.Error(err))
+	}
 	s.logger.Info("yggdrasil started", zap.String("address", s.addr.String()))
 	return nil
 }
@@ -157,7 +165,49 @@ func (s *yggService) Close() error {
 		s.node = nil
 	}
 	s.addr = nil
+	s.forward = false
+	s.target = ""
 	s.started = false
+	return nil
+}
+
+// AuthURLs returns the active Yggdrasil endpoint only after the relay forward
+// was created successfully. net.TCPAddr.String preserves the required brackets
+// around an IPv6 literal.
+func (s *yggService) AuthURLs() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if !s.started || !s.forward || s.addr == nil {
+		return nil
+	}
+	return []string{"ws://" + s.addr.String()}
+}
+
+type yggManifest struct {
+	SchemaVersion int       `json:"schema_version"`
+	Address       string    `json:"address"`
+	RelayURLs     []string  `json:"relay_urls"`
+	Target        string    `json:"target"`
+	PublishedAt   time.Time `json:"published_at"`
+}
+
+func (s *yggService) saveManifest() error {
+	if s.store == nil || s.addr == nil || !s.forward {
+		return nil
+	}
+	data, err := json.Marshal(yggManifest{
+		SchemaVersion: 1,
+		Address:       s.addr.String(),
+		RelayURLs:     []string{"ws://" + s.addr.String()},
+		Target:        s.target,
+		PublishedAt:   time.Now().UTC(),
+	})
+	if err != nil {
+		return fmt.Errorf("marshal Yggdrasil manifest: %w", err)
+	}
+	if err := s.store.Save("ygg.json", data); err != nil {
+		return fmt.Errorf("save Yggdrasil manifest: %w", err)
+	}
 	return nil
 }
 

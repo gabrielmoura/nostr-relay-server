@@ -37,7 +37,7 @@ relay_information:
         - 13 # Proof of Work
         - 70 # Protected Events
     software: https://github.com/gabrielmoura/nostr-relay-server
-    canonical_url: ws://0.tcp.sa.ngrok.io:20246
+    canonical_url: ws://192.168.1.157:4869
     icon: http://kqzk4pnydptareyj7b4uzxg4rqkeh6wmntcjuoppy6wv72nkj3na2vad.onion/nostr.png
 relay:
     query_limit: 1000
@@ -58,7 +58,7 @@ db:
     max_conn_lifetime_minutes: 30
     max_conn_idle_minutes: 5
     health_check_period_seconds: 30
-    postgres_uri: postgres://postgres:Strong@P4ssword@127.0.0.1:5432/nostr?sslmode=disable
+    postgres_uri: postgres://postgres:Strong@P4ssword@127.0.0.1:5432/nostrv2?sslmode=disable
 redis:
   enabled: true
   addr: "127.0.0.1:6379"
@@ -224,5 +224,30 @@ nip29:
         cache_group_metadata: true
     permissions:
         create_invite: true
-nip70:
+privacy:
     enabled: true
+    # When true, a configured privacy network failing to start prevents relay startup.
+    # Default false keeps the relay available and reports the failure as degraded.
+    required: false
+    persistence: true
+    state_dir: /home/blx32/GolandProjects/nostr-relay-server/data/privacy
+    tor:
+        mode: native
+        data_dir: /home/blx32/GolandProjects/nostr-relay-server/data/tor
+        control_port: 0
+        socks_port: 9050
+        remote_ports:
+            - 80
+        onion_port: 0
+    i2p:
+        mode: disabled
+        sam_host: 127.0.0.1
+        sam_port: 7656
+        i2cp_port: 7654
+        session_name: nrserver
+        data_dir: /home/blx32/GolandProjects/nostr-relay-server/data/i2p
+    yggdrasil:
+        mode: disabled
+        peers: []
+        data_dir: /home/blx32/GolandProjects/nostr-relay-server/data/ygg
+        listen_port: 0
