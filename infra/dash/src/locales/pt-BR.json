@@ -629,6 +629,7 @@
     "errorTitle": "Falha ao carregar status de privacidade",
     "errorDescription": "Não foi possível obter o status de privacidade.",
     "enabled": "Habilitado",
+    "degraded": "Degradado",
     "persistence": "Persistência",
     "networksConfigured": "Redes configuradas",
     "networksActive": "Redes ativas",

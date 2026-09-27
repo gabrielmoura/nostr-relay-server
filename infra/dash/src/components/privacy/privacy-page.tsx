@@ -40,6 +40,12 @@ function PrivacyStatusContent({ privacy }: { privacy: NonNullable<ReturnType<typ
     <>
       <section className="grid gap-4 sm:grid-cols-3 xl:grid-cols-5">
         <Card>
+		  <CardHeader>
+			<CardDescription>{t("privacy.degraded")}</CardDescription>
+			<CardTitle>{privacy.degraded ? t("common.yes") : t("common.no")}</CardTitle>
+		  </CardHeader>
+		</Card>
+        <Card>
           <CardHeader>
             <CardDescription>{t("privacy.enabled")}</CardDescription>
             <CardTitle>{privacy.enabled ? t("common.yes") : t("common.no")}</CardTitle>

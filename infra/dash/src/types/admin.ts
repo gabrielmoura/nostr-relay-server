@@ -843,6 +843,7 @@ export type BlossomAuditFilters = {
 
 export type PrivacyStatus = {
   enabled: boolean
+  degraded: boolean
   persistence: boolean
   state_dir?: string
   networks: PrivacyNetwork[]

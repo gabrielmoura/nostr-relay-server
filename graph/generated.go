@@ -632,6 +632,7 @@ type ComplexityRoot struct {
 	}
 
 	PrivacyStatus struct {
+		Degraded    func(childComplexity int) int
 		Enabled     func(childComplexity int) int
 		Networks    func(childComplexity int) int
 		Persistence func(childComplexity int) int
@@ -3326,6 +3327,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.PrivacyNetworkMetrics.TxBytes(childComplexity), true
 
+	case "PrivacyStatus.degraded":
+		if e.ComplexityRoot.PrivacyStatus.Degraded == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PrivacyStatus.Degraded(childComplexity), true
 	case "PrivacyStatus.enabled":
 		if e.ComplexityRoot.PrivacyStatus.Enabled == nil {
 			break
@@ -5085,6 +5092,8 @@ func (ec *executionContext) childFields_PrivacyStatus(ctx context.Context, field
 	switch field.Name {
 	case "enabled":
 		return ec.fieldContext_PrivacyStatus_enabled(ctx, field)
+	case "degraded":
+		return ec.fieldContext_PrivacyStatus_degraded(ctx, field)
 	case "persistence":
 		return ec.fieldContext_PrivacyStatus_persistence(ctx, field)
 	case "stateDir":
@@ -16635,6 +16644,29 @@ func (ec *executionContext) fieldContext_PrivacyStatus_enabled(_ context.Context
 	return graphql.NewScalarFieldContext("PrivacyStatus", field, false, false, errors.New("field of type Boolean does not have child fields"))
 }
 
+func (ec *executionContext) _PrivacyStatus_degraded(ctx context.Context, field graphql.CollectedField, obj *model.PrivacyStatus) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PrivacyStatus_degraded(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Degraded, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_PrivacyStatus_degraded(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PrivacyStatus", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
 func (ec *executionContext) _PrivacyStatus_persistence(ctx context.Context, field graphql.CollectedField, obj *model.PrivacyStatus) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -25104,6 +25136,11 @@ func (ec *executionContext) _PrivacyStatus(ctx context.Context, sel ast.Selectio
 			out.Values[i] = graphql.MarshalString("PrivacyStatus")
 		case "enabled":
 			out.Values[i] = ec._PrivacyStatus_enabled(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "degraded":
+			out.Values[i] = ec._PrivacyStatus_degraded(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}

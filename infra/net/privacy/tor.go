@@ -2,7 +2,6 @@ package privacy
 
 import (
 	"context"
-	"crypto"
 	"crypto/ed25519"
 	"errors"
 	"fmt"
@@ -11,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/cretz/bine/control"
 	"github.com/cretz/bine/tor"
 	bined25519 "github.com/cretz/bine/torutil/ed25519"
 	"github.com/gabrielmoura/nostr-relay-server/config"
@@ -39,7 +39,6 @@ type torService struct {
 
 	mu      sync.Mutex
 	started bool
-	onion   *tor.OnionService
 	proc    *tor.Tor
 	socks   string
 	onionID string
@@ -94,9 +93,9 @@ func (s *torService) Start(ctx context.Context, relayPort int) error {
 	return nil
 }
 
-// startNative spawns a tor process via bine and publishes an onion service that
-// forwards the onion ports to 127.0.0.1:relayPort (the relay's own listener),
-// keeping the relay reachable on the onion address.
+// startNative spawns a Tor process via bine and publishes an onion service with
+// ADD_ONION. Tor forwards directly to Fiber's already-owned relay TCP endpoint;
+// Bine never receives or closes the Fiber listener.
 func (s *torService) startNative(ctx context.Context, relayPort int) error {
 	if !s.cfg.UseV3 {
 		return errors.New("only Tor v3 onion services are supported; set privacy.tor.v3 to true")
@@ -125,17 +124,13 @@ func (s *torService) startNative(ctx context.Context, relayPort int) error {
 	}
 	s.proc = t
 
-	localPort := s.cfg.OnionPort
-	if localPort == 0 {
-		localPort = relayPort
-	}
 	remotePorts := s.cfg.RemotePorts
 	if len(remotePorts) == 0 {
 		remotePorts = []int{80}
 	}
 	// Persistent identity: reuse the same v3 ed25519 key across restarts so the
 	// .onion address stays stable. Load-or-create a 64-byte ed25519 private key.
-	var key crypto.PrivateKey
+	var key control.Key = control.GenKey(control.KeyAlgoED25519V3)
 	if s.store != nil {
 		keyBytes, err := s.store.LoadOrCreate("tor.key", func() ([]byte, error) {
 			_, priv, kerr := ed25519.GenerateKey(nil)
@@ -145,25 +140,94 @@ func (s *torService) startNative(ctx context.Context, relayPort int) error {
 			return []byte(priv), nil
 		})
 		if err != nil {
-			_ = t.Close()
-			return fmt.Errorf("persistent onion key: %w", err)
+			return s.cleanupFailedNativeStart(fmt.Errorf("persistent onion key: %w", err))
 		}
-		key = bined25519.FromCryptoPrivateKey(ed25519.PrivateKey(keyBytes))
+		key = &control.ED25519Key{KeyPair: bined25519.FromCryptoPrivateKey(ed25519.PrivateKey(keyBytes))}
 	}
 
-	onion, err := t.Listen(ctx, &tor.ListenConf{
-		LocalPort:   localPort, // bine dials 127.0.0.1:<localPort> -> the relay's own port
-		RemotePorts: remotePorts,
-		Version3:    true,
-		Key:         key,
-	})
-	if err != nil {
-		_ = t.Close()
-		return err
+	localPort := s.cfg.OnionPort
+	if localPort == 0 {
+		localPort = relayPort
 	}
-	s.onion = onion
-	s.onionID = onion.ID
+	onion, err := t.Control.AddOnion(newTorAddOnionRequest(remotePorts, net.JoinHostPort("127.0.0.1", strconv.Itoa(localPort)), key))
+	if err != nil {
+		return s.cleanupFailedNativeStart(err)
+	}
+	s.onionID = onion.ServiceID
+	if err := waitForTorOnionPublication(ctx, t, s.onionID); err != nil {
+		return s.cleanupFailedNativeStart(fmt.Errorf("wait for onion service publication: %w", err))
+	}
 	return nil
+}
+
+func newTorAddOnionRequest(remotePorts []int, target string, key control.Key) *control.AddOnionRequest {
+	ports := make([]*control.KeyVal, 0, len(remotePorts))
+	for _, remotePort := range remotePorts {
+		ports = append(ports, &control.KeyVal{Key: strconv.Itoa(remotePort), Val: target})
+	}
+	return &control.AddOnionRequest{Key: key, Ports: ports}
+}
+
+// waitForTorOnionPublication preserves the readiness contract of tor.Listen:
+// successful ADD_ONION only means Tor accepted the configuration, not that a
+// descriptor has reached a hidden-service directory.
+func waitForTorOnionPublication(ctx context.Context, proc *tor.Tor, onionID string) error {
+	if proc == nil || proc.Control == nil {
+		return errors.New("Tor control connection is unavailable")
+	}
+	if err := proc.EnableNetwork(ctx, true); err != nil {
+		return fmt.Errorf("enable Tor network: %w", err)
+	}
+
+	uploadsAttempted := 0
+	failures := make([]string, 0)
+	_, err := proc.Control.EventWait(ctx, []control.EventCode{control.EventCodeHSDesc}, func(evt control.Event) (bool, error) {
+		hs, _ := evt.(*control.HSDescEvent)
+		if hs == nil || hs.Address != onionID {
+			return false, nil
+		}
+
+		switch hs.Action {
+		case "UPLOAD":
+			uploadsAttempted++
+		case "FAILED":
+			failures = append(failures, fmt.Sprintf("directory %s: %s", hs.HSDir, hs.Reason))
+			if uploadsAttempted > 0 && len(failures) == uploadsAttempted {
+				return false, fmt.Errorf("all onion descriptor uploads failed: %v", failures)
+			}
+		case "UPLOADED":
+			return true, nil
+		}
+		return false, nil
+	})
+	return err
+}
+
+// cleanupFailedNativeStart rolls back the process that was acquired before a
+// later native-Tor setup step failed. It retains the process reference when
+// termination cannot be confirmed so a subsequent Close can still report it.
+func (s *torService) cleanupFailedNativeStart(startErr error) error {
+	if s.proc == nil {
+		return startErr
+	}
+
+	var cleanupErrs []error
+	if s.onionID != "" && s.proc.Control != nil {
+		if err := s.proc.Control.DelOnion(s.onionID); err != nil {
+			cleanupErrs = append(cleanupErrs, fmt.Errorf("delete onion service after failed startup: %w", err))
+		} else {
+			s.onionID = ""
+		}
+	}
+	if err := stopTorProcess(s.proc, s.logger); err != nil {
+		cleanupErrs = append(cleanupErrs, fmt.Errorf("stop Tor after failed startup: %w", err))
+	} else {
+		s.proc = nil
+	}
+	if len(cleanupErrs) == 0 {
+		return startErr
+	}
+	return errors.Join(append([]error{startErr}, cleanupErrs...)...)
 }
 
 func (s *torService) Addresses() []string {
@@ -191,12 +255,10 @@ func (s *torService) Close() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	var closeErrs []error
-	if s.onion != nil {
-		s.logger.Debug("closing Tor onion service")
-		if err := s.onion.Close(); err != nil {
-			closeErrs = append(closeErrs, fmt.Errorf("close onion service: %w", err))
-		} else {
-			s.onion = nil
+	if s.onionID != "" && s.proc != nil && s.proc.Control != nil {
+		s.logger.Debug("closing Tor onion service", zap.String("onion_id", s.onionID))
+		if err := s.proc.Control.DelOnion(s.onionID); err != nil {
+			closeErrs = append(closeErrs, fmt.Errorf("delete onion service: %w", err))
 		}
 	}
 	if s.proc != nil {

@@ -629,6 +629,7 @@
     "errorTitle": "Failed to load privacy status",
     "errorDescription": "Could not fetch privacy status.",
     "enabled": "Enabled",
+    "degraded": "Degraded",
     "persistence": "Persistence",
     "networksConfigured": "Networks configured",
     "networksActive": "Networks active",

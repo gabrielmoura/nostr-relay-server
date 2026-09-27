@@ -12,6 +12,7 @@ import (
 // gqlgen model struct tags.
 type PrivacyStatusResponse struct {
 	Enabled     bool                     `json:"enabled"`
+	Degraded    bool                     `json:"degraded"`
 	Persistence bool                     `json:"persistence"`
 	StateDir    string                   `json:"state_dir"`
 	Networks    []PrivacyNetworkResponse `json:"networks"`
@@ -46,6 +47,7 @@ func PrivacyStatus() fiber.Handler {
 		st := privacy.GetManager().Status() // nil-safe; returns zero flags
 		resp := PrivacyStatusResponse{
 			Enabled:     st.Enabled,
+			Degraded:    st.Degraded,
 			Persistence: st.Persistence,
 			StateDir:    st.StateDir,
 			Networks:    make([]PrivacyNetworkResponse, 0, len(st.Networks)),
@@ -54,6 +56,22 @@ func PrivacyStatus() fiber.Handler {
 			resp.Networks = append(resp.Networks, toPrivacyNetworkResponse(n))
 		}
 		return c.JSON(resp)
+	}
+}
+
+type ReadinessResponse struct {
+	Status   string `json:"status"`
+	Degraded bool   `json:"degraded"`
+}
+
+// Readiness reports whether the relay accepted its startup lifecycle. Privacy
+// failures are reported as degraded, but remain ready when fail-open is used.
+func Readiness() fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		return c.JSON(ReadinessResponse{
+			Status:   "ready",
+			Degraded: privacy.GetManager().Status().Degraded,
+		})
 	}
 }
 

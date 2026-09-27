@@ -68,6 +68,7 @@ type Manager struct {
 	cfg      config.PrivacyConfig
 	logger   *zap.Logger
 	services []Service
+	degraded bool
 	mu       sync.Mutex
 }
 
@@ -87,14 +88,17 @@ func (m *Manager) Start(ctx context.Context, relayPort int) error {
 	if !m.cfg.Enabled {
 		return nil
 	}
+	m.degraded = false
 
 	if err := m.buildServices(); err != nil {
+		m.degraded = true
 		return err
 	}
 
 	var startErrs []error
 	for _, svc := range m.services {
 		if err := svc.Start(ctx, relayPort); err != nil {
+			m.degraded = true
 			startErrs = append(startErrs, fmt.Errorf("%s: %w", svc.Name(), err))
 			if !m.cfg.Required {
 				m.logger.Warn("privacy network failed to start; continuing in fail-open mode",
@@ -232,6 +236,7 @@ type YggdrasilStatusSnapshot struct {
 // It deliberately exposes only domain status and has no Prometheus dependency.
 type ManagerStatus struct {
 	Enabled     bool
+	Degraded    bool
 	Persistence bool
 	StateDir    string
 	Networks    []StatusSnapshot
@@ -274,11 +279,17 @@ func (m *Manager) Status() ManagerStatus {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	out := make([]StatusSnapshot, 0, len(m.services))
+	degraded := m.degraded
 	for _, svc := range m.services {
-		out = append(out, svc.Status())
+		status := svc.Status()
+		if status.Enabled && status.StartErr != "" {
+			degraded = true
+		}
+		out = append(out, status)
 	}
 	return ManagerStatus{
 		Enabled:     m.cfg.Enabled,
+		Degraded:    degraded,
 		Persistence: m.cfg.Persistence,
 		StateDir:    m.cfg.StateDir,
 		Networks:    out,

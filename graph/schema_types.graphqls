@@ -89,7 +89,7 @@ type AdminDeleteGroupPayload { groupId: ID! eventId: ID! deletedAt: String! }
 type AdminWoTSummary { totalNodes: Int! totalEdges: Int! trustedPubkeys: [String!]! lastComputedAt: String }
 
 # ---- Privacy network observability (admin dashboard) ----
-type PrivacyStatus { enabled: Boolean! persistence: Boolean! stateDir: String networks: [PrivacyNetwork!]! }
+type PrivacyStatus { enabled: Boolean! degraded: Boolean! persistence: Boolean! stateDir: String networks: [PrivacyNetwork!]! }
 type PrivacyNetwork { id: PrivacyNetworkID! name: String! mode: String! enabled: Boolean! started: Boolean! status: PrivacyNetworkStatusEnum! addresses: [String!]! metrics: PrivacyNetworkMetrics error: String uptimeMs: Int64! }
 type PrivacyNetworkMetrics { txBytes: Int64! rxBytes: Int64! peers: Int connections: Int }
 enum PrivacyNetworkID { tor i2p yggdrasil }

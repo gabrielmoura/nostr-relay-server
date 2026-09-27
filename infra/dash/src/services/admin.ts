@@ -163,6 +163,7 @@ async function getPrivacyStatusImpl(): Promise<PrivacyStatus> {
   if (!payload) throw new ApiError("GraphQL query returned no data")
   return {
     enabled: payload.enabled,
+    degraded: payload.degraded,
     persistence: payload.persistence,
     state_dir: payload.stateDir ?? undefined,
     networks: (Array.isArray(payload.networks) ? (payload.networks as unknown[]) : [])

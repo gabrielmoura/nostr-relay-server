@@ -122,3 +122,8 @@ version: ## Mostra as informações de versão que serão injetadas
 
 .PHONY: all
 all: help
+
+.PHONY: dev-race
+dev-race: ## Gera binário local com diagnostics e detector de corrida (não é artefato de produção)
+	@mkdir -p $(BUILD_DIR)
+	GOCACHE=$${GOCACHE:-/tmp/nrserver-go-build} go build -race -tags=diagnostics -o $(BUILD_DIR)/$(BINARY_NAME)-dev-race $(CMD_PATH)

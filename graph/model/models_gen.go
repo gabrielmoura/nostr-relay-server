@@ -731,6 +731,7 @@ type PrivacyNetworkMetrics struct {
 
 type PrivacyStatus struct {
 	Enabled     bool              `json:"enabled"`
+	Degraded    bool              `json:"degraded"`
 	Persistence bool              `json:"persistence"`
 	StateDir    *string           `json:"stateDir,omitempty"`
 	Networks    []*PrivacyNetwork `json:"networks"`

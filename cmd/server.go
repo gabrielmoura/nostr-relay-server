@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"io"
 	stdnet "net"
 	"os"
 	"os/signal"
@@ -89,6 +90,7 @@ func runServer(cmd *cobra.Command, args []string) {
 			pm           *privacy.Manager
 			lnIn         stdnet.Listener
 			lnEx         stdnet.Listener
+			pprofServer  io.Closer
 			shutdownOnce sync.Once
 		)
 		shutdown := func() {
@@ -107,6 +109,7 @@ func runServer(cmd *cobra.Command, args []string) {
 				shutdownFiberApp(in, "internal")
 				closeFiberListener(lnEx, "external")
 				closeFiberListener(lnIn, "internal")
+				closeDevelopmentPprof(pprofServer)
 
 				if pm != nil {
 					pm.Close()
@@ -140,6 +143,7 @@ func runServer(cmd *cobra.Command, args []string) {
 				zap.Error(err))
 			return
 		}
+		pprofServer = startDevelopmentPprof(config.Cfg.AppEnv, log.Logger)
 
 		// Iniciar Redis (cache + pub/sub)
 		if err := redis.Init(&config.Cfg.Redis); err != nil {

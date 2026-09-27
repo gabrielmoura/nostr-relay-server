@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/gabrielmoura/nostr-relay-server/config"
 	"github.com/gabrielmoura/nostr-relay-server/infra/net/privacy"
 	"github.com/gofiber/fiber/v2"
 )
@@ -91,5 +92,40 @@ func TestPrivacyNetworkResponseIncludesMetricsForStartedProvider(t *testing.T) {
 	}
 	if response.Metrics.Peers != nil {
 		t.Fatalf("metrics.peers = %#v, want nil when provider has no peer count", response.Metrics.Peers)
+	}
+}
+
+func TestReadinessReportsPrivacyDegradationWithoutFailing(t *testing.T) {
+	previous := privacy.GetManager()
+	manager := privacy.NewManager(config.PrivacyConfig{
+		Enabled: true,
+		I2P:     config.I2PConfig{Mode: "unsupported"},
+	}, nil)
+	if err := manager.Start(t.Context(), 0); err != nil {
+		t.Fatalf("start privacy manager: %v", err)
+	}
+	privacy.SetManager(manager)
+	t.Cleanup(func() {
+		manager.Close()
+		privacy.SetManager(previous)
+	})
+
+	app := fiber.New()
+	app.Get("/readyz", Readiness())
+	response, err := app.Test(httptest.NewRequest(http.MethodGet, "/readyz", nil))
+	if err != nil {
+		t.Fatalf("request readiness: %v", err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want %d", response.StatusCode, http.StatusOK)
+	}
+
+	var payload ReadinessResponse
+	if err := stdjson.NewDecoder(response.Body).Decode(&payload); err != nil {
+		t.Fatalf("decode readiness: %v", err)
+	}
+	if payload.Status != "ready" || !payload.Degraded {
+		t.Fatalf("readiness = %#v, want ready and degraded", payload)
 	}
 }

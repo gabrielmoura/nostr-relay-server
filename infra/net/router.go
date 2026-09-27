@@ -89,6 +89,8 @@ func (r *RouterFactory) setupInternalRoutes(app *fiber.App) {
 		p(c.Context())
 		return nil
 	})
+	app.Get("/healthz", httphandler.Readiness())
+	app.Get("/readyz", httphandler.Readiness())
 
 	admin := app.Group("/admin", httphandler.AdminTokenMiddleware(r.Config))
 	graphqlHandler := fasthttpadaptor.NewFastHTTPHandler(graph.HTTPHandler())
