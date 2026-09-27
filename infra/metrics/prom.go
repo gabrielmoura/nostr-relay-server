@@ -450,6 +450,20 @@ var (
 			Buckets: prometheus.DefBuckets,
 		},
 	)
+	NostrCronDailyStatsRunsTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "nostr_cron_daily_stats_runs_total",
+			Help: "Total daily statistics cron runs by result.",
+		},
+		[]string{"result"},
+	)
+	NostrCronDailyStatsDurationSeconds = prometheus.NewHistogram(
+		prometheus.HistogramOpts{
+			Name:    "nostr_cron_daily_stats_duration_seconds",
+			Help:    "Duration of successful daily statistics cron runs in seconds.",
+			Buckets: prometheus.DefBuckets,
+		},
+	)
 	NostrNIP29GroupsCreatedTotal = prometheus.NewCounter(
 		prometheus.CounterOpts{
 			Name: "nostr_nip29_groups_created_total",
@@ -593,6 +607,8 @@ func RegisterMetrics() {
 		NostrCronNIP40RunsTotal,
 		NostrCronNIP40DeletedEventsTotal,
 		NostrCronNIP40DurationSeconds,
+		NostrCronDailyStatsRunsTotal,
+		NostrCronDailyStatsDurationSeconds,
 		NostrNIP29GroupsCreatedTotal,
 		NostrNIP29GroupsActive,
 		NostrNIP29EventsReceivedTotal,

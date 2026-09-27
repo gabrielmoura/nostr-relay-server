@@ -41,6 +41,12 @@ func jobsFromConfig(cfg *config.Config) []jobDefinition {
 			Enabled:  cfg.Cron.NIP40.Enabled,
 			Run:      cronjob.RunNIP40ExpirationCleanup,
 		},
+		{
+			Name:     "daily_stats",
+			Schedule: cfg.Cron.DailyStats.Schedule,
+			Enabled:  cfg.Cron.DailyStats.Enabled,
+			Run:      cronjob.RunDailyStats,
+		},
 	}
 }
 
@@ -58,7 +64,7 @@ func filterJobs(all []jobDefinition, selected []string) ([]jobDefinition, error)
 	for _, name := range selected {
 		job, ok := jobMap[name]
 		if !ok {
-			return nil, fmt.Errorf("unknown cron job %q (available: db_optimization, reported_events_fetch, delete_old_events, nip40)", name)
+			return nil, fmt.Errorf("unknown cron job %q (available: db_optimization, reported_events_fetch, delete_old_events, nip40, daily_stats)", name)
 		}
 		filtered = append(filtered, job)
 	}

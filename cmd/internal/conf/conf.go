@@ -114,6 +114,7 @@ func validateCronSchedules(cfg *config.Config) error {
 		{name: "cron.reported_events_fetch", enabled: cfg.Cron.ReportedEventsFetch.Enabled, schedule: cfg.Cron.ReportedEventsFetch.Schedule},
 		{name: "cron.delete_old_events", enabled: cfg.Cron.DeleteOldEvents.Enabled, schedule: cfg.Cron.DeleteOldEvents.Schedule},
 		{name: "cron.nip40", enabled: cfg.Cron.NIP40.Enabled, schedule: cfg.Cron.NIP40.Schedule},
+		{name: "cron.daily_stats", enabled: cfg.Cron.DailyStats.Enabled, schedule: cfg.Cron.DailyStats.Schedule},
 	}
 
 	for _, check := range checks {
@@ -130,6 +131,23 @@ func validateCronSchedules(cfg *config.Config) error {
 
 	if cfg.Cron.ReportedEventsFetch.Enabled && len(cfg.Cron.ReportedEventsFetch.Relays) == 0 {
 		return fmt.Errorf("cron.reported_events_fetch is enabled but relays is empty")
+	}
+	if cfg.Cron.DailyStats.Enabled {
+		if !cfg.Redis.Enabled {
+			return fmt.Errorf("cron.daily_stats is enabled but redis.enabled is false")
+		}
+		if strings.TrimSpace(cfg.Cron.DailyStats.RedisNamespace) == "" {
+			return fmt.Errorf("cron.daily_stats.redis_namespace cannot be empty")
+		}
+		if strings.ContainsAny(cfg.Cron.DailyStats.RedisNamespace, "{}") {
+			return fmt.Errorf("cron.daily_stats.redis_namespace cannot contain Redis hash tag delimiters")
+		}
+		if cfg.Cron.DailyStats.TTLDays <= 0 {
+			return fmt.Errorf("cron.daily_stats.ttl_days must be positive")
+		}
+		if cfg.Cron.DailyStats.LockTTLSeconds <= 0 {
+			return fmt.Errorf("cron.daily_stats.lock_ttl_seconds must be positive")
+		}
 	}
 
 	return nil

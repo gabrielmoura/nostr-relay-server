@@ -224,6 +224,7 @@ type CronConfig struct {
 	ReportedEventsFetch CronReportedEventsConfig  `json:"reported_events_fetch" yaml:"reported_events_fetch" mapstructure:"reported_events_fetch"`
 	DeleteOldEvents     CronDeleteOldEventsConfig `json:"delete_old_events" yaml:"delete_old_events" mapstructure:"delete_old_events"`
 	NIP40               CronNIP40Config           `json:"nip40" yaml:"nip40" mapstructure:"nip40"`
+	DailyStats          CronDailyStatsConfig      `json:"daily_stats" yaml:"daily_stats" mapstructure:"daily_stats"`
 }
 
 type CronDBOptimizationConfig struct {
@@ -253,6 +254,14 @@ type CronNIP40Config struct {
 	Enabled   bool   `json:"enabled" yaml:"enabled" mapstructure:"enabled"`
 	Schedule  string `json:"schedule" yaml:"schedule" mapstructure:"schedule"`
 	BatchSize int    `json:"batch_size" yaml:"batch_size" mapstructure:"batch_size"`
+}
+
+type CronDailyStatsConfig struct {
+	Enabled        bool   `json:"enabled" yaml:"enabled" mapstructure:"enabled"`
+	Schedule       string `json:"schedule" yaml:"schedule" mapstructure:"schedule"`
+	RedisNamespace string `json:"redis_namespace" yaml:"redis_namespace" mapstructure:"redis_namespace"`
+	TTLDays        int    `json:"ttl_days" yaml:"ttl_days" mapstructure:"ttl_days"`
+	LockTTLSeconds int    `json:"lock_ttl_seconds" yaml:"lock_ttl_seconds" mapstructure:"lock_ttl_seconds"`
 }
 
 type NIP29Config struct {
