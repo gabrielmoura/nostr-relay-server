@@ -8,6 +8,7 @@ import (
 	_ "image/png"
 	"io"
 	"mime"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -95,12 +96,26 @@ func mirrorRemoteObject(ctx context.Context, job MirrorJob) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	if _, _, _, err := evaluateMirrorPolicy(policy, quotaRef, usedBytes, 0); err != nil {
+		return "", err
+	}
+	downloadLimit := mirrorDownloadLimit(policy, quotaRef, usedBytes)
+	if downloadLimit == 0 {
+		return "", fmt.Errorf("storage quota exceeded")
+	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, job.SourceURL, nil)
+	parsedURL, err := url.Parse(strings.TrimSpace(job.SourceURL))
+	if err != nil {
+		return "", fmt.Errorf("parse mirror source url: %w", err)
+	}
+	if err := validateMirrorURL(parsedURL); err != nil {
+		return "", err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, parsedURL.String(), nil)
 	if err != nil {
 		return "", fmt.Errorf("build mirror request: %w", err)
 	}
-	client := &http.Client{Timeout: 60 * time.Second}
+	client := newMirrorHTTPClient()
 	resp, err := client.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("download remote object: %w", err)
@@ -108,6 +123,9 @@ func mirrorRemoteObject(ctx context.Context, job MirrorJob) (string, error) {
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return "", fmt.Errorf("mirror request failed with status %d", resp.StatusCode)
+	}
+	if downloadLimit >= 0 && resp.ContentLength > downloadLimit {
+		return "", fmt.Errorf("storage quota exceeded")
 	}
 
 	tmpFile, err := os.CreateTemp("", "nrserver-mirror-*.tmp")
@@ -121,9 +139,16 @@ func mirrorRemoteObject(ctx context.Context, job MirrorJob) (string, error) {
 	}()
 
 	hasher := sha256.New()
-	size, err := io.Copy(io.MultiWriter(tmpFile, hasher), resp.Body)
+	body := io.Reader(resp.Body)
+	if downloadLimit >= 0 && downloadLimit < int64(^uint64(0)>>1) {
+		body = io.LimitReader(body, downloadLimit+1)
+	}
+	size, err := io.Copy(io.MultiWriter(tmpFile, hasher), body)
 	if err != nil {
 		return "", fmt.Errorf("stream mirror body: %w", err)
+	}
+	if downloadLimit >= 0 && size > downloadLimit {
+		return "", fmt.Errorf("storage quota exceeded")
 	}
 	hash := hex.EncodeToString(hasher.Sum(nil))
 	if !strings.EqualFold(hash, strings.TrimSpace(job.ExpectedSHA256)) {
@@ -265,11 +290,11 @@ func mustMarshalStrings(values []string) []byte {
 
 func validateMirrorJob(job MirrorJob) error {
 	parsed, err := url.Parse(strings.TrimSpace(job.SourceURL))
-	if err != nil || parsed == nil || parsed.Scheme == "" || parsed.Host == "" {
-		return fmt.Errorf("mirror source url must be absolute")
+	if err != nil {
+		return fmt.Errorf("parse mirror source url: %w", err)
 	}
-	if parsed.Scheme != "http" && parsed.Scheme != "https" {
-		return fmt.Errorf("mirror source url scheme must be http or https")
+	if err := validateMirrorURL(parsed); err != nil {
+		return err
 	}
 	hash := strings.ToLower(strings.TrimSpace(job.ExpectedSHA256))
 	if len(hash) != 64 {
@@ -281,6 +306,74 @@ func validateMirrorJob(job MirrorJob) error {
 		}
 	}
 	return nil
+}
+
+func validateMirrorURL(parsed *url.URL) error {
+	if parsed == nil || parsed.Scheme == "" || parsed.Host == "" || parsed.Hostname() == "" {
+		return fmt.Errorf("mirror source url must be absolute")
+	}
+	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+		return fmt.Errorf("mirror source url scheme must be http or https")
+	}
+	if parsed.User != nil {
+		return fmt.Errorf("mirror source url must not include user info")
+	}
+	if ip := net.ParseIP(parsed.Hostname()); ip != nil && !isPublicMirrorIP(ip) {
+		return fmt.Errorf("mirror source url must not target a private address")
+	}
+	return nil
+}
+
+func newMirrorHTTPClient() *http.Client {
+	dialer := &net.Dialer{}
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.Proxy = nil
+	transport.DialContext = mirrorDialContext(dialer)
+	return &http.Client{
+		Timeout:   60 * time.Second,
+		Transport: transport,
+		CheckRedirect: func(req *http.Request, _ []*http.Request) error {
+			return validateMirrorURL(req.URL)
+		},
+	}
+}
+
+// mirrorDialContext resolves each hostname immediately before connecting and
+// dials an approved address directly, preventing DNS rebinding to private
+// network targets. Redirects are validated separately by newMirrorHTTPClient.
+func mirrorDialContext(dialer *net.Dialer) func(context.Context, string, string) (net.Conn, error) {
+	return func(ctx context.Context, network, address string) (net.Conn, error) {
+		host, port, err := net.SplitHostPort(address)
+		if err != nil {
+			return nil, fmt.Errorf("split mirror address: %w", err)
+		}
+
+		addresses, err := net.DefaultResolver.LookupIPAddr(ctx, host)
+		if err != nil {
+			return nil, fmt.Errorf("resolve mirror host: %w", err)
+		}
+		for _, address := range addresses {
+			if !isPublicMirrorIP(address.IP) {
+				continue
+			}
+			conn, err := dialer.DialContext(ctx, network, net.JoinHostPort(address.IP.String(), port))
+			if err == nil {
+				return conn, nil
+			}
+		}
+		return nil, fmt.Errorf("mirror host %q has no reachable public address", host)
+	}
+}
+
+func isPublicMirrorIP(ip net.IP) bool {
+	if ip == nil || !ip.IsGlobalUnicast() || ip.IsPrivate() || ip.IsLoopback() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsUnspecified() {
+		return false
+	}
+	if ipv4 := ip.To4(); ipv4 != nil {
+		// RFC 6598 shared address space is not publicly routable.
+		return !(ipv4[0] == 100 && ipv4[1]&0xc0 == 0x40)
+	}
+	return true
 }
 
 func loadMirrorUploadPolicy(ctx context.Context, requestedBy string) (dbmodel.BlossomServerPolicy, *dbmodel.BlossomPubkeyQuota, int64, error) {
@@ -354,6 +447,20 @@ func mirrorEffectiveStorageQuota(policy dbmodel.BlossomServerPolicy, quota *dbmo
 		return &value
 	}
 	return nil
+}
+
+// mirrorDownloadLimit returns the number of bytes the remote body may contain
+// without exceeding the caller's remaining storage quota. A negative result
+// means the active policy has no storage cap.
+func mirrorDownloadLimit(policy dbmodel.BlossomServerPolicy, quota *dbmodel.BlossomPubkeyQuota, usedBytes int64) int64 {
+	limit := mirrorEffectiveStorageQuota(policy, quota)
+	if limit == nil {
+		return -1
+	}
+	if usedBytes >= *limit {
+		return 0
+	}
+	return *limit - usedBytes
 }
 
 func detectMirroredMIME(file *os.File, contentType string) (string, error) {

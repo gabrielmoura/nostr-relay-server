@@ -3,6 +3,9 @@ package blossom
 import (
 	"bytes"
 	"context"
+	"database/sql"
+	"net"
+	"net/url"
 	"os"
 	"testing"
 	"time"
@@ -114,5 +117,78 @@ func TestPersistBlobIsIdempotent(t *testing.T) {
 		if err := persistBlob(context.Background(), key, bytes.NewReader(payload), int64(len(payload))); err != nil {
 			t.Fatalf("persistBlob() error = %v", err)
 		}
+	}
+}
+
+func TestValidateMirrorURL(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		url  string
+		want bool
+	}{
+		{name: "public HTTPS address", url: "https://8.8.8.8/blob", want: true},
+		{name: "loopback IPv4", url: "http://127.0.0.1/blob"},
+		{name: "private IPv4", url: "http://10.0.0.1/blob"},
+		{name: "link local IPv4", url: "http://169.254.169.254/latest/meta-data"},
+		{name: "shared IPv4", url: "http://100.64.0.1/blob"},
+		{name: "loopback IPv6", url: "http://[::1]/blob"},
+		{name: "private IPv6", url: "http://[fd00::1]/blob"},
+		{name: "credentials", url: "https://user:password@example.com/blob"},
+		{name: "unsupported scheme", url: "file:///etc/passwd"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			parsed, err := url.Parse(tt.url)
+			if err != nil {
+				t.Fatalf("url.Parse() error = %v", err)
+			}
+			err = validateMirrorURL(parsed)
+			if (err == nil) != tt.want {
+				t.Fatalf("validateMirrorURL(%q) error = %v, want success = %t", tt.url, err, tt.want)
+			}
+		})
+	}
+}
+
+func TestIsPublicMirrorIP(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		ip   string
+		want bool
+	}{
+		{name: "public IPv4", ip: "8.8.8.8", want: true},
+		{name: "private IPv4", ip: "192.168.1.1"},
+		{name: "multicast IPv4", ip: "224.0.0.1"},
+		{name: "public IPv6", ip: "2001:4860:4860::8888", want: true},
+		{name: "private IPv6", ip: "fc00::1"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := isPublicMirrorIP(net.ParseIP(tt.ip)); got != tt.want {
+				t.Fatalf("isPublicMirrorIP(%q) = %t, want %t", tt.ip, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestMirrorDownloadLimit(t *testing.T) {
+	t.Parallel()
+
+	quota := int64(100)
+	policy := dbmodel.BlossomServerPolicy{DefaultStorageQuotaBytes: sql.NullInt64{Int64: quota, Valid: true}}
+	if got := mirrorDownloadLimit(policy, nil, 40); got != 60 {
+		t.Fatalf("mirrorDownloadLimit() = %d, want 60", got)
+	}
+	if got := mirrorDownloadLimit(policy, nil, 100); got != 0 {
+		t.Fatalf("mirrorDownloadLimit() at quota = %d, want 0", got)
+	}
+	if got := mirrorDownloadLimit(dbmodel.BlossomServerPolicy{}, nil, 40); got != -1 {
+		t.Fatalf("mirrorDownloadLimit() without quota = %d, want -1", got)
 	}
 }
