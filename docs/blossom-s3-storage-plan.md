@@ -35,11 +35,19 @@ não ativa tráfego S3.
 
 ## Fase 2 — backend S3
 
-Adicionar uma implementação `blobstore.S3Store` com SDK compatível, chaves
-`<key_prefix>/<sha256>`, operações condicionais/idempotentes, erros mapeados
-para `ErrNotFound` e suporte a leitura por intervalo. Testar contra um endpoint
-S3 compatível isolado. A integração deve permanecer atrás do contrato criado
-na Fase 1.
+Concluída: `blobstore.S3Store` usa `github.com/minio/minio-go/v7` e recebe a
+configuração S3 já validada. O construtor exige endpoint HTTP ou HTTPS,
+confirma conectividade e a existência do bucket, mas nunca cria buckets. As
+chaves remotas são `<key_prefix>/<sha256>`, sem extensão; `Put` é condicional
+e idempotente quando a chave já existe. `Stat`, `Get` com intervalo, `Delete`
+e `List` preservam as chaves SHA-256 do contrato e convertem ausências em
+`ErrNotFound`. O adaptador também expõe `PresignedGet` com TTL para uso futuro.
+
+O teste de contrato é o mesmo para `LocalStore` e `S3Store`. O segundo só roda
+quando `TEST_S3_ENDPOINT`, `TEST_S3_ACCESS_KEY`, `TEST_S3_SECRET_KEY` e
+`TEST_S3_BUCKET` estão definidos; ele usa um prefixo isolado e não assume
+credenciais nem endpoint locais. A integração permanece atrás do contrato da
+Fase 1.
 
 ## Fase 3 — integração do fluxo Blossom
 

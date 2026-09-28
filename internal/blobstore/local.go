@@ -147,6 +147,9 @@ func (s *LocalStore) Delete(ctx context.Context, key string) error {
 		return err
 	}
 	if err := os.Remove(s.pathFor(key)); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
 		return mapNotFound(err)
 	}
 	return nil

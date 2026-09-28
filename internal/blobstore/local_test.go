@@ -17,15 +17,12 @@ func TestLocalStoreContract(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewLocalStore() error = %v", err)
 	}
+	runStoreContract(t, store)
 
 	ctx := context.Background()
 	content := "nostr blossom storage"
-	object, err := store.Put(ctx, testKey, strings.NewReader(content), int64(len(content)))
-	if err != nil {
+	if _, err := store.Put(ctx, testKey, strings.NewReader(content), int64(len(content))); err != nil {
 		t.Fatalf("Put() error = %v", err)
-	}
-	if object.Key != testKey || object.Size != int64(len(content)) || object.Modified.IsZero() {
-		t.Fatalf("Put() object = %#v", object)
 	}
 	fileInfo, err := os.Stat(filepath.Join(store.root, testKey))
 	if err != nil {
@@ -33,56 +30,6 @@ func TestLocalStoreContract(t *testing.T) {
 	}
 	if fileInfo.Mode().Perm() != 0o644 {
 		t.Fatalf("stored file permissions = %o, want 644", fileInfo.Mode().Perm())
-	}
-
-	stat, err := store.Stat(ctx, testKey)
-	if err != nil {
-		t.Fatalf("Stat() error = %v", err)
-	}
-	if stat.Key != testKey || stat.Size != int64(len(content)) {
-		t.Fatalf("Stat() object = %#v", stat)
-	}
-
-	reader, gotInfo, err := store.Get(ctx, testKey, ByteRange{Offset: 6, Length: 7})
-	if err != nil {
-		t.Fatalf("Get() error = %v", err)
-	}
-	defer reader.Close()
-	got, err := io.ReadAll(reader)
-	if err != nil {
-		t.Fatalf("ReadAll() error = %v", err)
-	}
-	if string(got) != "blossom" || gotInfo != stat {
-		t.Fatalf("Get() = %q, %#v; want %q, %#v", got, gotInfo, "blossom", stat)
-	}
-
-	reader, _, err = store.Get(ctx, testKey, ByteRange{Offset: 14, Length: -1})
-	if err != nil {
-		t.Fatalf("Get() remainder error = %v", err)
-	}
-	defer reader.Close()
-	got, err = io.ReadAll(reader)
-	if err != nil {
-		t.Fatalf("ReadAll() remainder error = %v", err)
-	}
-	if string(got) != "storage" {
-		t.Fatalf("Get() remainder = %q, want %q", got, "storage")
-	}
-
-	objects, err := store.List(ctx, testKey[:8])
-	if err != nil {
-		t.Fatalf("List() error = %v", err)
-	}
-	if len(objects) != 1 || objects[0].Key != testKey {
-		t.Fatalf("List() = %#v", objects)
-	}
-
-	if err := store.Delete(ctx, testKey); err != nil {
-		t.Fatalf("Delete() error = %v", err)
-	}
-	_, err = store.Stat(ctx, testKey)
-	if !errors.Is(err, ErrNotFound) {
-		t.Fatalf("Stat() error = %v, want ErrNotFound", err)
 	}
 }
 
