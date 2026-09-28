@@ -388,8 +388,7 @@ func persistDerivativeBytes(ctx context.Context, object dbmodel.Object, payload 
 	hasher := sha256.New()
 	_, _ = hasher.Write(payload)
 	hash := hex.EncodeToString(hasher.Sum(nil))
-	path := filepath.Join(blobPath, hash)
-	if err := os.WriteFile(path, payload, 0o644); err != nil && !os.IsExist(err) {
+	if err := persistBlob(ctx, hash, bytes.NewReader(payload), int64(len(payload))); err != nil {
 		return "", fmt.Errorf("persist derivative payload: %w", err)
 	}
 	derivedObject := &dbmodel.Object{
@@ -406,7 +405,7 @@ func persistDerivativeBytes(ctx context.Context, object dbmodel.Object, payload 
 }
 
 func tempDerivativePath(prefix string, ext string) (string, error) {
-	file, err := os.CreateTemp(blobPath, prefix+"-*"+ext)
+	file, err := os.CreateTemp("", "nrserver-"+prefix+"-*"+ext)
 	if err != nil {
 		return "", fmt.Errorf("create temp derivative: %w", err)
 	}
@@ -491,7 +490,7 @@ func maxInt(value int, fallback int) int {
 }
 
 func generateHLSManifest(ctx context.Context, object dbmodel.Object, filePath string) (string, error) {
-	dir, err := os.MkdirTemp(blobPath, "hls-*")
+	dir, err := os.MkdirTemp("", "nrserver-hls-*")
 	if err != nil {
 		return "", fmt.Errorf("create hls temp dir: %w", err)
 	}
@@ -524,7 +523,7 @@ func generateHLSManifest(ctx context.Context, object dbmodel.Object, filePath st
 }
 
 func generateDASHManifest(ctx context.Context, object dbmodel.Object, filePath string) (string, error) {
-	dir, err := os.MkdirTemp(blobPath, "dash-*")
+	dir, err := os.MkdirTemp("", "nrserver-dash-*")
 	if err != nil {
 		return "", fmt.Errorf("create dash temp dir: %w", err)
 	}

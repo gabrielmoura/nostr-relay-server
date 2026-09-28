@@ -153,6 +153,7 @@ func runServer(cmd *cobra.Command, args []string) {
 			return
 		}
 		httpblossom.SetStore(blobStore)
+		internalblossom.SetStore(blobStore)
 		pprofServer = startDevelopmentPprof(config.Cfg.AppEnv, log.Logger)
 
 		// Iniciar Redis (cache + pub/sub)

@@ -11,13 +11,13 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/gabrielmoura/nostr-relay-server/config"
 	dbmodel "github.com/gabrielmoura/nostr-relay-server/infra/db"
+	"github.com/gabrielmoura/nostr-relay-server/internal/blobstore"
 	storedb "github.com/gabrielmoura/nostr-relay-server/internal/db"
 	jobcore "github.com/gabrielmoura/nostr-relay-server/internal/jobs"
 	json "github.com/gabrielmoura/nostr-relay-server/internal/jsonx"
@@ -29,7 +29,6 @@ import (
 const (
 	mirrorJobName = "blossom.mirror"
 	mediaJobName  = "blossom.media.optimize"
-	blobPath      = "files"
 )
 
 type MirrorJob struct {
@@ -111,7 +110,7 @@ func mirrorRemoteObject(ctx context.Context, job MirrorJob) (string, error) {
 		return "", fmt.Errorf("mirror request failed with status %d", resp.StatusCode)
 	}
 
-	tmpFile, err := os.CreateTemp(blobPath, "mirror-*.tmp")
+	tmpFile, err := os.CreateTemp("", "nrserver-mirror-*.tmp")
 	if err != nil {
 		return "", fmt.Errorf("create mirror temp file: %w", err)
 	}
@@ -140,12 +139,11 @@ func mirrorRemoteObject(ctx context.Context, job MirrorJob) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("detect mirrored mime type: %w", err)
 	}
-	filePath := filepath.Join(blobPath, hash)
-	if err := tmpFile.Close(); err != nil {
-		return "", fmt.Errorf("close mirror temp file: %w", err)
+	if _, err := tmpFile.Seek(0, io.SeekStart); err != nil {
+		return "", fmt.Errorf("rewind mirror temp file: %w", err)
 	}
-	if err := persistMirroredFile(tmpPath, filePath); err != nil {
-		return "", err
+	if err := persistBlob(ctx, hash, tmpFile, size); err != nil {
+		return "", fmt.Errorf("persist mirrored blob: %w", err)
 	}
 
 	obj := &dbmodel.Object{
@@ -197,7 +195,13 @@ func optimizeObjectMetadata(ctx context.Context, hash string) error {
 	if !ok {
 		adminObject = dbmodel.BlossomObjectRow{}
 	}
-	filePath := filepath.Join(blobPath, hash)
+	filePath, err := materializeBlob(ctx, hash)
+	if err != nil {
+		_ = storedb.DbQueries.UpdateBlossomObjectProcessing(ctx, hash, "failed", err.Error())
+		return err
+	}
+	defer os.Remove(filePath)
+
 	result, err := processMediaOptimization(ctx, object, filePath)
 	if err != nil {
 		_ = storedb.DbQueries.UpdateBlossomObjectProcessing(ctx, hash, "failed", err.Error())
@@ -377,16 +381,46 @@ func detectMirroredMIME(file *os.File, contentType string) (string, error) {
 	return strings.ToLower(mgl.MIME), nil
 }
 
-func persistMirroredFile(tmpPath string, filePath string) error {
-	if err := os.Rename(tmpPath, filePath); err == nil {
-		return nil
-	} else if !os.IsExist(err) {
-		if _, statErr := os.Stat(filePath); statErr == nil {
-			return nil
-		}
-		return fmt.Errorf("persist mirrored file: %w", err)
+func materializeBlob(ctx context.Context, key string) (string, error) {
+	store, err := currentStore()
+	if err != nil {
+		return "", err
 	}
-	return nil
+	reader, info, err := store.Get(ctx, key, blobstore.ByteRange{Length: -1})
+	if err != nil {
+		return "", fmt.Errorf("get blob for media optimization: %w", err)
+	}
+	defer reader.Close()
+
+	temporary, err := os.CreateTemp("", "nrserver-media-source-*")
+	if err != nil {
+		return "", fmt.Errorf("create media source temp file: %w", err)
+	}
+	temporaryPath := temporary.Name()
+	success := false
+	defer func() {
+		if temporary != nil {
+			_ = temporary.Close()
+		}
+		if !success {
+			_ = os.Remove(temporaryPath)
+		}
+	}()
+
+	written, copyErr := io.Copy(temporary, reader)
+	if copyErr != nil {
+		return "", fmt.Errorf("copy blob to media source temp file: %w", copyErr)
+	}
+	if written != info.Size {
+		return "", fmt.Errorf("copy blob to media source temp file: wrote %d bytes, expected %d", written, info.Size)
+	}
+	if err := temporary.Close(); err != nil {
+		return "", fmt.Errorf("close media source temp file: %w", err)
+	}
+	temporary = nil
+	success = true
+
+	return temporaryPath, nil
 }
 
 func buildNIP94Tags(

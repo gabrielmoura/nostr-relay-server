@@ -1,11 +1,15 @@
 package blossom
 
 import (
+	"bytes"
+	"context"
+	"os"
 	"testing"
 	"time"
 
 	"github.com/gabrielmoura/nostr-relay-server/config"
 	dbmodel "github.com/gabrielmoura/nostr-relay-server/infra/db"
+	"github.com/gabrielmoura/nostr-relay-server/internal/blobstore"
 )
 
 func TestBuildNIP94Tags(t *testing.T) {
@@ -61,6 +65,54 @@ func TestBuildNIP94Tags(t *testing.T) {
 			if tags[i][j] != want[i][j] {
 				t.Fatalf("tags[%d][%d] = %q, want %q", i, j, tags[i][j], want[i][j])
 			}
+		}
+	}
+}
+
+func TestMaterializeBlob(t *testing.T) {
+	store, err := blobstore.NewLocalStore(t.TempDir())
+	if err != nil {
+		t.Fatalf("NewLocalStore() error = %v", err)
+	}
+	key := "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+	payload := []byte("media source")
+	if _, err := store.Put(context.Background(), key, bytes.NewReader(payload), int64(len(payload))); err != nil {
+		t.Fatalf("Put() error = %v", err)
+	}
+
+	SetStore(store)
+	t.Cleanup(func() { SetStore(nil) })
+
+	path, err := materializeBlob(context.Background(), key)
+	if err != nil {
+		t.Fatalf("materializeBlob() error = %v", err)
+	}
+	t.Cleanup(func() { _ = os.Remove(path) })
+
+	got, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("ReadFile() error = %v", err)
+	}
+	if !bytes.Equal(got, payload) {
+		t.Fatalf("materialized payload = %q, want %q", got, payload)
+	}
+
+}
+
+func TestPersistBlobIsIdempotent(t *testing.T) {
+	store, err := blobstore.NewLocalStore(t.TempDir())
+	if err != nil {
+		t.Fatalf("NewLocalStore() error = %v", err)
+	}
+	key := "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789"
+	payload := []byte("derivative")
+
+	SetStore(store)
+	t.Cleanup(func() { SetStore(nil) })
+
+	for range 2 {
+		if err := persistBlob(context.Background(), key, bytes.NewReader(payload), int64(len(payload))); err != nil {
+			t.Fatalf("persistBlob() error = %v", err)
 		}
 	}
 }

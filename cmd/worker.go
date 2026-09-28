@@ -13,6 +13,7 @@ import (
 	"github.com/gabrielmoura/nostr-relay-server/infra/metrics"
 	redisqueue "github.com/gabrielmoura/nostr-relay-server/infra/queue/redis"
 	"github.com/gabrielmoura/nostr-relay-server/infra/redis"
+	"github.com/gabrielmoura/nostr-relay-server/internal/blobstore"
 	internalblossom "github.com/gabrielmoura/nostr-relay-server/internal/blossom"
 	"github.com/gabrielmoura/nostr-relay-server/internal/db"
 	"github.com/gabrielmoura/nostr-relay-server/internal/down"
@@ -51,6 +52,12 @@ func runWorker(_ *cobra.Command, _ []string) {
 
 	mainCtx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
+	blobStore, err := blobstore.NewConfiguredStore(mainCtx, config.Cfg.Store, "files")
+	if err != nil {
+		cobra.CheckErr(fmt.Errorf("initialize Blossom blob storage: %w", err))
+	}
+	internalblossom.SetStore(blobStore)
 
 	if err := db.Init(mainCtx); err != nil {
 		cobra.CheckErr(err)
