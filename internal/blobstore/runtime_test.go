@@ -59,6 +59,29 @@ func TestFallbackStore_ReadsLocalOnlyForNotFound(t *testing.T) {
 	}
 }
 
+func TestBlobStoreMetricResult(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name string
+		err  error
+		want string
+	}{
+		{name: "success", want: "success"},
+		{name: "not found", err: ErrNotFound, want: "not_found"},
+		{name: "invalid range", err: ErrInvalidRange, want: "invalid_range"},
+		{name: "canceled", err: context.Canceled, want: "canceled"},
+		{name: "other", err: errors.New("network failure"), want: "error"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := blobStoreMetricResult(tt.err); got != tt.want {
+				t.Fatalf("blobStoreMetricResult() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
 type stubStore struct {
 	reader io.ReadCloser
 	info   ObjectInfo

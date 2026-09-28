@@ -93,6 +93,21 @@ func TestIngestionMetricsDistinguishOutcomeAndQueueDepth(t *testing.T) {
 	require.Equal(t, 7.0, depth.Metric[0].Gauge.GetValue())
 }
 
+func TestBlobStoreMetricsUseOnlyControlledLabels(t *testing.T) {
+	registry := prometheus.NewRegistry()
+	require.NoError(t, registry.Register(NostrBlobStoreOperationsTotal))
+	require.NoError(t, registry.Register(NostrBlobStoreOperationDurationSeconds))
+
+	NostrBlobStoreOperationsTotal.WithLabelValues("s3", "get", "not_found").Inc()
+	NostrBlobStoreOperationDurationSeconds.WithLabelValues("s3", "get", "not_found").Observe(0.01)
+
+	operations := metricFamily(t, registry, "nostr_blob_store_operations_total")
+	duration := metricFamily(t, registry, "nostr_blob_store_operation_duration_seconds")
+	require.Equal(t, []string{"backend", "operation", "result"}, labelNames(operations))
+	require.Equal(t, []string{"backend", "operation", "result"}, labelNames(duration))
+	require.Contains(t, collectorDescription(NostrBlobStoreOperationsTotal), "controlled result")
+}
+
 func labelNames(family *client.MetricFamily) []string {
 	labels := make([]string, 0, len(family.Metric[0].Label))
 	for _, label := range family.Metric[0].Label {

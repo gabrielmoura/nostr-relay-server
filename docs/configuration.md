@@ -568,6 +568,8 @@ Supports the standard NIP-11 fee groups:
 | `db.health_check_period_seconds` | int32 | `30` | pgx health check period. |
 | `db.postgres_uri` | string | **required** | PostgreSQL DSN. |
 
+When the optional pool settings are omitted, these defaults are applied before the PostgreSQL pool is created.
+
 ### `redis`
 
 | Key | Type | Default | Description |
@@ -680,6 +682,18 @@ Global switch:
 | `schedule` | string | `0 */15 * * * *` | Cron expression for expiration cleanup. |
 | `batch_size` | int | `2000` | Batch deletion chunk size per run. |
 
+`cron.daily_stats`:
+
+| Key | Type | Default | Description |
+|---|---|---:|---|
+| `enabled` | bool | `false` | Generate daily UTC event-statistics snapshots. Requires `redis.enabled=true`. |
+| `schedule` | string | `0 10 0 * * *` | Six-field cron expression; the default runs at 00:10 UTC. |
+| `redis_namespace` | string | `daily_stats` | Redis key namespace. It cannot contain `{` or `}` so all keys retain the same Redis Cluster hash slot. |
+| `ttl_days` | int | `400` | Snapshot retention period in days. |
+| `lock_ttl_seconds` | int | `1860` | Distributed-lock TTL. The default covers the default 30-minute cron timeout plus one minute of margin. |
+
+Each run recomputes the three latest closed UTC days. Snapshots count only events where `deleted_by IS NULL`; hashtag rankings normalize `t` tag values with trim + lowercase and count a tag at most once per event.
+
 ### `stream`
 
 | Key | Type | Default | Description |
@@ -699,6 +713,19 @@ Global switch:
 | `store.allow_adult_content` | bool | zero value (`false`) | Content policy toggle. |
 | `store.allow_violent_content` | bool | zero value (`false`) | Content policy toggle. |
 | `store.names` | string[] | zero value (`[]`) | Custom names/tags. |
+| `store.backend` | string | `local` | Blob backend: `local` keeps `files/<sha256>`; `s3` uses the configured S3-compatible bucket. |
+| `store.s3.endpoint` | string | `""` | Required with `store.backend=s3`; HTTP(S) S3 endpoint, for example `http://rustfs:9000` in Compose. |
+| `store.s3.region` | string | `""` | Optional S3 signing region. |
+| `store.s3.bucket` | string | `""` | Required existing bucket. The relay never creates it. |
+| `store.s3.access_key` / `store.s3.secret_key` | string | `""` | Required credentials. Prefer `NRS_STORE_S3_ACCESS_KEY` and `NRS_STORE_S3_SECRET_KEY`; generated config output redacts both. |
+| `store.s3.use_path_style` | bool | `false` | Use path-style bucket addressing; normally required by local S3 deployments. |
+| `store.s3.key_prefix` | string | `""` | Optional remote key prefix; object names remain `<prefix>/<sha256>`. |
+| `store.s3.fallback_local` | bool | `false` | Read a legacy local blob only after S3 positively returns not found. Writes and deletes remain S3-only. |
+| `store.s3.redirect_downloads` | bool | `false` | Reserved configuration for a future redirect rollout; downloads currently stream through the relay. |
+| `store.s3.presign_ttl` | duration | `5m` | Reserved pre-signed URL lifetime; must be greater than zero when S3 is enabled. |
+
+For the RustFS Compose overlay, migration sequence, rollback boundary and HTTP
+Range verification, see [Blossom S3 storage](blossom-s3-storage.md).
 
 ### `nip29`
 

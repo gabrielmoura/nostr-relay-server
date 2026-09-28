@@ -1,0 +1,24 @@
+# Optional overlay for a single-node RustFS S3-compatible store.
+# Use with: docker compose -f docker-compose.yml -f deploy/rustfs/compose.yaml up -d
+services:
+  rustfs:
+    image: docker.io/rustfs/rustfs:latest
+    container_name: nrserver-rustfs
+    restart: unless-stopped
+    command: ["/data"]
+    environment:
+      RUSTFS_ACCESS_KEY: ${RUSTFS_ACCESS_KEY:?set a non-default access key}
+      RUSTFS_SECRET_KEY: ${RUSTFS_SECRET_KEY:?set a non-default secret key}
+      RUSTFS_ADDRESS: ":9000"
+      RUSTFS_CONSOLE_ADDRESS: ":9001"
+      RUSTFS_CONSOLE_ENABLE: "true"
+    ports:
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9001:9001"
+    volumes:
+      - rustfs_data:/data
+    networks:
+      - backend
+
+volumes:
+  rustfs_data:

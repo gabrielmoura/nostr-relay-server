@@ -9,6 +9,7 @@ badger_data
 *.jsonl
 *.yaml
 !infra/dash/pnpm-workspace.yaml
+!deploy/rustfs/compose.yaml
 ref
 conf.yaml
 nrserver32.exe

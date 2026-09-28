@@ -56,7 +56,7 @@ Substituir o acesso direto a `files/<sha256>` nos handlers e nos jobs pelo
 autorização, quota, bloqueio, expiração e os metadados atuais. Adicionar testes
 de upload/download, incluindo `Range` e `HEAD`, para ambos os backends.
 
-## Fase 4 — downloads remotos e operação
+## Fase 4 — downloads remotos
 
 Quando `redirect_downloads` estiver habilitado, emitir URLs pré-assinadas com
 `presign_ttl`; caso contrário, transmitir o conteúdo pelo relay. Definir a
@@ -64,3 +64,18 @@ semântica de `fallback_local` somente depois de métricas, timeout, logs
 estruturados sem segredos e regras explícitas para evitar divergência de dados.
 Documentar migração, rollback e observabilidade antes de habilitar S3 em
 produção.
+
+## Fase 5 — migração local para S3
+
+Concluída: `nrserver blossom migrate` copia objetos do diretório local para o
+bucket S3 sem apagar a origem. O comando verifica tamanho dos objetos já
+existentes, falha diante de conflito e oferece `--dry-run` e `--workers`.
+
+## Fase 6 — operação e observabilidade
+
+Concluída: o relay publica `nostr_blob_store_operations_total` e
+`nostr_blob_store_operation_duration_seconds`, com rótulos limitados a
+`backend`, `operation` e `result`. O resultado não contém mensagens de erro,
+endpoints, buckets ou hashes. Há um overlay Compose opcional para RustFS e um
+guia de ativação, verificação de `Range`, migração e rollback em
+[`docs/blossom-s3-storage.md`](blossom-s3-storage.md).

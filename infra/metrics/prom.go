@@ -546,6 +546,21 @@ var (
 		},
 		[]string{"route", "method", "category", "status"},
 	)
+	NostrBlobStoreOperationsTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "nostr_blob_store_operations_total",
+			Help: "Total blob store operations by configured backend, operation and controlled result.",
+		},
+		[]string{"backend", "operation", "result"},
+	)
+	NostrBlobStoreOperationDurationSeconds = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "nostr_blob_store_operation_duration_seconds",
+			Help:    "Duration of blob store operations by configured backend, operation and controlled result.",
+			Buckets: externalOperationBuckets,
+		},
+		[]string{"backend", "operation", "result"},
+	)
 )
 
 func RegisterMetrics() {
@@ -636,6 +651,8 @@ func RegisterMetrics() {
 		NostrBlossomHTTPRequestTotal,
 		NostrBlossomHTTPRequestDurationSeconds,
 		NostrBlossomHTTPErrorsTotal,
+		NostrBlobStoreOperationsTotal,
+		NostrBlobStoreOperationDurationSeconds,
 	)
 
 }

@@ -40,6 +40,7 @@ It provides:
 - **PostgreSQL storage** with support for operational tooling
 - **Optional Redis support** for cache and pub/sub scenarios
 - **Blossom media storage support** for blobs and uploads
+- **Optional S3-compatible Blossom storage** with a documented RustFS deployment and local-to-S3 migration
 - **Negentropy sync** with compatible relays
 - **Optional NIP-29 groups** with configurable admission, moderation, invite codes, PoW and timeline-reference enforcement
 - **Prometheus metrics** for monitoring and observability
@@ -126,6 +127,9 @@ You can also use the built binary instead of `go run`:
 ```bash
 nrserver server
 ```
+
+For an S3-compatible Blossom backend, including RustFS Compose/Podman setup,
+safe migration and `Range` verification, see [Blossom S3 storage](docs/blossom-s3-storage.md).
 
 ---
 

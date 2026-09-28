@@ -19,21 +19,21 @@ func NewConfiguredStore(ctx context.Context, cfg config.StoreConfig, localRoot s
 		if err != nil {
 			return nil, fmt.Errorf("create local blob store: %w", err)
 		}
-		return store, nil
+		return newInstrumentedStore(store, "local"), nil
 	case "s3":
 		primary, err := NewS3Store(ctx, cfg.S3)
 		if err != nil {
 			return nil, fmt.Errorf("create S3 blob store: %w", err)
 		}
 		if !cfg.S3.FallbackLocal {
-			return primary, nil
+			return newInstrumentedStore(primary, "s3"), nil
 		}
 
 		fallback, err := NewLocalStore(localRoot)
 		if err != nil {
 			return nil, fmt.Errorf("create local blob fallback: %w", err)
 		}
-		return &fallbackStore{primary: primary, fallback: fallback}, nil
+		return newInstrumentedStore(&fallbackStore{primary: primary, fallback: fallback}, "s3"), nil
 	default:
 		return nil, fmt.Errorf("unsupported blob backend %q", cfg.Backend)
 	}
