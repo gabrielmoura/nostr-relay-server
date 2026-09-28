@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/spf13/viper"
 	"gopkg.in/yaml.v3"
@@ -44,6 +45,7 @@ func applyLoadedConfig() error {
 	if err := viper.Unmarshal(cfg); err != nil {
 		return err
 	}
+	applyStoreS3Environment(cfg)
 
 	if cfg.AppEnv == "" {
 		cfg.AppEnv = "production"
@@ -69,6 +71,9 @@ func applyLoadedConfig() error {
 		return err
 	}
 	if err := cfg.ValidateContentDefenseFeatures(); err != nil {
+		return err
+	}
+	if err := cfg.ValidateStoreFeatures(); err != nil {
 		return err
 	}
 
@@ -143,7 +148,7 @@ func PrintYamlConfig() {
 		panic(err)
 	}
 
-	data, err := yaml.Marshal(cfg)
+	data, err := yaml.Marshal(cfg.Redacted())
 	if err != nil {
 		panic(err)
 	}
@@ -161,6 +166,7 @@ func DefaultConfig() (*Config, error) {
 	if cfg.AppEnv == "" {
 		cfg.AppEnv = "production"
 	}
+	applyStoreS3Environment(cfg)
 	cfg.applySecurityRelayInformationDefaults()
 	cfg.applyNIP11Capabilities()
 
@@ -169,19 +175,41 @@ func DefaultConfig() (*Config, error) {
 
 // WriteYamlConfig escreve a configuração atual em um arquivo YAML.
 func WriteYamlConfig(filename string) error {
-	setDefaults(true)
-
-	cfg := &Config{}
-	if err := viper.Unmarshal(cfg); err != nil {
+	cfg, err := DefaultConfig()
+	if err != nil {
+		return err
+	}
+	data, err := yaml.Marshal(cfg.Redacted())
+	if err != nil {
+		return err
+	}
+	if err := os.WriteFile(filename, data, 0o644); err != nil {
 		return err
 	}
 
-	if cfg.AppEnv == "" {
-		cfg.AppEnv = "production"
-	}
-
-	if err := viper.WriteConfigAs(filename); err != nil {
-		return err
-	}
 	return nil
+}
+
+func applyStoreS3Environment(cfg *Config) {
+	if cfg == nil {
+		return
+	}
+	if value, ok := os.LookupEnv("NRS_STORE_S3_ACCESS_KEY"); ok {
+		cfg.Store.S3.AccessKey = value
+	}
+	if value, ok := os.LookupEnv("NRS_STORE_S3_SECRET_KEY"); ok {
+		cfg.Store.S3.SecretKey = value
+	}
+}
+
+// Redacted returns a copy suitable for operator-facing configuration output.
+func (cfg *Config) Redacted() *Config {
+	if cfg == nil {
+		return nil
+	}
+
+	redacted := *cfg
+	redacted.Store.S3.AccessKey = ""
+	redacted.Store.S3.SecretKey = ""
+	return &redacted
 }

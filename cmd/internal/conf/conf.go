@@ -164,6 +164,10 @@ func printStruct(v any, format OutputFormat) error {
 }
 
 func marshalStruct(v any, format OutputFormat) ([]byte, error) {
+	if cfg, ok := v.(*config.Config); ok {
+		v = cfg.Redacted()
+	}
+
 	switch format {
 	case FormatYAML:
 		data, err := yaml.Marshal(v)

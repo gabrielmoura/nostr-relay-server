@@ -1,7 +1,9 @@
 package config
 
 import (
+	"fmt"
 	"strings"
+	"time"
 
 	"golang.org/x/time/rate"
 )
@@ -47,13 +49,69 @@ type WoTConfig struct {
 
 type StoreConfig struct {
 	Enabled             bool                       `json:"enabled" yaml:"enabled" mapstructure:"enabled"`
+	Backend             string                     `json:"backend" yaml:"backend" mapstructure:"backend"`
 	APIPath             string                     `json:"api_path" yaml:"api_path" mapstructure:"api_path"`
 	MediaPath           string                     `json:"media_path" yaml:"media_path" mapstructure:"media_path"`
 	AcceptedMimetypes   []string                   `json:"accepted_mimetypes" yaml:"accepted_mimetypes" mapstructure:"accepted_mimetypes"`
 	AllowAdultContent   bool                       `json:"allow_adult_content" yaml:"allow_adult_content" mapstructure:"allow_adult_content"`
 	AllowViolentContent bool                       `json:"allow_violent_content" yaml:"allow_violent_content" mapstructure:"allow_violent_content"`
 	Names               []string                   `json:"names" yaml:"names" mapstructure:"names"`
+	S3                  StoreS3Config              `json:"s3" yaml:"s3" mapstructure:"s3"`
 	MediaProcessing     StoreMediaProcessingConfig `json:"media_processing" yaml:"media_processing" mapstructure:"media_processing"`
+}
+
+// StoreS3Config controls the future S3-compatible blob backend. Credentials
+// may be provided by configuration, but are always omitted from printed output.
+type StoreS3Config struct {
+	Endpoint          string        `json:"endpoint" yaml:"endpoint" mapstructure:"endpoint"`
+	Region            string        `json:"region" yaml:"region" mapstructure:"region"`
+	Bucket            string        `json:"bucket" yaml:"bucket" mapstructure:"bucket"`
+	AccessKey         string        `json:"access_key" yaml:"access_key" mapstructure:"access_key"`
+	SecretKey         string        `json:"secret_key" yaml:"secret_key" mapstructure:"secret_key"`
+	UsePathStyle      bool          `json:"use_path_style" yaml:"use_path_style" mapstructure:"use_path_style"`
+	KeyPrefix         string        `json:"key_prefix" yaml:"key_prefix" mapstructure:"key_prefix"`
+	RedirectDownloads bool          `json:"redirect_downloads" yaml:"redirect_downloads" mapstructure:"redirect_downloads"`
+	PresignTTL        time.Duration `json:"presign_ttl" yaml:"presign_ttl" mapstructure:"presign_ttl"`
+	FallbackLocal     bool          `json:"fallback_local" yaml:"fallback_local" mapstructure:"fallback_local"`
+}
+
+func (cfg StoreS3Config) MarshalYAML() (any, error) {
+	return struct {
+		Endpoint          string `yaml:"endpoint"`
+		Region            string `yaml:"region"`
+		Bucket            string `yaml:"bucket"`
+		AccessKey         string `yaml:"access_key"`
+		SecretKey         string `yaml:"secret_key"`
+		UsePathStyle      bool   `yaml:"use_path_style"`
+		KeyPrefix         string `yaml:"key_prefix"`
+		RedirectDownloads bool   `yaml:"redirect_downloads"`
+		PresignTTL        string `yaml:"presign_ttl"`
+		FallbackLocal     bool   `yaml:"fallback_local"`
+	}{
+		Endpoint:          cfg.Endpoint,
+		Region:            cfg.Region,
+		Bucket:            cfg.Bucket,
+		AccessKey:         cfg.AccessKey,
+		SecretKey:         cfg.SecretKey,
+		UsePathStyle:      cfg.UsePathStyle,
+		KeyPrefix:         cfg.KeyPrefix,
+		RedirectDownloads: cfg.RedirectDownloads,
+		PresignTTL:        formatStoreS3Duration(cfg.PresignTTL),
+		FallbackLocal:     cfg.FallbackLocal,
+	}, nil
+}
+
+func formatStoreS3Duration(value time.Duration) string {
+	switch {
+	case value%time.Hour == 0:
+		return fmt.Sprintf("%dh", value/time.Hour)
+	case value%time.Minute == 0:
+		return fmt.Sprintf("%dm", value/time.Minute)
+	case value%time.Second == 0:
+		return fmt.Sprintf("%ds", value/time.Second)
+	default:
+		return value.String()
+	}
 }
 
 type StoreMediaProcessingConfig struct {
