@@ -1,16 +1,15 @@
 package blossom
 
 import (
+	"errors"
 	"fmt"
 	"github.com/gabrielmoura/nostr-relay-server/infra/log"
 	"github.com/gabrielmoura/nostr-relay-server/infra/metrics"
+	"github.com/gabrielmoura/nostr-relay-server/internal/blobstore"
 	"github.com/gabrielmoura/nostr-relay-server/internal/db"
 	"github.com/gofiber/fiber/v2"
 	"go.uber.org/zap"
-	"io"
 	"net/http"
-	"os"
-	"path/filepath"
 	"time"
 )
 
@@ -38,8 +37,6 @@ func BlobHandler(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).SendString("Invalid file ID")
 	}
 
-	filePath := filepath.Join(blobPath, id)
-
 	o, err := db.DbQueries.GetObjectByHash(c.UserContext(), id)
 	if err != nil {
 		statusCode = fiber.StatusNotFound
@@ -58,8 +55,11 @@ func BlobHandler(c *fiber.Ctx) error {
 	}
 	if !o.ExpiresAt.IsZero() && time.Now().After(o.ExpiresAt) {
 		go func() {
-			if err := os.Remove(filePath); err != nil {
-				log.Logger.Error("Failed to remove file", zap.Error(err), zap.String("filePath", filePath))
+			store, storeErr := currentStore()
+			if storeErr != nil {
+				log.Logger.Error("Failed to access blob store for expiration", zap.Error(storeErr), zap.String("id", id))
+			} else if deleteErr := store.Delete(c.UserContext(), id); deleteErr != nil && !errors.Is(deleteErr, blobstore.ErrNotFound) {
+				log.Logger.Error("Failed to remove expired blob", zap.Error(deleteErr), zap.String("id", id))
 			}
 			if err := db.DbQueries.RemoveObject(c.Context(), id); err != nil {
 				log.Logger.Error("Failed to remove object", zap.Error(err), zap.String("id", id))
@@ -77,23 +77,28 @@ func BlobHandler(c *fiber.Ctx) error {
 	metrics.DownloadCounter.Inc()
 	_ = db.DbQueries.RecordBlossomDownload(c.UserContext(), id, o.Size, time.Now().UTC())
 
-	file, err := os.Open(filePath)
+	store, err := currentStore()
 	if err != nil {
-		statusCode = fiber.StatusNotFound
-		errorCategory = "not_found"
-		return c.Status(fiber.StatusNotFound).SendString("File not found")
-	}
-	defer file.Close()
-
-	fileInfo, err := file.Stat()
-	if err != nil {
+		log.Logger.Error("Blossom blob store unavailable", zap.Error(err))
 		statusCode = fiber.StatusInternalServerError
-		errorCategory = "internal"
+		errorCategory = "storage_unavailable"
+		return c.Status(fiber.StatusInternalServerError).SendString("Blob storage is unavailable")
+	}
+	fileInfo, err := store.Stat(c.UserContext(), id)
+	if err != nil {
+		if errors.Is(err, blobstore.ErrNotFound) {
+			statusCode = fiber.StatusNotFound
+			errorCategory = "not_found"
+			return c.Status(fiber.StatusNotFound).SendString("File not found")
+		}
+		log.Logger.Error("Failed to retrieve blob info", zap.Error(err), zap.String("id", id))
+		statusCode = fiber.StatusInternalServerError
+		errorCategory = "storage_error"
 		return c.Status(fiber.StatusInternalServerError).SendString("Unable to retrieve file info")
 	}
 
 	// Suporte a Range Requests
-	r, err := c.Range(int(fileInfo.Size()))
+	r, err := c.Range(int(fileInfo.Size))
 	if err != nil && c.Get("Range") != "" {
 		statusCode = fiber.StatusRequestedRangeNotSatisfiable
 		errorCategory = "range_invalid"
@@ -104,31 +109,45 @@ func BlobHandler(c *fiber.Ctx) error {
 	c.Set("Content-Type", o.MimeType)
 	c.Set("Accept-Ranges", "bytes")
 	c.Set("Last-Modified", o.CreatedAt.Format(http.TimeFormat))
-	c.Set("Content-Length", fmt.Sprintf("%d", fileInfo.Size()))
-
-	if c.Method() == fiber.MethodHead {
-		return c.SendStatus(fiber.StatusOK)
-	}
+	c.Set("Content-Length", fmt.Sprintf("%d", fileInfo.Size))
 
 	if len(r.Ranges) == 0 {
-		return c.Status(fiber.StatusOK).SendFile(filePath, false)
+		if c.Method() == fiber.MethodHead {
+			return c.SendStatus(fiber.StatusOK)
+		}
+		reader, _, err := store.Get(c.UserContext(), id, blobstore.ByteRange{Offset: 0, Length: -1})
+		if err != nil {
+			return sendBlobReadError(c, err, &statusCode, &errorCategory)
+		}
+		return c.Status(fiber.StatusOK).SendStream(reader, int(fileInfo.Size))
 	}
 
 	// Serve apenas o primeiro range, como no original
 	start := r.Ranges[0].Start
 	end := r.Ranges[0].End
-	length := end - start + 1
-
-	sectionReader := io.NewSectionReader(file, int64(start), int64(length))
-	c.Set("Content-Range", fmt.Sprintf("bytes %d-%d/%d", start, end, fileInfo.Size()))
+	length := int64(end - start + 1)
+	c.Set("Content-Range", fmt.Sprintf("bytes %d-%d/%d", start, end, fileInfo.Size))
 	c.Set("Content-Length", fmt.Sprintf("%d", length))
 
-	data := make([]byte, length)
-	if _, err := sectionReader.Read(data); err != nil && err != io.EOF {
-		statusCode = fiber.StatusInternalServerError
-		errorCategory = "internal"
-		return c.Status(fiber.StatusInternalServerError).SendString("Error reading file section")
+	if c.Method() == fiber.MethodHead {
+		return c.Status(fiber.StatusPartialContent).SendStatus(fiber.StatusPartialContent)
+	}
+	reader, _, err := store.Get(c.UserContext(), id, blobstore.ByteRange{Offset: int64(start), Length: length})
+	if err != nil {
+		return sendBlobReadError(c, err, &statusCode, &errorCategory)
 	}
 
-	return c.Status(fiber.StatusPartialContent).Send(data)
+	return c.Status(fiber.StatusPartialContent).SendStream(reader, int(length))
+}
+
+func sendBlobReadError(c *fiber.Ctx, err error, statusCode *int, errorCategory *string) error {
+	if errors.Is(err, blobstore.ErrNotFound) {
+		*statusCode = fiber.StatusNotFound
+		*errorCategory = "not_found"
+		return c.Status(fiber.StatusNotFound).SendString("File not found")
+	}
+	log.Logger.Error("Failed to read blob", zap.Error(err))
+	*statusCode = fiber.StatusInternalServerError
+	*errorCategory = "storage_error"
+	return c.Status(fiber.StatusInternalServerError).SendString("Unable to read file")
 }

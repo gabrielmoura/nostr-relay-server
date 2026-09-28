@@ -15,6 +15,7 @@ import (
 	croncmd "github.com/gabrielmoura/nostr-relay-server/cmd/internal/cron"
 	"github.com/gabrielmoura/nostr-relay-server/config"
 	"github.com/gabrielmoura/nostr-relay-server/infra/handler/listener"
+	httpblossom "github.com/gabrielmoura/nostr-relay-server/infra/handler/store/blossom"
 	"github.com/gabrielmoura/nostr-relay-server/infra/ingestion"
 	"github.com/gabrielmoura/nostr-relay-server/infra/metrics"
 	relaynet "github.com/gabrielmoura/nostr-relay-server/infra/net"
@@ -23,6 +24,7 @@ import (
 	redisqueue "github.com/gabrielmoura/nostr-relay-server/infra/queue/redis"
 	"github.com/gabrielmoura/nostr-relay-server/infra/redis"
 	"github.com/gabrielmoura/nostr-relay-server/infra/stream"
+	"github.com/gabrielmoura/nostr-relay-server/internal/blobstore"
 	internalblossom "github.com/gabrielmoura/nostr-relay-server/internal/blossom"
 	"github.com/gabrielmoura/nostr-relay-server/internal/bootstrap"
 	"github.com/gabrielmoura/nostr-relay-server/internal/db"
@@ -143,6 +145,14 @@ func runServer(cmd *cobra.Command, args []string) {
 				zap.Error(err))
 			return
 		}
+		blobStore, err := blobstore.NewConfiguredStore(mainCtx, config.Cfg.Store, "files")
+		if err != nil {
+			log.Logger.Error("failed to initialize Blossom blob storage",
+				zap.String("backend", config.Cfg.Store.NormalizedBackend()),
+				zap.Error(err))
+			return
+		}
+		httpblossom.SetStore(blobStore)
 		pprofServer = startDevelopmentPprof(config.Cfg.AppEnv, log.Logger)
 
 		// Iniciar Redis (cache + pub/sub)

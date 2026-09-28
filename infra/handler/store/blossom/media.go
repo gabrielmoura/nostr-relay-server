@@ -1,6 +1,8 @@
 package blossom
 
 import (
+	"bytes"
+	"errors"
 	"strings"
 	"time"
 
@@ -8,6 +10,7 @@ import (
 	db2 "github.com/gabrielmoura/nostr-relay-server/infra/db"
 	"github.com/gabrielmoura/nostr-relay-server/infra/log"
 	"github.com/gabrielmoura/nostr-relay-server/infra/metrics"
+	"github.com/gabrielmoura/nostr-relay-server/internal/blobstore"
 	internalblossom "github.com/gabrielmoura/nostr-relay-server/internal/blossom"
 	"github.com/gabrielmoura/nostr-relay-server/internal/db"
 	jobcore "github.com/gabrielmoura/nostr-relay-server/internal/jobs"
@@ -16,8 +19,6 @@ import (
 	"github.com/minio/sha256-simd"
 	"github.com/tmthrgd/go-hex"
 	"go.uber.org/zap"
-	"os"
-	"path/filepath"
 )
 
 type mediaPutResponse struct {
@@ -139,9 +140,18 @@ func putMediaHandler(c *fiber.Ctx) error {
 		return policyErr
 	}
 
-	filePath := filepath.Join(blobPath, hashString)
-	if _, statErr := os.Stat(filePath); statErr != nil {
-		if err := os.WriteFile(filePath, bodyBytes, 0o644); err != nil {
+	store, err := currentStore()
+	if err != nil {
+		log.Logger.Error("Blossom blob store unavailable", zap.Error(err))
+		return c.Status(fiber.StatusInternalServerError).SendString("Blob storage is unavailable")
+	}
+	if _, err := store.Stat(c.UserContext(), hashString); err != nil {
+		if !errors.Is(err, blobstore.ErrNotFound) {
+			log.Logger.Error("Blossom blob stat error", zap.Error(err), zap.String("hash", hashString))
+			return c.Status(fiber.StatusInternalServerError).SendString("Failed to inspect blob storage")
+		}
+		if _, err := store.Put(c.UserContext(), hashString, bytes.NewReader(bodyBytes), int64(len(bodyBytes))); err != nil {
+			log.Logger.Error("Blossom media persistence error", zap.Error(err), zap.String("hash", hashString))
 			return c.Status(fiber.StatusInternalServerError).SendString("Failed to persist media file")
 		}
 	}

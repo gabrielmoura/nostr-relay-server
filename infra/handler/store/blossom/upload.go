@@ -1,7 +1,9 @@
 package blossom
 
 import (
+	"bytes"
 	"context"
+	"errors"
 	"github.com/gabrielmoura/nostr-relay-server/config"
 	db2 "github.com/gabrielmoura/nostr-relay-server/infra/db"
 	"github.com/gabrielmoura/nostr-relay-server/infra/log"
@@ -16,9 +18,9 @@ import (
 	"github.com/tmthrgd/go-hex"
 	"go.uber.org/zap"
 	"net/http"
-	"os"
-	"path/filepath"
 	"time"
+
+	"github.com/gabrielmoura/nostr-relay-server/internal/blobstore"
 )
 
 // UploadHandler refatorado para Fiber
@@ -81,11 +83,17 @@ func UploadHandler(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusUnauthorized).SendString("Invalid file hash")
 	}
 
-	filePath := filepath.Join(blobPath, hashString)
 	size := int64(len(bodyBytes))
 	urlResponse := mediaURLWithExtension(hashString, extension)
 
-	if _, err := os.Stat(filePath); err == nil {
+	store, err := currentStore()
+	if err != nil {
+		log.Logger.Error("Blossom blob store unavailable", zap.Error(err))
+		statusCode = fiber.StatusInternalServerError
+		errorCategory = "storage_unavailable"
+		return c.Status(fiber.StatusInternalServerError).SendString("Blob storage is unavailable")
+	}
+	if _, err := store.Stat(c.UserContext(), hashString); err == nil {
 		do, err := getFileExist(c.Context(), hashString)
 		if err != nil {
 			log.Logger.Error("File get error", zap.Error(err))
@@ -94,6 +102,11 @@ func UploadHandler(c *fiber.Ctx) error {
 			return c.Status(fiber.StatusInternalServerError).SendString("Failed to get file")
 		}
 		return c.Status(fiber.StatusOK).JSON(do)
+	} else if !errors.Is(err, blobstore.ErrNotFound) {
+		log.Logger.Error("Blossom blob stat error", zap.Error(err), zap.String("hash", hashString))
+		statusCode = fiber.StatusInternalServerError
+		errorCategory = "storage_error"
+		return c.Status(fiber.StatusInternalServerError).SendString("Failed to inspect blob storage")
 	}
 
 	policy, ok, err := db.DbQueries.GetBlossomServerPolicy(c.Context())
@@ -135,20 +148,11 @@ func UploadHandler(c *fiber.Ctx) error {
 		return policyErr
 	}
 
-	outFile, err := os.Create(filePath)
-	if err != nil {
-		log.Logger.Error("File creation error", zap.Error(err))
+	if _, err := store.Put(c.UserContext(), hashString, bytes.NewReader(bodyBytes), size); err != nil {
+		log.Logger.Error("Blob persistence error", zap.Error(err), zap.String("hash", hashString))
 		statusCode = fiber.StatusInternalServerError
-		errorCategory = "internal"
-		return c.Status(fiber.StatusInternalServerError).SendString("Failed to create file on server")
-	}
-	defer outFile.Close()
-
-	if _, err := outFile.Write(bodyBytes); err != nil {
-		log.Logger.Error("File write error", zap.Error(err))
-		statusCode = fiber.StatusInternalServerError
-		errorCategory = "internal"
-		return c.Status(fiber.StatusInternalServerError).SendString("Failed to write file content")
+		errorCategory = "storage_error"
+		return c.Status(fiber.StatusInternalServerError).SendString("Failed to persist file content")
 	}
 
 	rawTags, _ := json.Marshal(map[string]string{
