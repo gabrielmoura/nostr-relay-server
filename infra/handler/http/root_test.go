@@ -27,6 +27,9 @@ func TestNostrIconServesEmbeddedPNG(t *testing.T) {
 	if got := response.Header.Get(fiber.HeaderContentType); got != "image/png" {
 		t.Fatalf("Content-Type = %q, want image/png", got)
 	}
+	if got := response.Header.Get(fiber.HeaderCacheControl); got != "public, max-age=31536000, immutable" {
+		t.Fatalf("Cache-Control = %q, want public, max-age=31536000, immutable", got)
+	}
 
 	body, err := io.ReadAll(response.Body)
 	if err != nil {

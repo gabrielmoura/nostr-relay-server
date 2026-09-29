@@ -20,6 +20,7 @@ import (
 func NostrIcon() fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		c.Type("png")
+		c.Set(fiber.HeaderCacheControl, "public, max-age=31536000, immutable")
 		return c.Send(assets.NostrPNG)
 	}
 }
@@ -88,7 +89,7 @@ func NostrJSON(cfg *config.Config) fiber.Handler {
 func NIP11WithPrivacy(cfg *config.Config) any {
 	doc := cfg.RelayInformation.PublicNIP11()
 	addrs := privacy.GetActiveAddresses()
-	if len(addrs) == 0 && !cfg.NIP29.Enabled && !cfg.NIP70.Enabled {
+	if len(addrs) == 0 && !cfg.NIP29.Enabled && !cfg.NIP70.Enabled && !cfg.API.NIPFE.Enabled {
 		return doc
 	}
 	raw, err := json.Marshal(doc)
@@ -124,6 +125,9 @@ func NIP11WithPrivacy(cfg *config.Config) any {
 			}
 		}
 		m["supported_nips"] = append(supported, 70)
+	}
+	if cfg.API.NIPFE.Enabled {
+		m["nip_fe"] = true
 	}
 	return m
 }

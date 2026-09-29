@@ -7,6 +7,7 @@ import (
 	"github.com/gabrielmoura/nostr-relay-server/config"
 	"github.com/gabrielmoura/nostr-relay-server/graph"
 	httphandler "github.com/gabrielmoura/nostr-relay-server/infra/handler/http"
+	apihttp "github.com/gabrielmoura/nostr-relay-server/infra/handler/http/api"
 	httpblossom "github.com/gabrielmoura/nostr-relay-server/infra/handler/http/blossom"
 	wshandler "github.com/gabrielmoura/nostr-relay-server/infra/handler/ws"
 	"github.com/gabrielmoura/nostr-relay-server/infra/log"

@@ -18,9 +18,10 @@ import (
 )
 
 const (
-	dailyStatsSchemaVersion = 1
-	dailyStatsDaysToRefresh = 3
-	dailyStatsUnlockTimeout = 2 * time.Second
+	dailyStatsSchemaVersion    = 1
+	dailyStatsDaysToRefresh    = 3
+	dailyStatsLockSafetyMargin = time.Minute
+	dailyStatsUnlockTimeout    = 2 * time.Second
 )
 
 const dailyStatsUnlockLua = `
@@ -111,6 +112,9 @@ func runDailyStats(
 		return fmt.Errorf("daily stats Redis client cannot be nil")
 	}
 	if err := validateDailyStatsOptions(namespace, ttl, lockTTL); err != nil {
+		return err
+	}
+	if err := validateDailyStatsLockTTL(ctx, lockTTL); err != nil {
 		return err
 	}
 
@@ -245,6 +249,18 @@ func validateDailyStatsOptions(namespace string, ttl, lockTTL time.Duration) err
 	}
 	if lockTTL <= 0 {
 		return fmt.Errorf("daily stats lock TTL must be positive")
+	}
+	return nil
+}
+
+func validateDailyStatsLockTTL(ctx context.Context, lockTTL time.Duration) error {
+	deadline, ok := ctx.Deadline()
+	if !ok {
+		return nil
+	}
+	required := time.Until(deadline) + dailyStatsLockSafetyMargin
+	if lockTTL < required {
+		return fmt.Errorf("daily stats lock TTL %s must cover the job deadline plus %s", lockTTL, dailyStatsLockSafetyMargin)
 	}
 	return nil
 }

@@ -25,6 +25,21 @@ func Authenticate(cfg *config.Config, input AuthInput) (AuthResult, error) {
 	if cfg.AdminPubKey == "" {
 		return AuthResult{}, errors.New("admin_pubkey is not configured")
 	}
+	result, err := ValidateNIP98(input, cfg.NIP86.AuthWindowSeconds)
+	if err != nil {
+		return AuthResult{}, err
+	}
+	if !strings.EqualFold(result.PubKey, cfg.AdminPubKey) {
+		return AuthResult{}, errors.New("caller is not the configured relay administrator")
+	}
+
+	return result, nil
+}
+
+// ValidateNIP98 validates a NIP-98 HTTP authorization independently from any
+// administrative policy. Callers decide whether an authenticated pubkey is
+// required or allowed for their endpoint.
+func ValidateNIP98(input AuthInput, windowSeconds int) (AuthResult, error) {
 	if !strings.HasPrefix(input.Authorization, authScheme) {
 		return AuthResult{}, errors.New("missing or invalid Authorization header")
 	}
@@ -45,7 +60,7 @@ func Authenticate(cfg *config.Config, input AuthInput) (AuthResult, error) {
 	if ok, err := event.CheckSignature(); err != nil || !ok {
 		return AuthResult{}, errors.New("authorization event signature is invalid")
 	}
-	if err := validateFreshness(cfg, event.CreatedAt.Time()); err != nil {
+	if err := validateFreshnessWindow(windowSeconds, event.CreatedAt.Time()); err != nil {
 		return AuthResult{}, err
 	}
 	if !strings.EqualFold(tagValue(event.Tags, "method"), input.Method) {
@@ -57,15 +72,16 @@ func Authenticate(cfg *config.Config, input AuthInput) (AuthResult, error) {
 	if err := validatePayloadTag(event.Tags, input.Body); err != nil {
 		return AuthResult{}, err
 	}
-	if !strings.EqualFold(event.PubKey, cfg.AdminPubKey) {
-		return AuthResult{}, errors.New("caller is not the configured relay administrator")
-	}
 
 	return AuthResult{PubKey: strings.ToLower(event.PubKey), Event: event}, nil
 }
 
 func validateFreshness(cfg *config.Config, createdAt time.Time) error {
-	window := time.Duration(cfg.NIP86.AuthWindowSeconds) * time.Second
+	return validateFreshnessWindow(cfg.NIP86.AuthWindowSeconds, createdAt)
+}
+
+func validateFreshnessWindow(windowSeconds int, createdAt time.Time) error {
+	window := time.Duration(windowSeconds) * time.Second
 	if window <= 0 {
 		window = time.Minute
 	}

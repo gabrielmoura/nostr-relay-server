@@ -86,6 +86,9 @@ func Init(ctx context.Context) error {
 	if config.Cfg.DB.MaxConnIdleMinutes > 0 {
 		poolConfig.MaxConnIdleTime = time.Duration(config.Cfg.DB.MaxConnIdleMinutes) * time.Minute
 	}
+	if config.Cfg.DB.HealthCheckPeriodSeconds > 0 {
+		poolConfig.HealthCheckPeriod = time.Duration(config.Cfg.DB.HealthCheckPeriodSeconds) * time.Second
+	}
 
 	dbPool, err = pgxpool.NewWithConfig(ctx, poolConfig)
 	if err != nil {

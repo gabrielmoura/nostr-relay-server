@@ -579,7 +579,8 @@ relay_information:
   software: https://github.com/gabrielmoura/nostr-relay-server
   version: 0.1.0
   canonical_url: ws://localhost:9090
-  # Empty uses the embedded /nostr.png icon derived from canonical_url.
+  # Empty uses the embedded /nostr.png icon derived from canonical_url, versioned
+  # with its SHA-256 checksum for immutable one-year browser caching.
   icon: ""
 
 relay:

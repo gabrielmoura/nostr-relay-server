@@ -3,6 +3,8 @@ package config
 import (
 	"net/url"
 	"strings"
+
+	assets "github.com/gabrielmoura/nostr-relay-server/internal/embed"
 )
 
 type publicRelayInformationDocument struct {
@@ -114,7 +116,7 @@ func iconURLFromBase(rawURL string, websocketURL bool) string {
 
 	parsed.Path = "/nostr.png"
 	parsed.RawPath = ""
-	parsed.RawQuery = ""
+	parsed.RawQuery = "sha256=" + assets.NostrPNGSHA256
 	parsed.ForceQuery = false
 	parsed.Fragment = ""
 	parsed.User = nil

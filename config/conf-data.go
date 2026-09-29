@@ -34,6 +34,31 @@ type Config struct {
 	NIP29            NIP29Config              `json:"nip29" yaml:"nip29" mapstructure:"nip29"`
 	WoT              WoTConfig                `json:"wot" yaml:"wot" mapstructure:"wot"`
 	Privacy          PrivacyConfig            `json:"privacy" yaml:"privacy" mapstructure:"privacy"`
+	API              APIConfig                `json:"api" yaml:"api" mapstructure:"api"`
+}
+
+// APIConfig controls the public HTTP read API and the optional NIP-FE endpoint.
+// Both are disabled by default so enabling either is an explicit operator choice.
+type APIConfig struct {
+	Enabled        bool           `json:"enabled" yaml:"enabled" mapstructure:"enabled"`
+	MaxLimit       int            `json:"max_limit" yaml:"max_limit" mapstructure:"max_limit"`
+	MaxConcurrent  int            `json:"max_concurrent" yaml:"max_concurrent" mapstructure:"max_concurrent"`
+	TimeoutSeconds int            `json:"timeout_seconds" yaml:"timeout_seconds" mapstructure:"timeout_seconds"`
+	MaxScan        int            `json:"max_scan" yaml:"max_scan" mapstructure:"max_scan"`
+	NIP98          APINIP98Config `json:"nip98" yaml:"nip98" mapstructure:"nip98"`
+	NIPFE          NIPFEConfig    `json:"nip_fe" yaml:"nip_fe" mapstructure:"nip_fe"`
+}
+
+type APINIP98Config struct {
+	Enabled        bool     `json:"enabled" yaml:"enabled" mapstructure:"enabled"`
+	AllowedPubkeys []string `json:"allowed_pubkeys" yaml:"allowed_pubkeys" mapstructure:"allowed_pubkeys"`
+}
+
+type NIPFEConfig struct {
+	Enabled        bool `json:"enabled" yaml:"enabled" mapstructure:"enabled"`
+	MaxBodyBytes   int  `json:"max_body_bytes" yaml:"max_body_bytes" mapstructure:"max_body_bytes"`
+	TimeoutSeconds int  `json:"timeout_seconds" yaml:"timeout_seconds" mapstructure:"timeout_seconds"`
+	MaxConcurrent  int  `json:"max_concurrent" yaml:"max_concurrent" mapstructure:"max_concurrent"`
 }
 
 type WoTConfig struct {

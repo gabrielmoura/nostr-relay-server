@@ -1,6 +1,7 @@
 package event
 
 import (
+	"context"
 	"errors"
 	"strings"
 
@@ -74,6 +75,22 @@ func processEvent(ws *dto.WsServer, evt *nostr.Event) string {
 	}
 
 	return ""
+}
+
+// ProcessOneShot executes EVENT validation and ingestion without a WebSocket
+// connection or listener. It is used by finite HTTP transports such as NIP-FE.
+func ProcessOneShot(ctx context.Context, authed string, evt *nostr.Event) []any {
+	ws := &dto.WsServer{
+		Ctx:        ctx,
+		Authed:     authed,
+		ChanSender: make(chan any, 2),
+	}
+	_ = processEvent(ws, evt)
+	frames := make([]any, 0, len(ws.ChanSender))
+	for len(ws.ChanSender) > 0 {
+		frames = append(frames, <-ws.ChanSender)
+	}
+	return frames
 }
 
 func handleSpecialEvent(ws *dto.WsServer, evt *nostr.Event) bool {

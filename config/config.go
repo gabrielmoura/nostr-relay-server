@@ -130,7 +130,7 @@ func (cfg *Config) applyNIP11Capabilities() {
 	cfg.setNIP11Capability(77, cfg.EnableNegentropy)
 	cfg.setNIP11Capability(86, cfg.NIP86Enabled())
 	cfg.setNIP11Capability(96, cfg.Store.Enabled)
-	cfg.setNIP11Capability(98, cfg.NIP86Enabled())
+	cfg.setNIP11Capability(98, cfg.NIP86Enabled() || cfg.API.NIP98.Enabled || cfg.API.NIPFE.Enabled)
 }
 
 func (cfg *Config) setNIP11Capability(nip int, enabled bool) {

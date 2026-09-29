@@ -98,6 +98,14 @@ func TestValidateDailyStatsOptions(t *testing.T) {
 	}
 }
 
+func TestValidateDailyStatsLockTTLCoversJobDeadline(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+	defer cancel()
+
+	require.Error(t, validateDailyStatsLockTTL(ctx, 30*time.Minute))
+	require.NoError(t, validateDailyStatsLockTTL(ctx, 31*time.Minute))
+}
+
 type fakeDailyStatsCollector struct {
 	windows [][2]int64
 }

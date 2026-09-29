@@ -3,6 +3,7 @@ package config
 import (
 	"testing"
 
+	assets "github.com/gabrielmoura/nostr-relay-server/internal/embed"
 	"github.com/stretchr/testify/require"
 )
 
@@ -92,12 +93,12 @@ func TestRelayInformationDocumentEffectiveIcon(t *testing.T) {
 		{
 			name: "derives HTTP icon from websocket canonical URL",
 			cfg:  RelayInformationDocument{CanonicalURL: "ws://relay.example:8080/relay?ignored=true"},
-			want: "http://relay.example:8080/nostr.png",
+			want: "http://relay.example:8080/nostr.png?sha256=" + assets.NostrPNGSHA256,
 		},
 		{
 			name: "derives HTTPS icon from secure websocket canonical URL",
 			cfg:  RelayInformationDocument{CanonicalURL: "wss://relay.example"},
-			want: "https://relay.example/nostr.png",
+			want: "https://relay.example/nostr.png?sha256=" + assets.NostrPNGSHA256,
 		},
 		{
 			name: "falls back to public HTTP URL",
@@ -105,7 +106,7 @@ func TestRelayInformationDocumentEffectiveIcon(t *testing.T) {
 				CanonicalURL: "not-a-websocket-url",
 				URL:          "https://relay.example/base",
 			},
-			want: "https://relay.example/nostr.png",
+			want: "https://relay.example/nostr.png?sha256=" + assets.NostrPNGSHA256,
 		},
 		{
 			name: "omits icon without usable public URL",
