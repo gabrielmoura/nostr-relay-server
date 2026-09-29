@@ -1,12 +1,41 @@
 package http
 
 import (
+	"bytes"
+	"io"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/gabrielmoura/nostr-relay-server/config"
+	assets "github.com/gabrielmoura/nostr-relay-server/internal/embed"
 	"github.com/gofiber/fiber/v2"
 )
+
+func TestNostrIconServesEmbeddedPNG(t *testing.T) {
+	app := fiber.New()
+	app.Get("/nostr.png", NostrIcon())
+
+	response, err := app.Test(httptest.NewRequest(fiber.MethodGet, "/nostr.png", nil))
+	if err != nil {
+		t.Fatalf("icon request failed: %v", err)
+	}
+	defer response.Body.Close()
+
+	if response.StatusCode != fiber.StatusOK {
+		t.Fatalf("status = %d, want %d", response.StatusCode, fiber.StatusOK)
+	}
+	if got := response.Header.Get(fiber.HeaderContentType); got != "image/png" {
+		t.Fatalf("Content-Type = %q, want image/png", got)
+	}
+
+	body, err := io.ReadAll(response.Body)
+	if err != nil {
+		t.Fatalf("read icon response: %v", err)
+	}
+	if !bytes.Equal(body, assets.NostrPNG) {
+		t.Fatal("icon response does not match embedded asset")
+	}
+}
 
 func TestRootUpgradeServesNIP11WithRequiredHeaders(t *testing.T) {
 	app := fiber.New()
@@ -94,4 +123,18 @@ func TestNIP11WithPrivacy_AdvertisesNIP70(t *testing.T) {
 		}
 	}
 	t.Fatalf("supported_nips = %v, want 70", supported)
+}
+
+func TestNIP11WithPrivacy_AdvertisesNIPFEOnlyWhenEnabled(t *testing.T) {
+	doc, ok := NIP11WithPrivacy(&config.Config{API: config.APIConfig{NIPFE: config.NIPFEConfig{Enabled: true}}}).(map[string]any)
+	if !ok || doc["nip_fe"] != true {
+		t.Fatalf("NIP-FE was not advertised: %#v", doc)
+	}
+
+	disabled := NIP11WithPrivacy(&config.Config{})
+	if doc, ok := disabled.(map[string]any); ok {
+		if _, found := doc["nip_fe"]; found {
+			t.Fatalf("disabled NIP-FE was advertised: %#v", doc)
+		}
+	}
 }

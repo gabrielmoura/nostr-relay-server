@@ -579,7 +579,8 @@ relay_information:
   software: https://github.com/gabrielmoura/nostr-relay-server
   version: 0.1.0
   canonical_url: ws://localhost:9090
-  icon: http://localhost:9090/nostr.png
+  # Empty uses the embedded /nostr.png icon derived from canonical_url.
+  icon: ""
 
 relay:
   query_limit: 100

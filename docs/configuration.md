@@ -87,7 +87,8 @@ relay_information:
     admission: []
     subscription: []
     publication: []
-  icon: http://localhost:9090/nostr.png
+  # Empty uses the embedded /nostr.png icon derived from canonical_url.
+  icon: ""
 
 relay:
   query_limit: 100
@@ -505,7 +506,7 @@ Authentication modes:
 | `relay_information.nip50` | string[] | `[]` | Optional NIP-50 search metadata. It must describe the implemented search behavior. |
 | `relay_information.supported_nip_extensions` | string[] | `[]` | Optional non-numeric NIP extensions recognized by compatible clients. |
 | `relay_information.supported_grasps` | string[] | `[]` | Optional GRASP extension identifiers recognized by compatible clients. |
-| `relay_information.icon` | string | `http://localhost:<port>/nostr.png` | Relay icon URL. |
+| `relay_information.icon` | string | `""` | Optional explicit relay icon URL. When empty, NIP-11 derives `/nostr.png` from the `relay_information.canonical_url` origin (converting `ws`/`wss` to `http`/`https`), then falls back to `relay_information.url`. |
 
 `relay_information.limitation`:
 

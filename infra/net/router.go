@@ -2,7 +2,6 @@ package net
 
 import (
 	"net/http"
-	"path/filepath"
 	"strconv"
 
 	"github.com/gabrielmoura/nostr-relay-server/config"
@@ -125,11 +124,14 @@ func (r *RouterFactory) setupInternalRoutes(app *fiber.App) {
 // setupExternalRoutes configura as rotas públicas do Relay
 func (r *RouterFactory) setupExternalRoutes(app *fiber.App) {
 	// Middlewares Globais
-	app.Use(cors.New(cors.Config{AllowOrigins: "*"}))
+	app.Use(cors.New(cors.Config{
+		AllowOrigins: "*",
+		AllowMethods: "GET,POST,OPTIONS",
+		AllowHeaders: "Accept,Authorization,Content-Type",
+	}))
 	app.Use(compress.New())
 
-	// Arquivos Estáticos
-	app.Static("/nostr.png", filepath.Join("nostr.png"))
+	app.Get("/nostr.png", httphandler.NostrIcon())
 
 	// Rotas Auxiliares
 	app.Get("/terms-of-service", httphandler.TermsOfService(r.Config))
@@ -139,6 +141,14 @@ func (r *RouterFactory) setupExternalRoutes(app *fiber.App) {
 
 	// Blossom / Upload Handlers
 	r.setupBlossomRoutes(app)
+
+	// NIP-FE is an opt-in finite HTTP transport. It must precede RootUpgrade,
+	// whose fallback intentionally rejects non-WebSocket traffic.
+	app.Post("/", apihttp.NIPFE(r.Config))
+
+	// The public API exists only on the external listener. It is registered
+	// before the root fallback, which otherwise intentionally returns 426.
+	apihttp.New(r.Config).Register(app.Group("/api/v1"))
 
 	// Rota Raiz: Lida com NIP-11 (Info) e Upgrade para WebSocket
 	app.Use("/", httphandler.RootUpgrade(r.Config))

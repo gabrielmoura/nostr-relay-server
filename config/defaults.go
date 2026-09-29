@@ -84,7 +84,7 @@ func setDefaults(export bool) {
 	viper.SetDefault("relay_information.supported_grasps", []string{})
 	viper.SetDefault("relay_information.software", "https://github.com/gabrielmoura/nostr-relay-server")
 	viper.SetDefault("relay_information.version", version.Version)
-	viper.SetDefault("relay_information.icon", "https://raw.githubusercontent.com/gabrielmoura/nostr-relay-server/develop/nostr.webp")
+	viper.SetDefault("relay_information.icon", "")
 	viper.SetDefault("relay_information.canonical_url", fmt.Sprintf("ws://localhost:%s", viper.GetString("port")))
 	viper.SetDefault("relay_information.url", fmt.Sprintf("http://localhost:%s", viper.GetString("port")))
 

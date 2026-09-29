@@ -10,11 +10,19 @@ import (
 	"github.com/gabrielmoura/nostr-relay-server/infra/util"
 	"github.com/gabrielmoura/nostr-relay-server/internal/db"
 	"github.com/gabrielmoura/nostr-relay-server/internal/dto"
+	assets "github.com/gabrielmoura/nostr-relay-server/internal/embed"
 	json "github.com/gabrielmoura/nostr-relay-server/internal/jsonx"
 	"github.com/gabrielmoura/nostr-relay-server/internal/nip86"
 	"github.com/gofiber/contrib/websocket"
 	"github.com/gofiber/fiber/v2"
 )
+
+func NostrIcon() fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		c.Type("png")
+		return c.Send(assets.NostrPNG)
+	}
+}
 
 func TermsOfService(cfg *config.Config) fiber.Handler {
 	return func(c *fiber.Ctx) error {

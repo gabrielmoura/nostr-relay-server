@@ -1,5 +1,10 @@
 package config
 
+import (
+	"net/url"
+	"strings"
+)
+
 type publicRelayInformationDocument struct {
 	Name                   string                   `json:"name,omitempty"`
 	Description            string                   `json:"description,omitempty"`
@@ -35,7 +40,7 @@ func (cfg *RelayInformationDocument) PublicNIP11() any {
 		Name:                   cfg.Name,
 		Description:            cfg.Description,
 		Banner:                 cfg.Banner,
-		Icon:                   cfg.Icon,
+		Icon:                   cfg.EffectiveIcon(),
 		PubKey:                 cfg.PubKey,
 		Self:                   cfg.Self,
 		Contact:                cfg.Contact,
@@ -63,6 +68,57 @@ func (cfg *RelayInformationDocument) PublicNIP11() any {
 	}
 
 	return doc
+}
+
+// EffectiveIcon returns the explicitly configured icon, or the relay's
+// embedded icon URL derived from its public address.
+func (cfg *RelayInformationDocument) EffectiveIcon() string {
+	if cfg == nil {
+		return ""
+	}
+	if strings.TrimSpace(cfg.Icon) != "" {
+		return cfg.Icon
+	}
+
+	if iconURL := iconURLFromBase(cfg.CanonicalURL, true); iconURL != "" {
+		return iconURL
+	}
+
+	return iconURLFromBase(cfg.URL, false)
+}
+
+func iconURLFromBase(rawURL string, websocketURL bool) string {
+	parsed, err := url.Parse(strings.TrimSpace(rawURL))
+	if err != nil || parsed.Host == "" {
+		return ""
+	}
+
+	switch parsed.Scheme {
+	case "ws":
+		if !websocketURL {
+			return ""
+		}
+		parsed.Scheme = "http"
+	case "wss":
+		if !websocketURL {
+			return ""
+		}
+		parsed.Scheme = "https"
+	case "http", "https":
+		if websocketURL {
+			return ""
+		}
+	default:
+		return ""
+	}
+
+	parsed.Path = "/nostr.png"
+	parsed.RawPath = ""
+	parsed.RawQuery = ""
+	parsed.ForceQuery = false
+	parsed.Fragment = ""
+	parsed.User = nil
+	return parsed.String()
 }
 
 func (cfg *RelayLimitationDocument) HasValues() bool {
