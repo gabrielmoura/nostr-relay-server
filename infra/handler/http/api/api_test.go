@@ -13,7 +13,8 @@ import (
 
 func TestAPIRejectsRequestsOverPerIPRateLimit(t *testing.T) {
 	cfg := &config.Config{API: config.APIConfig{
-		Enabled: true,
+		Enabled:  true,
+		MaxLimit: 1,
 		RateLimit: config.IPRequestRateLimitConfig{
 			Enabled: true, RequestsPerSec: 1, Burst: 1, MaxClients: 10, IdleTTLSeconds: 60,
 		},
@@ -21,8 +22,8 @@ func TestAPIRejectsRequestsOverPerIPRateLimit(t *testing.T) {
 	app := fiber.New()
 	NewWithSource(cfg, func(context.Context, nostr.Filter, int) ([]*nostr.Event, error) { return nil, nil }).Register(app.Group("/api/v1"))
 
-	for want := range []int{fiber.StatusOK, fiber.StatusTooManyRequests} {
-		response, err := app.Test(httptest.NewRequest(fiber.MethodGet, "/api/v1/query", nil))
+	for _, want := range []int{fiber.StatusOK, fiber.StatusTooManyRequests} {
+		response, err := app.Test(httptest.NewRequest(fiber.MethodGet, "/api/v1/query?limit=1", nil))
 		if err != nil {
 			t.Fatalf("app.Test() error = %v", err)
 		}
