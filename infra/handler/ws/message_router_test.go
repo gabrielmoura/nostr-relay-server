@@ -49,6 +49,24 @@ func TestHandleMessageMeasuresSupportedSynchronousProcessing(t *testing.T) {
 	require.Len(t, requests.Metric, len(messageTypes))
 }
 
+func TestHandleMessageRejectsNegentropyWhenPerIPLimiterRejects(t *testing.T) {
+	ws := &dto.WsServer{
+		RemoteIP:        "192.0.2.1",
+		ChanSender:      make(chan any, 1),
+		NegentropyAllow: func(string) bool { return false },
+	}
+	handleMessage(ws, []byte(`["NEG-OPEN","subscription"]`))
+
+	select {
+	case notice := <-ws.ChanSender:
+		if notice == nil {
+			t.Fatal("expected rate-limit notice")
+		}
+	default:
+		t.Fatal("expected rate-limit notice")
+	}
+}
+
 func metricFamilyByName(t *testing.T, families []*client.MetricFamily, name string) *client.MetricFamily {
 	t.Helper()
 	for _, family := range families {

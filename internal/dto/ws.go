@@ -61,7 +61,11 @@ type WsServer struct {
 	ChanPing   chan bool
 	Challenge  string
 	Authed     string
-	StreamPoll []*nostr.Relay
+	// NegentropyAllow is set by the public HTTP upgrade boundary. It shares
+	// one per-IP limiter across WebSocket connections without coupling DTO to
+	// the transport implementation.
+	NegentropyAllow func(string) bool
+	StreamPoll      []*nostr.Relay
 	sync.Mutex
 }
 type Data []jtype.RawMessage

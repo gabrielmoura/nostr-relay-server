@@ -41,6 +41,17 @@ func New(cfg Config) *PerIP {
 	return &PerIP{cfg: cfg, clients: make(map[string]*client), now: time.Now}
 }
 
+// NewFromConfig translates the operator-facing configuration into a limiter.
+func NewFromConfig(enabled bool, requestsPerSec rate.Limit, burst, maxClients, idleTTLSeconds int) *PerIP {
+	return New(Config{
+		Enabled:        enabled,
+		RequestsPerSec: requestsPerSec,
+		Burst:          burst,
+		MaxClients:     maxClients,
+		IdleTTL:        time.Duration(idleTTLSeconds) * time.Second,
+	})
+}
+
 // Allow consumes one token for ip. An empty key is refused while enabled so
 // malformed connection metadata cannot share an unbounded bucket.
 func (l *PerIP) Allow(ip string) bool {

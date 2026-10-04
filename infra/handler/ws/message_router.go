@@ -56,6 +56,10 @@ func handleMessage(ws *dto.WsServer, message []byte) {
 		ws.ChanSender <- nostr.NoticeEnvelope("unknown event type " + typ)
 		return
 	}
+	if isNegentropyMessage(typ) && ws.NegentropyAllow != nil && !ws.NegentropyAllow(ws.RemoteIP) {
+		ws.ChanSender <- nostr.NoticeEnvelope("rate-limited: negentropy rate limit exceeded")
+		return
+	}
 
 	metrics.NostrRequestCounter.WithLabelValues(typ).Inc()
 	startedAt := time.Now()
@@ -65,6 +69,15 @@ func handleMessage(ws *dto.WsServer, message []byte) {
 
 	if notice := handler(ws, data); notice != "" {
 		ws.ChanSender <- nostr.NoticeEnvelope(notice)
+	}
+}
+
+func isNegentropyMessage(typ string) bool {
+	switch typ {
+	case dto.TypeNegOpen, dto.TypeNegMsg, dto.TypeNegHave, dto.TypeNegNeed, dto.TypeNegErr, dto.TypeNegClose:
+		return true
+	default:
+		return false
 	}
 }
 

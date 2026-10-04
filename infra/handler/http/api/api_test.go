@@ -11,6 +11,28 @@ import (
 	"github.com/nbd-wtf/go-nostr"
 )
 
+func TestAPIRejectsRequestsOverPerIPRateLimit(t *testing.T) {
+	cfg := &config.Config{API: config.APIConfig{
+		Enabled: true,
+		RateLimit: config.IPRequestRateLimitConfig{
+			Enabled: true, RequestsPerSec: 1, Burst: 1, MaxClients: 10, IdleTTLSeconds: 60,
+		},
+	}}
+	app := fiber.New()
+	NewWithSource(cfg, func(context.Context, nostr.Filter, int) ([]*nostr.Event, error) { return nil, nil }).Register(app.Group("/api/v1"))
+
+	for want := range []int{fiber.StatusOK, fiber.StatusTooManyRequests} {
+		response, err := app.Test(httptest.NewRequest(fiber.MethodGet, "/api/v1/query", nil))
+		if err != nil {
+			t.Fatalf("app.Test() error = %v", err)
+		}
+		if response.StatusCode != want {
+			t.Fatalf("request status = %d, want %d", response.StatusCode, want)
+		}
+		response.Body.Close()
+	}
+}
+
 func TestQueryHidesProtectedAndGiftWrapBeforePagination(t *testing.T) {
 	cfg := &config.Config{
 		API:      config.APIConfig{Enabled: true, MaxLimit: 2, MaxScan: 20},

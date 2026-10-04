@@ -7,6 +7,7 @@ import (
 	"github.com/gabrielmoura/nostr-relay-server/config"
 	"github.com/gabrielmoura/nostr-relay-server/infra/net/privacy"
 	"github.com/gabrielmoura/nostr-relay-server/infra/nip05"
+	"github.com/gabrielmoura/nostr-relay-server/infra/ratelimit"
 	"github.com/gabrielmoura/nostr-relay-server/infra/util"
 	"github.com/gabrielmoura/nostr-relay-server/internal/db"
 	"github.com/gabrielmoura/nostr-relay-server/internal/dto"
@@ -147,7 +148,11 @@ func isNIPNumber(value any, nip int) bool {
 	}
 }
 
-func RootUpgrade(cfg *config.Config) fiber.Handler {
+func RootUpgrade(cfg *config.Config, limiters ...*ratelimit.PerIP) fiber.Handler {
+	var negentropyLimiter *ratelimit.PerIP
+	if len(limiters) > 0 {
+		negentropyLimiter = limiters[0]
+	}
 	return func(c *fiber.Ctx) error {
 		if handled, err := handleNIP86JSONRPC(c, cfg); handled {
 			return err
@@ -171,14 +176,15 @@ func RootUpgrade(cfg *config.Config) fiber.Handler {
 			c.Locals("allowed", true)
 			c.Locals("ua", userAgent)
 			c.Locals("wss", &dto.WsServer{
-				Challenge:  util.GenChallenge(),
-				Ctx:        c.Context(),
-				ChanSender: make(chan any),
-				ChanPing:   make(chan bool),
-				StartTime:  now,
-				LastSeen:   now,
-				UserAgent:  userAgent,
-				RemoteIP:   remoteIP,
+				Challenge:       util.GenChallenge(),
+				Ctx:             c.Context(),
+				ChanSender:      make(chan any),
+				ChanPing:        make(chan bool),
+				StartTime:       now,
+				LastSeen:        now,
+				UserAgent:       userAgent,
+				RemoteIP:        remoteIP,
+				NegentropyAllow: negentropyLimiter.Allow,
 			})
 			return c.Next()
 		}

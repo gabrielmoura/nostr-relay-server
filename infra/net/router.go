@@ -12,6 +12,7 @@ import (
 	wshandler "github.com/gabrielmoura/nostr-relay-server/infra/handler/ws"
 	"github.com/gabrielmoura/nostr-relay-server/infra/log"
 	"github.com/gabrielmoura/nostr-relay-server/infra/net/middleware"
+	"github.com/gabrielmoura/nostr-relay-server/infra/ratelimit"
 	"github.com/gabrielmoura/nostr-relay-server/internal/dto"
 	json "github.com/gabrielmoura/nostr-relay-server/internal/jsonx"
 	"github.com/gofiber/contrib/websocket"
@@ -124,6 +125,14 @@ func (r *RouterFactory) setupInternalRoutes(app *fiber.App) {
 
 // setupExternalRoutes configura as rotas públicas do Relay
 func (r *RouterFactory) setupExternalRoutes(app *fiber.App) {
+	negentropyRateLimit := r.Config.NegentropyRateLimit
+	negentropyLimiter := ratelimit.NewFromConfig(
+		negentropyRateLimit.Enabled,
+		negentropyRateLimit.RequestsPerSec,
+		negentropyRateLimit.Burst,
+		negentropyRateLimit.MaxClients,
+		negentropyRateLimit.IdleTTLSeconds,
+	)
 	// Middlewares Globais
 	app.Use(cors.New(cors.Config{
 		AllowOrigins: "*",
@@ -152,7 +161,7 @@ func (r *RouterFactory) setupExternalRoutes(app *fiber.App) {
 	apihttp.New(r.Config).Register(app.Group("/api/v1"))
 
 	// Rota Raiz: Lida com NIP-11 (Info) e Upgrade para WebSocket
-	app.Use("/", httphandler.RootUpgrade(r.Config))
+	app.Use("/", httphandler.RootUpgrade(r.Config, negentropyLimiter))
 	app.Get("/", websocket.New(r.handleWebSocketConnection))
 }
 
