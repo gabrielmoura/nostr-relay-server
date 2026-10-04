@@ -9,44 +9,56 @@ import (
 )
 
 type Config struct {
-	Port             int                      `json:"port" yaml:"port" mapstructure:"port"`
-	AppEnv           string                   `json:"app_env" yaml:"app_env" mapstructure:"app_env"`
-	AdminToken       string                   `json:"admin_token" yaml:"admin_token" mapstructure:"admin_token"`
-	AdminPubKey      string                   `json:"admin_pubkey" yaml:"admin_pubkey" mapstructure:"admin_pubkey"`
-	Marmot           MarmotConfig             `json:"marmot" yaml:"marmot" mapstructure:"marmot"`
-	Ws               WsConfig                 `json:"ws" yaml:"ws" mapstructure:"ws"`
-	Security         SecurityConfig           `json:"security" yaml:"security" mapstructure:"security"`
-	Anon             Anon                     `json:"anon" yaml:"anon" mapstructure:"anon"`
-	RelayInformation RelayInformationDocument `json:"relay_information" yaml:"relay_information" mapstructure:"relay_information"`
-	Relay            RelayConfig              `json:"relay" yaml:"relay" mapstructure:"relay"`
-	DB               DbConfig                 `json:"db" yaml:"db" mapstructure:"db"`
-	Redis            RedisConfig              `json:"redis" yaml:"redis" mapstructure:"redis"`
-	Jobs             JobsConfig               `json:"jobs" yaml:"jobs" mapstructure:"jobs"`
-	Ingestion        IngestionConfig          `json:"ingestion" yaml:"ingestion" mapstructure:"ingestion"`
-	Cron             CronConfig               `json:"cron" yaml:"cron" mapstructure:"cron"`
-	Stream           WsStreamConfig           `json:"stream" yaml:"stream" mapstructure:"stream"`
-	EnableNegentropy bool                     `json:"enable_negentropy" yaml:"enable_negentropy" mapstructure:"enable_negentropy"`
-	NegentropyAuth   bool                     `json:"negentropy_auth" yaml:"negentropy_auth" mapstructure:"negentropy_auth"`
-	NIP70            NIP70Config              `json:"nip70" yaml:"nip70" mapstructure:"nip70"`
-	Search           SearchConfig             `json:"search" yaml:"search" mapstructure:"search"`
-	NIP86            NIP86Config              `json:"nip86" yaml:"nip86" mapstructure:"nip86"`
-	Store            StoreConfig              `json:"store" yaml:"store" mapstructure:"store"`
-	NIP29            NIP29Config              `json:"nip29" yaml:"nip29" mapstructure:"nip29"`
-	WoT              WoTConfig                `json:"wot" yaml:"wot" mapstructure:"wot"`
-	Privacy          PrivacyConfig            `json:"privacy" yaml:"privacy" mapstructure:"privacy"`
-	API              APIConfig                `json:"api" yaml:"api" mapstructure:"api"`
+	Port                int                      `json:"port" yaml:"port" mapstructure:"port"`
+	AppEnv              string                   `json:"app_env" yaml:"app_env" mapstructure:"app_env"`
+	AdminToken          string                   `json:"admin_token" yaml:"admin_token" mapstructure:"admin_token"`
+	AdminPubKey         string                   `json:"admin_pubkey" yaml:"admin_pubkey" mapstructure:"admin_pubkey"`
+	Marmot              MarmotConfig             `json:"marmot" yaml:"marmot" mapstructure:"marmot"`
+	Ws                  WsConfig                 `json:"ws" yaml:"ws" mapstructure:"ws"`
+	Security            SecurityConfig           `json:"security" yaml:"security" mapstructure:"security"`
+	Anon                Anon                     `json:"anon" yaml:"anon" mapstructure:"anon"`
+	RelayInformation    RelayInformationDocument `json:"relay_information" yaml:"relay_information" mapstructure:"relay_information"`
+	Relay               RelayConfig              `json:"relay" yaml:"relay" mapstructure:"relay"`
+	DB                  DbConfig                 `json:"db" yaml:"db" mapstructure:"db"`
+	Redis               RedisConfig              `json:"redis" yaml:"redis" mapstructure:"redis"`
+	Jobs                JobsConfig               `json:"jobs" yaml:"jobs" mapstructure:"jobs"`
+	Ingestion           IngestionConfig          `json:"ingestion" yaml:"ingestion" mapstructure:"ingestion"`
+	Cron                CronConfig               `json:"cron" yaml:"cron" mapstructure:"cron"`
+	Stream              WsStreamConfig           `json:"stream" yaml:"stream" mapstructure:"stream"`
+	EnableNegentropy    bool                     `json:"enable_negentropy" yaml:"enable_negentropy" mapstructure:"enable_negentropy"`
+	NegentropyAuth      bool                     `json:"negentropy_auth" yaml:"negentropy_auth" mapstructure:"negentropy_auth"`
+	NIP70               NIP70Config              `json:"nip70" yaml:"nip70" mapstructure:"nip70"`
+	Search              SearchConfig             `json:"search" yaml:"search" mapstructure:"search"`
+	NIP86               NIP86Config              `json:"nip86" yaml:"nip86" mapstructure:"nip86"`
+	Store               StoreConfig              `json:"store" yaml:"store" mapstructure:"store"`
+	NIP29               NIP29Config              `json:"nip29" yaml:"nip29" mapstructure:"nip29"`
+	WoT                 WoTConfig                `json:"wot" yaml:"wot" mapstructure:"wot"`
+	Privacy             PrivacyConfig            `json:"privacy" yaml:"privacy" mapstructure:"privacy"`
+	API                 APIConfig                `json:"api" yaml:"api" mapstructure:"api"`
+	NegentropyRateLimit IPRequestRateLimitConfig `json:"negentropy_rate_limit" yaml:"negentropy_rate_limit" mapstructure:"negentropy_rate_limit"`
+}
+
+// IPRequestRateLimitConfig controls a local, per-client-IP token bucket.
+// Setting enabled to false bypasses the limiter entirely.
+type IPRequestRateLimitConfig struct {
+	Enabled        bool       `json:"enabled" yaml:"enabled" mapstructure:"enabled"`
+	RequestsPerSec rate.Limit `json:"requests_per_second" yaml:"requests_per_second" mapstructure:"requests_per_second"`
+	Burst          int        `json:"burst" yaml:"burst" mapstructure:"burst"`
+	MaxClients     int        `json:"max_clients" yaml:"max_clients" mapstructure:"max_clients"`
+	IdleTTLSeconds int        `json:"idle_ttl_seconds" yaml:"idle_ttl_seconds" mapstructure:"idle_ttl_seconds"`
 }
 
 // APIConfig controls the public HTTP read API and the optional NIP-FE endpoint.
 // Both are disabled by default so enabling either is an explicit operator choice.
 type APIConfig struct {
-	Enabled        bool           `json:"enabled" yaml:"enabled" mapstructure:"enabled"`
-	MaxLimit       int            `json:"max_limit" yaml:"max_limit" mapstructure:"max_limit"`
-	MaxConcurrent  int            `json:"max_concurrent" yaml:"max_concurrent" mapstructure:"max_concurrent"`
-	TimeoutSeconds int            `json:"timeout_seconds" yaml:"timeout_seconds" mapstructure:"timeout_seconds"`
-	MaxScan        int            `json:"max_scan" yaml:"max_scan" mapstructure:"max_scan"`
-	NIP98          APINIP98Config `json:"nip98" yaml:"nip98" mapstructure:"nip98"`
-	NIPFE          NIPFEConfig    `json:"nip_fe" yaml:"nip_fe" mapstructure:"nip_fe"`
+	Enabled        bool                     `json:"enabled" yaml:"enabled" mapstructure:"enabled"`
+	MaxLimit       int                      `json:"max_limit" yaml:"max_limit" mapstructure:"max_limit"`
+	MaxConcurrent  int                      `json:"max_concurrent" yaml:"max_concurrent" mapstructure:"max_concurrent"`
+	TimeoutSeconds int                      `json:"timeout_seconds" yaml:"timeout_seconds" mapstructure:"timeout_seconds"`
+	MaxScan        int                      `json:"max_scan" yaml:"max_scan" mapstructure:"max_scan"`
+	NIP98          APINIP98Config           `json:"nip98" yaml:"nip98" mapstructure:"nip98"`
+	NIPFE          NIPFEConfig              `json:"nip_fe" yaml:"nip_fe" mapstructure:"nip_fe"`
+	RateLimit      IPRequestRateLimitConfig `json:"rate_limit" yaml:"rate_limit" mapstructure:"rate_limit"`
 }
 
 type APINIP98Config struct {
