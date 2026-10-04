@@ -479,9 +479,13 @@ bursts. `enabled: false` disables only the corresponding limiter.
 
 An API request exceeding its limit returns HTTP `429` with
 `{"error":"rate limit exceeded"}`. A limited websocket Negentropy message
-receives `NOTICE` with the `rate-limited:` prefix. Limits are process-local;
-deployments with multiple relay replicas need an upstream or shared rate
-limiter when a cluster-wide limit is required.
+receives `NEG-ERR` with the `rate-limited:` prefix when it has a subscription
+ID, otherwise it receives `NOTICE`. The IP is the direct TCP peer; do not
+trust forwarded-client headers without an explicit trusted-proxy boundary.
+For reverse-proxy deployments, enforce the client-IP limit at the proxy until
+such a boundary is configured. Limits are process-local; deployments with
+multiple relay replicas need an upstream or shared rate limiter when a
+cluster-wide limit is required.
 
 Recommended production posture:
 

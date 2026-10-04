@@ -25,10 +25,11 @@ type client struct {
 // PerIP is safe for concurrent use. It does not start background goroutines;
 // stale entries are removed while handling requests.
 type PerIP struct {
-	cfg     Config
-	mu      sync.Mutex
-	clients map[string]*client
-	now     func() time.Time
+	cfg       Config
+	mu        sync.Mutex
+	clients   map[string]*client
+	now       func() time.Time
+	nextPrune time.Time
 }
 
 func New(cfg Config) *PerIP {
@@ -67,11 +68,19 @@ func (l *PerIP) Allow(ip string) bool {
 	defer l.mu.Unlock()
 
 	if existing := l.clients[ip]; existing != nil {
-		existing.lastSeen = now
-		return existing.limiter.AllowN(now, 1)
+		allowed := existing.limiter.AllowN(now, 1)
+		if allowed {
+			existing.lastSeen = now
+		}
+		return allowed
 	}
 
-	l.pruneExpired(now)
+	if len(l.clients) >= l.cfg.MaxClients {
+		if !now.Before(l.nextPrune) {
+			l.pruneExpired(now)
+			l.nextPrune = now.Add(l.cfg.IdleTTL)
+		}
+	}
 	if len(l.clients) >= l.cfg.MaxClients {
 		return false
 	}

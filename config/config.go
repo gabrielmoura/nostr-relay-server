@@ -67,6 +67,9 @@ func applyLoadedConfig() error {
 	if err := cfg.ValidateNegentropyFeatures(); err != nil {
 		return err
 	}
+	if err := cfg.ValidateRateLimitFeatures(); err != nil {
+		return err
+	}
 	if err := cfg.ValidateMarmotFeatures(); err != nil {
 		return err
 	}

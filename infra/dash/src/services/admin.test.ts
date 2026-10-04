@@ -16,7 +16,7 @@ describe("getPrivacyStatus", () => {
       data: {
         privacyStatus: {
           enabled: true,
-      degraded: false,
+          degraded: false,
           persistence: true,
           stateDir: "data/privacy",
           networks: [
@@ -66,7 +66,7 @@ describe("getPrivacyStatus", () => {
       data: {
         privacyStatus: {
           enabled: true,
-      degraded: false,
+          degraded: false,
           persistence: false,
           stateDir: null,
           networks: "not-an-array",

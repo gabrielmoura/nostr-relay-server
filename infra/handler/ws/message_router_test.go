@@ -58,9 +58,10 @@ func TestHandleMessageRejectsNegentropyWhenPerIPLimiterRejects(t *testing.T) {
 	handleMessage(ws, []byte(`["NEG-OPEN","subscription"]`))
 
 	select {
-	case notice := <-ws.ChanSender:
-		if notice == nil {
-			t.Fatal("expected rate-limit notice")
+	case envelope := <-ws.ChanSender:
+		message, ok := envelope.([]any)
+		if !ok || len(message) != 3 || message[0] != dto.TypeNegErr || message[1] != "subscription" {
+			t.Fatalf("rate-limit envelope = %#v, want NEG-ERR for subscription", envelope)
 		}
 	default:
 		t.Fatal("expected rate-limit notice")

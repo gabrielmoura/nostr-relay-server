@@ -57,7 +57,7 @@ func handleMessage(ws *dto.WsServer, message []byte) {
 		return
 	}
 	if isNegentropyMessage(typ) && ws.NegentropyAllow != nil && !ws.NegentropyAllow(ws.RemoteIP) {
-		ws.ChanSender <- nostr.NoticeEnvelope("rate-limited: negentropy rate limit exceeded")
+		ws.ChanSender <- negentropyRateLimitError(data)
 		return
 	}
 
@@ -70,6 +70,14 @@ func handleMessage(ws *dto.WsServer, message []byte) {
 	if notice := handler(ws, data); notice != "" {
 		ws.ChanSender <- nostr.NoticeEnvelope(notice)
 	}
+}
+
+func negentropyRateLimitError(data dto.Data) any {
+	subID, err := decodeNegentropySubID(data)
+	if err != nil {
+		return nostr.NoticeEnvelope("rate-limited: negentropy rate limit exceeded")
+	}
+	return negentropy.NewMessageBuilder().Error(subID, "rate-limited: negentropy rate limit exceeded")
 }
 
 func isNegentropyMessage(typ string) bool {
