@@ -16,6 +16,7 @@ describe("getPrivacyStatus", () => {
       data: {
         privacyStatus: {
           enabled: true,
+      degraded: false,
           persistence: true,
           stateDir: "data/privacy",
           networks: [
@@ -40,6 +41,7 @@ describe("getPrivacyStatus", () => {
 
     await expect(getPrivacyStatus()).resolves.toEqual({
       enabled: true,
+      degraded: false,
       persistence: true,
       state_dir: "data/privacy",
       networks: [
@@ -64,6 +66,7 @@ describe("getPrivacyStatus", () => {
       data: {
         privacyStatus: {
           enabled: true,
+      degraded: false,
           persistence: false,
           stateDir: null,
           networks: "not-an-array",

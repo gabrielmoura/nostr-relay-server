@@ -29,6 +29,7 @@ const refetch = vi.fn()
 
 const enabledPrivacy = {
   enabled: true,
+  degraded: false,
   persistence: true,
   state_dir: "data/privacy",
   networks: [{

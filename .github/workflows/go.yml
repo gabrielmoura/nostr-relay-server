@@ -18,6 +18,11 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      - name: Initialize required Go submodule
+        run: |
+          git config --global url."https://github.com/".insteadOf "git@github.com:"
+          git submodule update --init --depth 1 pkg/go-sam-bridge
+
       - name: Set up pnpm
         uses: pnpm/action-setup@v4
         with:
@@ -33,10 +38,18 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v7
         with:
-          go-version: '1.26.0'
+          go-version-file: 'go.mod'
+
+      - name: Install dashboard dependencies
+        run: pnpm install --frozen-lockfile
+        working-directory: infra/dash
+
+      - name: Verify generated dashboard GraphQL operations
+        run: pnpm graphql:codegen && git diff --exit-code -- src/graphql/generated/operations.ts
+        working-directory: infra/dash
 
       - name: Build frontend
-        run: pnpm install --frozen-lockfile && pnpm build
+        run: pnpm build
         working-directory: infra/dash
 
       - name: Build
@@ -64,19 +77,48 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      - name: Initialize required Go submodule
+        run: |
+          git config --global url."https://github.com/".insteadOf "git@github.com:"
+          git submodule update --init --depth 1 pkg/go-sam-bridge
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+          cache-dependency-path: infra/dash/pnpm-lock.yaml
+
       - name: Set up Go
         uses: actions/setup-go@v7
         with:
-          go-version: '1.26.3'
+          go-version-file: 'go.mod'
+
+      - name: Install dashboard dependencies
+        run: pnpm install --frozen-lockfile
+        working-directory: infra/dash
+
+      - name: Verify generated dashboard GraphQL operations
+        run: pnpm graphql:codegen && git diff --exit-code -- src/graphql/generated/operations.ts
+        working-directory: infra/dash
+
+      - name: Build frontend
+        run: pnpm build
+        working-directory: infra/dash
 
       - name: Run migration roundtrip
         env:
           TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/nrserver_test?sslmode=disable
         run: |
+          trap 'rm -f conf.yaml' EXIT
           sed 's#postgres://postgres:change-me@postgres:5432/nostr?sslmode=disable#'"$TEST_DATABASE_URL"'#' deploy/conf.yaml > conf.yaml
           go run ./cmd/nrserver migrate up
           go run ./cmd/nrserver migrate down --all
-          rm conf.yaml
 
       - name: Replay NIP-29 fixture against migrated schema
         env:
