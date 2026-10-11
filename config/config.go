@@ -70,6 +70,9 @@ func applyLoadedConfig() error {
 	if err := cfg.ValidateRateLimitFeatures(); err != nil {
 		return err
 	}
+	if err := cfg.ValidateTrustedProxies(); err != nil {
+		return err
+	}
 	if err := cfg.ValidateMarmotFeatures(); err != nil {
 		return err
 	}

@@ -15,6 +15,7 @@ func setDefaults(export bool) {
 	viper.SetDefault("ws.auth", false)
 	viper.SetDefault("ws.auth_mode", "none")
 	viper.SetDefault("security.enabled", true)
+	viper.SetDefault("security.trusted_proxies", []string{})
 	viper.SetDefault("security.whitelist.enabled", false)
 	viper.SetDefault("security.whitelist.pubkeys", []string{})
 	viper.SetDefault("security.whitelist.ips", []string{})

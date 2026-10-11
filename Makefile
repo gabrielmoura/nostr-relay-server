@@ -6,6 +6,7 @@ MODULE       := $(shell go list -m 2>/dev/null || echo nrserver)
 BINARY_NAME  := nrserver
 CMD_PATH     := ./cmd/nrserver
 BUILD_DIR    := bin
+DASH_DIR     := infra/dash
 
 VERSION      := $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 COMMIT       := $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
@@ -42,36 +43,43 @@ help: ## Mostra esta ajuda
 # -----------------------------------------------------------------------------
 # Builds por plataforma
 # -----------------------------------------------------------------------------
+.PHONY: build-prerequisites
+build-prerequisites: ## Gera o dashboard embutido
+	@echo "==> Installing dashboard dependencies"
+	pnpm --dir $(DASH_DIR) install --frozen-lockfile
+	@echo "==> Building embedded dashboard assets"
+	pnpm --dir $(DASH_DIR) build
+
 .PHONY: linux-pc
-linux-pc: ## Build para Linux PC (x86-64)
+linux-pc: build-prerequisites ## Build para Linux PC (x86-64)
 	@echo "==> Building $(BINARY_NAME) $(VERSION) for linux/amd64"
 	@mkdir -p $(BUILD_DIR)
 	GOOS=linux GOARCH=amd64 GOAMD64=v2 CGO_ENABLED=0 \
 		go build $(COMMON_FLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)-linux-amd64 $(CMD_PATH)
 
 .PHONY: linux-rpi
-linux-rpi: ## Build para Linux Raspberry Pi (ARM64)
+linux-rpi: build-prerequisites ## Build para Linux Raspberry Pi (ARM64)
 	@echo "==> Building $(BINARY_NAME) $(VERSION) for linux/arm64"
 	@mkdir -p $(BUILD_DIR)
 	GOOS=linux GOARCH=arm64 CGO_ENABLED=0 \
 		go build $(COMMON_FLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)-linux-arm64 $(CMD_PATH)
 
 .PHONY: windows
-windows: ## Build para Windows (x86-64)
+windows: build-prerequisites ## Build para Windows (x86-64)
 	@echo "==> Building $(BINARY_NAME) $(VERSION) for windows/amd64"
 	@mkdir -p $(BUILD_DIR)
 	GOOS=windows GOARCH=amd64 CGO_ENABLED=0 \
 		go build $(COMMON_FLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)-windows-amd64.exe $(CMD_PATH)
 
 .PHONY: windows32
-windows32: ## Build para Windows (x86-32)
+windows32: build-prerequisites ## Build para Windows (x86-32)
 	@echo "==> Building $(BINARY_NAME) $(VERSION) for windows/386"
 	@mkdir -p $(BUILD_DIR)
 	GOOS=windows GOARCH=386 CGO_ENABLED=0 \
 		go build $(COMMON_FLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)-windows-386.exe $(CMD_PATH)
 
 .PHONY: darwin
-darwin: ## Build para macOS (arm64, Apple Silicon)
+darwin: build-prerequisites ## Build para macOS (arm64, Apple Silicon)
 	@echo "==> Building $(BINARY_NAME) $(VERSION) for darwin/arm64"
 	@mkdir -p $(BUILD_DIR)
 	GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 \
@@ -124,6 +132,6 @@ version: ## Mostra as informações de versão que serão injetadas
 all: help
 
 .PHONY: dev-race
-dev-race: ## Gera binário local com diagnostics e detector de corrida (não é artefato de produção)
+dev-race: build-prerequisites ## Gera binário local com diagnostics e detector de corrida (não é artefato de produção)
 	@mkdir -p $(BUILD_DIR)
 	GOCACHE=$${GOCACHE:-/tmp/nrserver-go-build} go build -race -tags=diagnostics -o $(BUILD_DIR)/$(BINARY_NAME)-dev-race $(CMD_PATH)

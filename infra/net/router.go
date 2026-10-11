@@ -41,13 +41,7 @@ func NewRouter() *RouterFactory {
 
 // Build inicializa e retorna as instâncias interna e externa
 func (r *RouterFactory) Build() (internal, external *fiber.App) {
-	// Configuração base do Fiber
-	fiberConf := fiber.Config{
-		JSONEncoder:           json.Marshal,
-		JSONDecoder:           json.Unmarshal,
-		AppName:               r.Config.RelayInformation.Name,
-		DisableStartupMessage: true,
-	}
+	fiberConf := r.fiberConfig()
 
 	// 1. Setup Internal Server (Admin & Metrics)
 	internal = fiber.New(fiberConf)
@@ -60,6 +54,26 @@ func (r *RouterFactory) Build() (internal, external *fiber.App) {
 	r.setupExternalRoutes(external)
 
 	return internal, external
+}
+
+func (r *RouterFactory) fiberConfig() fiber.Config {
+	config := fiber.Config{
+		JSONEncoder:           json.Marshal,
+		JSONDecoder:           json.Unmarshal,
+		AppName:               r.Config.RelayInformation.Name,
+		DisableStartupMessage: true,
+	}
+
+	trustedProxies := r.Config.Security.TrustedProxies
+	if len(trustedProxies) == 0 {
+		return config
+	}
+
+	config.ProxyHeader = fiber.HeaderXForwardedFor
+	config.EnableIPValidation = true
+	config.EnableTrustedProxyCheck = true
+	config.TrustedProxies = trustedProxies
+	return config
 }
 
 // setupLifecycleHooks configura logs de inicio e fim

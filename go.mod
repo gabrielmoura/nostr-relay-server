@@ -162,4 +162,6 @@ require (
 
 tool github.com/99designs/gqlgen
 
-replace github.com/go-i2p/go-sam-bridge => ./pkg/go-sam-bridge
+// Keep the canonical import path while resolving the embedded-router API from
+// the public fork commit that introduced it.
+replace github.com/go-i2p/go-sam-bridge => github.com/gabrielmoura/go-sam-bridge v0.0.0-20260927184639-0c92cb6547ee

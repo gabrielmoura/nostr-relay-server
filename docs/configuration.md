@@ -205,6 +205,7 @@ api:
 
 security:
   enabled: true
+  trusted_proxies: []
   whitelist:
     enabled: false
     pubkeys: []
@@ -371,6 +372,7 @@ Operational intent:
 | Key | Type | Default | Description |
 |---|---|---:|---|
 | `security.enabled` | bool | `true` | Enables the incremental hardening layer. |
+| `security.trusted_proxies` | list | `[]` | Exact IPs or CIDRs for reverse proxies allowed to supply `X-Forwarded-For`. Empty keeps the direct TCP peer; entries must be unpadded IP/CIDR values, never hostnames. |
 | `security.whitelist.enabled` | bool | `false` | Enables whitelist evaluation. |
 | `security.whitelist.pubkeys` | list | `[]` | Author whitelist entries. Accepts hex pubkeys or `npub` values. |
 | `security.whitelist.ips` | list | `[]` | Exact IP addresses that bypass request, event, and connection restrictions. |
@@ -482,8 +484,11 @@ An API request exceeding its limit returns HTTP `429` with
 receives `NEG-ERR` with the `rate-limited:` prefix when it has a subscription
 ID, otherwise it receives `NOTICE`. The IP is the direct TCP peer; do not
 trust forwarded-client headers without an explicit trusted-proxy boundary.
-For reverse-proxy deployments, enforce the client-IP limit at the proxy until
-such a boundary is configured. Limits are process-local; deployments with
+Set `security.trusted_proxies` only to immediate reverse-proxy IPs or CIDRs,
+and configure those proxies to overwrite (not append) incoming
+`X-Forwarded-For` headers. For reverse-proxy deployments, enforce the
+client-IP limit at the proxy until such a boundary is configured. Limits are
+process-local; deployments with
 multiple relay replicas need an upstream or shared rate limiter when a
 cluster-wide limit is required.
 

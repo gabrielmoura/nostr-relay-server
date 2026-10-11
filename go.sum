@@ -132,6 +132,8 @@ github.com/fsnotify/fsnotify v1.4.7/go.mod h1:jwhsz4b93w/PPRr/qN1Yymfu8t87LnFCMo
 github.com/fsnotify/fsnotify v1.4.9/go.mod h1:znqG4EE+3YCdAaPaxE2ZRY/06pZUdp0tY4IgpuI1SZQ=
 github.com/fsnotify/fsnotify v1.10.1 h1:b0/UzAf9yR5rhf3RPm9gf3ehBPpf0oZKIjtpKrx59Ho=
 github.com/fsnotify/fsnotify v1.10.1/go.mod h1:TLheqan6HD6GBK6PrDWyDPBaEV8LspOxvPSjC+bVfgo=
+github.com/gabrielmoura/go-sam-bridge v0.0.0-20260927184639-0c92cb6547ee h1:RYtWuFv85Rr/7s/8f0nuMRSQGxY2ZmPQ+Kougl9LsLo=
+github.com/gabrielmoura/go-sam-bridge v0.0.0-20260927184639-0c92cb6547ee/go.mod h1:qwn7R4+D6gthL5VOgWhvqJuTYNlHYxWGYm/5LNca8jQ=
 github.com/go-i2p/common v0.1.60000-0.20260612012818-ffa84716e922 h1:jatAOaR3Soxy+IrRc4pbQ7qjyUwIAurM62M3SuIsmIQ=
 github.com/go-i2p/common v0.1.60000-0.20260612012818-ffa84716e922/go.mod h1:Fi8w1almPiorSn0vLd/wqJ5Rf4rvDB0+5yh6M+xANeE=
 github.com/go-i2p/crypto v0.1.60000-0.20260612012729-bcf561943886 h1:6E68Tehym8Z6IhvFx9/LP2Qz5gqwBW2sz0I6gRVAwp8=
