@@ -54,8 +54,12 @@ LABEL org.opencontainers.image.description="Nostr relay server with embedded adm
 LABEL org.opencontainers.image.created=$BUILD_DATE
 LABEL org.opencontainers.image.version=$VERSION
 LABEL org.opencontainers.image.authors="Gabriel Moura <gmouradev96@gmail.com>"
+LABEL MANTEINER="Gabriel Moura <gmouradev96@gmail.com>"
 
 EXPOSE 9090 9091
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+    CMD ["/app/nrserver", "healthcheck"]
 
 ENTRYPOINT ["/app/nrserver"]
 CMD ["server"]
