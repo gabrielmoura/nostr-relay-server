@@ -10,6 +10,7 @@ import (
 
 	"github.com/gabrielmoura/nostr-relay-server/config"
 	"github.com/gabrielmoura/nostr-relay-server/infra/db"
+	"github.com/gabrielmoura/nostr-relay-server/infra/ratelimit"
 	"github.com/gabrielmoura/nostr-relay-server/internal/nip86"
 	"github.com/gofiber/fiber/v2"
 	"github.com/nbd-wtf/go-nostr"
@@ -19,9 +20,10 @@ import (
 type eventSource func(context.Context, nostr.Filter, int) ([]*nostr.Event, error)
 
 type Handler struct {
-	cfg    *config.Config
-	source eventSource
-	sem    chan struct{}
+	cfg     *config.Config
+	source  eventSource
+	sem     chan struct{}
+	limiter *ratelimit.PerIP
 }
 
 type eventsResponse struct {
@@ -46,7 +48,13 @@ func NewWithSource(cfg *config.Config, source eventSource) *Handler {
 	if maxConcurrent < 1 {
 		maxConcurrent = 1
 	}
-	return &Handler{cfg: cfg, source: source, sem: make(chan struct{}, maxConcurrent)}
+	limit := cfg.API.RateLimit
+	return &Handler{
+		cfg:     cfg,
+		source:  source,
+		sem:     make(chan struct{}, maxConcurrent),
+		limiter: ratelimit.NewFromConfig(limit.Enabled, limit.RequestsPerSec, limit.Burst, limit.MaxClients, limit.IdleTTLSeconds),
+	}
 }
 
 // Register installs only documented public API routes. Static routes must be
@@ -69,6 +77,9 @@ func (h *Handler) middleware(c *fiber.Ctx) error {
 	}
 	if c.Method() != fiber.MethodGet {
 		return c.Status(fiber.StatusMethodNotAllowed).JSON(fiber.Map{"error": "method not allowed"})
+	}
+	if !h.limiter.Allow(c.IP()) {
+		return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{"error": "rate limit exceeded"})
 	}
 
 	if h.cfg.API.NIP98.Enabled {

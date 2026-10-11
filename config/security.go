@@ -1,10 +1,11 @@
 package config
 
 type SecurityConfig struct {
-	Enabled   bool                    `json:"enabled" yaml:"enabled" mapstructure:"enabled"`
-	Whitelist SecurityWhitelistConfig `json:"whitelist" yaml:"whitelist" mapstructure:"whitelist"`
-	Limits    SecurityLimitsConfig    `json:"limits" yaml:"limits" mapstructure:"limits"`
-	Defense   SecurityDefenseConfig   `json:"defense" yaml:"defense" mapstructure:"defense"`
+	Enabled        bool                    `json:"enabled" yaml:"enabled" mapstructure:"enabled"`
+	TrustedProxies []string                `json:"trusted_proxies" yaml:"trusted_proxies" mapstructure:"trusted_proxies"`
+	Whitelist      SecurityWhitelistConfig `json:"whitelist" yaml:"whitelist" mapstructure:"whitelist"`
+	Limits         SecurityLimitsConfig    `json:"limits" yaml:"limits" mapstructure:"limits"`
+	Defense        SecurityDefenseConfig   `json:"defense" yaml:"defense" mapstructure:"defense"`
 }
 
 type SecurityWhitelistConfig struct {

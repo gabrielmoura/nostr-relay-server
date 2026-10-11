@@ -44,7 +44,7 @@ func TestRootUpgradeServesNIP11WithRequiredHeaders(t *testing.T) {
 	app := fiber.New()
 	app.Get("/", RootUpgrade(&config.Config{
 		RelayInformation: config.RelayInformationDocument{SupportedNIPs: []int{1, 11}},
-	}))
+	}, nil))
 
 	request := httptest.NewRequest(fiber.MethodGet, "/", nil)
 	request.Header.Set(fiber.HeaderAccept, "application/nostr+json")

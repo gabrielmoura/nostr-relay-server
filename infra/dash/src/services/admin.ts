@@ -127,6 +127,7 @@ export function getPrivacyStatus(): Promise<PrivacyStatus> {
     }
     return {
       enabled: true,
+      degraded: false,
       persistence: true,
       state_dir: "data/privacy",
       networks: [

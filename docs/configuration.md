@@ -187,9 +187,25 @@ stream:
 
 enable_negentropy: false
 negentropy_auth: false
+negentropy_rate_limit:
+  enabled: true
+  requests_per_second: 100
+  burst: 200
+  max_clients: 10000
+  idle_ttl_seconds: 600
+
+api:
+  enabled: false
+  rate_limit:
+    enabled: true
+    requests_per_second: 30
+    burst: 60
+    max_clients: 10000
+    idle_ttl_seconds: 600
 
 security:
   enabled: true
+  trusted_proxies: []
   whitelist:
     enabled: false
     pubkeys: []
@@ -356,6 +372,7 @@ Operational intent:
 | Key | Type | Default | Description |
 |---|---|---:|---|
 | `security.enabled` | bool | `true` | Enables the incremental hardening layer. |
+| `security.trusted_proxies` | list | `[]` | Exact IPs or CIDRs for reverse proxies allowed to supply `X-Forwarded-For`. Empty keeps the direct TCP peer; entries must be unpadded IP/CIDR values, never hostnames. |
 | `security.whitelist.enabled` | bool | `false` | Enables whitelist evaluation. |
 | `security.whitelist.pubkeys` | list | `[]` | Author whitelist entries. Accepts hex pubkeys or `npub` values. |
 | `security.whitelist.ips` | list | `[]` | Exact IP addresses that bypass request, event, and connection restrictions. |
@@ -444,6 +461,36 @@ When `negentropy_auth=true`:
 - the authorized pubkey is `relay_information.pub_key`, not `admin_pubkey`
 - the relay process must know `relay_information.priv_key` if the local sync CLI is expected to authenticate against remote relays that also require Negentropy auth
 - the relay returns `auth-required:` when the websocket is unauthenticated and `restricted:` when the authenticated pubkey is not the relay identity
+
+### Per-IP rate limits
+
+Negentropy reception and the public read API use independent token buckets per
+client IP. Both limits are enabled by default with intentionally generous
+bursts. `enabled: false` disables only the corresponding limiter.
+
+| Key | Type | Default | Description |
+|---|---|---:|---|
+| `negentropy_rate_limit.enabled` | bool | `true` | Limits incoming `NEG-*` messages by websocket client IP. |
+| `negentropy_rate_limit.requests_per_second` | number | `100` | Sustained Negentropy messages per IP per second. |
+| `negentropy_rate_limit.burst` | int | `200` | Immediate Negentropy message burst per IP. |
+| `api.rate_limit.enabled` | bool | `true` | Limits requests to `/api/v1/*` by client IP when the API is enabled. |
+| `api.rate_limit.requests_per_second` | number | `30` | Sustained API requests per IP per second. |
+| `api.rate_limit.burst` | int | `60` | Immediate API request burst per IP. |
+| `*.rate_limit.max_clients` | int | `10000` | Maximum active IP buckets held by one relay process. |
+| `*.rate_limit.idle_ttl_seconds` | int | `600` | Idle time before an IP bucket is reclaimed. |
+
+An API request exceeding its limit returns HTTP `429` with
+`{"error":"rate limit exceeded"}`. A limited websocket Negentropy message
+receives `NEG-ERR` with the `rate-limited:` prefix when it has a subscription
+ID, otherwise it receives `NOTICE`. The IP is the direct TCP peer; do not
+trust forwarded-client headers without an explicit trusted-proxy boundary.
+Set `security.trusted_proxies` only to immediate reverse-proxy IPs or CIDRs,
+and configure those proxies to overwrite (not append) incoming
+`X-Forwarded-For` headers. For reverse-proxy deployments, enforce the
+client-IP limit at the proxy until such a boundary is configured. Limits are
+process-local; deployments with
+multiple relay replicas need an upstream or shared rate limiter when a
+cluster-wide limit is required.
 
 Recommended production posture:
 

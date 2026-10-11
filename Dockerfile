@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.7
 
-ARG GO_VERSION=1.26.2
+ARG GO_VERSION=1.26.3
 ARG NODE_VERSION=22.19.0
 ARG ALPINE_VERSION=3.23
 
@@ -14,8 +14,8 @@ ENV PNPM_HOME=/pnpm
 ENV PATH=${PNPM_HOME}:${PATH}
 ENV NPM_CONFIG_FETCH_RETRIES=5
 WORKDIR /src/infra/dash
-COPY infra/dash/package.json infra/dash/pnpm-lock.yaml ./
-RUN for attempt in 1 2 3 4 5; do npm install -g pnpm@9.15.9 && break; sleep 10; done
+COPY infra/dash/package.json infra/dash/pnpm-lock.yaml infra/dash/pnpm-workspace.yaml ./
+RUN for attempt in 1 2 3 4 5; do npm install -g pnpm@11.3.0 && break; sleep 10; done
 RUN --mount=type=cache,target=/pnpm/store \
     pnpm config set store-dir /pnpm/store && \
     pnpm config set fetch-retries 5 && \
