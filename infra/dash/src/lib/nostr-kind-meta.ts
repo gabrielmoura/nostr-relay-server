@@ -1,4 +1,4 @@
-import readme from "../../../../ref/nips/README.md?raw"
+import readme from "@/assets/nostr-nips-event-kinds.md?raw"
 
 export type NostrKindMeta = {
   kind: string

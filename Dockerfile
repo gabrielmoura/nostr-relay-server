@@ -23,7 +23,6 @@ RUN --mount=type=cache,target=/pnpm/store \
 
 FROM frontend-deps AS frontend-build
 COPY infra/dash/ ./
-COPY ref/nips /src/ref/nips
 RUN --mount=type=cache,target=/pnpm/store \
     pnpm run build
 
