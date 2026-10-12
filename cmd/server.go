@@ -96,6 +96,7 @@ func runServer(cmd *cobra.Command, args []string) {
 			lnEx             stdnet.Listener
 			pprofServer      io.Closer
 			projectorRuntime *relaysyncruntime.Runtime
+			httpRuntime      *relaysyncruntime.HTTPRuntime
 			shutdownOnce     sync.Once
 		)
 		shutdown := func() {
@@ -109,6 +110,11 @@ func runServer(cmd *cobra.Command, args []string) {
 						log.Logger.Warn("failed to stop RelaySync projector", zap.Error(err))
 					}
 					cancel()
+				}
+				if httpRuntime != nil {
+					if err := httpRuntime.Close(); err != nil {
+						log.Logger.Warn("failed to close RelaySync HTTP runtime", zap.Error(err))
+					}
 				}
 
 				ingestion.Stop()
@@ -144,7 +150,6 @@ func runServer(cmd *cobra.Command, args []string) {
 		// Bind both sockets before initializing any dependency. Keeping these
 		// listeners open through startup prevents another process from taking a
 		// relay port between validation and Fiber.Listener.
-		in, ex = relaynet.Router()
 		internalAddress := fmt.Sprintf(":%d", config.Cfg.Port+1)
 		externalAddress := fmt.Sprintf(":%d", config.Cfg.Port)
 		lnIn, lnEx, err = prepareFiberListeners(internalAddress, externalAddress)
@@ -195,6 +200,23 @@ func runServer(cmd *cobra.Command, args []string) {
 				return
 			}
 			log.Logger.Info("RelaySync durable journal projector started")
+		}
+		if config.Cfg.RelaySync.Enabled && config.Cfg.RelaySync.HTTPEnabled {
+			httpRuntime, err = relaysyncruntime.Build(config.Cfg.RelaySync, db.DbQueries)
+			if err != nil {
+				log.Logger.Error("failed to build RelaySync HTTP runtime", zap.Error(err))
+				return
+			}
+		}
+		factory := relaynet.NewRouter()
+		if httpRuntime != nil {
+			factory.RelaySyncAdapter = httpRuntime.Adapter
+			factory.RelaySyncServices = httpRuntime.Services
+		}
+		in, ex, err = factory.BuildWithError()
+		if err != nil {
+			log.Logger.Error("failed to build relay routes", zap.Error(err))
+			return
 		}
 		if err := nip86.Init(db.DbQueries); err != nil {
 			log.Logger.Error("Erro ao inicializar NIP-86", zap.Error(err))

@@ -23,9 +23,14 @@ func RegisterRelaySync(app *fiber.App, cfg config.RelaySyncConfig, adapter *core
 		return err
 	}
 	app.Use("/sync/v2", func(c *fiber.Ctx) error {
-		if !allowlist(c.IP()) {
+		effectiveIP := c.IP()
+		if !allowlist(effectiveIP) {
 			return c.SendStatus(http.StatusForbidden)
 		}
+		// fasthttpadaptor exposes the socket RemoteAddr to net/http. Override a
+		// reserved header after Fiber has applied its trusted-proxy policy so the
+		// resolver cannot be spoofed by an inbound request header.
+		c.Request().Header.Set("X-RelaySync-Effective-IP", effectiveIP)
 		return c.Next()
 	})
 	return relaysyncfiber.RegisterServices(app, adapter, services)

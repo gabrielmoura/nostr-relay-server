@@ -108,13 +108,13 @@ adiado com justificativa. Este checklist não transforma plano em capacidade.
 
 - [ ] Reauditar o código antes da integração.
 - [ ] Criar adapter de conversão Nostr explícito.
-- [ ] Criar snapshot materializado preservando payloads no TTL.
+- [x] Criar snapshot PostgreSQL paginado com TTL e descarte de payloads ao fim do ciclo.
 - [ ] Não manter transação entre requests.
 - [x] Criar adapter EventWriter síncrono sobre o writer PostgreSQL existente;
   policy final permanece injetada pelo host.
-- [ ] Registrar `/sync/v2/*` antes do fallback `/`.
+- [x] Registrar `/sync/v2/*` antes do fallback `/`.
 - [ ] Adicionar configuração Viper/YAML, defaults false.
-- [ ] Integrar auth por peer/scope.
+- [x] Integrar allowlist por IP/escopo sem autenticação externa.
 - [ ] Integrar métricas/logs/readiness sem alta cardinalidade.
 - [x] Decidir Transactional Outbox PostgreSQL; Redis Pub/Sub somente notificação.
 - [x] Criar migration aditiva de outbox/journal e trigger transacional.
@@ -129,7 +129,7 @@ adiado com justificativa. Este checklist não transforma plano em capacidade.
 - [ ] Implementar checkpoint persistente.
 - [ ] Manter live desabilitado até gates completos.
 - [ ] Testar coexistência/regressão NIP-01 e NIP-77.
-- [ ] Anunciar extensão NIP-11 somente quando disponível.
+- [x] Anunciar extensão NIP-11 somente quando HTTP RelaySync estiver habilitado.
 
 ## Fase 7 — performance e release
 

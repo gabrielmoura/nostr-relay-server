@@ -15,6 +15,8 @@ import (
 	"github.com/gabrielmoura/nostr-relay-server/infra/ratelimit"
 	"github.com/gabrielmoura/nostr-relay-server/internal/dto"
 	json "github.com/gabrielmoura/nostr-relay-server/internal/jsonx"
+	relaysync "github.com/gabrielmoura/nostr-relay-server/pkg/relaySync"
+	relaysyncfiber "github.com/gabrielmoura/nostr-relay-server/pkg/relaySync/fiber"
 	"github.com/gofiber/contrib/websocket"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/compress"
@@ -26,8 +28,10 @@ import (
 
 // RouterFactory gerencia a criação das aplicações Fiber
 type RouterFactory struct {
-	Config *config.Config
-	Logger *zap.Logger
+	Config            *config.Config
+	Logger            *zap.Logger
+	RelaySyncAdapter  *relaysync.HTTPAdapter
+	RelaySyncServices relaysyncfiber.Services
 }
 
 // NewRouter cria uma nova factory.
@@ -41,6 +45,11 @@ func NewRouter() *RouterFactory {
 
 // Build inicializa e retorna as instâncias interna e externa
 func (r *RouterFactory) Build() (internal, external *fiber.App) {
+	internal, external, _ = r.BuildWithError()
+	return internal, external
+}
+
+func (r *RouterFactory) BuildWithError() (internal, external *fiber.App, err error) {
 	fiberConf := r.fiberConfig()
 
 	// 1. Setup Internal Server (Admin & Metrics)
@@ -51,9 +60,11 @@ func (r *RouterFactory) Build() (internal, external *fiber.App) {
 	// 2. Setup External Server (Public Relay)
 	external = fiber.New(fiberConf)
 	r.setupLifecycleHooks(external, "Relay Server")
-	r.setupExternalRoutes(external)
+	if err := r.setupExternalRoutes(external); err != nil {
+		return nil, nil, err
+	}
 
-	return internal, external
+	return internal, external, nil
 }
 
 func (r *RouterFactory) fiberConfig() fiber.Config {
@@ -138,7 +149,7 @@ func (r *RouterFactory) setupInternalRoutes(app *fiber.App) {
 }
 
 // setupExternalRoutes configura as rotas públicas do Relay
-func (r *RouterFactory) setupExternalRoutes(app *fiber.App) {
+func (r *RouterFactory) setupExternalRoutes(app *fiber.App) error {
 	negentropyRateLimit := r.Config.NegentropyRateLimit
 	negentropyLimiter := ratelimit.NewFromConfig(
 		negentropyRateLimit.Enabled,
@@ -173,10 +184,16 @@ func (r *RouterFactory) setupExternalRoutes(app *fiber.App) {
 	// The public API exists only on the external listener. It is registered
 	// before the root fallback, which otherwise intentionally returns 426.
 	apihttp.New(r.Config).Register(app.Group("/api/v1"))
+	if r.RelaySyncAdapter != nil {
+		if err := RegisterRelaySync(app, r.Config.RelaySync, r.RelaySyncAdapter, r.RelaySyncServices); err != nil {
+			return err
+		}
+	}
 
 	// Rota Raiz: Lida com NIP-11 (Info) e Upgrade para WebSocket
 	app.Use("/", httphandler.RootUpgrade(r.Config, negentropyLimiter))
 	app.Get("/", websocket.New(r.handleWebSocketConnection))
+	return nil
 }
 
 func (r *RouterFactory) setupWellKnownRoutes(app *fiber.App) {

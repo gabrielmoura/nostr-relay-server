@@ -57,6 +57,7 @@ Estrutura conceitual, a ser alinhada ao Viper/YAML real na Fase 6:
 ```yaml
 relay_sync:
   enabled: false
+  allowed_ips: []
   http_enabled: false
   snapshot_enabled: false
   apply_enabled: false
