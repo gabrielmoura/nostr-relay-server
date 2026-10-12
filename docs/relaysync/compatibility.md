@@ -77,6 +77,10 @@ gates próprios; `live_enabled` exige `catchup_enabled`, journal, checkpoints e
 snapshot/watermark conformes. O default de todos é `false`. As opções
 Negentropy/NIP-77 existentes não são reutilizadas como gate.
 
+Para expor as rotas HTTP, `http_enabled` e `snapshot_enabled` devem estar
+simultaneamente ativos; caso contrário o runtime não é montado nem anunciado
+no NIP-11.
+
 ## Componentes compartilháveis
 
 Pode ser compartilhado por adapter, nunca por import do core para o host:
