@@ -195,6 +195,12 @@ mudanças com `pgx.Rows`, filtrando epoch, escopo e cursor sem materializar toda
 a retenção em memória. A cobertura operacional completa ainda depende da
 validação em PostgreSQL real.
 
+`RelaySyncEventWriter` converte o modelo independente do core para o writer
+batch existente, valida NIP-01 antes da gravação e retorna decisões individuais
+de aceitação, duplicidade ou rejeição. A política de autorização/retenção do
+relay pode ser fornecida pelo host como callback; o adapter não cria uma
+política paralela.
+
 ### Ciclos finitos e estado temporário
 
 `SessionStore` pode ser durável para distribuição, mas a implementação deve

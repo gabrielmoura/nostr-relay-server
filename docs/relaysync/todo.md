@@ -110,7 +110,8 @@ adiado com justificativa. Este checklist não transforma plano em capacidade.
 - [ ] Criar adapter de conversão Nostr explícito.
 - [ ] Criar snapshot materializado preservando payloads no TTL.
 - [ ] Não manter transação entre requests.
-- [ ] Criar facade síncrona de policy/persistência pós-commit.
+- [x] Criar adapter EventWriter síncrono sobre o writer PostgreSQL existente;
+  policy final permanece injetada pelo host.
 - [ ] Registrar `/sync/v2/*` antes do fallback `/`.
 - [ ] Adicionar configuração Viper/YAML, defaults false.
 - [ ] Integrar auth por peer/scope.
