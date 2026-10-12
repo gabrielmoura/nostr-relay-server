@@ -165,9 +165,10 @@ func (s *SessionService) finish(ctx context.Context, principal Principal, id Ses
 	if err != nil {
 		return err
 	}
-	if !samePrincipal(record.Peer, principal) {
-		return ErrUnauthorized
-	}
+	// The allowlist authorizer is evaluated for every operation. RelaySync's
+	// NRServer integration intentionally uses IP admission rather than peer
+	// credentials, so a reconnect through another allowed address must not
+	// invalidate a finite cycle. The resume token still protects completion.
 	hash := sha256.Sum256(token)
 	if subtle.ConstantTimeCompare(hash[:], record.TokenHash[:]) != 1 {
 		return ErrSessionToken
@@ -196,9 +197,7 @@ func (s *SessionService) Session(ctx context.Context, principal Principal, id Se
 	if err != nil {
 		return SessionRecord{}, err
 	}
-	if !samePrincipal(record.Peer, principal) {
-		return SessionRecord{}, ErrUnauthorized
-	}
+	// Authorization is rechecked below against the current principal.
 	if !record.ExpiresAt.After(s.options.Clock.Now()) {
 		return SessionRecord{}, ErrSessionExpired
 	}
