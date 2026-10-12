@@ -143,6 +143,18 @@ func executeSyncWithResult(ctx context.Context, cf *ConfSync, result *SyncResult
 			)
 		}
 
+		if relayResult, available, err := runRelaySyncIfAvailable(ctx, &runCfg); err != nil {
+			return fmt.Errorf("relaySync v2 filter segment %d failed: %w", i+1, err)
+		} else if available {
+			if relayResult != nil {
+				if len(result.Filter) == 0 && len(relayResult.Filter) > 0 {
+					result.Filter = relayResult.Filter
+				}
+				result.Rejections = append(result.Rejections, relayResult.Rejections...)
+			}
+			continue
+		}
+
 		segResult, err := runSingleSyncWithResult(ctx, &runCfg)
 		if err != nil {
 			return fmt.Errorf("filter segment %d failed: %w", i+1, err)
