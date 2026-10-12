@@ -11,6 +11,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"sync"
+	"time"
 
 	croncmd "github.com/gabrielmoura/nostr-relay-server/cmd/internal/cron"
 	"github.com/gabrielmoura/nostr-relay-server/config"
@@ -33,6 +34,7 @@ import (
 	jobcore "github.com/gabrielmoura/nostr-relay-server/internal/jobs"
 	"github.com/gabrielmoura/nostr-relay-server/internal/nip86"
 	policies2 "github.com/gabrielmoura/nostr-relay-server/internal/policies"
+	relaysyncruntime "github.com/gabrielmoura/nostr-relay-server/internal/relaysync"
 	"github.com/gabrielmoura/nostr-relay-server/internal/security"
 	syncjob "github.com/gabrielmoura/nostr-relay-server/internal/sync"
 	"github.com/gabrielmoura/nostr-relay-server/internal/wot"
@@ -87,19 +89,27 @@ func runServer(cmd *cobra.Command, args []string) {
 
 		mainCtx, mainCancel := context.WithCancel(context.Background())
 		var (
-			in           *fiber.App
-			ex           *fiber.App
-			pm           *privacy.Manager
-			lnIn         stdnet.Listener
-			lnEx         stdnet.Listener
-			pprofServer  io.Closer
-			shutdownOnce sync.Once
+			in               *fiber.App
+			ex               *fiber.App
+			pm               *privacy.Manager
+			lnIn             stdnet.Listener
+			lnEx             stdnet.Listener
+			pprofServer      io.Closer
+			projectorRuntime *relaysyncruntime.Runtime
+			shutdownOnce     sync.Once
 		)
 		shutdown := func() {
 			shutdownOnce.Do(func() {
 				// Cancel first so every long-running component, including the Fiber
 				// listener goroutines, can classify its close as an expected shutdown.
 				mainCancel()
+				if projectorRuntime != nil {
+					closeCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+					if err := projectorRuntime.Close(closeCtx); err != nil {
+						log.Logger.Warn("failed to stop RelaySync projector", zap.Error(err))
+					}
+					cancel()
+				}
 
 				ingestion.Stop()
 
@@ -169,6 +179,22 @@ func runServer(cmd *cobra.Command, args []string) {
 		if err := db.Init(mainCtx); err != nil {
 			log.Logger.Error("Erro ao iniciar conexão com o banco de dados", zap.Error(err))
 			return
+		}
+		if config.Cfg.RelaySync.Enabled && config.Cfg.RelaySync.ProjectorEnabled {
+			projectorRuntime, err = relaysyncruntime.Start(mainCtx, relaysyncruntime.Options{
+				Projector:          db.DbQueries,
+				Epoch:              config.Cfg.RelaySync.JournalEpoch,
+				Interval:           time.Duration(config.Cfg.RelaySync.ProjectorIntervalSeconds) * time.Second,
+				BatchSize:          config.Cfg.RelaySync.ProjectorBatchSize,
+				OutboxRetention:    time.Duration(config.Cfg.RelaySync.OutboxRetentionSeconds) * time.Second,
+				JournalRetention:   time.Duration(config.Cfg.RelaySync.JournalRetentionSeconds) * time.Second,
+				RetentionBatchSize: config.Cfg.RelaySync.RetentionBatchSize,
+			})
+			if err != nil {
+				log.Logger.Error("failed to start RelaySync projector", zap.Error(err))
+				return
+			}
+			log.Logger.Info("RelaySync durable journal projector started")
 		}
 		if err := nip86.Init(db.DbQueries); err != nil {
 			log.Logger.Error("Erro ao inicializar NIP-86", zap.Error(err))

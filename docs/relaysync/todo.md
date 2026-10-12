@@ -122,7 +122,7 @@ adiado com justificativa. Este checklist não transforma plano em capacidade.
 - [x] Implementar descarte de sessão/snapshot/idempotência ao completar ciclo.
 - [ ] Validar ciclo finito ponta a ponta com retry e expiração.
 - [ ] Implementar journal cobrindo todas as mutações.
-- [ ] Integrar projector ao lifecycle supervisionado do NRServer.
+- [x] Integrar projector ao lifecycle supervisionado do NRServer (desabilitado por default).
 - [ ] Testar restart, retention, gap, epoch e commit order.
 - [ ] Implementar checkpoint persistente.
 - [ ] Manter live desabilitado até gates completos.

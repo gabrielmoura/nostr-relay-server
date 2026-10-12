@@ -57,9 +57,17 @@ Estrutura conceitual, a ser alinhada ao Viper/YAML real na Fase 6:
 ```yaml
 relay_sync:
   enabled: false
+  http_enabled: false
   snapshot_enabled: false
   apply_enabled: false
   catchup_enabled: false
+  projector_enabled: false
+  projector_interval_seconds: 5
+  projector_batch_size: 500
+  journal_epoch: 1
+  outbox_retention_seconds: 86400
+  journal_retention_seconds: 604800
+  retention_batch_size: 1000
   live_enabled: false
 ```
 
