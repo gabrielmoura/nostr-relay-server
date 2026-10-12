@@ -152,6 +152,17 @@ func (s *SessionService) Snapshot(id SessionID) (Snapshot, bool) {
 	snapshot, ok := s.snapshots[id]
 	return snapshot, ok
 }
+
+func (s *SessionService) Session(ctx context.Context, principal Principal, id SessionID) (SessionRecord, error) {
+	record, err := s.options.Store.GetSession(ctx, id)
+	if err != nil {
+		return SessionRecord{}, err
+	}
+	if record.Peer.ID != principal.ID {
+		return SessionRecord{}, ErrUnauthorized
+	}
+	return record, nil
+}
 func (s *SessionService) takeSnapshot(id SessionID) Snapshot {
 	s.mu.Lock()
 	defer s.mu.Unlock()

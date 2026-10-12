@@ -37,8 +37,16 @@ func (s *MemoryStorage) OpenSnapshot(ctx context.Context, scope Scope) (Snapshot
 		metadata = append(metadata, EventMetadata{ID: id, CreatedAt: event.CreatedAt})
 	}
 	sortMetadata(metadata)
+	partitionSet := make(map[PartitionKey]struct{})
+	for _, item := range metadata {
+		partitionSet[PartitionFor(item, 8)] = struct{}{}
+	}
+	partitions := make([]PartitionKey, 0, len(partitionSet))
+	for partition := range partitionSet {
+		partitions = append(partitions, partition)
+	}
 	version := sha256.Sum256(append([]byte(scope.Name), byte(scope.Version)))
-	return &memorySnapshot{events: copyEvents, metadata: metadata, descriptor: SnapshotDescriptor{Version: version[:], Scope: scope, Watermark: s.watermark, ExpiresAt: s.clock.Now().Add(30 * time.Minute)}}, nil
+	return &memorySnapshot{events: copyEvents, metadata: metadata, descriptor: SnapshotDescriptor{Version: version[:], Scope: scope, Watermark: s.watermark, ExpiresAt: s.clock.Now().Add(30 * time.Minute), Partitions: partitions}}, nil
 }
 
 func (s *MemoryStorage) WriteEvents(ctx context.Context, batch EventBatch) ([]WriteResult, error) {
