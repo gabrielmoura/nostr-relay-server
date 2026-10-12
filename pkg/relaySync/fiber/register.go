@@ -18,6 +18,7 @@ type Services struct {
 	Transfer  *relaysync.TransferService
 	Reconcile *relaysync.ReconcileService
 	Resolve   relaysync.PrincipalResolver
+	Live      *LiveOptions
 }
 
 func Register(app *fiber.App, adapter *relaysync.HTTPAdapter) error {
@@ -52,6 +53,11 @@ func RegisterServices(app *fiber.App, adapter *relaysync.HTTPAdapter, services S
 	}
 	if services.Reconcile != nil {
 		if err := adapter.RegisterReconcileService(mux, services.Reconcile, services.Resolve); err != nil {
+			return err
+		}
+	}
+	if services.Live != nil {
+		if err := RegisterLive(app, *services.Live); err != nil {
 			return err
 		}
 	}

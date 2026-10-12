@@ -1,6 +1,7 @@
 package relaysync
 
 import (
+	"context"
 	"net"
 	"net/http"
 	"strings"
@@ -59,13 +60,38 @@ func Build(cfg config.RelaySyncConfig, queries *db.Queries) (*HTTPRuntime, error
 		}
 		services.Transfer = transfer
 	}
-	capabilities := &relaysyncv2.Capabilities{ProtocolVersions: []uint32{2}, Compressions: []relaysyncv2.Compression{relaysyncv2.Compression_COMPRESSION_NONE, relaysyncv2.Compression_COMPRESSION_ZSTD}, Limits: limitsProto(core.DefaultLimits()), Scopes: []string{"public"}, Implementation: "nrserver-relaysync"}
+	if cfg.LiveEnabled {
+		journal, err := db.NewRelaySyncJournalProvider(queries, cfg.JournalEpoch)
+		if err != nil {
+			_ = sessions.Close()
+			return nil, err
+		}
+		checkpoints := core.NewMemoryCheckpointStore()
+		services.Live = &relaysyncfiber.LiveOptions{
+			MaxFrameBytes: core.DefaultLimits().MaxFrameBytes,
+			NewSync: func(ctx context.Context, peer string, hello *relaysyncv2.ClientHello) (*core.LiveSync, error) {
+				scope := scopeFromProto(hello.GetScope())
+				return core.NewLiveSync(journal, checkpoints, core.CheckpointKey{PeerID: peer, Scope: scope}, scope, core.LiveConfig{})
+			},
+		}
+	}
+	capabilities := &relaysyncv2.Capabilities{ProtocolVersions: []uint32{2}, Compressions: []relaysyncv2.Compression{relaysyncv2.Compression_COMPRESSION_NONE, relaysyncv2.Compression_COMPRESSION_ZSTD}, Limits: limitsProto(core.DefaultLimits()), Scopes: []string{"public"}, LiveSync: cfg.LiveEnabled, Implementation: "nrserver-relaysync"}
 	adapter, err := core.NewHTTPAdapter(capabilities)
 	if err != nil {
 		_ = sessions.Close()
 		return nil, err
 	}
 	return &HTTPRuntime{Adapter: adapter, Services: services, Sessions: sessions}, nil
+}
+
+func scopeFromProto(scope *relaysyncv2.Scope) core.Scope {
+	result := core.Scope{}
+	if scope == nil {
+		return result
+	}
+	result.Name, result.Version = scope.Name, scope.Version
+	copy(result.Hash[:], scope.Hash)
+	return result
 }
 
 func limitsProto(l core.Limits) *relaysyncv2.Limits {

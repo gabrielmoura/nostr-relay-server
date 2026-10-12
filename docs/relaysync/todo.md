@@ -78,15 +78,14 @@ adiado com justificativa. Este checklist não transforma plano em capacidade.
 ## Fase 4 — journal e live
 
 - [ ] Implementar journal catch-up `changes:next` para modo HTTP-only.
-- [ ] Implementar cabeçalho WS binário de 8 bytes.
-- [ ] Implementar hello/subprotocol/compression negotiation.
-- [ ] Implementar subscribe e replay após watermark.
+- [x] Implementar adapter WebSocket binário e subprotocolo `nostr-sync.v2.pb`.
+- [x] Implementar hello, flow-control, replay, delta e ACK no adapter Fiber/net/http.
 - [x] Implementar DeltaBatch e JournalChange no core live.
 - [x] Implementar ACK cumulativo contíguo.
 - [x] Implementar FlowControl e fila bounded.
 - [x] Implementar heartbeat/timeouts.
 - [x] Implementar ReconcileRequired para gap/epoch/scope.
-- [ ] Implementar reconexão/checkpoint.
+- [ ] Implementar reconexão com checkpoint persistente (live atual usa checkpoint em memória).
 - [ ] Testar queda antes/depois de ACK.
 - [ ] Testar rejeição permanente e falha temporária.
 - [ ] Testar sync bidirecional e echo suppression.
