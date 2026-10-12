@@ -15,6 +15,9 @@ var (
 	ErrSessionExpired      = errors.New("relaysync: session expired")
 	ErrJournalGap          = errors.New("relaysync: journal gap")
 	ErrJournalEpochChanged = errors.New("relaysync: journal epoch changed")
+	ErrReconcileRequired   = errors.New("relaysync: reconcile required")
+	ErrFlowControl         = errors.New("relaysync: flow control paused")
+	ErrHeartbeatTimeout    = errors.New("relaysync: heartbeat timeout")
 	ErrUnauthorized        = errors.New("relaysync: unauthorized")
 )
 
