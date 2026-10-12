@@ -178,6 +178,24 @@ func (s *SessionService) Session(ctx context.Context, principal Principal, id Se
 	return record, nil
 }
 
+// RequireAction verifies that the authenticated principal is still authorized
+// for a session operation. Authorization is intentionally rechecked per
+// operation so revoking a scope does not leave an open session privileged.
+func (s *SessionService) RequireAction(ctx context.Context, principal Principal, id SessionID, action Action) (SessionRecord, error) {
+	record, err := s.Session(ctx, principal, id)
+	if err != nil {
+		return SessionRecord{}, err
+	}
+	authorized, err := s.options.Authorizer.Authorize(ctx, principal, action, record.Scope)
+	if err != nil {
+		return SessionRecord{}, err
+	}
+	if authorized.Scope != record.Scope {
+		return SessionRecord{}, ErrUnauthorized
+	}
+	return record, nil
+}
+
 // Close releases all snapshots and process-local idempotency state owned by
 // the service. It is safe to call more than once and should be invoked by the
 // host during engine shutdown.

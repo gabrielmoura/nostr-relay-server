@@ -32,7 +32,7 @@ func (t *TransferService) Pull(ctx context.Context, principal Principal, id Sess
 	if request == nil {
 		return nil, ErrInvalidEvent
 	}
-	if _, err := t.sessions.Session(ctx, principal, id); err != nil {
+	if _, err := t.sessions.RequireAction(ctx, principal, id, ActionPull); err != nil {
 		return nil, err
 	}
 	snapshot, ok := t.sessions.Snapshot(id)
@@ -76,7 +76,7 @@ func (t *TransferService) Push(ctx context.Context, principal Principal, id Sess
 	if request == nil {
 		return nil, ErrInvalidEvent
 	}
-	if _, err := t.sessions.Session(ctx, principal, id); err != nil {
+	if _, err := t.sessions.RequireAction(ctx, principal, id, ActionPush); err != nil {
 		return nil, err
 	}
 	events := make([]Event, len(request.Events))

@@ -2,6 +2,7 @@ package relaysync
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	relaysyncv2 "github.com/gabrielmoura/nostr-relay-server/pkg/relaySync/proto/relaysync/v2"
@@ -38,5 +39,31 @@ func TestTransferServicePushIdempotency(t *testing.T) {
 	}
 	if len(first.Receipts) != 1 || first.Receipts[0].Status != relaysyncv2.WriteStatus_WRITE_ACCEPTED || second.Receipts[0].Status != relaysyncv2.WriteStatus_WRITE_ACCEPTED {
 		t.Fatalf("receipts: %+v %+v", first, second)
+	}
+}
+
+func TestTransferServiceRequiresOperationAction(t *testing.T) {
+	storage := NewMemoryStorage(nil, DefaultLimits())
+	principal := Principal{ID: "peer"}
+	scope := Scope{Name: "public", Version: 1}
+	authorizer := NewMemoryPeerAuthorizer()
+	authorizer.Grant(principal, AuthorizedScope{Scope: scope, Actions: []Action{ActionOpenSession}})
+	sessions, err := NewSessionService(SessionServiceOptions{Store: NewMemorySessionStore(nil), Authorizer: authorizer})
+	if err != nil {
+		t.Fatal(err)
+	}
+	opened, err := sessions.Open(context.Background(), principal, &relaysyncv2.OpenSessionRequest{ProtocolVersion: 2, Scope: &relaysyncv2.Scope{Name: scope.Name, Version: scope.Version}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var id SessionID
+	copy(id[:], opened.SessionId)
+	transfer, err := NewTransferService(sessions, storage, DefaultLimits())
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = transfer.Pull(context.Background(), principal, id, &relaysyncv2.PullEventsRequest{})
+	if !errors.Is(err, ErrUnauthorized) {
+		t.Fatalf("Pull error = %v, want ErrUnauthorized", err)
 	}
 }

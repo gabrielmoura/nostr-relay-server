@@ -15,7 +15,7 @@ func TestManifestServicePaginatesSnapshot(t *testing.T) {
 	}
 	authorizer := NewMemoryPeerAuthorizer()
 	scope := Scope{Name: "public", Version: 1}
-	authorizer.Grant(Principal{ID: "peer"}, AuthorizedScope{Scope: scope, Actions: []Action{ActionOpenSession}})
+	authorizer.Grant(Principal{ID: "peer"}, AuthorizedScope{Scope: scope, Actions: []Action{ActionOpenSession, ActionPull}})
 	sessions, err := NewSessionService(SessionServiceOptions{Store: NewMemorySessionStore(nil), Snapshots: storage, Authorizer: authorizer})
 	if err != nil {
 		t.Fatal(err)

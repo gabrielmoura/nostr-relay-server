@@ -16,7 +16,7 @@ func TestReconcileServiceRespondsWithinSessionPartition(t *testing.T) {
 	principal := Principal{ID: "peer"}
 	scope := Scope{Name: "public", Version: 1}
 	authorizer := NewMemoryPeerAuthorizer()
-	authorizer.Grant(principal, AuthorizedScope{Scope: scope, Actions: []Action{ActionOpenSession}})
+	authorizer.Grant(principal, AuthorizedScope{Scope: scope, Actions: []Action{ActionOpenSession, ActionPull}})
 	sessions, err := NewSessionService(SessionServiceOptions{Store: NewMemorySessionStore(nil), Snapshots: storage, Authorizer: authorizer})
 	if err != nil {
 		t.Fatal(err)

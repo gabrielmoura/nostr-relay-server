@@ -26,7 +26,7 @@ func NewManifestService(sessions *SessionService, pageSize int) (*ManifestServic
 }
 
 func (m *ManifestService) Next(ctx context.Context, principal Principal, id SessionID, continuation []byte, limit uint32) (*relaysyncv2.Manifest, error) {
-	record, err := m.sessions.Session(ctx, principal, id)
+	record, err := m.sessions.RequireAction(ctx, principal, id, ActionPull)
 	if err != nil {
 		return nil, err
 	}

@@ -39,7 +39,7 @@ func (r *ReconcileService) Reconcile(ctx context.Context, principal Principal, i
 	if len(request.NegentropyPayload) > r.limits.MaxFrameBytes {
 		return nil, ErrFrameTooLarge
 	}
-	if _, err := r.sessions.Session(ctx, principal, id); err != nil {
+	if _, err := r.sessions.RequireAction(ctx, principal, id, ActionPull); err != nil {
 		return nil, err
 	}
 	snapshot, ok := r.sessions.Snapshot(id)
