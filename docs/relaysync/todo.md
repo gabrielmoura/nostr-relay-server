@@ -116,7 +116,8 @@ adiado com justificativa. Este checklist não transforma plano em capacidade.
 - [ ] Integrar auth por peer/scope.
 - [ ] Integrar métricas/logs/readiness sem alta cardinalidade.
 - [x] Decidir Transactional Outbox PostgreSQL; Redis Pub/Sub somente notificação.
-- [ ] Aprovar migration/schema/índices/rollback.
+- [x] Criar migration aditiva de outbox/journal e trigger transacional.
+- [ ] Validar migration/schema/índices/rollback em PostgreSQL real.
 - [x] Implementar descarte de sessão/snapshot/idempotência ao completar ciclo.
 - [ ] Validar ciclo finito ponta a ponta com retry e expiração.
 - [ ] Implementar journal cobrindo todas as mutações.

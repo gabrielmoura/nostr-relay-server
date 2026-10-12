@@ -182,6 +182,14 @@ deverá apresentar essa garantia por meio de `JournalProvider`/`EventWriter`,
 documentar migration, índices, backfill, rollback e custo de retenção, e manter
 live desabilitado até validar todos os caminhos de mutação.
 
+A migration `000005_add_relaysync_outbox` cria a outbox e o journal físico e
+instala um trigger transacional para INSERT, DELETE e mudanças de visibilidade
+por `deleted_by`. Ela cobre os writers atuais sem dual-write Redis. A migration
+não habilita o projector: a publicação ainda precisa ordenar por metadados de
+commit (`txid`/commit timestamp), atribuir `epoch + sequence`, marcar a outbox
+somente após inserção idempotente no journal e executar retenção. Até esses
+gates passarem, o live sync permanece desligado.
+
 ### Ciclos finitos e estado temporário
 
 `SessionStore` pode ser durável para distribuição, mas a implementação deve
