@@ -177,6 +177,26 @@ func (s *SessionService) Session(ctx context.Context, principal Principal, id Se
 	}
 	return record, nil
 }
+
+// Close releases all snapshots and process-local idempotency state owned by
+// the service. It is safe to call more than once and should be invoked by the
+// host during engine shutdown.
+func (s *SessionService) Close() error {
+	s.mu.Lock()
+	snapshots := make([]Snapshot, 0, len(s.snapshots))
+	for id, snapshot := range s.snapshots {
+		snapshots = append(snapshots, snapshot)
+		delete(s.snapshots, id)
+	}
+	s.idempotent = make(map[string]sessionResult)
+	s.mu.Unlock()
+	var closeErr error
+	for _, snapshot := range snapshots {
+		closeErr = errors.Join(closeErr, snapshot.Close())
+	}
+	return closeErr
+}
+
 func (s *SessionService) takeSnapshot(id SessionID) Snapshot {
 	s.mu.Lock()
 	defer s.mu.Unlock()

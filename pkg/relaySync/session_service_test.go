@@ -84,3 +84,30 @@ func TestSessionServiceCompleteDiscardsCycleState(t *testing.T) {
 		t.Fatal("completed cycle retained idempotency result")
 	}
 }
+
+func TestSessionServiceCloseDiscardsSnapshots(t *testing.T) {
+	store := NewMemorySessionStore(nil)
+	authorizer := NewMemoryPeerAuthorizer()
+	scope := Scope{Name: "public", Version: 1}
+	principal := Principal{ID: "peer-a"}
+	authorizer.Grant(principal, AuthorizedScope{Scope: scope, Actions: []Action{ActionOpenSession}})
+	service, err := NewSessionService(SessionServiceOptions{Store: store, Snapshots: NewMemoryStorage(nil, DefaultLimits()), Authorizer: authorizer})
+	if err != nil {
+		t.Fatal(err)
+	}
+	opened, err := service.Open(context.Background(), principal, &relaysyncv2.OpenSessionRequest{ProtocolVersion: 2, Scope: &relaysyncv2.Scope{Name: scope.Name, Version: scope.Version}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var id SessionID
+	copy(id[:], opened.SessionId)
+	if err := service.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := service.Snapshot(id); ok {
+		t.Fatal("snapshot retained after service close")
+	}
+	if err := service.Close(); err != nil {
+		t.Fatal(err)
+	}
+}
