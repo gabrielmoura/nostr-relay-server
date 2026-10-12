@@ -39,8 +39,9 @@ type SessionService struct {
 }
 
 type sessionResult struct {
-	response *relaysyncv2.OpenSessionResponse
-	token    []byte
+	sessionID SessionID
+	response  *relaysyncv2.OpenSessionResponse
+	token     []byte
 }
 
 func NewSessionService(options SessionServiceOptions) (*SessionService, error) {
@@ -116,13 +117,25 @@ func (s *SessionService) Open(ctx context.Context, principal Principal, request 
 	}
 	if len(request.IdempotencyKey) > 0 {
 		s.mu.Lock()
-		s.idempotent[key] = sessionResult{response: cloneSessionResponse(response), token: append([]byte(nil), token...)}
+		s.idempotent[key] = sessionResult{sessionID: id, response: cloneSessionResponse(response), token: append([]byte(nil), token...)}
 		s.mu.Unlock()
 	}
 	return response, nil
 }
 
 func (s *SessionService) Delete(ctx context.Context, principal Principal, id SessionID, token []byte) error {
+	return s.finish(ctx, principal, id, token)
+}
+
+// Complete closes a successful finite synchronization cycle. It removes the
+// durable session record and all process-local snapshot/idempotency state.
+// Checkpoints, when used by the caller, are intentionally managed by the
+// CheckpointStore and are not deleted here.
+func (s *SessionService) Complete(ctx context.Context, principal Principal, id SessionID, token []byte) error {
+	return s.finish(ctx, principal, id, token)
+}
+
+func (s *SessionService) finish(ctx context.Context, principal Principal, id SessionID, token []byte) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -140,6 +153,7 @@ func (s *SessionService) Delete(ctx context.Context, principal Principal, id Ses
 	if err := s.options.Store.DeleteSession(ctx, id); err != nil {
 		return err
 	}
+	s.clearIdempotency(id)
 	if snapshot := s.takeSnapshot(id); snapshot != nil {
 		return snapshot.Close()
 	}
@@ -169,6 +183,16 @@ func (s *SessionService) takeSnapshot(id SessionID) Snapshot {
 	snapshot := s.snapshots[id]
 	delete(s.snapshots, id)
 	return snapshot
+}
+
+func (s *SessionService) clearIdempotency(id SessionID) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for key, result := range s.idempotent {
+		if result.sessionID == id {
+			delete(s.idempotent, key)
+		}
+	}
 }
 func cloneSessionResponse(response *relaysyncv2.OpenSessionResponse) *relaysyncv2.OpenSessionResponse {
 	if response == nil {

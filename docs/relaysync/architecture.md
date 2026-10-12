@@ -34,6 +34,12 @@ Decisões explícitas do usuário refletidas nesta proposta:
    ordem de commit e snapshot ligado ao seu watermark sem lacunas.
 7. Nenhum ACK/checkpoint pode preceder a persistência durável do evento ou de
    uma decisão terminal de rejeição.
+8. A sincronização é organizada como ciclos finitos. Ao concluir um ciclo, a
+   sessão, o snapshot, os estados Negentropy, manifests intermediários e
+   buffers são descartados; somente checkpoint opcional permanece quando uma
+   retomada futura for necessária.
+9. No NRServer, a publicação do journal será baseada em Transactional Outbox no
+   PostgreSQL. Redis Pub/Sub só acorda consumidores e nunca fornece replay.
 
 ## Evidência do repositório
 
@@ -133,6 +139,26 @@ O engine:
 - fecha snapshot e iteradores em conclusão, cancelamento ou expiração;
 - não cria goroutines sem caminho de encerramento observado por `Close`;
 - usa relógio injetável apenas onde testes de expiração precisam determinismo.
+
+Um ciclo normal termina com `POST .../{id}/complete` (ou cancelamento/expiração
+em caso de falha). `Complete` remove o registro de sessão e fecha o snapshot;
+as estruturas de idempotência locais associadas ao ciclo também são removidas.
+O `CheckpointStore` é independente: pode manter apenas o cursor necessário para
+uma próxima execução, sem manter a sessão que o produziu.
+
+### Persistência e retenção
+
+| Dado | Armazenamento | Retenção |
+| --- | --- | --- |
+| Eventos aceitos | PostgreSQL existente | Política normal do relay |
+| Outbox transacional | PostgreSQL | Remover após publicação segura no journal |
+| Journal | PostgreSQL | Janela limitada e independente dos peers |
+| Checkpoint | PostgreSQL opcional | Somente quando retomada futura for necessária |
+| Sessão, frames, manifests intermediários | Memória/cache | Até complete, cancelamento ou expiração |
+| Redis Pub/Sub | Redis existente | Notificação transitória, sem replay |
+
+Não existe uma coleção durável de IDs transferidos por sessão. O journal é
+global por escopo/epoch e não é apagado quando um peer termina seu ciclo.
 
 A implementação em memória de `SessionStore` serve a testes e processo único.
 Em múltiplas réplicas, o host deve fornecer store compartilhado ou afinidade de
@@ -277,10 +303,10 @@ estiver ativa. `supported_nips: 77` continuará significando apenas NIP-77.
 1. O PostgreSQL atual não oferece snapshot versionado nem journal durável. Uma
    migration será necessária para artifacts/materialização e journal; desenho
    e impacto em bases grandes exigem aprovação antes de SQL.
-2. CDC/logical decoding é a recomendação inicial porque observa os múltiplos
-   writers e deletes existentes em ordem de commit. Ele adiciona slots, WAL
-   retido e operação mais complexa. A decisão final CDC versus outbox
-   serializada exige ADR e benchmark na Fase 6.
+2. A decisão é Transactional Outbox no PostgreSQL, que exige cobrir todos os
+   writers e deletes existentes na mesma transação. O projector deve publicar
+   em ordem de commit e remover a outbox somente após confirmação durável. CDC
+   permanece alternativa futura, não habilitada por esta arquitetura.
 3. Manter transação `REPEATABLE READ` por toda uma sessão prejudica vacuum e
    ocupa conexão; não é a estratégia de produção proposta.
 4. A implementação Negentropy independente ainda precisa da suíte oficial de

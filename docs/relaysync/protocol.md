@@ -11,6 +11,8 @@ Status: contrato proposto na Fase 0. RelaySync v2 não é uma especificação NI
 - Requisições retomáveis e idempotentes.
 - Separação entre reconciliação histórica e live journal.
 - Nenhuma declaração de convergência fora do scope/policy negociado.
+- Ciclos finitos: o estado temporário termina em `complete`, cancelamento ou
+  expiração; o journal não é um estado por peer.
 
 ## Content types e versões
 
@@ -155,11 +157,25 @@ replay até nova reconciliação HTTP.
 | `POST /sync/v2/sessions/{id}/events:pull` | `PullEventsRequest` | `PullEventsResponse` | operation ID |
 | `POST /sync/v2/sessions/{id}/events:push` | `PushEventsRequest` | `PushEventsResponse` | operation ID |
 | `POST /sync/v2/sessions/{id}/changes:next` | `ReadChangesRequest` | `ReadChangesResponse` | cursor exclusivo |
-| `POST /sync/v2/sessions/{id}/complete` | `CompleteSessionRequest` | `CompleteSessionResponse` | repetível |
+| `POST /sync/v2/sessions/{id}/complete` | `CompleteSessionRequest` | `CompleteSessionResponse` | uma vez por ciclo; retry após resposta é terminal |
 | `DELETE /sync/v2/sessions/{id}` | vazio | vazio | repetível |
 
 O ID no path usa base64url sem padding; no Protobuf permanece `bytes`. Token de
 sessão vai em header de autorização do adapter, nunca no path ou log.
+
+### Lifecycle de um ciclo
+
+```text
+open -> snapshot/watermark -> manifest/reconcile -> pull/push
+     -> catch-up opcional -> live opcional -> complete
+```
+
+`complete` só deve ser enviado depois de todas as decisões terminais terem sido
+persistidas. O servidor fecha o snapshot, descarta estados Negentropy,
+manifests, frames e buffers, e remove a sessão. Um checkpoint persistente, se
+configurado, é independente e contém apenas o cursor necessário para uma nova
+execução. Uma falha ou desconexão não transforma automaticamente o ciclo em um
+serviço permanente: o cliente retoma com checkpoint ou abre uma nova sessão.
 
 Status HTTP representa falha do envelope/transporte; resultados por evento
 ficam no Protobuf. Mapeamento inicial:
@@ -236,10 +252,11 @@ O fluxo sem perda é:
 1. abrir snapshot e associar o head durável `W` do journal;
 2. reconciliar exatamente a versão por HTTP;
 3. usar `changes:next` após `W` até alcançar o head, aceitando duplicatas;
-4. chamar `complete`, que sela a fase histórica, libera o snapshot e mantém a
-   sessão/token no estado `catch_up` até seu TTL;
+4. chamar `complete`, que sela a fase histórica, libera o snapshot e remove a
+   sessão/token e o estado temporário do ciclo;
 5. assinar live após o último cursor confirmado;
-6. continuar recebendo journal. `DELETE` encerra sessão/token e recursos.
+6. continuar recebendo journal em um novo ciclo live, quando habilitado.
+   `DELETE` cancela explicitamente um ciclo ainda aberto.
 
 Se o journal não consegue servir o cursor, envia `ReconcileRequired`. O cliente
 nunca pula automaticamente para o primeiro cursor retido.

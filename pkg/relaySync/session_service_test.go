@@ -38,3 +38,49 @@ func TestSessionServiceIdempotencyAndTokenValidation(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestSessionServiceCompleteDiscardsCycleState(t *testing.T) {
+	store := NewMemorySessionStore(nil)
+	authorizer := NewMemoryPeerAuthorizer()
+	scope := Scope{Name: "public", Version: 1}
+	authorizer.Grant(Principal{ID: "peer-a"}, AuthorizedScope{Scope: scope, Actions: []Action{ActionOpenSession}})
+	storage := NewMemoryStorage(nil, DefaultLimits())
+	service, err := NewSessionService(SessionServiceOptions{
+		Store:      store,
+		Snapshots:  storage,
+		Authorizer: authorizer,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := &relaysyncv2.OpenSessionRequest{
+		ProtocolVersion: 2,
+		IdempotencyKey:  []byte("cycle-1"),
+		Scope:           &relaysyncv2.Scope{Name: "public", Version: 1},
+	}
+	opened, err := service.Open(context.Background(), Principal{ID: "peer-a"}, request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var id SessionID
+	copy(id[:], opened.SessionId)
+	if _, ok := service.Snapshot(id); !ok {
+		t.Fatal("expected snapshot to be retained during cycle")
+	}
+	if err := service.Complete(context.Background(), Principal{ID: "peer-a"}, id, opened.ResumeToken); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.GetSession(context.Background(), id); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("session after completion = %v, want ErrNotFound", err)
+	}
+	if _, ok := service.Snapshot(id); ok {
+		t.Fatal("snapshot retained after completion")
+	}
+	reopened, err := service.Open(context.Background(), Principal{ID: "peer-a"}, request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(reopened.SessionId) == string(opened.SessionId) {
+		t.Fatal("completed cycle retained idempotency result")
+	}
+}

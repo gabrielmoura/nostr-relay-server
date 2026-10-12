@@ -115,8 +115,10 @@ adiado com justificativa. Este checklist não transforma plano em capacidade.
 - [ ] Adicionar configuração Viper/YAML, defaults false.
 - [ ] Integrar auth por peer/scope.
 - [ ] Integrar métricas/logs/readiness sem alta cardinalidade.
-- [ ] Aprovar ADR CDC versus outbox.
+- [x] Decidir Transactional Outbox PostgreSQL; Redis Pub/Sub somente notificação.
 - [ ] Aprovar migration/schema/índices/rollback.
+- [x] Implementar descarte de sessão/snapshot/idempotência ao completar ciclo.
+- [ ] Validar ciclo finito ponta a ponta com retry e expiração.
 - [ ] Implementar journal cobrindo todas as mutações.
 - [ ] Testar restart, retention, gap, epoch e commit order.
 - [ ] Implementar checkpoint persistente.
@@ -143,6 +145,6 @@ adiado com justificativa. Este checklist não transforma plano em capacidade.
 
 - Aprovação da documentação antes de código.
 - Conformidade da implementação Negentropy independente antes da Fase 2.
-- CDC/outbox, migration e artifact store antes da integração de journal.
+- Transactional Outbox, migration e artifact store antes da integração de journal.
 - Mecanismo de autenticação e scopes antes de exportar dados reais.
 - Resultados de benchmark antes de afirmar escala/produção.

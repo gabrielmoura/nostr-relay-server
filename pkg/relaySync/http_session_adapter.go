@@ -47,6 +47,10 @@ func (a *HTTPAdapter) RegisterSessionService(mux *http.ServeMux, service *Sessio
 		writeProto(w, response)
 	})
 	mux.HandleFunc(sessionsPath+"/", func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/complete") {
+			a.handleComplete(w, r, service, resolve)
+			return
+		}
 		if r.Method != http.MethodDelete {
 			w.Header().Set("Allow", http.MethodDelete)
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -77,6 +81,34 @@ func (a *HTTPAdapter) RegisterSessionService(mux *http.ServeMux, service *Sessio
 		w.WriteHeader(http.StatusNoContent)
 	})
 	return nil
+}
+
+func (a *HTTPAdapter) handleComplete(w http.ResponseWriter, r *http.Request, service *SessionService, resolve PrincipalResolver) {
+	if r.Method != http.MethodPost {
+		w.Header().Set("Allow", http.MethodPost)
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	principal, ok := resolve(r)
+	if !ok {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	id, err := parseSessionPath(r.URL.Path, "/complete")
+	if err != nil {
+		http.Error(w, "invalid session id", http.StatusBadRequest)
+		return
+	}
+	token := bearerToken(r.Header.Get("Authorization"))
+	if len(token) == 0 {
+		http.Error(w, "session token required", http.StatusUnauthorized)
+		return
+	}
+	if err := service.Complete(r.Context(), principal, id, token); err != nil {
+		writeSessionError(w, err)
+		return
+	}
+	writeProto(w, &relaysyncv2.CompleteSessionResponse{Complete: true})
 }
 
 func bearerToken(header string) []byte {

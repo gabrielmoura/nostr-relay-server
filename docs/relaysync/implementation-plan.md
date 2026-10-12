@@ -1,7 +1,7 @@
 # RelaySync v2: plano de implementação
 
-Status: Fase 1 implementada e validada no pacote; transports e integração ainda
-não iniciados.
+Status: core, transportes genéricos e ciclo finito implementados no pacote;
+integração PostgreSQL/Transactional Outbox do NRServer ainda pendente.
 
 ## Regras de execução
 
@@ -208,22 +208,22 @@ Esta fase exige nova leitura do código então vigente.
 Gate: snapshot HTTP, sessão, idempotência e checkpoint funcionam em múltiplas
 réplicas sem afinidade; NIP-77 fica inalterado.
 
-### 6B — journal durável
+### 6B — journal durável com Transactional Outbox
 
-Decisão recomendada, ainda sujeita a ADR: logical decoding/CDC, com projector
-único que consome commits em ordem de LSN, atribui sequência densa no journal e
-só então confirma o slot. O LSN é checkpoint interno; o cursor público continua
-`epoch + sequence`.
+Decisão aprovada: Transactional Outbox no PostgreSQL, com cada evento/mudança e
+outbox gravados no mesmo commit. Um projector publica no journal durável,
+confirma a outbox somente após publicação segura e aplica retenção limitada.
+Redis Pub/Sub/NOTIFY apenas acorda leitores.
 
 Antes de migration:
 
-- comparar CDC com outbox serializada;
 - documentar schema, índices, backfill, epoch inicial, rollback e locks;
 - medir WAL retido, lag e throughput;
 - revisar operação do slot e alertas;
 - provar cobertura de insert, batch, replace, soft/hard delete e NIP-40.
 
-Redis/NOTIFY podem acordar readers, nunca substituir o journal.
+- remover entradas outbox apenas após publicação idempotente e recuperável;
+- provar que o ciclo `complete` remove a sessão e todo o estado temporário.
 
 Gate: restart, replay, commit fora de ordem, retenção e gap testados. Live ainda
 fica false.
@@ -286,7 +286,7 @@ de falha do código, nunca silenciada.
 ## Decisões que exigem aprovação posterior
 
 1. Perfil/limites da implementação Negentropy independente após benchmarks.
-2. CDC versus outbox serializada.
+2. Perfil operacional e schema da Transactional Outbox.
 3. Schema físico/backend/TTL dos artifacts de snapshot.
 4. Autenticação relay-to-relay inicial (mTLS, token ou NIP-98).
 5. Scopes/filtros suportados na primeira release.

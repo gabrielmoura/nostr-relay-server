@@ -151,23 +151,44 @@ Garantias obrigatórias:
 6. O mesmo scope usado pelo snapshot é aplicado ao journal.
 7. Redis Pub/Sub pode notificar disponibilidade, mas nunca é a fonte durável.
 
-### Alternativas para o NRServer
+### Transactional Outbox no NRServer
+
+A implementação de produção deve registrar a mudança visível no mesmo commit
+que grava ou atualiza o evento. A outbox não é uma segunda fonte de eventos: é
+um registro de publicação pendente, com identificador estável, scope, tipo de
+mudança, Event ID, metadados necessários e referência ao payload autorizado.
+
+O projector deve ler entradas commitadas em ordem de commit/publication
+watermark, publicar `JournalChange` idempotentemente e remover a entrada apenas
+quando o journal estiver duravelmente visível e recuperável após reinício. A
+retenção da outbox é independente da retenção do journal. Redis Pub/Sub ou
+`NOTIFY` somente acorda readers, que sempre consultam PostgreSQL para replay.
+
+Uma falha entre publicação e remoção pode repetir a mudança, mas não pode criar
+duas sequências públicas nem perder a mudança. O journal deve deduplicar pelo
+identificador da mudança e preservar a ordem definida pelo adapter.
+
+### Alternativas avaliadas para o NRServer
 
 | Alternativa | Ordem de commit | Custo/risco | Decisão da Fase 0 |
 | --- | --- | --- | --- |
 | `BIGSERIAL/nextval()` isolado | Não | Simples, mas incorreto com commits fora de ordem | Rejeitada |
 | Redis Pub/Sub/Streams isolado | Não cobre transação PostgreSQL | Lacunas e dual-write | Rejeitada |
-| Logical decoding/CDC | Sim | `wal_level`, slot, retenção de WAL e operação dedicada | Recomendada, sujeita a ADR/gate operacional |
-| Outbox na mesma transação com sequenciamento serializado até commit | Sim, se todos os writers participarem | Refatorar todos os writers, contenção e migration | Alternativa para benchmark |
+| Logical decoding/CDC | Sim | `wal_level`, slot, retenção de WAL e operação dedicada | Alternativa futura, sujeita a ADR |
+| Outbox na mesma transação com publicação pós-commit | Sim, se todos os writers participarem | Migration e cobertura de todos os writers | **Escolhida** |
 
-A recomendação inicial para o NRServer é CDC porque hoje existem múltiplos
-caminhos de insert, replace, soft delete e hard delete. Um projector consome
-commits em ordem de LSN, atribui uma sequência densa ao journal persistido e só
-então confirma o replication slot. O LSN é checkpoint interno, não cursor do
-protocolo. A Fase 6 deve medir essa opção e comparar com outbox serializada.
-Live sync fica desabilitado até que retenção, restart, gap e todos os caminhos
-de mutação passem nos testes. Não será inferida uma garantia a partir do
-`BIGSERIAL` atual.
+O core não implementa SQL nem assume nome de tabela. O adapter do NRServer
+deverá apresentar essa garantia por meio de `JournalProvider`/`EventWriter`,
+documentar migration, índices, backfill, rollback e custo de retenção, e manter
+live desabilitado até validar todos os caminhos de mutação.
+
+### Ciclos finitos e estado temporário
+
+`SessionStore` pode ser durável para distribuição, mas a implementação deve
+apagar a sessão quando o ciclo termina com sucesso. Estados Negentropy,
+manifests, frames e buffers não pertencem ao `JournalProvider` e não devem ser
+persistidos como coleção por peer. Checkpoints são exceção explícita e podem
+ser removidos por política quando nenhuma retomada futura for necessária.
 
 ## CheckpointStore
 
