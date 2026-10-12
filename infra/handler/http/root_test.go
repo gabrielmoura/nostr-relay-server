@@ -141,3 +141,17 @@ func TestNIP11WithPrivacy_AdvertisesNIPFEOnlyWhenEnabled(t *testing.T) {
 		}
 	}
 }
+
+func TestNIP11WithPrivacy_AdvertisesRelaySyncOnlyWhenEnabled(t *testing.T) {
+	doc := NIP11WithPrivacy(&config.Config{RelaySync: config.RelaySyncConfig{Enabled: true, HTTPEnabled: true}})
+	m, ok := doc.(map[string]any)
+	if !ok {
+		t.Fatalf("document type = %T", doc)
+	}
+	if _, ok := m["relay_sync_v2"]; !ok {
+		t.Fatal("relay_sync_v2 extension missing")
+	}
+	if _, ok := m["supported_nip_extensions"]; !ok {
+		t.Fatal("supported_nip_extensions missing")
+	}
+}
