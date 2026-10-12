@@ -22,6 +22,7 @@ type MemoryJournalProvider struct {
 	epoch     uint64
 	retention int
 	changes   []JournalChange
+	next      uint64
 }
 
 func NewMemoryJournalProvider(epoch uint64, retention int) *MemoryJournalProvider {
@@ -38,7 +39,8 @@ func (p *MemoryJournalProvider) Append(change JournalChange) Cursor {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	change.Cursor.Epoch = p.epoch
-	change.Cursor.Sequence = uint64(len(p.changes) + 1)
+	p.next++
+	change.Cursor.Sequence = p.next
 	p.changes = append(p.changes, change)
 	if len(p.changes) > p.retention {
 		p.changes = p.changes[len(p.changes)-p.retention:]
@@ -55,7 +57,7 @@ func (p *MemoryJournalProvider) OpenJournal(ctx context.Context, _ Scope, after 
 	if after.Epoch != 0 && after.Epoch != p.epoch {
 		return nil, ErrJournalEpochChanged
 	}
-	first := uint64(1)
+	first := p.next + 1
 	if len(p.changes) > 0 {
 		first = p.changes[0].Cursor.Sequence
 	}
