@@ -116,6 +116,12 @@ type EventWriter interface {
 	WriteEvents(ctx context.Context, batch EventBatch) ([]WriteResult, error)
 }
 
+// ChangeApplier applies a journal visibility transition durably. Delete must
+// be terminal and idempotent for the referenced event ID.
+type ChangeApplier interface {
+	ApplyChange(ctx context.Context, change JournalChange) (WriteResult, error)
+}
+
 // ChangeType describes an observable visibility transition.
 type ChangeType uint8
 

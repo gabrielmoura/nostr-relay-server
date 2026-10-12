@@ -77,6 +77,30 @@ func (s *MemoryStorage) WriteEvents(ctx context.Context, batch EventBatch) ([]Wr
 	return results, nil
 }
 
+func (s *MemoryStorage) ApplyChange(ctx context.Context, change JournalChange) (WriteResult, error) {
+	if err := ctx.Err(); err != nil {
+		return WriteResult{ID: change.ID, Status: WriteFailedTemporary}, err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	switch change.Type {
+	case ChangeDelete:
+		delete(s.events, change.ID)
+		return WriteResult{ID: change.ID, Status: WriteAccepted}, nil
+	case ChangeUpsert:
+		if change.Event == nil {
+			return WriteResult{ID: change.ID, Status: WriteRejectedPermanent, Code: "MISSING_EVENT"}, nil
+		}
+		if err := change.Event.Validate(s.limits); err != nil {
+			return WriteResult{ID: change.ID, Status: WriteRejectedPermanent, Code: "INVALID_EVENT"}, nil
+		}
+		s.events[change.ID] = cloneEvent(*change.Event)
+		return WriteResult{ID: change.ID, Status: WriteAccepted}, nil
+	default:
+		return WriteResult{ID: change.ID, Status: WriteRejectedPermanent, Code: "UNKNOWN_CHANGE"}, nil
+	}
+}
+
 func sortMetadata(items []EventMetadata) {
 	for i := 1; i < len(items); i++ {
 		current := items[i]
