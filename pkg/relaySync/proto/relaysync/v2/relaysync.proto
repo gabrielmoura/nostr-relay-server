@@ -75,6 +75,13 @@ enum ProtocolErrorCode {
   PROTOCOL_ERROR_INTERNAL = 7;
 }
 
+enum SessionDirection {
+  SESSION_DIRECTION_UNSPECIFIED = 0;
+  SESSION_DIRECTION_PULL = 1;
+  SESSION_DIRECTION_PUSH = 2;
+  SESSION_DIRECTION_BIDIRECTIONAL = 3;
+}
+
 message CapabilitiesRequest {
   repeated uint32 protocol_versions = 1;
 }
@@ -94,6 +101,7 @@ message OpenSessionRequest {
   repeated Compression compressions = 3;
   Limits requested_limits = 4;
   bytes idempotency_key = 5;
+  SessionDirection direction = 6;
 }
 
 message OpenSessionResponse {
@@ -111,6 +119,7 @@ message Partition {
   uint32 prefix_bits = 3;
   bytes prefix = 4;
   uint64 event_count = 5;
+  uint32 algorithm_version = 6;
 }
 
 message PartitionSummary {
@@ -171,6 +180,8 @@ message PullEventsResponse {
   repeated Event events = 1;
   bytes continuation = 2;
   bool complete = 3;
+  repeated bytes missing_event_ids = 4;
+  bytes checksum = 5;
 }
 
 message PushEventsRequest {
@@ -260,6 +271,7 @@ message FlowControl {
   uint32 max_events = 1;
   uint32 max_bytes = 2;
   bool pause = 3;
+  uint32 max_batches = 4;
 }
 
 message Heartbeat {

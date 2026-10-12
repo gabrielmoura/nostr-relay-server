@@ -63,7 +63,7 @@ func (t *TransferService) Pull(ctx context.Context, principal Principal, id Sess
 		if item.Event != nil {
 			response.Events = append(response.Events, EventToProto(*item.Event))
 		} else {
-			response.Continuation = append(response.Continuation, item.ID[:]...)
+			response.MissingEventIds = append(response.MissingEventIds, append([]byte(nil), item.ID[:]...))
 		}
 		if uint32(len(response.Events)) >= request.MaxEvents && request.MaxEvents > 0 {
 			break

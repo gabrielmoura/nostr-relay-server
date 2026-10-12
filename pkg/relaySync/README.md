@@ -3,9 +3,12 @@
 RelaySync is an experimental, transport-agnostic relay-to-relay synchronization
 library. This package currently provides its NIP-01 event domain model, bounded
 contracts, independent Negentropy V1 primitives, zstd/framing codecs, in-memory
-test stores, and an optional `net/http` capability discovery adapter. Session
-orchestration, full event-transfer endpoints, live replay, Fiber wiring and
-NRServer integration are not enabled yet.
+test stores, an optional `net/http` capability discovery adapter, and a
+transport-agnostic bounded live replay coordinator. The coordinator is driven
+by the caller (it starts no goroutine or listener), persists only contiguous
+ACKs through `CheckpointStore`, and requires a new HTTP reconciliation after a
+journal gap or epoch change. WebSocket/Fiber wiring and NRServer integration
+remain disabled.
 
 Consumers must provide durable implementations of the snapshot, writer,
 journal, checkpoint and session contracts before enabling synchronization.
