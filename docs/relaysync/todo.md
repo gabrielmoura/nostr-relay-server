@@ -48,9 +48,9 @@ adiado com justificativa. Este checklist não transforma plano em capacidade.
 - [ ] Implementar manifest paginado e cache versionado.
 - [ ] Implementar Vector selado por partição, SubRange lógico e prefix aggregates.
 - [ ] Criar porta privada de reconciliação.
-- [ ] Implementar Negentropy V1 independentemente a partir da especificação.
-- [ ] Usar packages existentes apenas como referência comportamental.
-- [ ] Provar que nenhum código/dependência externa foi incorporado.
+- [x] Implementar Negentropy V1 independentemente a partir da especificação.
+- [x] Usar packages existentes apenas como referência comportamental.
+- [x] Provar que nenhum código/dependência externa foi incorporado.
 - [ ] Importar vetores/harness oficial de conformidade.
 - [ ] Testar conjuntos iguais, parciais, vazios e grandes.
 - [ ] Testar frames/versões/rounds inválidos e cancelamento.
@@ -70,7 +70,7 @@ adiado com justificativa. Este checklist não transforma plano em capacidade.
 - [ ] Implementar cliente com `http.Client` injetável/reutilizado.
 - [ ] Propagar deadlines/cancelamento.
 - [ ] Implementar idempotency e typed errors.
-- [ ] Implementar zstd negociado, threshold e output limits.
+- [x] Implementar zstd negociado, threshold e output limits.
 - [ ] Testar decompression bomb e corpos malformados.
 - [ ] Testar sync HTTP E2E entre stores de teste.
 - [ ] Benchmark sem compressão, nível 1 e nível 3.
