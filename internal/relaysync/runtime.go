@@ -66,7 +66,11 @@ func Build(cfg config.RelaySyncConfig, queries *db.Queries) (*HTTPRuntime, error
 			_ = sessions.Close()
 			return nil, err
 		}
-		checkpoints := core.NewMemoryCheckpointStore()
+		checkpoints, err := db.NewRelaySyncCheckpointStore(queries)
+		if err != nil {
+			_ = sessions.Close()
+			return nil, err
+		}
 		services.Live = &relaysyncfiber.LiveOptions{
 			MaxFrameBytes: core.DefaultLimits().MaxFrameBytes,
 			NewSync: func(ctx context.Context, peer string, hello *relaysyncv2.ClientHello) (*core.LiveSync, error) {
