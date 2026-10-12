@@ -108,6 +108,49 @@ func (c *HTTPClient) CompleteSession(ctx context.Context, id SessionID, token []
 	return nil
 }
 
+// ManifestNext requests the next bounded manifest page for a session.
+func (c *HTTPClient) ManifestNext(ctx context.Context, id SessionID, token []byte, request *relaysyncv2.ManifestRequest) (*relaysyncv2.Manifest, error) {
+	if request == nil {
+		return nil, ErrInvalidEvent
+	}
+	response := &relaysyncv2.Manifest{}
+	if err := c.doSessionProto(ctx, http.MethodPost, id, "/manifest:next", token, request, response); err != nil {
+		return nil, err
+	}
+	return response, nil
+}
+
+// PullEvents retrieves event payloads from the immutable session snapshot.
+func (c *HTTPClient) PullEvents(ctx context.Context, id SessionID, token []byte, request *relaysyncv2.PullEventsRequest) (*relaysyncv2.PullEventsResponse, error) {
+	if request == nil {
+		return nil, ErrInvalidEvent
+	}
+	response := &relaysyncv2.PullEventsResponse{}
+	if err := c.doSessionProto(ctx, http.MethodPost, id, "/events:pull", token, request, response); err != nil {
+		return nil, err
+	}
+	return response, nil
+}
+
+// PushEvents sends a retry-safe batch to the peer's EventWriter.
+func (c *HTTPClient) PushEvents(ctx context.Context, id SessionID, token []byte, request *relaysyncv2.PushEventsRequest) (*relaysyncv2.PushEventsResponse, error) {
+	if request == nil {
+		return nil, ErrInvalidEvent
+	}
+	response := &relaysyncv2.PushEventsResponse{}
+	if err := c.doSessionProto(ctx, http.MethodPost, id, "/events:push", token, request, response); err != nil {
+		return nil, err
+	}
+	return response, nil
+}
+
+func (c *HTTPClient) doSessionProto(ctx context.Context, method string, id SessionID, suffix string, token []byte, request, response proto.Message) error {
+	path := sessionsPath + "/" + base64.RawURLEncoding.EncodeToString(id[:]) + suffix
+	headers := make(http.Header)
+	headers.Set("Authorization", "Bearer "+base64.RawURLEncoding.EncodeToString(token))
+	return c.doProtoWithHeaders(ctx, method, path, request, response, headers)
+}
+
 func (c *HTTPClient) doProto(ctx context.Context, method, path string, request, response proto.Message) error {
 	return c.doProtoWithHeaders(ctx, method, path, request, response, nil)
 }

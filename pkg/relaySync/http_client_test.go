@@ -98,6 +98,38 @@ func TestHTTPClientCompleteSession(t *testing.T) {
 	}
 }
 
+func TestHTTPClientManifestNext(t *testing.T) {
+	var id SessionID
+	id[0] = 7
+	token := []byte("token")
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		wantPath := sessionsPath + "/" + base64.RawURLEncoding.EncodeToString(id[:]) + "/manifest:next"
+		if r.Method != http.MethodPost || r.URL.Path != wantPath {
+			t.Fatalf("request = %s %s, want POST %s", r.Method, r.URL.Path, wantPath)
+		}
+		if got := r.Header.Get("Authorization"); got != "Bearer "+base64.RawURLEncoding.EncodeToString(token) {
+			t.Fatalf("Authorization = %q", got)
+		}
+		var request relaysyncv2.ManifestRequest
+		if err := proto.Unmarshal(mustReadAll(t, r), &request); err != nil {
+			t.Fatal(err)
+		}
+		if request.GetMaxPartitions() != 3 {
+			t.Fatalf("max partitions = %d, want 3", request.GetMaxPartitions())
+		}
+		writeTestProto(t, w, &relaysyncv2.Manifest{Complete: true})
+	}))
+	defer server.Close()
+	client := newTestHTTPClient(t, server.URL, nil)
+	got, err := client.ManifestNext(context.Background(), id, token, &relaysyncv2.ManifestRequest{MaxPartitions: 3})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !got.GetComplete() {
+		t.Fatal("manifest was not complete")
+	}
+}
+
 func TestHTTPClientRejectsUnexpectedContentType(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
