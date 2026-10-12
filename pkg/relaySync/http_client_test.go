@@ -1,7 +1,9 @@
 package relaysync
 
 import (
+	"bytes"
 	"context"
+	"encoding/base64"
 	"errors"
 	"io"
 	"net/http"
@@ -62,6 +64,37 @@ func TestHTTPClientOpenSession(t *testing.T) {
 	}
 	if !proto.Equal(got, want) {
 		t.Fatalf("OpenSession = %v, want %v", got, want)
+	}
+}
+
+func TestHTTPClientCompleteSession(t *testing.T) {
+	var id SessionID
+	for index := range id {
+		id[index] = byte(index + 1)
+	}
+	token := []byte("session-token")
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		wantPath := sessionsPath + "/" + base64.RawURLEncoding.EncodeToString(id[:]) + "/complete"
+		if r.Method != http.MethodPost || r.URL.Path != wantPath {
+			t.Fatalf("request = %s %s, want POST %s", r.Method, r.URL.Path, wantPath)
+		}
+		wantAuth := "Bearer " + base64.RawURLEncoding.EncodeToString(token)
+		if got := r.Header.Get("Authorization"); got != wantAuth {
+			t.Fatalf("Authorization = %q, want %q", got, wantAuth)
+		}
+		var request relaysyncv2.CompleteSessionRequest
+		if err := proto.Unmarshal(mustReadAll(t, r), &request); err != nil {
+			t.Fatalf("unmarshal request: %v", err)
+		}
+		if !bytes.Equal(request.GetSessionId(), id[:]) {
+			t.Fatalf("session id = %x, want %x", request.GetSessionId(), id[:])
+		}
+		writeTestProto(t, w, &relaysyncv2.CompleteSessionResponse{Complete: true})
+	}))
+	defer server.Close()
+	client := newTestHTTPClient(t, server.URL, nil)
+	if err := client.CompleteSession(context.Background(), id, token); err != nil {
+		t.Fatalf("CompleteSession: %v", err)
 	}
 }
 

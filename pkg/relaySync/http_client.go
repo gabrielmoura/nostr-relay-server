@@ -3,6 +3,7 @@ package relaysync
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
@@ -89,7 +90,29 @@ func (c *HTTPClient) OpenSession(ctx context.Context, request *relaysyncv2.OpenS
 	return response, nil
 }
 
+// CompleteSession releases all server-side state for a successfully finished
+// finite synchronization cycle. The token is sent only in the Authorization
+// header and is never included in the URL.
+func (c *HTTPClient) CompleteSession(ctx context.Context, id SessionID, token []byte) error {
+	request := &relaysyncv2.CompleteSessionRequest{SessionId: append([]byte(nil), id[:]...)}
+	response := &relaysyncv2.CompleteSessionResponse{}
+	path := sessionsPath + "/" + base64.RawURLEncoding.EncodeToString(id[:]) + "/complete"
+	headers := make(http.Header)
+	headers.Set("Authorization", "Bearer "+base64.RawURLEncoding.EncodeToString(token))
+	if err := c.doProtoWithHeaders(ctx, http.MethodPost, path, request, response, headers); err != nil {
+		return err
+	}
+	if !response.GetComplete() {
+		return ErrConflict
+	}
+	return nil
+}
+
 func (c *HTTPClient) doProto(ctx context.Context, method, path string, request, response proto.Message) error {
+	return c.doProtoWithHeaders(ctx, method, path, request, response, nil)
+}
+
+func (c *HTTPClient) doProtoWithHeaders(ctx context.Context, method, path string, request, response proto.Message, headers http.Header) error {
 	if c == nil || c.client == nil || c.baseURL == nil {
 		return ErrNilHTTPClient
 	}
@@ -107,6 +130,11 @@ func (c *HTTPClient) doProto(ctx context.Context, method, path string, request, 
 		return fmt.Errorf("create HTTP request: %w", err)
 	}
 	httpRequest.Header.Set("Accept", protobufMediaType)
+	for key, values := range headers {
+		for _, value := range values {
+			httpRequest.Header.Add(key, value)
+		}
+	}
 	if request != nil {
 		httpRequest.Header.Set("Content-Type", protobufMediaType)
 	}
