@@ -22,7 +22,7 @@ import (
 // legacy NIP-77 WebSocket. A capability request failure means the peer is not
 // exposing RelaySync v2 and is intentionally treated as a legacy peer.
 func runRelaySyncIfAvailable(ctx context.Context, cfg *ConfSync) (*SyncResult, bool, error) {
-	if cfg == nil || cfg.Direction == DirectionNone {
+	if cfg == nil || cfg.Direction == DirectionNone || len(cfg.LocalFilter) != 1 || !isUnrestrictedFilter(cfg.LocalFilter[0]) {
 		return nil, false, nil
 	}
 	baseURL, err := relaySyncHTTPURL(cfg.Remote)
@@ -56,6 +56,14 @@ func runRelaySyncIfAvailable(ctx context.Context, cfg *ConfSync) (*SyncResult, b
 	}
 	result, err := runRelaySyncHTTP(ctx, client, cfg)
 	return result, true, err
+}
+
+// RelaySync v2 currently negotiates a named scope, not a NIP-01 filter. Keep
+// filtered CLI operations on the legacy path until filter-scoped snapshots are
+// part of the negotiated scope contract.
+func isUnrestrictedFilter(filter nostr.Filter) bool {
+	return len(filter.IDs) == 0 && len(filter.Authors) == 0 && len(filter.Kinds) == 0 &&
+		len(filter.Tags) == 0 && filter.Since == nil && filter.Until == nil && filter.Limit == 0 && filter.Search == ""
 }
 
 func relaySyncHTTPURL(raw string) (string, error) {

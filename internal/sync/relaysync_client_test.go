@@ -9,6 +9,7 @@ import (
 
 	core "github.com/gabrielmoura/nostr-relay-server/pkg/relaySync"
 	relaysyncv2 "github.com/gabrielmoura/nostr-relay-server/pkg/relaySync/proto/relaysync/v2"
+	"github.com/nbd-wtf/go-nostr"
 )
 
 func TestRelaySyncHTTPURL(t *testing.T) {
@@ -57,7 +58,7 @@ func TestRelaySyncCapabilityProbeSelectsV2(t *testing.T) {
 	server := httptest.NewServer(httpTestMux(t, adapter))
 	defer server.Close()
 
-	_, available, err := runRelaySyncIfAvailable(context.Background(), &ConfSync{Remote: server.URL, Direction: DirectionDown})
+	_, available, err := runRelaySyncIfAvailable(context.Background(), &ConfSync{Remote: server.URL, Direction: DirectionDown, LocalFilter: []nostr.Filter{{}}})
 	if !available {
 		t.Fatalf("RelaySync v2 peer was not selected, err=%v", err)
 	}
