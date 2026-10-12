@@ -1,6 +1,9 @@
 package relaysync
 
-import "testing"
+import (
+	"errors"
+	"testing"
+)
 
 func TestNegentropyFrameRoundTrip(t *testing.T) {
 	var id EventID
@@ -47,5 +50,18 @@ func TestNegentropyFindsSymmetricDifference(t *testing.T) {
 func TestNegentropyRejectsMalformedFrame(t *testing.T) {
 	if _, err := DecodeNegentropy([]byte{NegentropyVersion, 0x80}); err == nil {
 		t.Fatal("expected malformed frame error")
+	}
+}
+
+func TestNegentropyEnforcesFrameLimit(t *testing.T) {
+	var first, second EventID
+	first[0] = 1
+	second[0] = 2
+	engine, err := NewNegentropy([]EventMetadata{{ID: first}, {ID: second}}, NegentropyOptions{FrameSizeLimit: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := engine.Initiate(); !errors.Is(err, ErrFrameTooLarge) {
+		t.Fatalf("Initiate error = %v, want ErrFrameTooLarge", err)
 	}
 }

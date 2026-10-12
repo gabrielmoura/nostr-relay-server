@@ -151,7 +151,11 @@ func NewNegentropy(items []EventMetadata, options NegentropyOptions) (*Negentrop
 }
 
 func (n *Negentropy) Initiate() ([]byte, error) {
-	return n.encodeRanges(n.split(0, len(n.items), NegentropyBound{Timestamp: negentropyInfinity}))
+	frame, err := n.encodeRanges(n.split(0, len(n.items), NegentropyBound{Timestamp: negentropyInfinity}))
+	if err != nil {
+		return nil, err
+	}
+	return n.limitFrame(frame)
 }
 
 func (n *Negentropy) Respond(frame []byte) ([]byte, error) {
@@ -204,6 +208,9 @@ func (n *Negentropy) Apply(frame []byte) ([]byte, NegentropyDiff, bool, error) {
 	if err != nil {
 		return nil, NegentropyDiff{}, false, err
 	}
+	if encoded, err = n.limitFrame(encoded); err != nil {
+		return nil, NegentropyDiff{}, false, err
+	}
 	return encoded, diff, len(encoded) == 1, nil
 }
 
@@ -225,7 +232,18 @@ func (n *Negentropy) respond(message NegentropyMessage) ([]byte, error) {
 		}
 		previous = upper
 	}
-	return EncodeNegentropy(response)
+	encoded, err := EncodeNegentropy(response)
+	if err != nil {
+		return nil, err
+	}
+	return n.limitFrame(encoded)
+}
+
+func (n *Negentropy) limitFrame(frame []byte) ([]byte, error) {
+	if n.frameLimit > 0 && len(frame) > n.frameLimit {
+		return nil, ErrFrameTooLarge
+	}
+	return frame, nil
 }
 
 func (n *Negentropy) split(start, end int, bound NegentropyBound) []NegentropyRange {
