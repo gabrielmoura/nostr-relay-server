@@ -132,9 +132,9 @@ adiado com justificativa. Este checklist não transforma plano em capacidade.
 
 ## Fase 7 — performance e release
 
-- [ ] Benchmark 100 mil eventos.
-- [ ] Benchmark 1 milhão de eventos.
-- [ ] Benchmark 10 milhões sob demanda.
+- [x] Benchmark 100 mil eventos (digest e zstd).
+- [x] Benchmark 1 milhão de eventos (digest).
+- [ ] Benchmark 10 milhões sob demanda (`RELAYSYNC_BENCH_LARGE=1`).
 - [ ] Medir divergências 0%, 0,1%, 1%, 10%, 50%, 100%.
 - [ ] Coletar CPU, RSS, heap, allocs e GC.
 - [ ] Coletar throughput/bytes/rounds/requests.
