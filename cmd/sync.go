@@ -13,7 +13,7 @@ var syncDirectionFlag string
 var syncCmd = &cobra.Command{
 	Use:   "sync <url>",
 	Short: "Synchronize local database with a remote relay",
-	Long: "Synchronize events with a remote relay using RelaySync v2 when the peer advertises it; otherwise use the legacy NIP-77 Negentropy flow.\n\n" +
+	Long: "Synchronize events with a remote relay using its independent RelaySync v2 flow when advertised; otherwise retain the existing NIP-77 flow without changing it.\n\n" +
 		"Examples:\n" +
 		"  nrserver sync wss://relay.example.com\n" +
 		"  nrserver sync --remote wss://relay.example.com --dir down\n" +

@@ -18,9 +18,10 @@ import (
 	"go.uber.org/zap"
 )
 
-// runRelaySyncIfAvailable probes the remote endpoint before opening the
-// legacy NIP-77 WebSocket. A capability request failure means the peer is not
-// exposing RelaySync v2 and is intentionally treated as a legacy peer.
+// runRelaySyncIfAvailable probes the independent RelaySync v2 endpoint before
+// opening the existing NIP-77 flow. NIP-77 state and message handling are not
+// shared with RelaySync; a capability failure only selects the unchanged
+// legacy path for peers that do not expose v2.
 func runRelaySyncIfAvailable(ctx context.Context, cfg *ConfSync) (*SyncResult, bool, error) {
 	if cfg == nil || cfg.Direction == DirectionNone || len(cfg.LocalFilter) != 1 || !isUnrestrictedFilter(cfg.LocalFilter[0]) {
 		return nil, false, nil
