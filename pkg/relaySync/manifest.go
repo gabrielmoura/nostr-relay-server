@@ -49,8 +49,16 @@ func (m *ManifestService) Next(ctx context.Context, principal Principal, id Sess
 	if limit > 0 && int(limit) < page {
 		page = int(limit)
 	}
-	if start > len(descriptor.Partitions) {
-		return nil, ErrInvalidContinuation
+	// Parallel clients can speculatively request a page after the final page.
+	// It is a valid empty terminal page, not a malformed continuation. Keeping
+	// this distinction lets callers use bounded parallelism without retrying
+	// the entire manifest when the final offset races another worker.
+	if start >= len(descriptor.Partitions) {
+		return &relaysyncv2.Manifest{
+			SnapshotVersion: append([]byte(nil), descriptor.Version...),
+			Watermark:       &relaysyncv2.Cursor{Epoch: descriptor.Watermark.Epoch, Sequence: descriptor.Watermark.Sequence},
+			Complete:        true,
+		}, nil
 	}
 	end := start + page
 	if end > len(descriptor.Partitions) {
@@ -72,9 +80,19 @@ func (m *ManifestService) Next(ctx context.Context, principal Principal, id Sess
 }
 
 func manifestPartition(ctx context.Context, snapshot Snapshot, partition PartitionKey) (*relaysyncv2.PartitionSummary, error) {
-	count, err := countPartitionMetadata(ctx, snapshot, partition)
-	if err != nil {
-		return nil, err
+	var count uint64
+	if counter, ok := snapshot.(partitionCounter); ok {
+		var err error
+		count, err = counter.PartitionCount(ctx, partition)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		var err error
+		count, err = countPartitionMetadata(ctx, snapshot, partition)
+		if err != nil {
+			return nil, err
+		}
 	}
 	iterator, err := snapshot.OpenMetadata(ctx, partition, nil)
 	if err != nil {
@@ -87,6 +105,14 @@ func manifestPartition(ctx context.Context, snapshot Snapshot, partition Partiti
 	}
 	id := PartitionIdentity(partition)
 	return &relaysyncv2.PartitionSummary{Partition: &relaysyncv2.Partition{Id: id[:], Bucket: partition.Bucket, PrefixBits: uint32(partition.PrefixBits), Prefix: append([]byte(nil), partition.Prefix[:]...), EventCount: count, AlgorithmVersion: partition.AlgorithmVersion}, Digest: digest[:]}, nil
+}
+
+// partitionCounter is an optional snapshot capability. SQL-backed adapters
+// can obtain a grouped COUNT(*) while discovering partitions, so manifest
+// construction needs only one ordered metadata scan for the canonical digest.
+// The count never changes a PartitionKey: local cardinalities may differ.
+type partitionCounter interface {
+	PartitionCount(context.Context, PartitionKey) (uint64, error)
 }
 
 func countPartitionMetadata(ctx context.Context, snapshot Snapshot, partition PartitionKey) (uint64, error) {

@@ -12,8 +12,6 @@ import (
 	relaysync "github.com/gabrielmoura/nostr-relay-server/pkg/relaySync"
 )
 
-const relaySyncPartitionSeconds int64 = 30 * 24 * 60 * 60
-
 // RelaySyncSnapshotProvider provides a bounded-lifetime PostgreSQL snapshot
 // view. Queries are paginated and event payloads are only materialized for a
 // requested batch. The host must keep the provider behind its scope policy.
@@ -38,24 +36,34 @@ func (p *RelaySyncSnapshotProvider) OpenSnapshot(ctx context.Context, scope rela
 	if err := p.queries.db.QueryRow(ctx, `SELECT COALESCE(MAX(sequence), 0) FROM relay_sync_journal WHERE epoch=$1 AND scope_name=$2 AND scope_version=$3 AND scope_hash=$4`, p.epoch, scope.Name, scope.Version, scope.Hash[:]).Scan(&watermark); err != nil {
 		return nil, fmt.Errorf("relaysync: snapshot watermark: %w", err)
 	}
+	// This compact grouping is the planning phase. PostgreSQL counts each
+	// fixed protocol partition without returning event rows; the adapter then
+	// scans metadata only for the bounded partitions requested in manifests.
+	// Do not use the count to redefine partitions: each relay can legitimately
+	// have a different cardinality for the same partition.
 	rows, err := p.queries.db.Query(ctx, `
-SELECT (created_at::bigint / $1)::bigint AS bucket, lower(left(id, 2)) AS prefix
+SELECT (created_at::bigint / 2592000)::bigint AS bucket, lower(left(id, 2)) AS prefix, COUNT(*)::bigint AS event_count
 FROM event
 WHERE deleted_by IS NULL
   AND length(id) = 64
   AND id ~ '^[0-9A-Fa-f]{64}$'
 GROUP BY bucket, prefix
-ORDER BY bucket, prefix`, relaySyncPartitionSeconds)
+ORDER BY event_count ASC, bucket, prefix`)
 	if err != nil {
 		return nil, fmt.Errorf("relaysync: snapshot partitions: %w", err)
 	}
 	defer rows.Close()
 	partitions := make([]relaysync.PartitionKey, 0)
+	counts := make(map[[32]byte]uint64)
 	for rows.Next() {
 		var bucket int64
 		var prefixHex string
-		if err := rows.Scan(&bucket, &prefixHex); err != nil {
+		var eventCount int64
+		if err := rows.Scan(&bucket, &prefixHex, &eventCount); err != nil {
 			return nil, err
+		}
+		if eventCount < 0 {
+			return nil, fmt.Errorf("relaysync: invalid negative partition count")
 		}
 		prefix, err := hex.DecodeString(prefixHex)
 		if err != nil || len(prefix) != 1 {
@@ -64,20 +72,38 @@ ORDER BY bucket, prefix`, relaySyncPartitionSeconds)
 		key := relaysync.PartitionKey{AlgorithmVersion: 1, Bucket: bucket, PrefixBits: 8}
 		key.Prefix[0] = prefix[0]
 		partitions = append(partitions, key)
+		counts[relaysync.PartitionIdentity(key)] = uint64(eventCount)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
 	versionInput := fmt.Sprintf("%s\x00%d\x00%d", scope.Name, scope.Version, watermark)
 	version := sha256.Sum256([]byte(versionInput))
-	return &postgresSnapshot{queries: p.queries, descriptor: relaysync.SnapshotDescriptor{Version: version[:], Scope: scope, Watermark: relaysync.Cursor{Epoch: p.epoch, Sequence: watermark}, ExpiresAt: time.Now().Add(p.ttl), Partitions: partitions}}, nil
+	return &postgresSnapshot{queries: p.queries, counts: counts, descriptor: relaysync.SnapshotDescriptor{Version: version[:], Scope: scope, Watermark: relaysync.Cursor{Epoch: p.epoch, Sequence: watermark}, ExpiresAt: time.Now().Add(p.ttl), Partitions: partitions}}, nil
 }
 
 type postgresSnapshot struct {
 	queries    *Queries
+	counts     map[[32]byte]uint64
 	descriptor relaysync.SnapshotDescriptor
 	mu         sync.Mutex
 	closed     bool
+}
+
+// PartitionCount provides the grouped SQL count collected when this snapshot
+// was planned. It avoids a second metadata enumeration before digesting.
+func (s *postgresSnapshot) PartitionCount(ctx context.Context, partition relaysync.PartitionKey) (uint64, error) {
+	if err := ctx.Err(); err != nil {
+		return 0, err
+	}
+	if err := s.valid(); err != nil {
+		return 0, err
+	}
+	count, ok := s.counts[relaysync.PartitionIdentity(partition)]
+	if !ok {
+		return 0, relaysync.ErrNotFound
+	}
+	return count, nil
 }
 
 func (s *postgresSnapshot) Descriptor() relaysync.SnapshotDescriptor { return s.descriptor }
@@ -99,10 +125,10 @@ func (s *postgresSnapshot) OpenMetadata(ctx context.Context, partition relaysync
 		return nil, relaysync.ErrInvalidIdentifier
 	}
 	prefix := hex.EncodeToString(partition.Prefix[:1])
-	query := `SELECT created_at, id FROM event WHERE deleted_by IS NULL AND length(id) = 64 AND id ~ '^[0-9A-Fa-f]{64}$' AND (created_at::bigint / $1)::bigint=$2 AND lower(left(id,2))=$3`
-	args := []any{relaySyncPartitionSeconds, partition.Bucket, prefix}
+	query := `SELECT created_at, id FROM event WHERE deleted_by IS NULL AND length(id) = 64 AND id ~ '^[0-9A-Fa-f]{64}$' AND (created_at::bigint / 2592000)::bigint=$1 AND lower(left(id,2))=$2`
+	args := []any{partition.Bucket, prefix}
 	if after != nil {
-		query += ` AND (created_at, id) > ($4, $5)`
+		query += ` AND (created_at, id) > ($3, $4)`
 		args = append(args, after.CreatedAt, after.ID.String())
 	}
 	query += ` ORDER BY created_at, id`

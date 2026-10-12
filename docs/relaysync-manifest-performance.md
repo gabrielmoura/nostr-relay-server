@@ -11,6 +11,21 @@ partial predicate excludes malformed legacy IDs without modifying those rows.
 It matches the snapshot adapter's visibility predicate and is applied to each
 database independently when the normal migration runner starts.
 
+Snapshot planning first runs a grouped `COUNT(*)` over those fixed partitions.
+That query returns only `(bucket, prefix, count)`, orders smaller partitions
+first, and supplies the event count needed by each manifest summary. Digest
+generation then makes one ordered, index-only metadata scan only for the
+partition being emitted; it no longer makes one scan to count and a second
+scan to digest. Ten bounded HTTP manifest requests are issued concurrently,
+and reconciliation begins as each one-partition response arrives.
+
+Counts are deliberately not used to change a partition's identity. Two relays
+can have different counts before reconciliation, so a local rule such as
+"switch from 30 to 10 days after N events" would make them ask for different
+partition IDs. Adaptive time or ID shards require a negotiated hierarchical
+partition protocol; until that exists, the fixed 30-day + 8-bit-prefix layout
+is deterministic and safe.
+
 The live WebSocket endpoint is intentionally not substituted for historical
 reconciliation. It requires a durable journal projector, checkpoint handling,
 and a client-side change applier for UPSERT/DELETE and ACK durability. The

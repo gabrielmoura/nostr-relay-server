@@ -102,7 +102,10 @@ func (t *TransferService) Push(ctx context.Context, principal Principal, id Sess
 		events[i] = event
 	}
 	hash := sha256.New()
-	encoded, _ := proto.Marshal(request)
+	encoded, err := proto.MarshalOptions{Deterministic: true}.Marshal(request)
+	if err != nil {
+		return nil, err
+	}
 	hash.Write(encoded)
 	var payloadHash [32]byte
 	copy(payloadHash[:], hash.Sum(nil))
