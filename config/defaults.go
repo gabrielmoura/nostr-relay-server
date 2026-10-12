@@ -102,6 +102,7 @@ func setDefaults(export bool) {
 	viper.SetDefault("relay_sync.catchup_enabled", false)
 	viper.SetDefault("relay_sync.live_enabled", false)
 	viper.SetDefault("relay_sync.projector_enabled", false)
+	viper.SetDefault("relay_sync.allowed_ips", []string{})
 	viper.SetDefault("relay_sync.projector_interval_seconds", 5)
 	viper.SetDefault("relay_sync.projector_batch_size", 500)
 	viper.SetDefault("relay_sync.journal_epoch", 1)

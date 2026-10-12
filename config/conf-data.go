@@ -43,19 +43,20 @@ type Config struct {
 // features are disabled by default; enabling live replication requires the
 // durable journal projector and catch-up path to be enabled explicitly.
 type RelaySyncConfig struct {
-	Enabled                  bool   `json:"enabled" yaml:"enabled" mapstructure:"enabled"`
-	HTTPEnabled              bool   `json:"http_enabled" yaml:"http_enabled" mapstructure:"http_enabled"`
-	SnapshotEnabled          bool   `json:"snapshot_enabled" yaml:"snapshot_enabled" mapstructure:"snapshot_enabled"`
-	ApplyEnabled             bool   `json:"apply_enabled" yaml:"apply_enabled" mapstructure:"apply_enabled"`
-	CatchupEnabled           bool   `json:"catchup_enabled" yaml:"catchup_enabled" mapstructure:"catchup_enabled"`
-	LiveEnabled              bool   `json:"live_enabled" yaml:"live_enabled" mapstructure:"live_enabled"`
-	ProjectorEnabled         bool   `json:"projector_enabled" yaml:"projector_enabled" mapstructure:"projector_enabled"`
-	ProjectorIntervalSeconds int    `json:"projector_interval_seconds" yaml:"projector_interval_seconds" mapstructure:"projector_interval_seconds"`
-	ProjectorBatchSize       int    `json:"projector_batch_size" yaml:"projector_batch_size" mapstructure:"projector_batch_size"`
-	JournalEpoch             uint64 `json:"journal_epoch" yaml:"journal_epoch" mapstructure:"journal_epoch"`
-	OutboxRetentionSeconds   int    `json:"outbox_retention_seconds" yaml:"outbox_retention_seconds" mapstructure:"outbox_retention_seconds"`
-	JournalRetentionSeconds  int    `json:"journal_retention_seconds" yaml:"journal_retention_seconds" mapstructure:"journal_retention_seconds"`
-	RetentionBatchSize       int    `json:"retention_batch_size" yaml:"retention_batch_size" mapstructure:"retention_batch_size"`
+	Enabled                  bool     `json:"enabled" yaml:"enabled" mapstructure:"enabled"`
+	HTTPEnabled              bool     `json:"http_enabled" yaml:"http_enabled" mapstructure:"http_enabled"`
+	SnapshotEnabled          bool     `json:"snapshot_enabled" yaml:"snapshot_enabled" mapstructure:"snapshot_enabled"`
+	ApplyEnabled             bool     `json:"apply_enabled" yaml:"apply_enabled" mapstructure:"apply_enabled"`
+	CatchupEnabled           bool     `json:"catchup_enabled" yaml:"catchup_enabled" mapstructure:"catchup_enabled"`
+	LiveEnabled              bool     `json:"live_enabled" yaml:"live_enabled" mapstructure:"live_enabled"`
+	ProjectorEnabled         bool     `json:"projector_enabled" yaml:"projector_enabled" mapstructure:"projector_enabled"`
+	AllowedIPs               []string `json:"allowed_ips" yaml:"allowed_ips" mapstructure:"allowed_ips"`
+	ProjectorIntervalSeconds int      `json:"projector_interval_seconds" yaml:"projector_interval_seconds" mapstructure:"projector_interval_seconds"`
+	ProjectorBatchSize       int      `json:"projector_batch_size" yaml:"projector_batch_size" mapstructure:"projector_batch_size"`
+	JournalEpoch             uint64   `json:"journal_epoch" yaml:"journal_epoch" mapstructure:"journal_epoch"`
+	OutboxRetentionSeconds   int      `json:"outbox_retention_seconds" yaml:"outbox_retention_seconds" mapstructure:"outbox_retention_seconds"`
+	JournalRetentionSeconds  int      `json:"journal_retention_seconds" yaml:"journal_retention_seconds" mapstructure:"journal_retention_seconds"`
+	RetentionBatchSize       int      `json:"retention_batch_size" yaml:"retention_batch_size" mapstructure:"retention_batch_size"`
 }
 
 // IPRequestRateLimitConfig controls a local, per-client-IP token bucket.

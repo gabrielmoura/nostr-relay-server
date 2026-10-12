@@ -3,7 +3,7 @@ package config
 import "testing"
 
 func TestValidateRelaySyncFeatures(t *testing.T) {
-	base := RelaySyncConfig{Enabled: true, ProjectorEnabled: true, ProjectorIntervalSeconds: 1, ProjectorBatchSize: 10, JournalEpoch: 1, OutboxRetentionSeconds: 3600, JournalRetentionSeconds: 86400, RetentionBatchSize: 100}
+	base := RelaySyncConfig{Enabled: true, AllowedIPs: []string{"127.0.0.1"}, ProjectorEnabled: true, ProjectorIntervalSeconds: 1, ProjectorBatchSize: 10, JournalEpoch: 1, OutboxRetentionSeconds: 3600, JournalRetentionSeconds: 86400, RetentionBatchSize: 100}
 	tests := []struct {
 		name string
 		cfg  RelaySyncConfig
