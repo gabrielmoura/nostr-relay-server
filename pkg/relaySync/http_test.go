@@ -44,7 +44,7 @@ func TestHTTPAdapterCapabilities(t *testing.T) {
 		t.Fatalf("unmarshal response: %v", err)
 	}
 	if got.GetImplementation() != "nrserver" || !got.GetLiveSync() || got.GetProtocolVersions()[0] != 2 {
-		t.Fatalf("unexpected capabilities: %#v", got)
+		t.Fatalf("unexpected capabilities: implementation=%q live=%v versions=%v", got.GetImplementation(), got.GetLiveSync(), got.GetProtocolVersions())
 	}
 }
 
