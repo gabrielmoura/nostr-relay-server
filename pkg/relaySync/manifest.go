@@ -73,26 +73,42 @@ func (m *ManifestService) Next(ctx context.Context, principal Principal, id Sess
 }
 
 func manifestPartition(ctx context.Context, snapshot Snapshot, partition PartitionKey) (*relaysyncv2.PartitionSummary, error) {
+	count, err := countPartitionMetadata(ctx, snapshot, partition)
+	if err != nil {
+		return nil, err
+	}
 	iterator, err := snapshot.OpenMetadata(ctx, partition, nil)
 	if err != nil {
 		return nil, err
 	}
 	defer iterator.Close()
-	items := make([]EventMetadata, 0)
-	for {
-		item, ok, err := iterator.Next(ctx)
-		if err != nil {
-			return nil, err
-		}
-		if !ok {
-			break
-		}
-		items = append(items, item)
-	}
-	digest, err := DigestMetadata(items)
+	digest, err := digestMetadataIterator(ctx, iterator, count)
 	if err != nil {
 		return nil, err
 	}
 	id := sha256.Sum256(append(partition.Prefix[:], byte(partition.Bucket)))
-	return &relaysyncv2.PartitionSummary{Partition: &relaysyncv2.Partition{Id: id[:], Bucket: partition.Bucket, PrefixBits: uint32(partition.PrefixBits), Prefix: append([]byte(nil), partition.Prefix[:]...), EventCount: uint64(len(items)), AlgorithmVersion: partition.AlgorithmVersion}, Digest: digest[:]}, nil
+	return &relaysyncv2.PartitionSummary{Partition: &relaysyncv2.Partition{Id: id[:], Bucket: partition.Bucket, PrefixBits: uint32(partition.PrefixBits), Prefix: append([]byte(nil), partition.Prefix[:]...), EventCount: count, AlgorithmVersion: partition.AlgorithmVersion}, Digest: digest[:]}, nil
+}
+
+func countPartitionMetadata(ctx context.Context, snapshot Snapshot, partition PartitionKey) (uint64, error) {
+	iterator, err := snapshot.OpenMetadata(ctx, partition, nil)
+	if err != nil {
+		return 0, err
+	}
+	defer iterator.Close()
+	var count uint64
+	for {
+		_, ok, err := iterator.Next(ctx)
+		if err != nil {
+			return 0, err
+		}
+		if !ok {
+			break
+		}
+		if count == ^uint64(0) {
+			return 0, ErrInvalidLimits
+		}
+		count++
+	}
+	return count, nil
 }

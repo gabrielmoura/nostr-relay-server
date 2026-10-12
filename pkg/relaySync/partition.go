@@ -2,6 +2,7 @@ package relaysync
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/binary"
 	"errors"
@@ -63,6 +64,59 @@ func DigestMetadata(metadata []EventMetadata) ([32]byte, error) {
 		binary.BigEndian.PutUint64(timestamp[:], uint64(item.CreatedAt))
 		h.Write(timestamp[:])
 		h.Write(item.ID[:])
+	}
+	copy(zero[:], h.Sum(nil))
+	return zero, nil
+}
+
+// digestMetadataIterator computes the same canonical digest as
+// DigestMetadata without retaining the partition in memory. count must be the
+// number of records in the iterator and is obtained by a separate pass.
+func digestMetadataIterator(ctx context.Context, iterator MetadataIterator, count uint64) ([32]byte, error) {
+	var zero [32]byte
+	h := sha256.New()
+	if _, err := h.Write([]byte("nostr-relaysync/metadata/v1\x00")); err != nil {
+		return zero, err
+	}
+	var encodedCount [8]byte
+	binary.BigEndian.PutUint64(encodedCount[:], count)
+	if _, err := h.Write(encodedCount[:]); err != nil {
+		return zero, err
+	}
+	var previous EventMetadata
+	var havePrevious bool
+	var timestamp [8]byte
+	var seen uint64
+	for {
+		item, ok, err := iterator.Next(ctx)
+		if err != nil {
+			return zero, err
+		}
+		if !ok {
+			break
+		}
+		if havePrevious {
+			cmp := compareMetadata(previous, item)
+			if cmp > 0 {
+				return zero, ErrUnsortedMetadata
+			}
+			if cmp == 0 {
+				return zero, ErrDuplicateMetadata
+			}
+		}
+		binary.BigEndian.PutUint64(timestamp[:], uint64(item.CreatedAt))
+		if _, err := h.Write(timestamp[:]); err != nil {
+			return zero, err
+		}
+		if _, err := h.Write(item.ID[:]); err != nil {
+			return zero, err
+		}
+		previous = item
+		havePrevious = true
+		seen++
+	}
+	if seen != count {
+		return zero, ErrConflict
 	}
 	copy(zero[:], h.Sum(nil))
 	return zero, nil

@@ -1,6 +1,7 @@
 package relaysync
 
 import (
+	"context"
 	"testing"
 )
 
@@ -26,6 +27,23 @@ func TestDigestMetadataRequiresCanonicalOrder(t *testing.T) {
 	}
 	if _, err := DigestMetadata([]EventMetadata{items[1], items[0]}); err != ErrUnsortedMetadata {
 		t.Fatalf("expected unsorted error, got %v", err)
+	}
+}
+
+func TestDigestMetadataIteratorMatchesSliceDigest(t *testing.T) {
+	var firstID, secondID EventID
+	secondID[0] = 1
+	items := []EventMetadata{{CreatedAt: 1, ID: firstID}, {CreatedAt: 2, ID: firstID}, {CreatedAt: 2, ID: secondID}}
+	want, err := DigestMetadata(items)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := digestMetadataIterator(context.Background(), &memoryMetadataIterator{items: items}, uint64(len(items)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != want {
+		t.Fatalf("stream digest = %x, slice digest = %x", got, want)
 	}
 }
 
