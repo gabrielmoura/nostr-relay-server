@@ -38,7 +38,10 @@ func Build(cfg config.RelaySyncConfig, queries *db.Queries) (*HTTPRuntime, error
 	if err != nil {
 		return nil, err
 	}
-	manifest, err := core.NewManifestService(sessions, 64)
+	// Keep each manifest response small. Partition metadata is intentionally
+	// streamed in bounded pages so a large relay does not spend one request
+	// scanning every partition before the peer can make progress.
+	manifest, err := core.NewManifestService(sessions, 8)
 	if err != nil {
 		return nil, err
 	}

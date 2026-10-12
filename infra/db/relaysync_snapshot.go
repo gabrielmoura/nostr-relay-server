@@ -39,7 +39,7 @@ func (p *RelaySyncSnapshotProvider) OpenSnapshot(ctx context.Context, scope rela
 		return nil, fmt.Errorf("relaysync: snapshot watermark: %w", err)
 	}
 	rows, err := p.queries.db.Query(ctx, `
-SELECT floor(created_at / $1)::bigint AS bucket, lower(left(id, 2)) AS prefix
+SELECT (created_at::bigint / $1)::bigint AS bucket, lower(left(id, 2)) AS prefix
 FROM event
 WHERE deleted_by IS NULL
   AND length(id) = 64
@@ -99,7 +99,7 @@ func (s *postgresSnapshot) OpenMetadata(ctx context.Context, partition relaysync
 		return nil, relaysync.ErrInvalidIdentifier
 	}
 	prefix := hex.EncodeToString(partition.Prefix[:1])
-	query := `SELECT created_at, id FROM event WHERE deleted_by IS NULL AND length(id) = 64 AND id ~ '^[0-9A-Fa-f]{64}$' AND floor(created_at / $1)::bigint=$2 AND lower(left(id,2))=$3`
+	query := `SELECT created_at, id FROM event WHERE deleted_by IS NULL AND length(id) = 64 AND id ~ '^[0-9A-Fa-f]{64}$' AND (created_at::bigint / $1)::bigint=$2 AND lower(left(id,2))=$3`
 	args := []any{relaySyncPartitionSeconds, partition.Bucket, prefix}
 	if after != nil {
 		query += ` AND (created_at, id) > ($4, $5)`
