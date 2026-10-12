@@ -40,6 +40,22 @@ func maskPrefix(prefix *[32]byte, bits uint8) {
 	}
 }
 
+// PartitionIdentity returns the stable digest used on the wire to identify a
+// partition. Every field is encoded with a fixed width so different buckets
+// or algorithm versions cannot collide through truncation.
+func PartitionIdentity(partition PartitionKey) [32]byte {
+	canonical := make([]byte, 0, 4+8+1+len(partition.Prefix))
+	var version [4]byte
+	binary.BigEndian.PutUint32(version[:], partition.AlgorithmVersion)
+	canonical = append(canonical, version[:]...)
+	var bucket [8]byte
+	binary.BigEndian.PutUint64(bucket[:], uint64(partition.Bucket))
+	canonical = append(canonical, bucket[:]...)
+	canonical = append(canonical, partition.PrefixBits)
+	canonical = append(canonical, partition.Prefix[:]...)
+	return sha256.Sum256(append([]byte("nostr-relaysync/partition/v1\x00"), canonical...))
+}
+
 // DigestMetadata returns a database-independent digest of a sorted metadata
 // set. The canonical input is (created_at big-endian, event_id), with a
 // domain separator and record count to prevent ambiguous concatenations.

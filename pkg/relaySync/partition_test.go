@@ -15,6 +15,20 @@ func TestPartitionForUsesFloorAndMaskedPrefix(t *testing.T) {
 	}
 }
 
+func TestPartitionIdentityIncludesAllFields(t *testing.T) {
+	first := PartitionKey{AlgorithmVersion: 1, Bucket: 1, PrefixBits: 8}
+	second := first
+	second.Bucket = 257
+	if PartitionIdentity(first) == PartitionIdentity(second) {
+		t.Fatal("partition identities collided across buckets")
+	}
+	second = first
+	second.AlgorithmVersion = 2
+	if PartitionIdentity(first) == PartitionIdentity(second) {
+		t.Fatal("partition identities collided across algorithm versions")
+	}
+}
+
 func TestDigestMetadataRequiresCanonicalOrder(t *testing.T) {
 	items := []EventMetadata{{CreatedAt: 1}, {CreatedAt: 2}}
 	first, err := DigestMetadata(items)

@@ -2,7 +2,6 @@ package relaysync
 
 import (
 	"context"
-	"crypto/sha256"
 	"encoding/binary"
 	"errors"
 
@@ -86,7 +85,7 @@ func manifestPartition(ctx context.Context, snapshot Snapshot, partition Partiti
 	if err != nil {
 		return nil, err
 	}
-	id := sha256.Sum256(append(partition.Prefix[:], byte(partition.Bucket)))
+	id := PartitionIdentity(partition)
 	return &relaysyncv2.PartitionSummary{Partition: &relaysyncv2.Partition{Id: id[:], Bucket: partition.Bucket, PrefixBits: uint32(partition.PrefixBits), Prefix: append([]byte(nil), partition.Prefix[:]...), EventCount: count, AlgorithmVersion: partition.AlgorithmVersion}, Digest: digest[:]}, nil
 }
 
