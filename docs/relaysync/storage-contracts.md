@@ -234,6 +234,11 @@ O record liga sessão, hash do token, peer, scope, snapshot version, estado,
 watermark e expiração. Updates usam versão/CAS para impedir duas requisições de
 avançarem a mesma máquina de estados.
 
+Abrir a sessão não concede todas as operações: adapters devem revalidar
+`PeerAuthorizer` para cada ação (`ActionPull`, `ActionPush`, leitura do journal
+e live). Assim uma revogação de scope durante um ciclo passa a valer sem
+precisar manter estado adicional por peer.
+
 A implementação em memória:
 
 - usa mutex por store e estado imutável/copiado;
