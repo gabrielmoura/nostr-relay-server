@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	relaysyncv2 "github.com/gabrielmoura/nostr-relay-server/pkg/relaySync/proto/relaysync/v2"
+	"google.golang.org/protobuf/proto"
 )
 
 func TestSessionServiceIdempotencyAndTokenValidation(t *testing.T) {
@@ -29,9 +30,9 @@ func TestSessionServiceIdempotencyAndTokenValidation(t *testing.T) {
 	if string(first.SessionId) != string(second.SessionId) || string(first.ResumeToken) != string(second.ResumeToken) {
 		t.Fatal("idempotent retry created a different session")
 	}
-	conflicting := *request
+	conflicting := proto.Clone(request).(*relaysyncv2.OpenSessionRequest)
 	conflicting.Direction = relaysyncv2.SessionDirection_SESSION_DIRECTION_PUSH
-	if _, err := service.Open(context.Background(), Principal{ID: "peer-a"}, &conflicting); !errors.Is(err, ErrConflict) {
+	if _, err := service.Open(context.Background(), Principal{ID: "peer-a"}, conflicting); !errors.Is(err, ErrConflict) {
 		t.Fatalf("conflicting idempotency request error = %v, want ErrConflict", err)
 	}
 	var id SessionID
