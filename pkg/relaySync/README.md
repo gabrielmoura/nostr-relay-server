@@ -37,3 +37,21 @@ For the standard library, use `relaySync/nethttp.NewHandler` with an existing
 existing `*fiber.App`, an `HTTPAdapter`, the optional services and a
 `PrincipalResolver`. The adapters register under `/sync/v2` and never create a
 second listener or configure TLS/HTTP2; those remain router/proxy concerns.
+
+NRServer integration is disabled by default. To enable the experimental
+integration, configure an explicit source-IP allowlist:
+
+```yaml
+relay_sync:
+  enabled: true
+  http_enabled: true
+  allowed_ips: ["10.0.0.0/8"]
+  apply_enabled: true
+  projector_enabled: true
+  journal_epoch: 1
+```
+
+The allowlist is applied before capability discovery and live WebSocket
+upgrade. Session resume tokens are protocol lifecycle values, not peer
+authentication credentials. PostgreSQL migrations through `000006` must be
+applied before enabling the integration.

@@ -85,7 +85,7 @@ adiado com justificativa. Este checklist não transforma plano em capacidade.
 - [x] Implementar FlowControl e fila bounded.
 - [x] Implementar heartbeat/timeouts.
 - [x] Implementar ReconcileRequired para gap/epoch/scope.
-- [ ] Implementar reconexão com checkpoint persistente (live atual usa checkpoint em memória).
+- [x] Implementar tabela e `CheckpointStore` PostgreSQL persistente para reconexão.
 - [ ] Testar queda antes/depois de ACK.
 - [ ] Testar rejeição permanente e falha temporária.
 - [ ] Testar sync bidirecional e echo suppression.
@@ -125,7 +125,7 @@ adiado com justificativa. Este checklist não transforma plano em capacidade.
 - [ ] Completar cobertura do journal para todas as mutações em produção.
 - [x] Integrar projector ao lifecycle supervisionado do NRServer (desabilitado por default).
 - [ ] Testar restart, retention, gap, epoch e commit order.
-- [ ] Implementar checkpoint persistente.
+- [x] Implementar checkpoint persistente.
 - [ ] Manter live desabilitado até gates completos.
 - [ ] Testar coexistência/regressão NIP-01 e NIP-77.
 - [x] Anunciar extensão NIP-11 somente quando HTTP RelaySync estiver habilitado.
