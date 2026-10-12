@@ -144,6 +144,18 @@ func (c *HTTPClient) PushEvents(ctx context.Context, id SessionID, token []byte,
 	return response, nil
 }
 
+// Reconcile exchanges one bounded Negentropy frame for a session partition.
+func (c *HTTPClient) Reconcile(ctx context.Context, id SessionID, token []byte, request *relaysyncv2.ReconcileRequest) (*relaysyncv2.ReconcileResponse, error) {
+	if request == nil {
+		return nil, ErrInvalidEvent
+	}
+	response := &relaysyncv2.ReconcileResponse{}
+	if err := c.doSessionProto(ctx, http.MethodPost, id, "/reconcile", token, request, response); err != nil {
+		return nil, err
+	}
+	return response, nil
+}
+
 func (c *HTTPClient) doSessionProto(ctx context.Context, method string, id SessionID, suffix string, token []byte, request, response proto.Message) error {
 	path := sessionsPath + "/" + base64.RawURLEncoding.EncodeToString(id[:]) + suffix
 	headers := make(http.Header)

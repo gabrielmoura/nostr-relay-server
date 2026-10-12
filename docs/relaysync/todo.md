@@ -64,7 +64,7 @@ adiado com justificativa. Este checklist não transforma plano em capacidade.
 - [x] Implementar capabilities.
 - [x] Implementar sessions.
 - [x] Implementar manifest pagination.
-- [ ] Implementar reconcile HTTP orchestration.
+- [x] Implementar reconcile HTTP orchestration stateless e bounded.
 - [x] Implementar events pull/push.
 - [x] Implementar complete/delete e descarte de ciclo.
 - [x] Implementar cliente com `http.Client` injetável/reutilizado.

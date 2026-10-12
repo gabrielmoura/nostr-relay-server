@@ -24,6 +24,42 @@ func (a *HTTPAdapter) RegisterTransferServices(mux *http.ServeMux, sessions *Ses
 	return nil
 }
 
+// RegisterReconcileService registers the bounded Negentropy HTTP endpoint.
+func (a *HTTPAdapter) RegisterReconcileService(mux *http.ServeMux, service *ReconcileService, resolve PrincipalResolver) error {
+	if service == nil || resolve == nil {
+		return ErrUnauthorized
+	}
+	mux.HandleFunc(sessionsPath+"/{id}/reconcile", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			w.Header().Set("Allow", http.MethodPost)
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		principal, ok := resolve(r)
+		if !ok {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		id, err := parseSessionPath(r.URL.Path, "/reconcile")
+		if err != nil {
+			http.Error(w, "invalid session", http.StatusBadRequest)
+			return
+		}
+		var request relaysyncv2.ReconcileRequest
+		if err := readProtoBody(r, &request); err != nil {
+			http.Error(w, "invalid protobuf", http.StatusBadRequest)
+			return
+		}
+		response, err := service.Reconcile(r.Context(), principal, id, &request)
+		if err != nil {
+			writeSessionError(w, err)
+			return
+		}
+		writeProto(w, response)
+	})
+	return nil
+}
+
 func parseSessionPath(path, suffix string) (SessionID, error) {
 	encoded := strings.TrimSuffix(strings.TrimPrefix(path, sessionsPath+"/"), suffix)
 	raw, err := base64.RawURLEncoding.DecodeString(encoded)
