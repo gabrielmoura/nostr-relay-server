@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gabrielmoura/nostr-relay-server/infra/db"
 	"github.com/gabrielmoura/nostr-relay-server/infra/log"
+	internaldb "github.com/gabrielmoura/nostr-relay-server/internal/db"
 	core "github.com/gabrielmoura/nostr-relay-server/pkg/relaySync"
 	relaysyncv2 "github.com/gabrielmoura/nostr-relay-server/pkg/relaySync/proto/relaysync/v2"
 	"github.com/nbd-wtf/go-nostr"
@@ -93,10 +93,10 @@ func containsVersion(versions []uint32, want uint32) bool {
 }
 
 func runRelaySyncHTTP(ctx context.Context, client *core.HTTPClient, cfg *ConfSync) (*SyncResult, error) {
-	if db.DbQueries() == nil {
+	if internaldb.DbQueries == nil {
 		return nil, fmt.Errorf("database is not initialized")
 	}
-	localEvents, err := db.DbQueries().QueryEvents(ctx, cfg.LocalFilter[0])
+	localEvents, err := internaldb.DbQueries.QueryEvents(ctx, cfg.LocalFilter[0])
 	if err != nil {
 		return nil, fmt.Errorf("query local events: %w", err)
 	}
@@ -292,7 +292,7 @@ func pullAndStoreEvents(ctx context.Context, client *core.HTTPClient, id core.Se
 			events = append(events, nostrEventFromCore(event))
 		}
 		if len(events) > 0 {
-			if _, err := db.DbQueries().InsertEventBatch(ctx, events); err != nil {
+			if _, err := internaldb.DbQueries.InsertEventBatch(ctx, events); err != nil {
 				return fmt.Errorf("store pulled events: %w", err)
 			}
 		}
