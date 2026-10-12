@@ -205,7 +205,9 @@ func (s *SessionService) RequireAction(ctx context.Context, principal Principal,
 func (s *SessionService) Close() error {
 	s.mu.Lock()
 	snapshots := make([]Snapshot, 0, len(s.snapshots))
+	ids := make([]SessionID, 0, len(s.snapshots))
 	for id, snapshot := range s.snapshots {
+		ids = append(ids, id)
 		snapshots = append(snapshots, snapshot)
 		delete(s.snapshots, id)
 	}
@@ -214,6 +216,9 @@ func (s *SessionService) Close() error {
 	var closeErr error
 	for _, snapshot := range snapshots {
 		closeErr = errors.Join(closeErr, snapshot.Close())
+	}
+	for _, id := range ids {
+		s.notifyFinished(id)
 	}
 	return closeErr
 }
