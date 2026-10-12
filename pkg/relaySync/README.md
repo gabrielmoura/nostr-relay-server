@@ -1,9 +1,10 @@
 # RelaySync
 
 RelaySync is an experimental, transport-agnostic relay-to-relay synchronization
-library. This package currently provides only its NIP-01 event domain model,
-bounded contracts and in-memory test stores. It does not expose network routes,
-Negentropy reconciliation, compression, WebSocket support or NRServer wiring.
+library. This package currently provides its NIP-01 event domain model, bounded
+contracts, in-memory test stores, and an optional `net/http` capability discovery
+adapter. It does not expose sessions, Negentropy reconciliation, WebSocket
+support or NRServer wiring.
 
 Consumers must provide durable implementations of the snapshot, writer,
 journal, checkpoint and session contracts before enabling synchronization.
@@ -15,3 +16,8 @@ repository root with `make generate-relaysync`. The target checks the expected
 The package deliberately does not configure TLS or HTTP/2. Those concerns stay
 with the caller's router or reverse proxy, as required by the transport
 contract.
+
+To expose capability discovery, construct `NewHTTPAdapter` with a configured
+`relaysync.v2.Capabilities` protobuf and call `Register` on the host's
+`http.ServeMux`. It registers `GET /sync/v2/capabilities`, which responds with
+`application/x-protobuf` when accepted by the client.
