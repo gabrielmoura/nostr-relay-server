@@ -117,10 +117,12 @@ adiado com justificativa. Este checklist não transforma plano em capacidade.
 - [ ] Integrar métricas/logs/readiness sem alta cardinalidade.
 - [x] Decidir Transactional Outbox PostgreSQL; Redis Pub/Sub somente notificação.
 - [x] Criar migration aditiva de outbox/journal e trigger transacional.
+- [x] Criar projector bounded com ordenação por commit e retenção separada.
 - [ ] Validar migration/schema/índices/rollback em PostgreSQL real.
 - [x] Implementar descarte de sessão/snapshot/idempotência ao completar ciclo.
 - [ ] Validar ciclo finito ponta a ponta com retry e expiração.
 - [ ] Implementar journal cobrindo todas as mutações.
+- [ ] Integrar projector ao lifecycle supervisionado do NRServer.
 - [ ] Testar restart, retention, gap, epoch e commit order.
 - [ ] Implementar checkpoint persistente.
 - [ ] Manter live desabilitado até gates completos.

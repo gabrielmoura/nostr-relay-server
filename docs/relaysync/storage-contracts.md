@@ -184,11 +184,11 @@ live desabilitado até validar todos os caminhos de mutação.
 
 A migration `000005_add_relaysync_outbox` cria a outbox e o journal físico e
 instala um trigger transacional para INSERT, DELETE e mudanças de visibilidade
-por `deleted_by`. Ela cobre os writers atuais sem dual-write Redis. A migration
-não habilita o projector: a publicação ainda precisa ordenar por metadados de
-commit (`txid`/commit timestamp), atribuir `epoch + sequence`, marcar a outbox
-somente após inserção idempotente no journal e executar retenção. Até esses
-gates passarem, o live sync permanece desligado.
+por `deleted_by`. Ela cobre os writers atuais sem dual-write Redis. O pacote
+`infra/db` já contém um projector bounded e rotinas de retenção, mas ele exige
+`track_commit_timestamp=on`, advisory lock e validação em PostgreSQL real antes
+de ser supervisionado. Até esses gates passarem, o live sync permanece
+desligado.
 
 ### Ciclos finitos e estado temporário
 
