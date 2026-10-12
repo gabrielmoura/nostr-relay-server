@@ -43,6 +43,9 @@ func (t *TransferService) Pull(ctx context.Context, principal Principal, id Sess
 	if _, err := t.sessions.RequireAction(ctx, principal, id, ActionPull); err != nil {
 		return nil, err
 	}
+	if len(request.EventIds) > t.limits.MaxEventsPerBatch || proto.Size(request) > t.limits.MaxBatchBytes {
+		return nil, ErrInvalidLimits
+	}
 	snapshot, ok := t.sessions.Snapshot(id)
 	if !ok {
 		return nil, ErrSnapshotExpired
@@ -86,6 +89,9 @@ func (t *TransferService) Push(ctx context.Context, principal Principal, id Sess
 	}
 	if _, err := t.sessions.RequireAction(ctx, principal, id, ActionPush); err != nil {
 		return nil, err
+	}
+	if request.OperationId == "" || len(request.Events) > t.limits.MaxEventsPerBatch || proto.Size(request) > t.limits.MaxBatchBytes {
+		return nil, ErrInvalidLimits
 	}
 	events := make([]Event, len(request.Events))
 	for i, message := range request.Events {
