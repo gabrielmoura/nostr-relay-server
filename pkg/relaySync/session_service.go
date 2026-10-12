@@ -6,6 +6,8 @@ import (
 	"crypto/sha256"
 	"crypto/subtle"
 	"errors"
+	"net/netip"
+	"strings"
 	"sync"
 	"time"
 
@@ -163,7 +165,7 @@ func (s *SessionService) finish(ctx context.Context, principal Principal, id Ses
 	if err != nil {
 		return err
 	}
-	if record.Peer.ID != principal.ID {
+	if !samePrincipal(record.Peer, principal) {
 		return ErrUnauthorized
 	}
 	hash := sha256.Sum256(token)
@@ -194,13 +196,26 @@ func (s *SessionService) Session(ctx context.Context, principal Principal, id Se
 	if err != nil {
 		return SessionRecord{}, err
 	}
-	if record.Peer.ID != principal.ID {
+	if !samePrincipal(record.Peer, principal) {
 		return SessionRecord{}, ErrUnauthorized
 	}
 	if !record.ExpiresAt.After(s.options.Clock.Now()) {
 		return SessionRecord{}, ErrSessionExpired
 	}
 	return record, nil
+}
+
+// samePrincipal compares the stable identity used by the host's admission
+// policy. IP-based integrations can expose IPv4 in either native or
+// IPv4-mapped IPv6 form when requests cross a framework adapter; normalize
+// those representations before rejecting an otherwise valid session.
+func samePrincipal(left, right Principal) bool {
+	if left.ID == right.ID {
+		return true
+	}
+	leftAddr, leftErr := netip.ParseAddr(strings.TrimSpace(left.ID))
+	rightAddr, rightErr := netip.ParseAddr(strings.TrimSpace(right.ID))
+	return leftErr == nil && rightErr == nil && leftAddr.Unmap() == rightAddr.Unmap()
 }
 
 // RequireAction verifies that the authenticated principal is still authorized
