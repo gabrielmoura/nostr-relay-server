@@ -14,7 +14,11 @@ type TransferService struct {
 	writer     EventWriter
 	limits     Limits
 	mu         sync.Mutex
-	operations map[string]transferResult
+	operations map[transferOperationKey]transferResult
+}
+type transferOperationKey struct {
+	sessionID   SessionID
+	operationID string
 }
 type transferResult struct {
 	hash     [32]byte
@@ -25,7 +29,11 @@ func NewTransferService(sessions *SessionService, writer EventWriter, limits Lim
 	if sessions == nil || writer == nil {
 		return nil, ErrNotFound
 	}
-	return &TransferService{sessions: sessions, writer: writer, limits: limits.WithDefaults(), operations: make(map[string]transferResult)}, nil
+	service := &TransferService{sessions: sessions, writer: writer, limits: limits.WithDefaults(), operations: make(map[transferOperationKey]transferResult)}
+	if err := sessions.RegisterFinishHook(service.ForgetSession); err != nil {
+		return nil, err
+	}
+	return service, nil
 }
 
 func (t *TransferService) Pull(ctx context.Context, principal Principal, id SessionID, request *relaysyncv2.PullEventsRequest) (*relaysyncv2.PullEventsResponse, error) {
@@ -92,8 +100,9 @@ func (t *TransferService) Push(ctx context.Context, principal Principal, id Sess
 	hash.Write(encoded)
 	var payloadHash [32]byte
 	copy(payloadHash[:], hash.Sum(nil))
+	key := transferOperationKey{sessionID: id, operationID: request.OperationId}
 	t.mu.Lock()
-	if cached, ok := t.operations[request.OperationId]; ok {
+	if cached, ok := t.operations[key]; ok {
 		t.mu.Unlock()
 		if cached.hash != payloadHash {
 			return nil, ErrConflict
@@ -110,9 +119,20 @@ func (t *TransferService) Push(ctx context.Context, principal Principal, id Sess
 		response.Receipts = append(response.Receipts, &relaysyncv2.EventReceipt{Id: append([]byte(nil), result.ID[:]...), Status: writeStatusProto(result.Status), Code: result.Code, Message: result.Message, PolicyVersion: result.PolicyVersion, DecisionId: result.DecisionID})
 	}
 	t.mu.Lock()
-	t.operations[request.OperationId] = transferResult{hash: payloadHash, response: response}
+	t.operations[key] = transferResult{hash: payloadHash, response: response}
 	t.mu.Unlock()
 	return response, nil
+}
+
+// ForgetSession removes retry results associated with a completed cycle.
+func (t *TransferService) ForgetSession(id SessionID) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	for key := range t.operations {
+		if key.sessionID == id {
+			delete(t.operations, key)
+		}
+	}
 }
 func writeStatusProto(status WriteStatus) relaysyncv2.WriteStatus {
 	switch status {

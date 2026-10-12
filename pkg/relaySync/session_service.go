@@ -32,10 +32,11 @@ type SessionServiceOptions struct {
 }
 
 type SessionService struct {
-	options    SessionServiceOptions
-	mu         sync.Mutex
-	snapshots  map[SessionID]Snapshot
-	idempotent map[string]sessionResult
+	options     SessionServiceOptions
+	mu          sync.Mutex
+	snapshots   map[SessionID]Snapshot
+	idempotent  map[string]sessionResult
+	finishHooks []func(SessionID)
 }
 
 type sessionResult struct {
@@ -154,10 +155,12 @@ func (s *SessionService) finish(ctx context.Context, principal Principal, id Ses
 		return err
 	}
 	s.clearIdempotency(id)
+	var closeErr error
 	if snapshot := s.takeSnapshot(id); snapshot != nil {
-		return snapshot.Close()
+		closeErr = snapshot.Close()
 	}
-	return nil
+	s.notifyFinished(id)
+	return closeErr
 }
 
 func (s *SessionService) Snapshot(id SessionID) (Snapshot, bool) {
@@ -230,6 +233,27 @@ func (s *SessionService) clearIdempotency(id SessionID) {
 		if result.sessionID == id {
 			delete(s.idempotent, key)
 		}
+	}
+}
+
+// RegisterFinishHook registers a process-local cleanup callback invoked after
+// a session is completed or deleted. Hooks must be short and non-blocking.
+func (s *SessionService) RegisterFinishHook(hook func(SessionID)) error {
+	if hook == nil {
+		return ErrInvalidEvent
+	}
+	s.mu.Lock()
+	s.finishHooks = append(s.finishHooks, hook)
+	s.mu.Unlock()
+	return nil
+}
+
+func (s *SessionService) notifyFinished(id SessionID) {
+	s.mu.Lock()
+	hooks := append([]func(SessionID){}, s.finishHooks...)
+	s.mu.Unlock()
+	for _, hook := range hooks {
+		hook(id)
 	}
 }
 func cloneSessionResponse(response *relaysyncv2.OpenSessionResponse) *relaysyncv2.OpenSessionResponse {

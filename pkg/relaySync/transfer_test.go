@@ -40,6 +40,12 @@ func TestTransferServicePushIdempotency(t *testing.T) {
 	if len(first.Receipts) != 1 || first.Receipts[0].Status != relaysyncv2.WriteStatus_WRITE_ACCEPTED || second.Receipts[0].Status != relaysyncv2.WriteStatus_WRITE_ACCEPTED {
 		t.Fatalf("receipts: %+v %+v", first, second)
 	}
+	if err := sessions.Complete(context.Background(), Principal{ID: "peer"}, id, opened.ResumeToken); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := transfer.Push(context.Background(), Principal{ID: "peer"}, id, request); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("Push after completion = %v, want ErrNotFound", err)
+	}
 }
 
 func TestTransferServiceRequiresOperationAction(t *testing.T) {
