@@ -67,6 +67,50 @@ func TestRelaySyncCapabilityProbeSelectsV2(t *testing.T) {
 	}
 }
 
+func TestHandleRelaySyncPushReceipts(t *testing.T) {
+	tests := []struct {
+		name     string
+		receipts []*relaysyncv2.EventReceipt
+		events   []*relaysyncv2.Event
+		wantErr  bool
+	}{
+		{
+			name: "permanent rejection continues",
+			receipts: []*relaysyncv2.EventReceipt{
+				{Id: []byte{1}, Status: relaysyncv2.WriteStatus_WRITE_ACCEPTED},
+				{Id: []byte{2}, Status: relaysyncv2.WriteStatus_WRITE_REJECTED_PERMANENT, Code: "invalid_event"},
+			},
+			events: []*relaysyncv2.Event{{Id: []byte{1}}, {Id: []byte{2}}},
+		},
+		{
+			name:     "temporary rejection fails",
+			receipts: []*relaysyncv2.EventReceipt{{Id: []byte{1}, Status: relaysyncv2.WriteStatus_WRITE_FAILED_TEMPORARY, Code: "storage_unavailable"}},
+			events:   []*relaysyncv2.Event{{Id: []byte{1}}},
+			wantErr:  true,
+		},
+		{
+			name:     "missing receipt fails",
+			receipts: []*relaysyncv2.EventReceipt{{Id: []byte{1}, Status: relaysyncv2.WriteStatus_WRITE_ACCEPTED}},
+			events:   []*relaysyncv2.Event{{Id: []byte{1}}, {Id: []byte{2}}},
+			wantErr:  true,
+		},
+		{
+			name:     "mismatched receipt id fails",
+			receipts: []*relaysyncv2.EventReceipt{{Id: []byte{2}, Status: relaysyncv2.WriteStatus_WRITE_ACCEPTED}},
+			events:   []*relaysyncv2.Event{{Id: []byte{1}}},
+			wantErr:  true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := handleRelaySyncPushReceipts(tt.receipts, tt.events)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("handleRelaySyncPushReceipts() error = %v, wantErr %t", err, tt.wantErr)
+			}
+		})
+	}
+}
+
 func httpTestMux(t *testing.T, adapter *core.HTTPAdapter) *http.ServeMux {
 	t.Helper()
 	mux := http.NewServeMux()

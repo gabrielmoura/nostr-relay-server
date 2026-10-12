@@ -1,9 +1,11 @@
 package sync
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"encoding/binary"
+	"encoding/hex"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -400,8 +402,44 @@ func pushSnapshotIDs(ctx context.Context, client *core.HTTPClient, id core.Sessi
 		// partition identity so separate batches cannot be treated as a retry of
 		// another partition (which would correctly result in HTTP 409).
 		operationID := fmt.Sprintf("push-%x-%d", partitionID, start)
-		if _, err := client.PushEvents(ctx, id, token, &relaysyncv2.PushEventsRequest{SessionId: id[:], OperationId: operationID, Events: wireEvents, IdempotencyKey: []byte(operationID)}); err != nil {
+		response, err := client.PushEvents(ctx, id, token, &relaysyncv2.PushEventsRequest{SessionId: id[:], OperationId: operationID, Events: wireEvents, IdempotencyKey: []byte(operationID)})
+		if err != nil {
 			return fmt.Errorf("push RelaySync events: %w", err)
+		}
+		if err := handleRelaySyncPushReceipts(response.GetReceipts(), wireEvents); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// handleRelaySyncPushReceipts makes permanent remote policy or validation
+// decisions visible without aborting an otherwise valid finite sync cycle.
+// A temporary decision remains fatal so it can be retried instead of being
+// silently treated as convergence.
+func handleRelaySyncPushReceipts(receipts []*relaysyncv2.EventReceipt, events []*relaysyncv2.Event) error {
+	if len(receipts) != len(events) {
+		return fmt.Errorf("push RelaySync events: received %d receipts for %d events", len(receipts), len(events))
+	}
+	for index, receipt := range receipts {
+		if receipt == nil {
+			return fmt.Errorf("push RelaySync events: received empty receipt")
+		}
+		if !bytes.Equal(receipt.GetId(), events[index].GetId()) {
+			return fmt.Errorf("push RelaySync events: receipt id does not match sent event")
+		}
+		switch receipt.GetStatus() {
+		case relaysyncv2.WriteStatus_WRITE_ACCEPTED, relaysyncv2.WriteStatus_WRITE_ALREADY_EXISTS:
+			continue
+		case relaysyncv2.WriteStatus_WRITE_REJECTED_PERMANENT:
+			if log.Logger != nil {
+				log.Logger.Warn("RelaySync event permanently rejected by remote", zap.String("event_id", hex.EncodeToString(receipt.GetId())), zap.String("code", receipt.GetCode()), zap.String("reason", receipt.GetMessage()))
+			}
+			continue
+		case relaysyncv2.WriteStatus_WRITE_FAILED_TEMPORARY:
+			return fmt.Errorf("push RelaySync events: remote temporary failure (%s)", receipt.GetCode())
+		default:
+			return fmt.Errorf("push RelaySync events: remote returned invalid receipt status (%s)", receipt.GetStatus().String())
 		}
 	}
 	return nil

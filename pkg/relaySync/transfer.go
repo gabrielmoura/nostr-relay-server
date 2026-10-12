@@ -3,6 +3,7 @@ package relaysync
 import (
 	"context"
 	"crypto/sha256"
+	"fmt"
 	"sync"
 
 	relaysyncv2 "github.com/gabrielmoura/nostr-relay-server/pkg/relaySync/proto/relaysync/v2"
@@ -24,6 +25,8 @@ type transferResult struct {
 	hash     [32]byte
 	response *relaysyncv2.PushEventsResponse
 }
+
+const invalidEventReceiptCode = "INVALID_EVENT"
 
 func NewTransferService(sessions *SessionService, writer EventWriter, limits Limits) (*TransferService, error) {
 	if sessions == nil || writer == nil {
@@ -93,13 +96,17 @@ func (t *TransferService) Push(ctx context.Context, principal Principal, id Sess
 	if request.OperationId == "" || len(request.Events) > t.limits.MaxEventsPerBatch || proto.Size(request) > t.limits.MaxBatchBytes {
 		return nil, ErrInvalidLimits
 	}
-	events := make([]Event, len(request.Events))
-	for i, message := range request.Events {
+	events := make([]Event, 0, len(request.Events))
+	validReceiptIndexes := make([]int, 0, len(request.Events))
+	response := &relaysyncv2.PushEventsResponse{Receipts: make([]*relaysyncv2.EventReceipt, len(request.Events))}
+	for index, message := range request.Events {
 		event, err := EventFromProto(message, t.limits)
 		if err != nil {
-			return nil, err
+			response.Receipts[index] = invalidEventReceipt(message, err)
+			continue
 		}
-		events[i] = event
+		events = append(events, event)
+		validReceiptIndexes = append(validReceiptIndexes, index)
 	}
 	hash := sha256.New()
 	encoded, err := proto.MarshalOptions{Deterministic: true}.Marshal(request)
@@ -119,18 +126,46 @@ func (t *TransferService) Push(ctx context.Context, principal Principal, id Sess
 		return proto.Clone(cached.response).(*relaysyncv2.PushEventsResponse), nil
 	}
 	t.mu.Unlock()
-	results, err := t.writer.WriteEvents(ctx, EventBatch{OperationID: request.OperationId, Events: events})
-	if err != nil {
-		return nil, err
-	}
-	response := &relaysyncv2.PushEventsResponse{}
-	for _, result := range results {
-		response.Receipts = append(response.Receipts, &relaysyncv2.EventReceipt{Id: append([]byte(nil), result.ID[:]...), Status: writeStatusProto(result.Status), Code: result.Code, Message: result.Message, PolicyVersion: result.PolicyVersion, DecisionId: result.DecisionID})
+	if len(events) > 0 {
+		results, err := t.writer.WriteEvents(ctx, EventBatch{OperationID: request.OperationId, Events: events})
+		if err != nil {
+			return nil, err
+		}
+		if len(results) != len(events) {
+			return nil, fmt.Errorf("relaysync: event writer returned %d results for %d events", len(results), len(events))
+		}
+		for index, result := range results {
+			response.Receipts[validReceiptIndexes[index]] = eventReceipt(result)
+		}
 	}
 	t.mu.Lock()
 	t.operations[key] = transferResult{hash: payloadHash, response: response}
 	t.mu.Unlock()
 	return response, nil
+}
+
+func invalidEventReceipt(message *relaysyncv2.Event, cause error) *relaysyncv2.EventReceipt {
+	var id EventID
+	if message != nil && len(message.Id) == len(id) {
+		copy(id[:], message.Id)
+	}
+	return eventReceipt(WriteResult{
+		ID:      id,
+		Status:  WriteRejectedPermanent,
+		Code:    invalidEventReceiptCode,
+		Message: cause.Error(),
+	})
+}
+
+func eventReceipt(result WriteResult) *relaysyncv2.EventReceipt {
+	return &relaysyncv2.EventReceipt{
+		Id:            append([]byte(nil), result.ID[:]...),
+		Status:        writeStatusProto(result.Status),
+		Code:          result.Code,
+		Message:       result.Message,
+		PolicyVersion: result.PolicyVersion,
+		DecisionId:    result.DecisionID,
+	}
 }
 
 // ForgetSession removes retry results associated with a completed cycle.
