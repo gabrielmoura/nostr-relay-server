@@ -43,8 +43,8 @@ adiado com justificativa. Este checklist não transforma plano em capacidade.
 
 ## Fase 2 — snapshot, manifest e Negentropy
 
-- [ ] Implementar partição 30 dias + prefixo/shard determinístico.
-- [ ] Implementar digest canônico independente de Protobuf.
+- [x] Implementar partição 30 dias + prefixo/shard determinístico.
+- [x] Implementar digest canônico independente de Protobuf.
 - [ ] Implementar manifest paginado e cache versionado.
 - [ ] Implementar Vector selado por partição, SubRange lógico e prefix aggregates.
 - [ ] Criar porta privada de reconciliação.
