@@ -44,10 +44,18 @@ func (a *AllowlistAuthorizer) Authorize(ctx context.Context, principal core.Prin
 		return core.AuthorizedScope{}, core.ErrUnauthorized
 	}
 	addr = addr.Unmap()
-	for _, prefix := range a.prefixes {
-		if prefix.Contains(addr) {
-			return core.AuthorizedScope{Scope: requested, Actions: []core.Action{core.ActionOpenSession, core.ActionPull, core.ActionPush, core.ActionReadChanges, core.ActionLive}}, nil
-		}
+	if a.AllowedAddr(addr) {
+		return core.AuthorizedScope{Scope: requested, Actions: []core.Action{core.ActionOpenSession, core.ActionPull, core.ActionPush, core.ActionReadChanges, core.ActionLive}}, nil
 	}
 	return core.AuthorizedScope{}, core.ErrUnauthorized
+}
+
+func (a *AllowlistAuthorizer) AllowedAddr(addr netip.Addr) bool {
+	addr = addr.Unmap()
+	for _, prefix := range a.prefixes {
+		if prefix.Contains(addr) {
+			return true
+		}
+	}
+	return false
 }
