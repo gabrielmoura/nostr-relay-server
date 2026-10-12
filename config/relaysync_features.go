@@ -19,6 +19,9 @@ func (cfg *Config) ValidateRelaySyncFeatures() error {
 	if len(r.AllowedIPs) == 0 {
 		return fmt.Errorf("relay_sync.allowed_ips must contain at least one IP or CIDR")
 	}
+	if r.HTTPEnabled && !r.SnapshotEnabled {
+		return fmt.Errorf("relay_sync.http_enabled requires relay_sync.snapshot_enabled")
+	}
 	for _, raw := range r.AllowedIPs {
 		value := strings.TrimSpace(raw)
 		if value == "" {

@@ -45,6 +45,7 @@ integration, configure an explicit source-IP allowlist:
 relay_sync:
   enabled: true
   http_enabled: true
+  snapshot_enabled: true
   allowed_ips: ["10.0.0.0/8"]
   apply_enabled: true
   projector_enabled: true

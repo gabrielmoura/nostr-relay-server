@@ -90,7 +90,7 @@ func NostrJSON(cfg *config.Config) fiber.Handler {
 func NIP11WithPrivacy(cfg *config.Config) any {
 	doc := cfg.RelayInformation.PublicNIP11()
 	addrs := privacy.GetActiveAddresses()
-	if len(addrs) == 0 && !cfg.NIP29.Enabled && !cfg.NIP70.Enabled && !cfg.API.NIPFE.Enabled && !(cfg.RelaySync.Enabled && cfg.RelaySync.HTTPEnabled) {
+	if len(addrs) == 0 && !cfg.NIP29.Enabled && !cfg.NIP70.Enabled && !cfg.API.NIPFE.Enabled && !(cfg.RelaySync.Enabled && cfg.RelaySync.HTTPEnabled && cfg.RelaySync.SnapshotEnabled) {
 		return doc
 	}
 	raw, err := json.Marshal(doc)
@@ -130,7 +130,7 @@ func NIP11WithPrivacy(cfg *config.Config) any {
 	if cfg.API.NIPFE.Enabled {
 		m["nip_fe"] = true
 	}
-	if cfg.RelaySync.Enabled && cfg.RelaySync.HTTPEnabled {
+	if cfg.RelaySync.Enabled && cfg.RelaySync.HTTPEnabled && cfg.RelaySync.SnapshotEnabled {
 		extensions, _ := m["supported_nip_extensions"].([]any)
 		found := false
 		for _, extension := range extensions {

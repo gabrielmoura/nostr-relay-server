@@ -23,7 +23,7 @@ type HTTPRuntime struct {
 }
 
 func Build(cfg config.RelaySyncConfig, queries *db.Queries) (*HTTPRuntime, error) {
-	if !cfg.Enabled || !cfg.HTTPEnabled {
+	if !cfg.Enabled || !cfg.HTTPEnabled || !cfg.SnapshotEnabled {
 		return nil, nil
 	}
 	authorizer, err := NewAllowlistAuthorizer(cfg.AllowedIPs)

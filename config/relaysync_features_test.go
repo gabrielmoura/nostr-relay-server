@@ -11,6 +11,7 @@ func TestValidateRelaySyncFeatures(t *testing.T) {
 	}{
 		{"disabled defaults", RelaySyncConfig{}, false},
 		{"disabled feature", RelaySyncConfig{HTTPEnabled: true}, true},
+		{"http requires snapshot", func() RelaySyncConfig { c := base; c.HTTPEnabled = true; return c }(), true},
 		{"valid projector", base, false},
 		{"live requires catchup", func() RelaySyncConfig { c := base; c.LiveEnabled = true; c.ApplyEnabled = true; return c }(), true},
 		{"invalid interval", func() RelaySyncConfig { c := base; c.ProjectorIntervalSeconds = 0; return c }(), true},

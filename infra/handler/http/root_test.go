@@ -143,7 +143,7 @@ func TestNIP11WithPrivacy_AdvertisesNIPFEOnlyWhenEnabled(t *testing.T) {
 }
 
 func TestNIP11WithPrivacy_AdvertisesRelaySyncOnlyWhenEnabled(t *testing.T) {
-	doc := NIP11WithPrivacy(&config.Config{RelaySync: config.RelaySyncConfig{Enabled: true, HTTPEnabled: true}})
+	doc := NIP11WithPrivacy(&config.Config{RelaySync: config.RelaySyncConfig{Enabled: true, HTTPEnabled: true, SnapshotEnabled: true}})
 	m, ok := doc.(map[string]any)
 	if !ok {
 		t.Fatalf("document type = %T", doc)
