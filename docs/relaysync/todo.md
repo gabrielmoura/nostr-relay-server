@@ -94,9 +94,9 @@ adiado com justificativa. Este checklist não transforma plano em capacidade.
 
 ## Fase 5 — adapters genéricos e docs
 
-- [ ] Finalizar adapter `net/http`.
-- [ ] Implementar adapter Fiber 2.52.12 no listener fornecido.
-- [ ] Manter TLS/HTTP2 sob responsabilidade do roteador/proxy.
+- [x] Finalizar adapter `net/http`.
+- [x] Implementar adapter Fiber 2.52.12 no listener fornecido.
+- [x] Manter TLS/HTTP2 sob responsabilidade do roteador/proxy.
 - [ ] Criar suíte de conformidade dos ports.
 - [ ] Criar exemplo net/http compilável.
 - [ ] Criar exemplo Fiber compilável.

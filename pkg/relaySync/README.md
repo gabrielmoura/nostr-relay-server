@@ -32,7 +32,8 @@ Session routes are registered separately with `RegisterSessionService` and
 discard its session, snapshot and temporary reconciliation state. Checkpoints,
 when configured, are independent of that lifecycle.
 
-For Fiber v2, use `relaySync/fiber.RegisterServices` with the existing
-`*fiber.App`, an `HTTPAdapter`, the optional services and a
-`PrincipalResolver`. The adapter registers under `/sync/v2` and never creates
-a second listener or configures TLS/HTTP2.
+For the standard library, use `relaySync/nethttp.NewHandler` with an existing
+`http.Server`. For Fiber v2, use `relaySync/fiber.RegisterServices` with the
+existing `*fiber.App`, an `HTTPAdapter`, the optional services and a
+`PrincipalResolver`. The adapters register under `/sync/v2` and never create a
+second listener or configure TLS/HTTP2; those remain router/proxy concerns.
