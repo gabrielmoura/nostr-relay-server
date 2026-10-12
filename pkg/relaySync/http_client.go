@@ -202,7 +202,16 @@ func (c *HTTPClient) doProtoWithHeaders(ctx context.Context, method, path string
 	}
 	defer httpResponse.Body.Close()
 	if httpResponse.StatusCode < http.StatusOK || httpResponse.StatusCode >= http.StatusMultipleChoices {
-		return &HTTPResponseError{StatusCode: httpResponse.StatusCode, Status: httpResponse.Status}
+		errorResponse := &HTTPResponseError{StatusCode: httpResponse.StatusCode, Status: httpResponse.Status}
+		if isProtobufContentType(httpResponse.Header.Get("Content-Type")) {
+			if payload, readErr := c.readResponse(httpResponse); readErr == nil {
+				var remoteError relaysyncv2.ErrorResponse
+				if proto.Unmarshal(payload, &remoteError) == nil {
+					errorResponse.Message = remoteError.GetMessage()
+				}
+			}
+		}
+		return errorResponse
 	}
 	if !isProtobufContentType(httpResponse.Header.Get("Content-Type")) {
 		return fmt.Errorf("%w: %q", ErrUnexpectedContentType, httpResponse.Header.Get("Content-Type"))
@@ -247,13 +256,18 @@ func isProtobufContentType(value string) bool {
 	return err == nil && mediaType == protobufMediaType
 }
 
-// HTTPResponseError reports a non-successful HTTP response without attempting
-// to interpret the peer's error body.
+// HTTPResponseError reports a non-successful HTTP response. When the peer
+// returns the RelaySync protobuf error envelope, Message contains its safe
+// diagnostic text.
 type HTTPResponseError struct {
 	StatusCode int
 	Status     string
+	Message    string
 }
 
 func (e *HTTPResponseError) Error() string {
+	if e.Message != "" {
+		return fmt.Sprintf("relaysync: HTTP request failed: %s: %s", e.Status, e.Message)
+	}
 	return fmt.Sprintf("relaysync: HTTP request failed: %s", e.Status)
 }

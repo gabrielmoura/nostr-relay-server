@@ -42,6 +42,8 @@ func (p *RelaySyncSnapshotProvider) OpenSnapshot(ctx context.Context, scope rela
 SELECT floor(created_at / $1)::bigint AS bucket, lower(left(id, 2)) AS prefix
 FROM event
 WHERE deleted_by IS NULL
+  AND length(id) = 64
+  AND id ~ '^[0-9A-Fa-f]{64}$'
 GROUP BY bucket, prefix
 ORDER BY bucket, prefix`, relaySyncPartitionSeconds)
 	if err != nil {
@@ -97,7 +99,7 @@ func (s *postgresSnapshot) OpenMetadata(ctx context.Context, partition relaysync
 		return nil, relaysync.ErrInvalidIdentifier
 	}
 	prefix := hex.EncodeToString(partition.Prefix[:1])
-	query := `SELECT created_at, id FROM event WHERE deleted_by IS NULL AND floor(created_at / $1)::bigint=$2 AND lower(left(id,2))=$3`
+	query := `SELECT created_at, id FROM event WHERE deleted_by IS NULL AND length(id) = 64 AND id ~ '^[0-9A-Fa-f]{64}$' AND floor(created_at / $1)::bigint=$2 AND lower(left(id,2))=$3`
 	args := []any{relaySyncPartitionSeconds, partition.Bucket, prefix}
 	if after != nil {
 		query += ` AND (created_at, id) > ($4, $5)`
@@ -119,7 +121,7 @@ func (s *postgresSnapshot) GetEvents(ctx context.Context, ids []relaysync.EventI
 	for i := range ids {
 		values[i] = ids[i].String()
 	}
-	rows, err := s.queries.db.Query(ctx, `SELECT id, pubkey, created_at, kind, tags, content, sig FROM event WHERE deleted_by IS NULL AND id = ANY($1::text[])`, values)
+	rows, err := s.queries.db.Query(ctx, `SELECT id, pubkey, created_at, kind, tags, content, sig FROM event WHERE deleted_by IS NULL AND length(id) = 64 AND id ~ '^[0-9A-Fa-f]{64}$' AND id = ANY($1::text[])`, values)
 	if err != nil {
 		return nil, err
 	}
