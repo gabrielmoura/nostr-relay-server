@@ -3,6 +3,7 @@ module github.com/gabrielmoura/nostr-relay-server
 go 1.26.3
 
 require (
+	github.com/btcsuite/btcd/btcec/v2 v2.3.6
 	github.com/99designs/gqlgen v0.17.90
 	github.com/buckket/go-blurhash v1.1.0
 	github.com/bytedance/sonic v1.15.0
@@ -35,6 +36,7 @@ require (
 	github.com/yggdrasil-network/yggdrasil-go v0.5.14
 	github.com/zeebo/blake3 v0.2.4
 	go.uber.org/zap v1.27.1
+	google.golang.org/protobuf v1.36.11
 	golang.org/x/net v0.58.0
 	golang.org/x/sys v0.48.0
 	golang.org/x/time v0.15.0
@@ -53,7 +55,6 @@ require (
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bits-and-blooms/bitset v1.24.5 // indirect
 	github.com/bits-and-blooms/bloom/v3 v3.7.1 // indirect
-	github.com/btcsuite/btcd/btcec/v2 v2.3.6 // indirect
 	github.com/btcsuite/btcd/btcutil v1.1.5 // indirect
 	github.com/btcsuite/btcd/chaincfg/chainhash v1.1.0 // indirect
 	github.com/bytedance/gopkg v0.1.4 // indirect
@@ -156,7 +157,6 @@ require (
 	golang.org/x/sync v0.23.0 // indirect
 	golang.org/x/text v0.42.0 // indirect
 	golang.org/x/tools v0.49.0 // indirect
-	google.golang.org/protobuf v1.36.11 // indirect
 	gvisor.dev/gvisor v0.0.0-20250812171554-968e93457fe6 // indirect
 )
 

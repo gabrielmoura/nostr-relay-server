@@ -28,6 +28,17 @@ COMMON_FLAGS := -a -trimpath -buildvcs=false -installsuffix cgo -ldflags="$(LDFL
 
 .DEFAULT_GOAL := help
 
+.PHONY: generate-relaysync
+generate-relaysync: ## Gera o schema Protobuf do RelaySync v2
+	@command -v protoc >/dev/null || (echo "protoc is required" >&2; exit 1)
+	@command -v protoc-gen-go >/dev/null || (echo "protoc-gen-go is required" >&2; exit 1)
+	@protoc --version | grep -q 'libprotoc 35\.' || (echo "protoc 35.x is required" >&2; exit 1)
+	@protoc-gen-go --version | grep -q 'v1.34.2' || (echo "protoc-gen-go v1.34.2 is required" >&2; exit 1)
+	@PATH="$$(dirname "$$(command -v protoc-gen-go)"):$$PATH" protoc \
+		--go_out=. --go_opt=paths=source_relative \
+		pkg/relaySync/proto/relaysync/v2/relaysync.proto
+	@gofmt -w pkg/relaySync/proto/relaysync/v2/relaysync.pb.go
+
 # -----------------------------------------------------------------------------
 # Help
 # -----------------------------------------------------------------------------

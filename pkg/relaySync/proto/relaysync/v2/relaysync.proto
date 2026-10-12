@@ -1,0 +1,300 @@
+syntax = "proto3";
+
+package relaysync.v2;
+
+option go_package = "github.com/gabrielmoura/nostr-relay-server/pkg/relaySync/proto/relaysync/v2;relaysyncv2";
+
+message Tag {
+  repeated string values = 1;
+}
+
+message Event {
+  bytes id = 1;
+  bytes public_key = 2;
+  bytes signature = 3;
+  int64 created_at = 4;
+  uint32 kind = 5;
+  repeated Tag tags = 6;
+  string content = 7;
+}
+
+message Cursor {
+  uint64 epoch = 1;
+  uint64 sequence = 2;
+}
+
+message Scope {
+  string name = 1;
+  uint32 version = 2;
+  bytes hash = 3;
+}
+
+message Limits {
+  uint32 max_event_bytes = 1;
+  uint32 max_tag_count = 2;
+  uint32 max_tag_values = 3;
+  uint32 max_tag_value_bytes = 4;
+  uint32 max_events_per_batch = 5;
+  uint32 max_batch_bytes = 6;
+  uint32 max_frame_bytes = 7;
+  uint32 max_session_ttl_seconds = 8;
+  uint32 max_concurrent_rounds = 9;
+}
+
+enum WriteStatus {
+  WRITE_STATUS_UNSPECIFIED = 0;
+  WRITE_ACCEPTED = 1;
+  WRITE_ALREADY_EXISTS = 2;
+  WRITE_REJECTED_PERMANENT = 3;
+  WRITE_FAILED_TEMPORARY = 4;
+}
+
+message EventReceipt {
+  bytes id = 1;
+  WriteStatus status = 2;
+  string code = 3;
+  string message = 4;
+  uint32 policy_version = 5;
+  string decision_id = 6;
+}
+
+enum Compression {
+  COMPRESSION_UNSPECIFIED = 0;
+  COMPRESSION_NONE = 1;
+  COMPRESSION_ZSTD = 2;
+}
+
+enum ProtocolErrorCode {
+  PROTOCOL_ERROR_UNSPECIFIED = 0;
+  PROTOCOL_ERROR_INVALID_MESSAGE = 1;
+  PROTOCOL_ERROR_UNAUTHORIZED = 2;
+  PROTOCOL_ERROR_LIMIT_EXCEEDED = 3;
+  PROTOCOL_ERROR_SNAPSHOT_EXPIRED = 4;
+  PROTOCOL_ERROR_JOURNAL_GAP = 5;
+  PROTOCOL_ERROR_RECONCILE_REQUIRED = 6;
+  PROTOCOL_ERROR_INTERNAL = 7;
+}
+
+message CapabilitiesRequest {
+  repeated uint32 protocol_versions = 1;
+}
+
+message Capabilities {
+  repeated uint32 protocol_versions = 1;
+  repeated Compression compressions = 2;
+  Limits limits = 3;
+  repeated string scopes = 4;
+  bool live_sync = 5;
+  string implementation = 6;
+}
+
+message OpenSessionRequest {
+  uint32 protocol_version = 1;
+  Scope scope = 2;
+  repeated Compression compressions = 3;
+  Limits requested_limits = 4;
+  bytes idempotency_key = 5;
+}
+
+message OpenSessionResponse {
+  bytes session_id = 1;
+  uint32 protocol_version = 2;
+  Compression compression = 3;
+  Limits limits = 4;
+  Snapshot snapshot = 5;
+  bytes resume_token = 6;
+}
+
+message Partition {
+  bytes id = 1;
+  int64 bucket = 2;
+  uint32 prefix_bits = 3;
+  bytes prefix = 4;
+  uint64 event_count = 5;
+}
+
+message PartitionSummary {
+  Partition partition = 1;
+  bytes digest = 2;
+  bytes fingerprint = 3;
+}
+
+message Manifest {
+  bytes snapshot_version = 1;
+  Cursor watermark = 2;
+  repeated PartitionSummary partitions = 3;
+  bytes continuation = 4;
+  bool complete = 5;
+}
+
+message Snapshot {
+  bytes version = 1;
+  Scope scope = 2;
+  Cursor watermark = 3;
+  int64 expires_at_unix = 4;
+  repeated Partition partitions = 5;
+}
+
+message ManifestRequest {
+  bytes session_id = 1;
+  bytes snapshot_version = 2;
+  bytes continuation = 3;
+  uint32 max_partitions = 4;
+}
+
+message ReconcileRequest {
+  bytes session_id = 1;
+  bytes partition_id = 2;
+  bytes negentropy_payload = 3;
+  uint32 round = 4;
+  bool close = 5;
+}
+
+message ReconcileResponse {
+  bytes partition_id = 1;
+  bytes negentropy_payload = 2;
+  uint32 round = 3;
+  bool complete = 4;
+  repeated bytes missing_event_ids = 5;
+}
+
+message PullEventsRequest {
+  bytes session_id = 1;
+  string operation_id = 2;
+  repeated bytes event_ids = 3;
+  bytes continuation = 4;
+  uint32 max_events = 5;
+  uint32 max_bytes = 6;
+}
+
+message PullEventsResponse {
+  repeated Event events = 1;
+  bytes continuation = 2;
+  bool complete = 3;
+}
+
+message PushEventsRequest {
+  bytes session_id = 1;
+  string operation_id = 2;
+  repeated Event events = 3;
+  bytes idempotency_key = 4;
+}
+
+message PushEventsResponse {
+  repeated EventReceipt receipts = 1;
+}
+
+message ReadChangesRequest {
+  bytes session_id = 1;
+  Cursor after = 2;
+  uint32 max_events = 3;
+  uint32 max_bytes = 4;
+  uint32 wait_timeout_ms = 5;
+}
+
+message ReadChangesResponse {
+  repeated JournalChange changes = 1;
+  Cursor next_cursor = 2;
+  Cursor head = 3;
+  bytes continuation = 4;
+}
+
+message CompleteSessionRequest {
+  bytes session_id = 1;
+  bytes checkpoint = 2;
+}
+
+message CompleteSessionResponse {
+  bool complete = 1;
+}
+
+message DeleteSessionRequest {
+  bytes session_id = 1;
+}
+
+message ErrorResponse {
+  ProtocolErrorCode code = 1;
+  string message = 2;
+  bool retryable = 3;
+  uint32 retry_after_ms = 4;
+}
+
+message ClientHello {
+  uint32 protocol_version = 1;
+  bytes session_id = 2;
+  Scope scope = 3;
+  repeated Compression compressions = 4;
+  Cursor resume_cursor = 5;
+}
+
+message ServerHello {
+  uint32 protocol_version = 1;
+  Compression compression = 2;
+  Limits limits = 3;
+  Cursor current_cursor = 4;
+}
+
+message Subscribe {
+  Scope scope = 1;
+  Cursor from_cursor = 2;
+}
+
+message JournalChange {
+  Cursor cursor = 1;
+  uint32 change_type = 2;
+  Event event = 3;
+  bytes event_id = 4;
+}
+
+message DeltaBatch {
+  repeated JournalChange changes = 1;
+  Cursor first_cursor = 2;
+  Cursor last_cursor = 3;
+}
+
+message Ack {
+  Cursor cursor = 1;
+}
+
+message FlowControl {
+  uint32 max_events = 1;
+  uint32 max_bytes = 2;
+  bool pause = 3;
+}
+
+message Heartbeat {
+  uint64 nonce = 1;
+  int64 sent_at_unix_nano = 2;
+}
+
+message ReconcileRequired {
+  string reason = 1;
+  Cursor cursor = 2;
+}
+
+message ProtocolError {
+  ProtocolErrorCode code = 1;
+  string message = 2;
+  bool terminal = 3;
+}
+
+message ClientFrame {
+  oneof body {
+    ClientHello hello = 1;
+    Subscribe subscribe = 2;
+    Ack ack = 3;
+    FlowControl flow_control = 4;
+    Heartbeat heartbeat = 5;
+    ProtocolError error = 6;
+  }
+}
+
+message ServerFrame {
+  oneof body {
+    ServerHello hello = 1;
+    DeltaBatch delta = 2;
+    Heartbeat heartbeat = 3;
+    ReconcileRequired reconcile_required = 4;
+    ProtocolError error = 5;
+  }
+}
