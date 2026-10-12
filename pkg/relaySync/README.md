@@ -31,3 +31,8 @@ Session routes are registered separately with `RegisterSessionService` and
 `HTTPClient.CompleteSession` (or `SessionService.Complete`) so the server can
 discard its session, snapshot and temporary reconciliation state. Checkpoints,
 when configured, are independent of that lifecycle.
+
+For Fiber v2, use `relaySync/fiber.RegisterServices` with the existing
+`*fiber.App`, an `HTTPAdapter`, the optional services and a
+`PrincipalResolver`. The adapter registers under `/sync/v2` and never creates
+a second listener or configures TLS/HTTP2.
