@@ -101,7 +101,24 @@ func writeSessionError(w http.ResponseWriter, err error) {
 	if err == ErrNotFound {
 		status = http.StatusNotFound
 	}
-	http.Error(w, err.Error(), status)
+	code := relaysyncv2.ProtocolErrorCode_PROTOCOL_ERROR_INTERNAL
+	if err == ErrUnauthorized || err == ErrSessionToken {
+		code = relaysyncv2.ProtocolErrorCode_PROTOCOL_ERROR_UNAUTHORIZED
+	}
+	if err == ErrConflict {
+		code = relaysyncv2.ProtocolErrorCode_PROTOCOL_ERROR_INVALID_MESSAGE
+	}
+	if err == ErrSnapshotExpired {
+		code = relaysyncv2.ProtocolErrorCode_PROTOCOL_ERROR_SNAPSHOT_EXPIRED
+	}
+	w.Header().Set("Content-Type", protobufMediaType)
+	encoded, marshalErr := proto.Marshal(&relaysyncv2.ErrorResponse{Code: code, Message: err.Error(), Retryable: status >= 500})
+	if marshalErr != nil {
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(status)
+	_, _ = w.Write(encoded)
 }
 
 func writeProto(w http.ResponseWriter, message proto.Message) {
