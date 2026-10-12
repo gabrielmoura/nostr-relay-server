@@ -29,8 +29,13 @@ func runRelaySyncIfAvailable(ctx context.Context, cfg *ConfSync) (*SyncResult, b
 	if err != nil {
 		return nil, false, nil
 	}
-	httpTimeout := 15 * time.Second
-	if cfg.Timeout > 0 && cfg.Timeout < httpTimeout {
+	// Manifest generation is a bounded but potentially expensive database
+	// operation. A short fixed timeout aborts valid synchronizations before the
+	// first page is produced. The CLI timeout is an explicit operator choice;
+	// without it, allow a generous per-request budget while the context still
+	// controls cancellation and shutdown.
+	httpTimeout := 5 * time.Minute
+	if cfg.Timeout > 0 {
 		httpTimeout = cfg.Timeout
 	}
 	client, err := core.NewHTTPClient(core.HTTPClientOptions{
