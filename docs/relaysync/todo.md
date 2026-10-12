@@ -66,7 +66,7 @@ adiado com justificativa. Este checklist não transforma plano em capacidade.
 - [x] Implementar manifest pagination.
 - [ ] Implementar reconcile HTTP orchestration.
 - [x] Implementar events pull/push.
-- [ ] Implementar complete/delete.
+- [x] Implementar complete/delete e descarte de ciclo.
 - [x] Implementar cliente com `http.Client` injetável/reutilizado.
 - [ ] Propagar deadlines/cancelamento.
 - [ ] Implementar idempotency e typed errors.

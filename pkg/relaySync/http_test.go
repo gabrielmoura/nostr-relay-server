@@ -1,6 +1,9 @@
 package relaysync
 
 import (
+	"bytes"
+	"context"
+	"encoding/base64"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -109,5 +112,58 @@ func TestHTTPAdapterRejectsNonGET(t *testing.T) {
 func TestNewHTTPAdapterRejectsNilCapabilities(t *testing.T) {
 	if _, err := NewHTTPAdapter(nil); err != ErrNilCapabilities {
 		t.Fatalf("NewHTTPAdapter(nil) error = %v, want %v", err, ErrNilCapabilities)
+	}
+}
+
+func TestHTTPAdapterCompletesFiniteSession(t *testing.T) {
+	store := NewMemorySessionStore(nil)
+	authorizer := NewMemoryPeerAuthorizer()
+	scope := Scope{Name: "public", Version: 1}
+	principal := Principal{ID: "peer-a"}
+	authorizer.Grant(principal, AuthorizedScope{Scope: scope, Actions: []Action{ActionOpenSession}})
+	service, err := NewSessionService(SessionServiceOptions{Store: store, Authorizer: authorizer})
+	if err != nil {
+		t.Fatal(err)
+	}
+	opened, err := service.Open(context.Background(), principal, &relaysyncv2.OpenSessionRequest{
+		ProtocolVersion: 2,
+		Scope:           &relaysyncv2.Scope{Name: scope.Name, Version: scope.Version},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var id SessionID
+	copy(id[:], opened.SessionId)
+	mux := http.NewServeMux()
+	adapter, err := NewHTTPAdapter(&relaysyncv2.Capabilities{ProtocolVersions: []uint32{2}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := adapter.RegisterSessionService(mux, service, func(*http.Request) (Principal, bool) {
+		return principal, true
+	}); err != nil {
+		t.Fatal(err)
+	}
+	body, err := proto.Marshal(&relaysyncv2.CompleteSessionRequest{SessionId: id[:]})
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := httptest.NewRequest(http.MethodPost, sessionsPath+"/"+base64.RawURLEncoding.EncodeToString(id[:])+"/complete", bytes.NewReader(body))
+	request.Header.Set("Content-Type", protobufMediaType)
+	request.Header.Set("Authorization", "Bearer "+base64.RawURLEncoding.EncodeToString(opened.ResumeToken))
+	response := httptest.NewRecorder()
+	mux.ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", response.Code, response.Body.String())
+	}
+	var completed relaysyncv2.CompleteSessionResponse
+	if err := proto.Unmarshal(response.Body.Bytes(), &completed); err != nil {
+		t.Fatal(err)
+	}
+	if !completed.GetComplete() {
+		t.Fatal("complete response was false")
+	}
+	if _, err := store.GetSession(context.Background(), id); err != ErrNotFound {
+		t.Fatalf("session after complete = %v, want ErrNotFound", err)
 	}
 }

@@ -1,6 +1,7 @@
 package relaysync
 
 import (
+	"bytes"
 	"encoding/base64"
 	"io"
 	"net/http"
@@ -103,6 +104,13 @@ func (a *HTTPAdapter) handleComplete(w http.ResponseWriter, r *http.Request, ser
 	if len(token) == 0 {
 		http.Error(w, "session token required", http.StatusUnauthorized)
 		return
+	}
+	if r.Body != nil && r.ContentLength != 0 {
+		var request relaysyncv2.CompleteSessionRequest
+		if err := readProtoBody(r, &request); err != nil || (len(request.SessionId) != 0 && !bytes.Equal(request.SessionId, id[:])) {
+			http.Error(w, "invalid protobuf", http.StatusBadRequest)
+			return
+		}
 	}
 	if err := service.Complete(r.Context(), principal, id, token); err != nil {
 		writeSessionError(w, err)
