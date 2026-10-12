@@ -40,9 +40,10 @@ type SessionService struct {
 }
 
 type sessionResult struct {
-	sessionID SessionID
-	response  *relaysyncv2.OpenSessionResponse
-	token     []byte
+	sessionID   SessionID
+	response    *relaysyncv2.OpenSessionResponse
+	token       []byte
+	requestHash [32]byte
 }
 
 func NewSessionService(options SessionServiceOptions) (*SessionService, error) {
@@ -78,11 +79,19 @@ func (s *SessionService) Open(ctx context.Context, principal Principal, request 
 		return nil, err
 	}
 	key := principal.ID + "\x00" + scope.Name + "\x00" + string(request.IdempotencyKey)
+	requestBytes, err := (proto.MarshalOptions{Deterministic: true}).Marshal(request)
+	if err != nil {
+		return nil, err
+	}
+	requestHash := sha256.Sum256(requestBytes)
 	if len(request.IdempotencyKey) > 0 {
 		s.mu.Lock()
 		existing, ok := s.idempotent[key]
 		s.mu.Unlock()
 		if ok {
+			if subtle.ConstantTimeCompare(existing.requestHash[:], requestHash[:]) != 1 {
+				return nil, ErrConflict
+			}
 			return cloneSessionResponse(existing.response), nil
 		}
 	}
@@ -118,7 +127,7 @@ func (s *SessionService) Open(ctx context.Context, principal Principal, request 
 	}
 	if len(request.IdempotencyKey) > 0 {
 		s.mu.Lock()
-		s.idempotent[key] = sessionResult{sessionID: id, response: cloneSessionResponse(response), token: append([]byte(nil), token...)}
+		s.idempotent[key] = sessionResult{sessionID: id, response: cloneSessionResponse(response), token: append([]byte(nil), token...), requestHash: requestHash}
 		s.mu.Unlock()
 	}
 	return response, nil

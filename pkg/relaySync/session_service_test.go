@@ -29,6 +29,11 @@ func TestSessionServiceIdempotencyAndTokenValidation(t *testing.T) {
 	if string(first.SessionId) != string(second.SessionId) || string(first.ResumeToken) != string(second.ResumeToken) {
 		t.Fatal("idempotent retry created a different session")
 	}
+	conflicting := *request
+	conflicting.Direction = relaysyncv2.SessionDirection_SESSION_DIRECTION_PUSH
+	if _, err := service.Open(context.Background(), Principal{ID: "peer-a"}, &conflicting); !errors.Is(err, ErrConflict) {
+		t.Fatalf("conflicting idempotency request error = %v, want ErrConflict", err)
+	}
 	var id SessionID
 	copy(id[:], first.SessionId)
 	if err := service.Delete(context.Background(), Principal{ID: "peer-a"}, id, []byte("wrong")); !errors.Is(err, ErrSessionToken) {
