@@ -78,6 +78,9 @@ func TestLiveSync_DoesNotReplayAfterDurableAck(t *testing.T) {
 	if read, err := reconnected.Pump(context.Background(), 10); err != nil || read != 0 {
 		t.Fatalf("Pump() = %d, %v; want 0, nil", read, err)
 	}
+	if err := reconnected.SetFlowControl(FlowControl{MaxEvents: 1, MaxBytes: 1024}); err != nil {
+		t.Fatalf("SetFlowControl() error = %v", err)
+	}
 	if _, err := reconnected.NextBatch(); !errors.Is(err, io.EOF) {
 		t.Fatalf("NextBatch() error = %v, want EOF", err)
 	}
