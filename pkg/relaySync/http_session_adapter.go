@@ -141,6 +141,9 @@ func writeSessionError(w http.ResponseWriter, err error) {
 	if err == ErrNotFound {
 		status = http.StatusNotFound
 	}
+	if err == ErrSessionExpired || err == ErrSnapshotExpired {
+		status = http.StatusGone
+	}
 	code := relaysyncv2.ProtocolErrorCode_PROTOCOL_ERROR_INTERNAL
 	if err == ErrUnauthorized || err == ErrSessionToken {
 		code = relaysyncv2.ProtocolErrorCode_PROTOCOL_ERROR_UNAUTHORIZED

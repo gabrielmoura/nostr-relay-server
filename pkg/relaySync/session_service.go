@@ -89,6 +89,16 @@ func (s *SessionService) Open(ctx context.Context, principal Principal, request 
 		existing, ok := s.idempotent[key]
 		s.mu.Unlock()
 		if ok {
+			if _, err := s.options.Store.GetSession(ctx, existing.sessionID); errors.Is(err, ErrNotFound) {
+				s.mu.Lock()
+				delete(s.idempotent, key)
+				s.mu.Unlock()
+				ok = false
+			} else if err != nil {
+				return nil, err
+			}
+		}
+		if ok {
 			if subtle.ConstantTimeCompare(existing.requestHash[:], requestHash[:]) != 1 {
 				return nil, ErrConflict
 			}
@@ -186,6 +196,9 @@ func (s *SessionService) Session(ctx context.Context, principal Principal, id Se
 	}
 	if record.Peer.ID != principal.ID {
 		return SessionRecord{}, ErrUnauthorized
+	}
+	if !record.ExpiresAt.After(s.options.Clock.Now()) {
+		return SessionRecord{}, ErrSessionExpired
 	}
 	return record, nil
 }
