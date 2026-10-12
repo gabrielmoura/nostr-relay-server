@@ -14,6 +14,17 @@ ws:
     burst: 5
     auth: true
     auth_mode: optional
+relay_sync:
+    enabled: true
+    http_enabled: true
+    snapshot_enabled: true
+    apply_enabled: true
+    catchup_enabled: false
+    live_enabled: false
+    projector_enabled: false
+    allowed_ips:
+        - 127.0.0.1/32
+        - ::1/128
 relay_information:
     url: http:/kqzk4pnydptareyj7b4uzxg4rqkeh6wmntcjuoppy6wv72nkj3na2vad.onion
     name: Nostr Relay Server
