@@ -61,13 +61,13 @@ adiado com justificativa. Este checklist não transforma plano em capacidade.
 
 ## Fase 3 — HTTP e zstd
 
-- [ ] Implementar capabilities.
-- [ ] Implementar sessions.
-- [ ] Implementar manifest pagination.
-- [ ] Implementar reconcile.
-- [ ] Implementar events pull/push.
+- [x] Implementar capabilities.
+- [x] Implementar sessions.
+- [x] Implementar manifest pagination.
+- [ ] Implementar reconcile HTTP orchestration.
+- [x] Implementar events pull/push.
 - [ ] Implementar complete/delete.
-- [ ] Implementar cliente com `http.Client` injetável/reutilizado.
+- [x] Implementar cliente com `http.Client` injetável/reutilizado.
 - [ ] Propagar deadlines/cancelamento.
 - [ ] Implementar idempotency e typed errors.
 - [x] Implementar zstd negociado, threshold e output limits.
@@ -81,11 +81,11 @@ adiado com justificativa. Este checklist não transforma plano em capacidade.
 - [ ] Implementar cabeçalho WS binário de 8 bytes.
 - [ ] Implementar hello/subprotocol/compression negotiation.
 - [ ] Implementar subscribe e replay após watermark.
-- [ ] Implementar DeltaBatch e JournalChange.
-- [ ] Implementar ACK cumulativo contíguo.
-- [ ] Implementar FlowControl e fila bounded.
-- [ ] Implementar heartbeat/timeouts.
-- [ ] Implementar ReconcileRequired para gap/epoch/scope.
+- [x] Implementar DeltaBatch e JournalChange no core live.
+- [x] Implementar ACK cumulativo contíguo.
+- [x] Implementar FlowControl e fila bounded.
+- [x] Implementar heartbeat/timeouts.
+- [x] Implementar ReconcileRequired para gap/epoch/scope.
 - [ ] Implementar reconexão/checkpoint.
 - [ ] Testar queda antes/depois de ACK.
 - [ ] Testar rejeição permanente e falha temporária.
