@@ -121,7 +121,8 @@ adiado com justificativa. Este checklist não transforma plano em capacidade.
 - [ ] Validar migration/schema/índices/rollback em PostgreSQL real.
 - [x] Implementar descarte de sessão/snapshot/idempotência ao completar ciclo.
 - [ ] Validar ciclo finito ponta a ponta com retry e expiração.
-- [ ] Implementar journal cobrindo todas as mutações.
+- [x] Implementar leitura streaming do journal PostgreSQL por cursor/escopo.
+- [ ] Completar cobertura do journal para todas as mutações em produção.
 - [x] Integrar projector ao lifecycle supervisionado do NRServer (desabilitado por default).
 - [ ] Testar restart, retention, gap, epoch e commit order.
 - [ ] Implementar checkpoint persistente.

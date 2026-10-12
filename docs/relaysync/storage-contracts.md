@@ -190,6 +190,11 @@ por `deleted_by`. Ela cobre os writers atuais sem dual-write Redis. O pacote
 de ser supervisionado. Até esses gates passarem, o live sync permanece
 desligado.
 
+O adapter `infra/db` também fornece `RelaySyncJournalProvider`, que lê as
+mudanças com `pgx.Rows`, filtrando epoch, escopo e cursor sem materializar toda
+a retenção em memória. A cobertura operacional completa ainda depende da
+validação em PostgreSQL real.
+
 ### Ciclos finitos e estado temporário
 
 `SessionStore` pode ser durável para distribuição, mas a implementação deve
