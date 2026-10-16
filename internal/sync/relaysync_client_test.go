@@ -2,15 +2,142 @@ package sync
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/gabrielmoura/nostr-relay-server/config"
 	core "github.com/gabrielmoura/nostr-relay-server/pkg/relaySync"
 	relaysyncv2 "github.com/gabrielmoura/nostr-relay-server/pkg/relaySync/proto/relaysync/v2"
 	"github.com/nbd-wtf/go-nostr"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest/observer"
 )
+
+func TestRelaySyncProgressLogsLifecycleAndCounters(t *testing.T) {
+	core, observed := observer.New(zap.DebugLevel)
+	progress := newRelaySyncProgress(zap.New(core), DirectionBoth)
+
+	progress.start(3)
+	progress.manifestPage(&relaysyncv2.Manifest{
+		Partitions: []*relaysyncv2.PartitionSummary{{
+			Partition: &relaysyncv2.Partition{EventCount: 4},
+		}},
+	})
+	progress.manifestComplete()
+	progress.partitionStarted(&relaysyncv2.PartitionSummary{
+		Partition: &relaysyncv2.Partition{Bucket: 123, PrefixBits: 8, Prefix: []byte{0xab}, EventCount: 4},
+	}, 2)
+	progress.partitionComplete(time.Now(), 2, &relaysyncv2.PartitionSummary{
+		Partition: &relaysyncv2.Partition{EventCount: 4},
+	}, 1, 2, nil)
+	progress.pullBatchStarted(2)
+	progress.pullBatchCompleted(2, 2, time.Millisecond)
+	progress.pushBatchStarted(1)
+	progress.pushBatchCompleted(1, time.Millisecond)
+	progress.complete(nil)
+
+	entries := observed.All()
+	if len(entries) != 10 {
+		t.Fatalf("log entries = %d, want 10", len(entries))
+	}
+	if entries[0].Message != "RelaySync v2 sync started" {
+		t.Fatalf("first message = %q", entries[0].Message)
+	}
+	if entries[1].Message != "RelaySync v2 manifest page discovered" {
+		t.Fatalf("manifest page message = %q", entries[1].Message)
+	}
+	if got := entries[1].ContextMap()["remote_partitions_discovered"]; got != int64(1) {
+		t.Fatalf("remote_partitions_discovered = %#v, want 1", got)
+	}
+	if entries[3].Message != "RelaySync v2 partition reconciliation started" {
+		t.Fatalf("partition start message = %q", entries[3].Message)
+	}
+	if got := entries[3].ContextMap()["partition_prefix"]; got != "ab" {
+		t.Fatalf("partition_prefix = %#v, want ab", got)
+	}
+	if entries[4].Message != "RelaySync v2 partition reconciliation completed" {
+		t.Fatalf("partition completion message = %q", entries[4].Message)
+	}
+	partitionFields := entries[4].ContextMap()
+	if partitionFields["have_count"] != int64(1) || partitionFields["need_count"] != int64(2) {
+		t.Fatalf("partition counts = %#v, want have=1 need=2", partitionFields)
+	}
+	if entries[9].Message != "RelaySync v2 sync completed" {
+		t.Fatalf("completion message = %q", entries[9].Message)
+	}
+	completionFields := entries[9].ContextMap()
+	if completionFields["pulled_events_total"] != int64(2) || completionFields["sent_events_total"] != int64(1) {
+		t.Fatalf("completion counters = %#v, want pulled=2 sent=1", completionFields)
+	}
+	for _, entry := range entries {
+		if _, exists := entry.ContextMap()["event_id"]; exists {
+			t.Fatalf("progress log %q must not include an event ID", entry.Message)
+		}
+	}
+}
+
+func TestRelaySyncFailureContinuationPolicy(t *testing.T) {
+	cancelled, cancel := context.WithCancel(context.Background())
+	cancel()
+	tests := []struct {
+		name string
+		ctx  context.Context
+		err  error
+		want bool
+	}{
+		{name: "partition storage failure", ctx: context.Background(), err: partitionRelaySyncError("store_pull", errors.New("database unavailable")), want: true},
+		{name: "remote invalid data", ctx: context.Background(), err: partitionRelaySyncError("pull", errors.New("invalid event")), want: true},
+		{name: "unauthorized session", ctx: context.Background(), err: partitionRelaySyncError("reconcile", &core.HTTPResponseError{StatusCode: http.StatusUnauthorized}), want: false},
+		{name: "conflicting operation", ctx: context.Background(), err: partitionRelaySyncError("push", &core.HTTPResponseError{StatusCode: http.StatusConflict}), want: false},
+		{name: "expired snapshot", ctx: context.Background(), err: partitionRelaySyncError("pull", &core.HTTPResponseError{StatusCode: http.StatusGone}), want: false},
+		{name: "invalid receipt", ctx: context.Background(), err: partitionRelaySyncError("push", fmt.Errorf("%w: mismatched receipt", errRelaySyncIntegrity)), want: false},
+		{name: "cancelled", ctx: cancelled, err: partitionRelaySyncError("reconcile", errors.New("network")), want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := shouldContinueRelaySyncFailure(tt.ctx, tt.err); got != tt.want {
+				t.Fatalf("shouldContinueRelaySyncFailure() = %t, want %t", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestRetryRelaySyncReadRetriesOnlyWhenResilienceIsEnabled(t *testing.T) {
+	previous := config.Cfg
+	t.Cleanup(func() { config.Cfg = previous })
+	config.Cfg = &config.Config{RelaySync: config.RelaySyncConfig{Client: config.RelaySyncClientConfig{Resilience: config.RelaySyncResilienceConfig{Enabled: true, MaxAttempts: 2, InitialBackoffMilliseconds: 1, MaxBackoffMilliseconds: 1}}}}
+	attempts := 0
+	value, err := retryRelaySyncRead(context.Background(), "pull", func() (string, error) {
+		attempts++
+		if attempts == 1 {
+			return "", &core.HTTPResponseError{StatusCode: http.StatusServiceUnavailable}
+		}
+		return "ok", nil
+	})
+	if err != nil || value != "ok" || attempts != 2 {
+		t.Fatalf("retryRelaySyncRead() = %q, %v after %d attempts", value, err, attempts)
+	}
+}
+
+func TestRelaySyncProgressFailureIncludesPhaseAndPartition(t *testing.T) {
+	core, observed := observer.New(zap.ErrorLevel)
+	progress := newRelaySyncProgress(zap.New(core), DirectionDown)
+	progress.partitionFailed("pull", &relaysyncv2.PartitionSummary{Partition: &relaysyncv2.Partition{Bucket: 7, PrefixBits: 8, Prefix: []byte{0xcd}}}, errors.New("invalid remote event"))
+
+	entries := observed.All()
+	if len(entries) != 1 {
+		t.Fatalf("log entries = %d, want 1", len(entries))
+	}
+	fields := entries[0].ContextMap()
+	if fields["phase"] != "pull" || fields["partition_prefix"] != "cd" || fields["partitions_failed"] != int64(1) {
+		t.Fatalf("failure fields = %#v", fields)
+	}
+}
 
 func TestRelaySyncHTTPURL(t *testing.T) {
 	tests := []struct {

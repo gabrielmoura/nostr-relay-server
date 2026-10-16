@@ -108,6 +108,13 @@ func (c *HTTPClient) CompleteSession(ctx context.Context, id SessionID, token []
 	return nil
 }
 
+// DeleteSession abandons an unfinished finite synchronization cycle and
+// releases its remote snapshot. It is intentionally separate from completion:
+// a partial client result must never be reported as a completed session.
+func (c *HTTPClient) DeleteSession(ctx context.Context, id SessionID, token []byte) error {
+	return c.doSessionProto(ctx, http.MethodDelete, id, "", token, nil, nil)
+}
+
 // ManifestNext requests the next bounded manifest page for a session.
 func (c *HTTPClient) ManifestNext(ctx context.Context, id SessionID, token []byte, request *relaysyncv2.ManifestRequest) (*relaysyncv2.Manifest, error) {
 	if request == nil {
@@ -212,6 +219,9 @@ func (c *HTTPClient) doProtoWithHeaders(ctx context.Context, method, path string
 			}
 		}
 		return errorResponse
+	}
+	if response == nil {
+		return nil
 	}
 	if !isProtobufContentType(httpResponse.Header.Get("Content-Type")) {
 		return fmt.Errorf("%w: %q", ErrUnexpectedContentType, httpResponse.Header.Get("Content-Type"))

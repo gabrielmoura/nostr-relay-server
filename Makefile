@@ -68,6 +68,13 @@ linux-pc: build-prerequisites ## Build para Linux PC (x86-64)
 	GOOS=linux GOARCH=amd64 GOAMD64=v2 CGO_ENABLED=0 \
 		go build $(COMMON_FLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)-linux-amd64 $(CMD_PATH)
 
+.PHONY: binary
+binary: ## Build apenas o binário Linux x86-64, sem reconstruir o dashboard
+	@echo "==> Building $(BINARY_NAME) $(VERSION) for linux/amd64 (binary only)"
+	@mkdir -p $(BUILD_DIR)
+	GOOS=linux GOARCH=amd64 GOAMD64=v2 CGO_ENABLED=0 \
+		go build $(COMMON_FLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)-linux-amd64 $(CMD_PATH)
+
 .PHONY: linux-rpi
 linux-rpi: build-prerequisites ## Build para Linux Raspberry Pi (ARM64)
 	@echo "==> Building $(BINARY_NAME) $(VERSION) for linux/arm64"

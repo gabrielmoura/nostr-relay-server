@@ -109,6 +109,13 @@ func setDefaults(export bool) {
 	viper.SetDefault("relay_sync.outbox_retention_seconds", 86400)
 	viper.SetDefault("relay_sync.journal_retention_seconds", 604800)
 	viper.SetDefault("relay_sync.retention_batch_size", 1000)
+	viper.SetDefault("relay_sync.client.resilience.enabled", false)
+	viper.SetDefault("relay_sync.client.resilience.max_attempts", 3)
+	viper.SetDefault("relay_sync.client.resilience.initial_backoff_milliseconds", 250)
+	viper.SetDefault("relay_sync.client.resilience.max_backoff_milliseconds", 5000)
+	viper.SetDefault("relay_sync.client.fetch_then_subscribe.enabled", false)
+	viper.SetDefault("relay_sync.client.multi_relay.enabled", false)
+	viper.SetDefault("relay_sync.client.multi_relay.max_parallel_relays", 1)
 
 	viper.SetDefault("relay_information.name", "Nostr Relay Server")
 	viper.SetDefault("relay_information.description", "A Nostr Relay Server")

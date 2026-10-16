@@ -6,7 +6,10 @@ import (
 	"crypto/rand"
 	"encoding/binary"
 	"encoding/hex"
+	"errors"
 	"fmt"
+	randv2 "math/rand/v2"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -23,6 +26,11 @@ import (
 	"github.com/nbd-wtf/go-nostr"
 	"go.uber.org/zap"
 )
+
+const relaySyncProgressLogInterval = 25
+const relaySyncSessionCleanupTimeout = 10 * time.Second
+
+var errRelaySyncIntegrity = errors.New("RelaySync response integrity failure")
 
 // runRelaySyncIfAvailable probes the independent RelaySync v2 endpoint before
 // opening the existing NIP-77 flow. NIP-77 state and message handling are not
@@ -104,7 +112,12 @@ func containsVersion(versions []uint32, want uint32) bool {
 	return false
 }
 
-func runRelaySyncHTTP(ctx context.Context, client *core.HTTPClient, cfg *ConfSync) (*SyncResult, error) {
+func runRelaySyncHTTP(ctx context.Context, client *core.HTTPClient, cfg *ConfSync) (result *SyncResult, err error) {
+	progress := newRelaySyncProgress(log.Logger, cfg.Direction)
+	defer func() {
+		progress.complete(err)
+	}()
+
 	if internaldb.DbQueries == nil {
 		return nil, fmt.Errorf("database is not initialized")
 	}
@@ -127,6 +140,7 @@ func runRelaySyncHTTP(ctx context.Context, client *core.HTTPClient, cfg *ConfSyn
 		identity := core.PartitionIdentity(partition)
 		localPartitions[string(identity[:])] = partition
 	}
+	progress.start(len(localPartitions))
 
 	var idempotency [16]byte
 	if _, err := rand.Read(idempotency[:]); err != nil {
@@ -148,7 +162,15 @@ func runRelaySyncHTTP(ctx context.Context, client *core.HTTPClient, cfg *ConfSyn
 	copy(sessionID[:], opened.GetSessionId())
 	token := opened.GetResumeToken()
 	defer func() {
-		if cleanupErr := client.CompleteSession(context.Background(), sessionID, token); cleanupErr != nil {
+		cleanupCtx, cancel := context.WithTimeout(context.Background(), relaySyncSessionCleanupTimeout)
+		defer cancel()
+		if err != nil {
+			if cleanupErr := client.DeleteSession(cleanupCtx, sessionID, token); cleanupErr != nil && log.Logger != nil {
+				log.Logger.Warn("failed to abandon unfinished RelaySync session", zap.Error(cleanupErr))
+			}
+			return
+		}
+		if cleanupErr := client.CompleteSession(cleanupCtx, sessionID, token); cleanupErr != nil {
 			if log.Logger != nil {
 				log.Logger.Warn("failed to clean up RelaySync session", zap.Error(cleanupErr))
 			}
@@ -162,13 +184,29 @@ func runRelaySyncHTTP(ctx context.Context, client *core.HTTPClient, cfg *ConfSyn
 	manifestCtx, cancelManifest := context.WithCancel(ctx)
 	defer cancelManifest()
 	seenRemote := make(map[string]struct{}, len(localPartitions))
+	partialFailures := &relaySyncPartialFailures{}
+	manifestComplete := true
 	for result := range streamRelaySyncManifest(manifestCtx, client, sessionID, token, snapshotVersion, 10) {
 		if result.err != nil {
-			return nil, fmt.Errorf("read RelaySync manifest: %w", result.err)
+			manifestErr := fmt.Errorf("read RelaySync manifest: %w", result.err)
+			if !shouldContinueRelaySyncFailure(ctx, manifestErr) || !relaySyncResilienceEnabled() {
+				return nil, manifestErr
+			}
+			manifestComplete = false
+			partialFailures.add("manifest", nil, manifestErr)
+			progress.partitionFailed("manifest", nil, manifestErr)
+			break
 		}
-		for _, summary := range result.page.GetPartitions() {
+		progress.manifestPage(result.page)
+		for index, summary := range result.page.GetPartitions() {
 			if summary == nil || summary.GetPartition() == nil || len(summary.GetPartition().GetId()) != 32 {
-				return nil, fmt.Errorf("remote returned invalid RelaySync partition")
+				invalidErr := fmt.Errorf("remote returned invalid RelaySync partition at manifest index %d", index)
+				if !relaySyncResilienceEnabled() {
+					return nil, invalidErr
+				}
+				partialFailures.add("manifest", nil, invalidErr)
+				progress.partitionFailed("manifest", nil, invalidErr)
+				continue
 			}
 			rawID := string(summary.GetPartition().GetId())
 			seenRemote[rawID] = struct{}{}
@@ -177,34 +215,392 @@ func runRelaySyncHTTP(ctx context.Context, client *core.HTTPClient, cfg *ConfSyn
 			if exists {
 				localItems, err = readPartitionMetadata(ctx, localSnapshot, partition)
 				if err != nil {
-					return nil, err
+					metadataErr := partitionRelaySyncError("local_metadata", err)
+					if !shouldContinueRelaySyncFailure(ctx, metadataErr) || !relaySyncResilienceEnabled() {
+						return nil, metadataErr
+					}
+					partialFailures.add("local_metadata", summary, metadataErr)
+					progress.partitionFailed("local_metadata", summary, metadataErr)
+					continue
 				}
 			}
+			progress.partitionStarted(summary, len(localItems))
 			var partitionID [32]byte
 			copy(partitionID[:], summary.GetPartition().GetId())
-			if err := syncRelayPartition(ctx, client, cfg, sessionID, token, localSnapshot, partitionID, localItems, summary); err != nil {
-				return nil, err
+			if err := syncRelayPartition(ctx, client, cfg, sessionID, token, localSnapshot, partitionID, localItems, summary, progress); err != nil {
+				if !shouldContinueRelaySyncFailure(ctx, err) || !relaySyncResilienceEnabled() {
+					return nil, err
+				}
+				partialFailures.add(relaySyncFailurePhase(err), summary, err)
+				progress.partitionFailed(relaySyncFailurePhase(err), summary, err)
+				continue
 			}
 		}
 	}
-	if cfg.Direction.DoUp() {
+	progress.manifestComplete()
+	if cfg.Direction.DoUp() && manifestComplete {
 		for rawID, partition := range localPartitions {
 			if _, exists := seenRemote[rawID]; exists {
 				continue
 			}
+			localSummary := relaySyncSummaryForLocalPartition(partition)
 			localItems, err := readPartitionMetadata(ctx, localSnapshot, partition)
 			if err != nil {
-				return nil, err
+				metadataErr := partitionRelaySyncError("local_metadata", err)
+				if !shouldContinueRelaySyncFailure(ctx, metadataErr) || !relaySyncResilienceEnabled() {
+					return nil, metadataErr
+				}
+				partialFailures.add("local_metadata", localSummary, metadataErr)
+				progress.partitionFailed("local_metadata", localSummary, metadataErr)
+				continue
 			}
 			ids := metadataIDs(localItems)
 			var partitionID [32]byte
 			copy(partitionID[:], rawID)
-			if err := pushSnapshotIDs(ctx, client, sessionID, token, localSnapshot, partitionID, ids); err != nil {
-				return nil, err
+			if err := pushSnapshotIDs(ctx, client, sessionID, token, localSnapshot, partitionID, ids, progress); err != nil {
+				if !shouldContinueRelaySyncFailure(ctx, err) || !relaySyncResilienceEnabled() {
+					return nil, err
+				}
+				partialFailures.add(relaySyncFailurePhase(err), localSummary, err)
+				progress.partitionFailed(relaySyncFailurePhase(err), localSummary, err)
 			}
 		}
 	}
+	if !manifestComplete {
+		progress.info("RelaySync v2 skipped local-only partitions because manifest was incomplete")
+	}
+	if partialFailures.len() > 0 {
+		return nil, partialFailures
+	}
 	return &SyncResult{Filter: filtersToAny(cfg.LocalFilter)}, nil
+}
+
+func relaySyncSummaryForLocalPartition(partition core.PartitionKey) *relaysyncv2.PartitionSummary {
+	identity := core.PartitionIdentity(partition)
+	return &relaysyncv2.PartitionSummary{Partition: &relaysyncv2.Partition{
+		Id:               identity[:],
+		AlgorithmVersion: partition.AlgorithmVersion,
+		Bucket:           partition.Bucket,
+		PrefixBits:       uint32(partition.PrefixBits),
+		Prefix:           append([]byte(nil), partition.Prefix[:]...),
+	}}
+}
+
+func relaySyncResilienceEnabled() bool {
+	return config.Cfg != nil && config.Cfg.RelaySync.Client.Resilience.Enabled
+}
+
+type relaySyncPartitionError struct {
+	phase string
+	err   error
+}
+
+func (e *relaySyncPartitionError) Error() string {
+	return fmt.Sprintf("RelaySync %s: %v", e.phase, e.err)
+}
+func (e *relaySyncPartitionError) Unwrap() error { return e.err }
+
+func partitionRelaySyncError(phase string, err error) error {
+	if err == nil {
+		return nil
+	}
+	return &relaySyncPartitionError{phase: phase, err: err}
+}
+
+func relaySyncFailurePhase(err error) string {
+	var partitionErr *relaySyncPartitionError
+	if errors.As(err, &partitionErr) {
+		return partitionErr.phase
+	}
+	return "partition"
+}
+
+// Authentication, session lifecycle and receipt-integrity failures mean the
+// client cannot safely reason about the rest of this finite cycle. Other
+// partition-scoped failures are recorded as partial progress when resilience
+// is enabled.
+func shouldContinueRelaySyncFailure(ctx context.Context, err error) bool {
+	if ctx.Err() != nil || errors.Is(err, context.Canceled) {
+		return false
+	}
+	if errors.Is(err, errRelaySyncIntegrity) {
+		return false
+	}
+	var responseErr *core.HTTPResponseError
+	if errors.As(err, &responseErr) {
+		switch responseErr.StatusCode {
+		case http.StatusUnauthorized, http.StatusForbidden, http.StatusConflict, http.StatusGone, http.StatusNotFound:
+			return false
+		}
+	}
+	return true
+}
+
+func retryRelaySyncRead[T any](ctx context.Context, phase string, action func() (T, error)) (T, error) {
+	var zero T
+	maxAttempts := 1
+	initialBackoff := 250 * time.Millisecond
+	maxBackoff := 5 * time.Second
+	if config.Cfg != nil && config.Cfg.RelaySync.Client.Resilience.Enabled {
+		resilience := config.Cfg.RelaySync.Client.Resilience
+		if resilience.MaxAttempts > 0 {
+			maxAttempts = resilience.MaxAttempts
+		}
+		if resilience.InitialBackoffMilliseconds > 0 {
+			initialBackoff = time.Duration(resilience.InitialBackoffMilliseconds) * time.Millisecond
+		}
+		if resilience.MaxBackoffMilliseconds >= resilience.InitialBackoffMilliseconds && resilience.MaxBackoffMilliseconds > 0 {
+			maxBackoff = time.Duration(resilience.MaxBackoffMilliseconds) * time.Millisecond
+		}
+	}
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		value, err := action()
+		if err == nil || !relaySyncRetryable(ctx, err) || attempt == maxAttempts {
+			return value, err
+		}
+		backoff := min(initialBackoff<<(attempt-1), maxBackoff)
+		delay := time.Duration(randv2.Int64N(int64(backoff) + 1))
+		if log.Logger != nil {
+			log.Logger.Warn("retrying RelaySync v2 read operation", zap.String("phase", phase), zap.Int("attempt", attempt+1), zap.Duration("delay", delay), zap.Error(err))
+		}
+		timer := time.NewTimer(delay)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return zero, ctx.Err()
+		case <-timer.C:
+		}
+	}
+	return zero, nil
+}
+
+func relaySyncRetryable(ctx context.Context, err error) bool {
+	if ctx.Err() != nil || errors.Is(err, context.Canceled) {
+		return false
+	}
+	var responseErr *core.HTTPResponseError
+	if errors.As(err, &responseErr) {
+		return responseErr.StatusCode == http.StatusRequestTimeout || responseErr.StatusCode == http.StatusTooEarly || responseErr.StatusCode == http.StatusTooManyRequests || responseErr.StatusCode >= http.StatusInternalServerError
+	}
+	if errors.Is(err, context.DeadlineExceeded) {
+		return true
+	}
+	var networkErr net.Error
+	return errors.As(err, &networkErr) && (networkErr.Timeout() || networkErr.Temporary())
+}
+
+type relaySyncPartialFailure struct {
+	phase     string
+	partition string
+	err       error
+}
+
+type relaySyncPartialFailures struct{ failures []relaySyncPartialFailure }
+
+func (f *relaySyncPartialFailures) add(phase string, summary *relaysyncv2.PartitionSummary, err error) {
+	partition := ""
+	if summary != nil && summary.GetPartition() != nil {
+		partition = hex.EncodeToString(summary.GetPartition().GetId())
+	}
+	f.failures = append(f.failures, relaySyncPartialFailure{phase: phase, partition: partition, err: err})
+}
+func (f *relaySyncPartialFailures) len() int { return len(f.failures) }
+func (f *relaySyncPartialFailures) Error() string {
+	return fmt.Sprintf("RelaySync v2 completed with %d unresolved partition failure(s)", len(f.failures))
+}
+
+// relaySyncProgress keeps one bounded, operator-facing summary for a RelaySync
+// v2 run. It deliberately records counts rather than event identifiers,
+// payloads, session tokens, or remote-provided messages.
+type relaySyncProgress struct {
+	logger    *zap.Logger
+	direction Direction
+	startedAt time.Time
+
+	localPartitions     int
+	manifestPages       int
+	remotePartitions    int
+	completedPartitions int
+	failedPartitions    int
+	pullBatches         int
+	pulledEvents        int
+	pushBatches         int
+	pushedEvents        int
+}
+
+func newRelaySyncProgress(logger *zap.Logger, direction Direction) *relaySyncProgress {
+	return &relaySyncProgress{logger: logger, direction: direction, startedAt: time.Now()}
+}
+
+func (p *relaySyncProgress) start(localPartitions int) {
+	p.localPartitions = localPartitions
+	p.info("RelaySync v2 sync started",
+		zap.String("direction", string(p.direction)),
+		zap.Int("local_partition_count", localPartitions),
+	)
+}
+
+func (p *relaySyncProgress) manifestPage(page *relaysyncv2.Manifest) {
+	partitions := len(page.GetPartitions())
+	p.manifestPages++
+	p.remotePartitions += partitions
+	p.debug("RelaySync v2 manifest page discovered",
+		zap.Int("manifest_page", p.manifestPages),
+		zap.Int("partition_count", partitions),
+		zap.Int("remote_partitions_discovered", p.remotePartitions),
+		zap.Bool("complete", page.GetComplete()),
+	)
+}
+
+func (p *relaySyncProgress) manifestComplete() {
+	p.info("RelaySync v2 manifest discovery completed",
+		zap.Int("manifest_pages", p.manifestPages),
+		zap.Int("remote_partition_count", p.remotePartitions),
+		zap.Duration("elapsed", time.Since(p.startedAt)),
+	)
+}
+
+func (p *relaySyncProgress) partitionStarted(remote *relaysyncv2.PartitionSummary, localCount int) {
+	partition := remote.GetPartition()
+	p.debug("RelaySync v2 partition reconciliation started",
+		zap.Int64("partition_bucket", partition.GetBucket()),
+		zap.Uint32("partition_prefix_bits", partition.GetPrefixBits()),
+		zap.String("partition_prefix", hex.EncodeToString(partition.GetPrefix())),
+		zap.Int("local_event_count", localCount),
+		zap.Uint64("remote_event_count", partition.GetEventCount()),
+		zap.Int("partitions_completed", p.completedPartitions),
+		zap.Int("remote_partitions_discovered", p.remotePartitions),
+	)
+}
+
+func (p *relaySyncProgress) partitionComplete(startedAt time.Time, localCount int, remote *relaysyncv2.PartitionSummary, have, need int, err error) {
+	partition := remote.GetPartition()
+	fields := []zap.Field{
+		zap.Int64("partition_bucket", partition.GetBucket()),
+		zap.Uint32("partition_prefix_bits", partition.GetPrefixBits()),
+		zap.String("partition_prefix", hex.EncodeToString(partition.GetPrefix())),
+		zap.Int("local_event_count", localCount),
+		zap.Uint64("remote_event_count", partition.GetEventCount()),
+		zap.Int("have_count", have),
+		zap.Int("need_count", need),
+		zap.Duration("elapsed", time.Since(startedAt)),
+	}
+	if err != nil {
+		fields = append(fields, zap.Error(err))
+		p.error("RelaySync v2 partition reconciliation failed", fields...)
+		return
+	}
+	p.completedPartitions++
+	fields = append(fields, zap.Int("partitions_completed", p.completedPartitions))
+	p.debug("RelaySync v2 partition reconciliation completed", fields...)
+	if p.completedPartitions%relaySyncProgressLogInterval == 0 {
+		p.info("RelaySync v2 sync progress checkpoint", fields...)
+	}
+}
+
+func (p *relaySyncProgress) partitionFailed(phase string, remote *relaysyncv2.PartitionSummary, err error) {
+	p.failedPartitions++
+	fields := []zap.Field{
+		zap.String("phase", phase),
+		zap.Int("partitions_failed", p.failedPartitions),
+		zap.Error(err),
+	}
+	if remote != nil && remote.GetPartition() != nil {
+		partition := remote.GetPartition()
+		fields = append(fields,
+			zap.Int64("partition_bucket", partition.GetBucket()),
+			zap.Uint32("partition_prefix_bits", partition.GetPrefixBits()),
+			zap.String("partition_prefix", hex.EncodeToString(partition.GetPrefix())),
+		)
+	}
+	p.error("RelaySync v2 partition skipped after recoverable failure", fields...)
+}
+
+func (p *relaySyncProgress) pullBatchStarted(batchSize int) {
+	p.debug("RelaySync v2 pull batch started",
+		zap.Int("batch_size", batchSize),
+		zap.Int("pull_batch", p.pullBatches+1),
+		zap.Int("pulled_events_total", p.pulledEvents),
+	)
+}
+
+func (p *relaySyncProgress) pullBatchCompleted(batchSize, received int, elapsed time.Duration) {
+	p.pullBatches++
+	p.pulledEvents += received
+	p.debug("RelaySync v2 pull batch completed",
+		zap.Int("requested_event_count", batchSize),
+		zap.Int("received_event_count", received),
+		zap.Int("pull_batch", p.pullBatches),
+		zap.Int("pulled_events_total", p.pulledEvents),
+		zap.Duration("elapsed", elapsed),
+	)
+}
+
+func (p *relaySyncProgress) pullEventRejected(batchOffset int, code string, err error) {
+	p.error("RelaySync v2 pulled event rejected",
+		zap.String("phase", "validate_remote_event"),
+		zap.Int("batch_offset", batchOffset),
+		zap.String("code", code),
+		zap.Error(err),
+	)
+}
+
+func (p *relaySyncProgress) pushBatchStarted(batchSize int) {
+	p.debug("RelaySync v2 push batch started",
+		zap.Int("batch_size", batchSize),
+		zap.Int("push_batch", p.pushBatches+1),
+		zap.Int("sent_events_total", p.pushedEvents),
+	)
+}
+
+func (p *relaySyncProgress) pushBatchCompleted(batchSize int, elapsed time.Duration) {
+	p.pushBatches++
+	p.pushedEvents += batchSize
+	p.debug("RelaySync v2 push batch completed",
+		zap.Int("sent_event_count", batchSize),
+		zap.Int("push_batch", p.pushBatches),
+		zap.Int("sent_events_total", p.pushedEvents),
+		zap.Duration("elapsed", elapsed),
+	)
+}
+
+func (p *relaySyncProgress) complete(err error) {
+	fields := []zap.Field{
+		zap.Int("local_partition_count", p.localPartitions),
+		zap.Int("manifest_pages", p.manifestPages),
+		zap.Int("remote_partition_count", p.remotePartitions),
+		zap.Int("partitions_completed", p.completedPartitions),
+		zap.Int("partitions_failed", p.failedPartitions),
+		zap.Int("pull_batches", p.pullBatches),
+		zap.Int("pulled_events_total", p.pulledEvents),
+		zap.Int("push_batches", p.pushBatches),
+		zap.Int("sent_events_total", p.pushedEvents),
+		zap.Duration("elapsed", time.Since(p.startedAt)),
+	}
+	if err != nil {
+		fields = append(fields, zap.Error(err))
+		p.error("RelaySync v2 sync failed", fields...)
+		return
+	}
+	p.info("RelaySync v2 sync completed", fields...)
+}
+
+func (p *relaySyncProgress) info(message string, fields ...zap.Field) {
+	if p.logger != nil {
+		p.logger.Info(message, fields...)
+	}
+}
+
+func (p *relaySyncProgress) error(message string, fields ...zap.Field) {
+	if p.logger != nil {
+		p.logger.Error(message, fields...)
+	}
+}
+
+func (p *relaySyncProgress) debug(message string, fields ...zap.Field) {
+	if p.logger != nil {
+		p.logger.Debug(message, fields...)
+	}
 }
 
 type manifestPageResult struct {
@@ -228,7 +624,9 @@ func streamRelaySyncManifest(ctx context.Context, client *core.HTTPClient, id co
 				offset := next.Add(1) - 1
 				continuation := make([]byte, 8)
 				binary.BigEndian.PutUint64(continuation, offset)
-				page, err := client.ManifestNext(ctx, id, token, &relaysyncv2.ManifestRequest{SessionId: id[:], SnapshotVersion: snapshot, Continuation: continuation, MaxPartitions: 1})
+				page, err := retryRelaySyncRead(ctx, "manifest", func() (*relaysyncv2.Manifest, error) {
+					return client.ManifestNext(ctx, id, token, &relaysyncv2.ManifestRequest{SessionId: id[:], SnapshotVersion: snapshot, Continuation: continuation, MaxPartitions: 1})
+				})
 				if err != nil {
 					complete.Store(true)
 					select {
@@ -282,26 +680,32 @@ func metadataIDs(metadata []core.EventMetadata) []core.EventID {
 	return ids
 }
 
-func syncRelayPartition(ctx context.Context, client *core.HTTPClient, cfg *ConfSync, sessionID core.SessionID, token []byte, localSnapshot core.Snapshot, partitionID [32]byte, localItems []core.EventMetadata, remoteSummary *relaysyncv2.PartitionSummary) error {
+func syncRelayPartition(ctx context.Context, client *core.HTTPClient, cfg *ConfSync, sessionID core.SessionID, token []byte, localSnapshot core.Snapshot, partitionID [32]byte, localItems []core.EventMetadata, remoteSummary *relaysyncv2.PartitionSummary, progress *relaySyncProgress) (err error) {
+	startedAt := time.Now()
+	var have, need []core.EventID
+	defer func() {
+		progress.partitionComplete(startedAt, len(localItems), remoteSummary, len(have), len(need), err)
+	}()
+
 	localDigest, err := core.DigestMetadata(localItems)
 	if err != nil {
-		return err
+		return partitionRelaySyncError("local_metadata", err)
 	}
 	if string(localDigest[:]) == string(remoteSummary.GetDigest()) {
 		return nil
 	}
-	have, need, err := reconcilePartition(ctx, client, sessionID, token, partitionID, localItems)
+	have, need, err = reconcilePartition(ctx, client, sessionID, token, partitionID, localItems)
 	if err != nil {
-		return err
+		return partitionRelaySyncError("reconcile", err)
 	}
 	if cfg.Direction.DoDown() {
-		if err := pullAndStoreEvents(ctx, client, sessionID, token, need); err != nil {
-			return err
+		if err := pullAndStoreEvents(ctx, client, sessionID, token, need, progress); err != nil {
+			return partitionRelaySyncError("pull", err)
 		}
 	}
 	if cfg.Direction.DoUp() {
-		if err := pushSnapshotIDs(ctx, client, sessionID, token, localSnapshot, partitionID, have); err != nil {
-			return err
+		if err := pushSnapshotIDs(ctx, client, sessionID, token, localSnapshot, partitionID, have, progress); err != nil {
+			return partitionRelaySyncError("push", err)
 		}
 	}
 	return nil
@@ -318,9 +722,14 @@ func reconcilePartition(ctx context.Context, client *core.HTTPClient, id core.Se
 	}
 	var have, need []core.EventID
 	for round := uint32(1); round <= uint32(core.DefaultLimits().MaxConcurrentRounds); round++ {
-		response, err := client.Reconcile(ctx, id, token, &relaysyncv2.ReconcileRequest{SessionId: id[:], PartitionId: partitionID[:], NegentropyPayload: frame, Round: round})
+		response, err := retryRelaySyncRead(ctx, "reconcile", func() (*relaysyncv2.ReconcileResponse, error) {
+			return client.Reconcile(ctx, id, token, &relaysyncv2.ReconcileRequest{SessionId: id[:], PartitionId: partitionID[:], NegentropyPayload: frame, Round: round})
+		})
 		if err != nil {
 			return nil, nil, fmt.Errorf("reconcile partition: %w", err)
+		}
+		if !bytes.Equal(response.GetPartitionId(), partitionID[:]) || response.GetRound() != round {
+			return nil, nil, fmt.Errorf("%w: reconcile response does not match partition and round", errRelaySyncIntegrity)
 		}
 		var diff core.NegentropyDiff
 		var done bool
@@ -337,7 +746,8 @@ func reconcilePartition(ctx context.Context, client *core.HTTPClient, id core.Se
 	return nil, nil, fmt.Errorf("reconcile exceeded maximum rounds")
 }
 
-func pullAndStoreEvents(ctx context.Context, client *core.HTTPClient, id core.SessionID, token []byte, ids []core.EventID) error {
+func pullAndStoreEvents(ctx context.Context, client *core.HTTPClient, id core.SessionID, token []byte, ids []core.EventID, progress *relaySyncProgress) error {
+	totalRejected := 0
 	for start := 0; start < len(ids); start += 500 {
 		end := start + 500
 		if end > len(ids) {
@@ -347,28 +757,85 @@ func pullAndStoreEvents(ctx context.Context, client *core.HTTPClient, id core.Se
 		for i := range wireIDs {
 			wireIDs[i] = append([]byte(nil), ids[start+i][:]...)
 		}
-		response, err := client.PullEvents(ctx, id, token, &relaysyncv2.PullEventsRequest{SessionId: id[:], OperationId: fmt.Sprintf("pull-%d", start), EventIds: wireIDs, MaxEvents: uint32(len(wireIDs))})
+		startedAt := time.Now()
+		progress.pullBatchStarted(len(wireIDs))
+		response, err := retryRelaySyncRead(ctx, "pull", func() (*relaysyncv2.PullEventsResponse, error) {
+			return client.PullEvents(ctx, id, token, &relaysyncv2.PullEventsRequest{SessionId: id[:], OperationId: fmt.Sprintf("pull-%d", start), EventIds: wireIDs, MaxEvents: uint32(len(wireIDs))})
+		})
 		if err != nil {
 			return fmt.Errorf("pull RelaySync events: %w", err)
 		}
+		requested := make(map[string]struct{}, len(ids[start:end]))
+		for _, requestedID := range ids[start:end] {
+			requested[string(requestedID[:])] = struct{}{}
+		}
+		responded := make(map[string]struct{}, len(response.GetEvents())+len(response.GetMissingEventIds()))
 		events := make([]*nostr.Event, 0, len(response.GetEvents()))
+		invalidEvents := 0
 		for _, wire := range response.GetEvents() {
+			if wire == nil || len(wire.GetId()) != 32 {
+				return fmt.Errorf("%w: pull response contains an event without a usable id", errRelaySyncIntegrity)
+			}
+			key := string(wire.GetId())
+			if _, ok := requested[key]; !ok {
+				return fmt.Errorf("%w: pull response contains an unsolicited event", errRelaySyncIntegrity)
+			}
+			if _, duplicate := responded[key]; duplicate {
+				return fmt.Errorf("%w: pull response contains a duplicate event result", errRelaySyncIntegrity)
+			}
+			responded[key] = struct{}{}
 			event, err := core.EventFromProto(wire, core.DefaultLimits())
 			if err != nil {
-				return err
+				invalidEvents++
+				progress.pullEventRejected(start, "invalid_event", err)
+				continue
+			}
+			if err := event.Validate(core.DefaultLimits()); err != nil {
+				invalidEvents++
+				progress.pullEventRejected(start, "invalid_signature", err)
+				continue
+			}
+			if string(event.ID[:]) != key {
+				return fmt.Errorf("%w: pull response event id changed during decode", errRelaySyncIntegrity)
 			}
 			events = append(events, nostrEventFromCore(event))
 		}
+		for _, missingID := range response.GetMissingEventIds() {
+			if len(missingID) != 32 {
+				return fmt.Errorf("%w: pull response contains an invalid missing event id", errRelaySyncIntegrity)
+			}
+			key := string(missingID)
+			if _, ok := requested[key]; !ok {
+				return fmt.Errorf("%w: pull response contains an unsolicited missing event id", errRelaySyncIntegrity)
+			}
+			if _, duplicate := responded[key]; duplicate {
+				return fmt.Errorf("%w: pull response contains a duplicate event result", errRelaySyncIntegrity)
+			}
+			responded[key] = struct{}{}
+		}
+		if len(responded) != len(requested) {
+			return fmt.Errorf("%w: pull response does not account for every requested event", errRelaySyncIntegrity)
+		}
 		if len(events) > 0 {
-			if _, err := internaldb.DbQueries.InsertEventBatch(ctx, events); err != nil {
+			inserted, err := internaldb.DbQueries.InsertEventBatch(ctx, events)
+			if err != nil {
 				return fmt.Errorf("store pulled events: %w", err)
 			}
+			if len(inserted.RejectedEventIDs) > 0 {
+				invalidEvents += len(inserted.RejectedEventIDs)
+				progress.pullEventRejected(start, "local_storage_rejected", fmt.Errorf("%d events rejected by local storage", len(inserted.RejectedEventIDs)))
+			}
 		}
+		progress.pullBatchCompleted(len(wireIDs), len(events), time.Since(startedAt))
+		totalRejected += invalidEvents
+	}
+	if totalRejected > 0 {
+		return fmt.Errorf("pull RelaySync events: %d invalid or rejected event(s)", totalRejected)
 	}
 	return nil
 }
 
-func pushSnapshotIDs(ctx context.Context, client *core.HTTPClient, id core.SessionID, token []byte, snapshot core.Snapshot, partitionID [32]byte, ids []core.EventID) error {
+func pushSnapshotIDs(ctx context.Context, client *core.HTTPClient, id core.SessionID, token []byte, snapshot core.Snapshot, partitionID [32]byte, ids []core.EventID, progress *relaySyncProgress) error {
 	for start := 0; start < len(ids); start += 500 {
 		end := start + 500
 		if end > len(ids) {
@@ -398,6 +865,8 @@ func pushSnapshotIDs(ctx context.Context, client *core.HTTPClient, id core.Sessi
 		if len(wireEvents) == 0 {
 			continue
 		}
+		startedAt := time.Now()
+		progress.pushBatchStarted(len(wireEvents))
 		// Operation IDs are session-scoped on the server. Include the complete
 		// partition identity so separate batches cannot be treated as a retry of
 		// another partition (which would correctly result in HTTP 409).
@@ -409,6 +878,7 @@ func pushSnapshotIDs(ctx context.Context, client *core.HTTPClient, id core.Sessi
 		if err := handleRelaySyncPushReceipts(response.GetReceipts(), wireEvents); err != nil {
 			return err
 		}
+		progress.pushBatchCompleted(len(wireEvents), time.Since(startedAt))
 	}
 	return nil
 }
@@ -419,27 +889,31 @@ func pushSnapshotIDs(ctx context.Context, client *core.HTTPClient, id core.Sessi
 // silently treated as convergence.
 func handleRelaySyncPushReceipts(receipts []*relaysyncv2.EventReceipt, events []*relaysyncv2.Event) error {
 	if len(receipts) != len(events) {
-		return fmt.Errorf("push RelaySync events: received %d receipts for %d events", len(receipts), len(events))
+		return fmt.Errorf("%w: push RelaySync events received %d receipts for %d events", errRelaySyncIntegrity, len(receipts), len(events))
 	}
 	for index, receipt := range receipts {
 		if receipt == nil {
-			return fmt.Errorf("push RelaySync events: received empty receipt")
+			return fmt.Errorf("%w: push RelaySync events received empty receipt", errRelaySyncIntegrity)
 		}
 		if !bytes.Equal(receipt.GetId(), events[index].GetId()) {
-			return fmt.Errorf("push RelaySync events: receipt id does not match sent event")
+			return fmt.Errorf("%w: push RelaySync events receipt id does not match sent event", errRelaySyncIntegrity)
 		}
 		switch receipt.GetStatus() {
 		case relaysyncv2.WriteStatus_WRITE_ACCEPTED, relaysyncv2.WriteStatus_WRITE_ALREADY_EXISTS:
 			continue
 		case relaysyncv2.WriteStatus_WRITE_REJECTED_PERMANENT:
 			if log.Logger != nil {
-				log.Logger.Warn("RelaySync event permanently rejected by remote", zap.String("event_id", hex.EncodeToString(receipt.GetId())), zap.String("code", receipt.GetCode()), zap.String("reason", receipt.GetMessage()))
+				log.Logger.Warn("RelaySync event permanently rejected by remote",
+					zap.String("event_id", hex.EncodeToString(receipt.GetId())),
+					zap.String("code", receipt.GetCode()),
+					zap.String("reason", receipt.GetMessage()),
+				)
 			}
 			continue
 		case relaysyncv2.WriteStatus_WRITE_FAILED_TEMPORARY:
 			return fmt.Errorf("push RelaySync events: remote temporary failure (%s)", receipt.GetCode())
 		default:
-			return fmt.Errorf("push RelaySync events: remote returned invalid receipt status (%s)", receipt.GetStatus().String())
+			return fmt.Errorf("%w: push RelaySync events remote returned invalid receipt status (%s)", errRelaySyncIntegrity, receipt.GetStatus().String())
 		}
 	}
 	return nil

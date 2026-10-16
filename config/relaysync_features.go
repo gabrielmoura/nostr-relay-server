@@ -10,6 +10,9 @@ import (
 // protocol without the durable state required to recover it safely.
 func (cfg *Config) ValidateRelaySyncFeatures() error {
 	r := cfg.RelaySync
+	if err := validateRelaySyncClientFeatures(r.Client); err != nil {
+		return err
+	}
 	if !r.Enabled {
 		if r.HTTPEnabled || r.SnapshotEnabled || r.ApplyEnabled || r.CatchupEnabled || r.LiveEnabled || r.ProjectorEnabled {
 			return fmt.Errorf("relay_sync feature requires relay_sync.enabled")
@@ -52,6 +55,30 @@ func (cfg *Config) ValidateRelaySyncFeatures() error {
 		if r.OutboxRetentionSeconds <= 0 || r.JournalRetentionSeconds <= 0 {
 			return fmt.Errorf("relay_sync retention values must be positive")
 		}
+	}
+	return nil
+}
+
+func validateRelaySyncClientFeatures(client RelaySyncClientConfig) error {
+	r := client.Resilience
+	if r.Enabled {
+		if r.MaxAttempts < 1 || r.MaxAttempts > 10 {
+			return fmt.Errorf("relay_sync.client.resilience.max_attempts must be between 1 and 10")
+		}
+		if r.InitialBackoffMilliseconds < 1 || r.MaxBackoffMilliseconds < r.InitialBackoffMilliseconds || r.MaxBackoffMilliseconds > 5000 {
+			return fmt.Errorf("relay_sync.client.resilience backoff values must be positive, ordered, and at most 5000 milliseconds")
+		}
+	}
+	// These strategies need a client-side handoff/orchestrator that does not
+	// yet exist. Fail closed instead of accepting a no-op feature flag.
+	if client.FetchThenSubscribe.Enabled {
+		return fmt.Errorf("relay_sync.client.fetch_then_subscribe is not implemented")
+	}
+	if client.MultiRelay.Enabled {
+		if client.MultiRelay.MaxParallelRelays < 1 || client.MultiRelay.MaxParallelRelays > 4 {
+			return fmt.Errorf("relay_sync.client.multi_relay.max_parallel_relays must be between 1 and 4")
+		}
+		return fmt.Errorf("relay_sync.client.multi_relay is not implemented")
 	}
 	return nil
 }
