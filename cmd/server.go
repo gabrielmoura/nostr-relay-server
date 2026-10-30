@@ -11,9 +11,11 @@ import (
 	"os/signal"
 	"path/filepath"
 	"sync"
+	"time"
 
 	croncmd "github.com/gabrielmoura/nostr-relay-server/cmd/internal/cron"
 	"github.com/gabrielmoura/nostr-relay-server/config"
+	eventhandler "github.com/gabrielmoura/nostr-relay-server/infra/handler/event"
 	"github.com/gabrielmoura/nostr-relay-server/infra/handler/listener"
 	httpblossom "github.com/gabrielmoura/nostr-relay-server/infra/handler/store/blossom"
 	"github.com/gabrielmoura/nostr-relay-server/infra/ingestion"
@@ -27,12 +29,14 @@ import (
 	"github.com/gabrielmoura/nostr-relay-server/internal/blobstore"
 	internalblossom "github.com/gabrielmoura/nostr-relay-server/internal/blossom"
 	"github.com/gabrielmoura/nostr-relay-server/internal/bootstrap"
+	"github.com/gabrielmoura/nostr-relay-server/internal/cordn"
 	"github.com/gabrielmoura/nostr-relay-server/internal/db"
 	"github.com/gabrielmoura/nostr-relay-server/internal/down"
 	"github.com/gabrielmoura/nostr-relay-server/internal/groups"
 	jobcore "github.com/gabrielmoura/nostr-relay-server/internal/jobs"
 	"github.com/gabrielmoura/nostr-relay-server/internal/nip86"
 	policies2 "github.com/gabrielmoura/nostr-relay-server/internal/policies"
+	relaysyncruntime "github.com/gabrielmoura/nostr-relay-server/internal/relaysync"
 	"github.com/gabrielmoura/nostr-relay-server/internal/security"
 	syncjob "github.com/gabrielmoura/nostr-relay-server/internal/sync"
 	"github.com/gabrielmoura/nostr-relay-server/internal/wot"
@@ -52,6 +56,24 @@ var serverCmd = &cobra.Command{
 	Run:   runServer,
 }
 var bootstrapFlag bool
+
+func runCordnRetention(ctx context.Context, coordinator *cordn.NostrCoordinator, retention time.Duration) {
+	if coordinator == nil || retention <= 0 {
+		return
+	}
+	ticker := time.NewTicker(time.Hour)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case now := <-ticker.C:
+			if err := coordinator.CleanupExpired(ctx, now.Add(-retention)); err != nil && ctx.Err() == nil {
+				log.Logger.Warn("Cordn retention cleanup failed", zap.Error(err))
+			}
+		}
+	}
+}
 
 func runServer(cmd *cobra.Command, args []string) {
 
@@ -87,19 +109,33 @@ func runServer(cmd *cobra.Command, args []string) {
 
 		mainCtx, mainCancel := context.WithCancel(context.Background())
 		var (
-			in           *fiber.App
-			ex           *fiber.App
-			pm           *privacy.Manager
-			lnIn         stdnet.Listener
-			lnEx         stdnet.Listener
-			pprofServer  io.Closer
-			shutdownOnce sync.Once
+			in               *fiber.App
+			ex               *fiber.App
+			pm               *privacy.Manager
+			lnIn             stdnet.Listener
+			lnEx             stdnet.Listener
+			pprofServer      io.Closer
+			projectorRuntime *relaysyncruntime.Runtime
+			httpRuntime      *relaysyncruntime.HTTPRuntime
+			shutdownOnce     sync.Once
 		)
 		shutdown := func() {
 			shutdownOnce.Do(func() {
 				// Cancel first so every long-running component, including the Fiber
 				// listener goroutines, can classify its close as an expected shutdown.
 				mainCancel()
+				if projectorRuntime != nil {
+					closeCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+					if err := projectorRuntime.Close(closeCtx); err != nil {
+						log.Logger.Warn("failed to stop RelaySync projector", zap.Error(err))
+					}
+					cancel()
+				}
+				if httpRuntime != nil {
+					if err := httpRuntime.Close(); err != nil {
+						log.Logger.Warn("failed to close RelaySync HTTP runtime", zap.Error(err))
+					}
+				}
 
 				ingestion.Stop()
 
@@ -134,7 +170,6 @@ func runServer(cmd *cobra.Command, args []string) {
 		// Bind both sockets before initializing any dependency. Keeping these
 		// listeners open through startup prevents another process from taking a
 		// relay port between validation and Fiber.Listener.
-		in, ex = relaynet.Router()
 		internalAddress := fmt.Sprintf(":%d", config.Cfg.Port+1)
 		externalAddress := fmt.Sprintf(":%d", config.Cfg.Port)
 		lnIn, lnEx, err = prepareFiberListeners(internalAddress, externalAddress)
@@ -168,6 +203,56 @@ func runServer(cmd *cobra.Command, args []string) {
 		// Iniciar Conexão com o banco de dados
 		if err := db.Init(mainCtx); err != nil {
 			log.Logger.Error("Erro ao iniciar conexão com o banco de dados", zap.Error(err))
+			return
+		}
+		if config.Cfg.Cordn.Enabled {
+			coordinator, err := cordn.NewNostrCoordinator(
+				cordn.NewService(db.DbQueries),
+				config.Cfg.RelayInformation.PrivKey,
+				config.Cfg.RelayInformation.PubKey,
+				config.Cfg.Cordn.MaxConcurrentSubscriptions,
+				config.Cfg.Cordn.MaxMessageBytes,
+				config.Cfg.Cordn.MaxPendingJoinRequests,
+			)
+			if err != nil {
+				log.Logger.Error("failed to initialize Cordn coordinator", zap.Error(err))
+				return
+			}
+			eventhandler.SetCordnCoordinator(coordinator)
+			log.Logger.Info("Cordn coordinator enabled", zap.Int("max_concurrent_subscriptions", config.Cfg.Cordn.MaxConcurrentSubscriptions))
+			go runCordnRetention(mainCtx, coordinator, time.Duration(config.Cfg.Cordn.RetentionDays)*24*time.Hour)
+		}
+		if config.Cfg.RelaySync.Enabled && config.Cfg.RelaySync.ProjectorEnabled {
+			projectorRuntime, err = relaysyncruntime.Start(mainCtx, relaysyncruntime.Options{
+				Projector:          db.DbQueries,
+				Epoch:              config.Cfg.RelaySync.JournalEpoch,
+				Interval:           time.Duration(config.Cfg.RelaySync.ProjectorIntervalSeconds) * time.Second,
+				BatchSize:          config.Cfg.RelaySync.ProjectorBatchSize,
+				OutboxRetention:    time.Duration(config.Cfg.RelaySync.OutboxRetentionSeconds) * time.Second,
+				JournalRetention:   time.Duration(config.Cfg.RelaySync.JournalRetentionSeconds) * time.Second,
+				RetentionBatchSize: config.Cfg.RelaySync.RetentionBatchSize,
+			})
+			if err != nil {
+				log.Logger.Error("failed to start RelaySync projector", zap.Error(err))
+				return
+			}
+			log.Logger.Info("RelaySync durable journal projector started")
+		}
+		if config.Cfg.RelaySync.Enabled && config.Cfg.RelaySync.HTTPEnabled {
+			httpRuntime, err = relaysyncruntime.Build(config.Cfg.RelaySync, db.DbQueries)
+			if err != nil {
+				log.Logger.Error("failed to build RelaySync HTTP runtime", zap.Error(err))
+				return
+			}
+		}
+		factory := relaynet.NewRouter()
+		if httpRuntime != nil {
+			factory.RelaySyncAdapter = httpRuntime.Adapter
+			factory.RelaySyncServices = httpRuntime.Services
+		}
+		in, ex, err = factory.BuildWithError()
+		if err != nil {
+			log.Logger.Error("failed to build relay routes", zap.Error(err))
 			return
 		}
 		if err := nip86.Init(db.DbQueries); err != nil {

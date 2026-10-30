@@ -192,6 +192,46 @@ func (p Policies) checkDirectMessageAccess(filter nostr.Filter, ws *dto.WsServer
 	}
 }
 
+// checkConcordGiftwrapAccess prevents a broad query from turning durable
+// Concord giftwraps into a relay-wide discovery surface. Concord readers know
+// the rotating stream signer and query that exact author; the relay does not
+// decrypt a wrap or attempt to infer community membership.
+func (p Policies) checkConcordGiftwrapAccess(filter nostr.Filter) (bool, string) {
+	if p.Config == nil || !p.Config.Concord.Enabled {
+		return false, ""
+	}
+	// A filter without kinds can match every stored kind, including 1059. It
+	// must not become a side channel for Concord giftwrap discovery.
+	if len(filter.Kinds) == 0 {
+		return true, "restricted: Concord requires an explicit non-giftwrap kind filter"
+	}
+	if !slices.Contains(filter.Kinds, 1059) {
+		return false, ""
+	}
+	if len(filter.Kinds) != 1 || filter.Kinds[0] != 1059 {
+		return true, "restricted: kind 1059 must be requested in its own filter"
+	}
+	if len(filter.Authors) != 1 || !isFullNostrPubkey(filter.Authors[0]) {
+		return true, "restricted: kind 1059 requires exactly one full stream author public key"
+	}
+	if len(filter.IDs) > 0 || len(filter.Tags) > 0 || filter.Search != "" {
+		return true, "restricted: kind 1059 only supports an exact stream author filter"
+	}
+	return false, ""
+}
+
+func isFullNostrPubkey(value string) bool {
+	if len(value) != 64 {
+		return false
+	}
+	for _, char := range value {
+		if !(char >= '0' && char <= '9') && !(char >= 'a' && char <= 'f') {
+			return false
+		}
+	}
+	return true
+}
+
 // rejectProtectedEvent implements NIP-70: Protected Events.
 // Events carrying the ["-"] tag can only be published by their author.
 // If the client is not authenticated, the relay sends an auth-required message.
