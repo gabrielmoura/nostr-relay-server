@@ -917,6 +917,8 @@ Project documentation is primarily organized under `docs/`, with unified setup g
 * `docs/configuration.md` — Complete `conf.yaml` schema, defaults, and production examples
 * `docs/nip86-management.md` — NIP-86 architecture, schema additions, auth model, and runtime trade-offs
 * `docs/architecture.md` — C4 architecture, stack, flow, and module layout
+* `docs/cordn-concord-architecture.md` — desenho do coordinator Cordn e da política Concord no binário único
+* `docs/cordn-concord-todo.md` — checklist incremental da implementação Cordn/Concord
 * `docs/policies.md` — Event and REQ policy rules
 * `docs/data-schema.md` — PostgreSQL and Redis schema, indexes, and cache/pubsub keys
 * `docs/decisions.md` — ADR history and architecture decisions

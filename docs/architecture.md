@@ -4,6 +4,14 @@
 
 Nostr Relay Server is a high-performance Nostr relay implementation in Go, supporting multiple NIPs, HTTP file storage (NIP-96), separate Blossom functionality, Negentropy synchronization, and Prometheus metrics.
 
+Cordn e Concord também possuem um desenho aprovado para execução no mesmo
+binário, mas em domínios isolados e atrás de flags desligadas por padrão. O
+coordinator Cordn embutido expõe ContextVM/CEP-41 e mantém storage próprio;
+Concord permanece uma política de relay opaco para eventos privados. Nenhum
+deles reutiliza RelaySync. O desenho detalhado está em
+[`cordn-concord-architecture.md`](cordn-concord-architecture.md) e o checklist
+de implementação em [`cordn-concord-todo.md`](cordn-concord-todo.md).
+
 ## C4 Model
 
 ### Level 1: System Context

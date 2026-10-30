@@ -85,6 +85,9 @@ func applyLoadedConfig() error {
 	if err := cfg.ValidateRelaySyncFeatures(); err != nil {
 		return err
 	}
+	if err := cfg.ValidateCordnConcordFeatures(); err != nil {
+		return err
+	}
 
 	Cfg = cfg
 	cfg.applySecurityRelayInformationDefaults()

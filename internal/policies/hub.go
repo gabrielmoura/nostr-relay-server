@@ -103,6 +103,9 @@ func (p Policies) validateRequestFilters(ctx context.Context, ws *dto.WsServer, 
 		if reject, reason := p.checkDirectMessageAccess(filter, ws); reject {
 			return nil, true, reason
 		}
+		if reject, reason := p.checkConcordGiftwrapAccess(filter); reject {
+			return nil, true, reason
+		}
 		if reject, reason := groups.ValidateFilter(ctx, ws.Authed, filter); reject {
 			return nil, true, reason
 		}

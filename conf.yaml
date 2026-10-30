@@ -25,6 +25,16 @@ relay_sync:
     allowed_ips:
         - 127.0.0.1/32
         - ::1/128
+# Cordn and Concord are independent from RelaySync and remain disabled unless
+# the relay is intentionally configured as a Cordn coordinator / Concord relay.
+cordn:
+    enabled: false
+    max_message_bytes: 262144
+    max_pending_join_requests: 100
+    retention_days: 30
+    max_concurrent_subscriptions: 1000
+concord:
+    enabled: false
 relay_information:
     url: http:/kqzk4pnydptareyj7b4uzxg4rqkeh6wmntcjuoppy6wv72nkj3na2vad.onion
     name: Nostr Relay Server

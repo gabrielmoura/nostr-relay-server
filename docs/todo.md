@@ -761,3 +761,33 @@
 - [ ] Add handler tests for admin Blossom routes and policy failures
 - [ ] Add queue/worker integration coverage for mirror and optimize jobs
 - [ ] Add migration tests for enriched Blossom metadata tables
+
+---
+
+## Phase 40: Cordn e Concord no binário único
+
+O desenho e o checklist detalhado estão em
+[`cordn-concord-architecture.md`](cordn-concord-architecture.md) e
+[`cordn-concord-todo.md`](cordn-concord-todo.md). Esta fase mantém os dois
+protocolos fora do RelaySync e só permite ativação por flags independentes,
+desligadas por padrão.
+
+### 40.1: Contratos e coordinator Cordn
+
+- [ ] Congelar versões das specs Cordn/Concord e limites operacionais
+- [x] Implementar transporte ContextVM/Nostr plaintext e autenticação do chamador
+- [x] Implementar storage próprio de KeyPackages, Welcomes e Join Requests
+- [ ] Validar e completar CEP-41/Open Stream para live interoperável; cursor e replay durável já existem
+- [x] Integrar lifecycle ao binário atrás de `cordn.enabled`
+
+### 40.2: Política Concord
+
+- [x] Implementar política de giftwrap opaco atrás de `concord.enabled`
+- [x] Aplicar a mesma visibilidade a REQ, COUNT e live
+- [ ] Adicionar limites e rate limits específicos sem interpretar comunidades
+
+### 40.3: Compatibilidade e segurança
+
+- [ ] Validar com clientes de referência e cenários de reinício/cancelamento
+- [ ] Validar ausência de vazamento de tokens, payloads MLS e giftwraps
+- [ ] Executar `go build ./...` e `go vet ./...` antes de habilitar defaults

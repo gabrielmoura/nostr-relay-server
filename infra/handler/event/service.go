@@ -68,6 +68,13 @@ func processEvent(ws *dto.WsServer, evt *nostr.Event) string {
 		return ""
 	}
 
+	// Cordn requests are signed ContextVM events addressed to this relay. They
+	// are handled only after the normal identity and policy checks, and remain
+	// ephemeral: no coordinator request enters Nostr event ingestion.
+	if handleCordnEvent(ws, evt) {
+		return ""
+	}
+
 	runEventSideEffects(ws, evt)
 
 	if !enqueueEvent(ws, evt) {

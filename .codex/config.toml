@@ -1,0 +1,24 @@
+# Project-scoped Codex configuration.
+#
+# Custom agents are discovered from .codex/agents and are also registered here
+# so their intent is visible in the project configuration.
+
+[agents]
+enabled = true
+max_concurrent_threads_per_session = 3
+
+[agents.explorer]
+description = "Map the existing codebase before changes are planned."
+config_file = "./agents/explorer.toml"
+
+[agents.architect]
+description = "Prepare an incremental technical plan without editing code."
+config_file = "./agents/architect.toml"
+
+[agents.developer]
+description = "Implement an approved plan with focused validation."
+config_file = "./agents/developer.toml"
+
+[agents.reviewer]
+description = "Perform a production-focused review and publish usage guidance."
+config_file = "./agents/reviewer.toml"

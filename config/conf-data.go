@@ -37,6 +37,24 @@ type Config struct {
 	API                 APIConfig                `json:"api" yaml:"api" mapstructure:"api"`
 	NegentropyRateLimit IPRequestRateLimitConfig `json:"negentropy_rate_limit" yaml:"negentropy_rate_limit" mapstructure:"negentropy_rate_limit"`
 	RelaySync           RelaySyncConfig          `json:"relay_sync" yaml:"relay_sync" mapstructure:"relay_sync"`
+	Cordn               CordnConfig              `json:"cordn" yaml:"cordn" mapstructure:"cordn"`
+	Concord             ConcordConfig            `json:"concord" yaml:"concord" mapstructure:"concord"`
+}
+
+// CordnConfig enables the optional Cordn coordinator hosted by this binary.
+// It is independent from the Nostr event store and RelaySync.
+type CordnConfig struct {
+	Enabled                    bool `json:"enabled" yaml:"enabled" mapstructure:"enabled"`
+	MaxMessageBytes            int  `json:"max_message_bytes" yaml:"max_message_bytes" mapstructure:"max_message_bytes"`
+	MaxPendingJoinRequests     int  `json:"max_pending_join_requests" yaml:"max_pending_join_requests" mapstructure:"max_pending_join_requests"`
+	RetentionDays              int  `json:"retention_days" yaml:"retention_days" mapstructure:"retention_days"`
+	MaxConcurrentSubscriptions int  `json:"max_concurrent_subscriptions" yaml:"max_concurrent_subscriptions" mapstructure:"max_concurrent_subscriptions"`
+}
+
+// ConcordConfig enables privacy-preserving relay handling for Concord
+// giftwraps. The relay never decrypts or interprets Concord payloads.
+type ConcordConfig struct {
+	Enabled bool `json:"enabled" yaml:"enabled" mapstructure:"enabled"`
 }
 
 // RelaySyncConfig controls the optional RelaySync v2 integration. All

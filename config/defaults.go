@@ -117,6 +117,13 @@ func setDefaults(export bool) {
 	viper.SetDefault("relay_sync.client.multi_relay.enabled", false)
 	viper.SetDefault("relay_sync.client.multi_relay.max_parallel_relays", 1)
 
+	viper.SetDefault("cordn.enabled", false)
+	viper.SetDefault("cordn.max_message_bytes", 262144)
+	viper.SetDefault("cordn.max_pending_join_requests", 100)
+	viper.SetDefault("cordn.retention_days", 30)
+	viper.SetDefault("cordn.max_concurrent_subscriptions", 1000)
+	viper.SetDefault("concord.enabled", false)
+
 	viper.SetDefault("relay_information.name", "Nostr Relay Server")
 	viper.SetDefault("relay_information.description", "A Nostr Relay Server")
 	viper.SetDefault("relay_information.supported_nips", []int{})

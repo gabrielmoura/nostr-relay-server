@@ -3,8 +3,8 @@ module github.com/gabrielmoura/nostr-relay-server
 go 1.26.3
 
 require (
-	github.com/btcsuite/btcd/btcec/v2 v2.3.6
 	github.com/99designs/gqlgen v0.17.90
+	github.com/btcsuite/btcd/btcec/v2 v2.3.6
 	github.com/buckket/go-blurhash v1.1.0
 	github.com/bytedance/sonic v1.15.0
 	github.com/coder/websocket v1.8.15
@@ -18,8 +18,8 @@ require (
 	github.com/gofiber/fiber/v2 v2.52.12
 	github.com/golang-migrate/migrate/v4 v4.20.1
 	github.com/google/uuid v1.6.0
-	github.com/klauspost/compress v1.18.5
 	github.com/jackc/pgx/v5 v5.9.2
+	github.com/klauspost/compress v1.18.5
 	github.com/minio/minio-go/v7 v7.0.97
 	github.com/minio/sha256-simd v1.0.1
 	github.com/nbd-wtf/go-nostr v0.52.3
@@ -37,10 +37,10 @@ require (
 	github.com/yggdrasil-network/yggdrasil-go v0.5.14
 	github.com/zeebo/blake3 v0.2.4
 	go.uber.org/zap v1.27.1
-	google.golang.org/protobuf v1.36.11
 	golang.org/x/net v0.58.0
 	golang.org/x/sys v0.48.0
 	golang.org/x/time v0.15.0
+	google.golang.org/protobuf v1.36.11
 	gopkg.in/yaml.v3 v3.0.1
 )
 
@@ -134,6 +134,7 @@ require (
 	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
 	github.com/things-go/go-socks5 v0.1.1 // indirect
+	github.com/thomas-vilte/mls-go v1.3.0 // indirect
 	github.com/tidwall/gjson v1.18.0 // indirect
 	github.com/tidwall/match v1.2.0 // indirect
 	github.com/tidwall/pretty v1.2.1 // indirect

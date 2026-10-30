@@ -15,6 +15,7 @@ import (
 
 	croncmd "github.com/gabrielmoura/nostr-relay-server/cmd/internal/cron"
 	"github.com/gabrielmoura/nostr-relay-server/config"
+	eventhandler "github.com/gabrielmoura/nostr-relay-server/infra/handler/event"
 	"github.com/gabrielmoura/nostr-relay-server/infra/handler/listener"
 	httpblossom "github.com/gabrielmoura/nostr-relay-server/infra/handler/store/blossom"
 	"github.com/gabrielmoura/nostr-relay-server/infra/ingestion"
@@ -28,6 +29,7 @@ import (
 	"github.com/gabrielmoura/nostr-relay-server/internal/blobstore"
 	internalblossom "github.com/gabrielmoura/nostr-relay-server/internal/blossom"
 	"github.com/gabrielmoura/nostr-relay-server/internal/bootstrap"
+	"github.com/gabrielmoura/nostr-relay-server/internal/cordn"
 	"github.com/gabrielmoura/nostr-relay-server/internal/db"
 	"github.com/gabrielmoura/nostr-relay-server/internal/down"
 	"github.com/gabrielmoura/nostr-relay-server/internal/groups"
@@ -54,6 +56,24 @@ var serverCmd = &cobra.Command{
 	Run:   runServer,
 }
 var bootstrapFlag bool
+
+func runCordnRetention(ctx context.Context, coordinator *cordn.NostrCoordinator, retention time.Duration) {
+	if coordinator == nil || retention <= 0 {
+		return
+	}
+	ticker := time.NewTicker(time.Hour)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case now := <-ticker.C:
+			if err := coordinator.CleanupExpired(ctx, now.Add(-retention)); err != nil && ctx.Err() == nil {
+				log.Logger.Warn("Cordn retention cleanup failed", zap.Error(err))
+			}
+		}
+	}
+}
 
 func runServer(cmd *cobra.Command, args []string) {
 
@@ -184,6 +204,23 @@ func runServer(cmd *cobra.Command, args []string) {
 		if err := db.Init(mainCtx); err != nil {
 			log.Logger.Error("Erro ao iniciar conexão com o banco de dados", zap.Error(err))
 			return
+		}
+		if config.Cfg.Cordn.Enabled {
+			coordinator, err := cordn.NewNostrCoordinator(
+				cordn.NewService(db.DbQueries),
+				config.Cfg.RelayInformation.PrivKey,
+				config.Cfg.RelayInformation.PubKey,
+				config.Cfg.Cordn.MaxConcurrentSubscriptions,
+				config.Cfg.Cordn.MaxMessageBytes,
+				config.Cfg.Cordn.MaxPendingJoinRequests,
+			)
+			if err != nil {
+				log.Logger.Error("failed to initialize Cordn coordinator", zap.Error(err))
+				return
+			}
+			eventhandler.SetCordnCoordinator(coordinator)
+			log.Logger.Info("Cordn coordinator enabled", zap.Int("max_concurrent_subscriptions", config.Cfg.Cordn.MaxConcurrentSubscriptions))
+			go runCordnRetention(mainCtx, coordinator, time.Duration(config.Cfg.Cordn.RetentionDays)*24*time.Hour)
 		}
 		if config.Cfg.RelaySync.Enabled && config.Cfg.RelaySync.ProjectorEnabled {
 			projectorRuntime, err = relaysyncruntime.Start(mainCtx, relaysyncruntime.Options{
