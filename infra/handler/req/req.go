@@ -8,6 +8,7 @@ import (
 	"github.com/gabrielmoura/nostr-relay-server/infra/metrics"
 	"github.com/gabrielmoura/nostr-relay-server/infra/stream"
 	"github.com/gabrielmoura/nostr-relay-server/internal/db"
+	"github.com/gabrielmoura/nostr-relay-server/internal/dmimport"
 	"github.com/gabrielmoura/nostr-relay-server/internal/dto"
 	"github.com/gabrielmoura/nostr-relay-server/internal/groups"
 	json "github.com/gabrielmoura/nostr-relay-server/internal/jsonx"
@@ -68,6 +69,9 @@ func DoREQ(ws *dto.WsServer, data dto.Data) string {
 		sent := 0
 		if events != nil {
 			for event := range events {
+				if !dmimport.VisibleToWithConcord(ws.Authed, event, config.Cfg.Concord.Enabled) {
+					continue
+				}
 				if ws.SkipEventFunc(event) {
 					continue
 				}

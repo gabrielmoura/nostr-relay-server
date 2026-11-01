@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"io"
 	"net"
+	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/gabrielmoura/nostr-relay-server/config"
@@ -37,6 +39,26 @@ func TestSetupExternalRoutesServesEmbeddedNostrIcon(t *testing.T) {
 	}
 	if !bytes.Equal(body, assets.NostrPNG) {
 		t.Fatal("icon response does not match embedded asset")
+	}
+}
+
+func TestSetupExternalRoutesDoesNotExposeAdminPaths(t *testing.T) {
+	app := fiber.New()
+	factory := &RouterFactory{Config: &config.Config{}}
+	factory.setupExternalRoutes(app)
+
+	for _, request := range []*http.Request{
+		httptest.NewRequest(fiber.MethodGet, "/panel/", nil),
+		httptest.NewRequest(fiber.MethodPost, "/admin/graphql", strings.NewReader(`{"query":"{__typename}"}`)),
+	} {
+		response, err := app.Test(request)
+		if err != nil {
+			t.Fatalf("%s %s failed: %v", request.Method, request.URL.Path, err)
+		}
+		response.Body.Close()
+		if response.StatusCode < fiber.StatusBadRequest {
+			t.Fatalf("external %s %s status = %d, want an inaccessible admin route", request.Method, request.URL.Path, response.StatusCode)
+		}
 	}
 }
 

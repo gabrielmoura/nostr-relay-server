@@ -2,7 +2,7 @@ import type { ComponentType, FormEvent } from "react"
 import { useMemo, useState } from "react"
 import { Link, Outlet, useLocation, useNavigate } from "@tanstack/react-router"
 import { useTranslation } from "react-i18next"
-import { AtSign, Bell, Cable, Download, HardDrive, LayoutDashboard, Menu, Network, Radio, RefreshCw, Search, ShieldAlert, ShieldCheck, Tags, TriangleAlert, UserRound, Users } from "lucide-react"
+import { AtSign, Bell, Cable, Download, HardDrive, Import, LayoutDashboard, Menu, Network, Radio, RefreshCw, Search, ShieldAlert, ShieldCheck, Tags, TriangleAlert, UserRound, Users, Waves } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -19,6 +19,7 @@ const primaryNav: NavItem[] = [
   { to: "/", labelKey: "layout.nav.overview", icon: LayoutDashboard },
   { to: "/sync", labelKey: "layout.nav.sync", icon: RefreshCw },
   { to: "/download", labelKey: "layout.nav.download", icon: Download },
+  { to: "/import-dm", labelKey: "layout.nav.importDM", icon: Import },
   { to: "/groups", labelKey: "layout.nav.groups", icon: Users },
   { to: "/wot", labelKey: "layout.nav.wot", icon: Network },
   { to: "/users/logged", labelKey: "layout.nav.usersLogged", icon: Users },
@@ -41,8 +42,11 @@ function SideNav({ onNavigate }: { onNavigate?: () => void }) {
 
   return (
     <div className="flex h-full flex-col gap-6">
-      <div className="space-y-1 rounded-[var(--radius)] border border-primary/15 bg-[linear-gradient(135deg,rgba(14,165,233,0.08),rgba(255,255,255,0.98))] p-5 panel-shadow">
-        <p className="font-heading text-lg font-semibold text-foreground">{t("layout.brandTitle")}</p>
+      <div className="admin-brand-card space-y-1 rounded-[var(--radius)] border border-primary/15 p-5 panel-shadow">
+        <div className="flex items-center gap-3">
+          <span aria-hidden="true" className="admin-brand-mark"><Waves className="size-4" /></span>
+          <p className="font-heading text-lg font-semibold text-foreground">{t("layout.brandTitle")}</p>
+        </div>
         <p className="text-sm text-muted-foreground">{t("layout.brandDescription")}</p>
       </div>
 

@@ -285,6 +285,12 @@ var (
 			Help: "Total number of errors during batch insertion.",
 		},
 	)
+	NostrRelayIngestionUncertain = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "nostr_relay_ingestion_uncertain_total",
+			Help: "Total import events whose persistence outcome could not be confirmed after a batch error or request timeout.",
+		},
+	)
 	NostrRelayIngestionRejected = prometheus.NewCounter(
 		prometheus.CounterOpts{
 			Name: "nostr_relay_ingestion_rejected_total",
@@ -605,6 +611,7 @@ func RegisterMetrics() {
 		NostrRelayIngestionBackpressure,
 		NostrRelayIngestionDuplicates,
 		NostrRelayIngestionErrors,
+		NostrRelayIngestionUncertain,
 		NostrRelayIngestionRejected,
 		NostrRelayIngestionQueueDepth,
 		NostrRedisQueryCacheResult,

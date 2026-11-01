@@ -4,6 +4,10 @@
 
 The admin dashboard (`infra/dash/`) is a React 19 + TypeScript SPA built with TanStack Router and i18next. It provides operational controls for the Nostr relay server.
 
+## Browser DM import
+
+`features/dm-import/` is intentionally transport- and admin-context-independent. Its signer and relay transport run solely in the browser; an nsec exists only briefly in component memory, is converted to a byte buffer and zeroed after use. The service discovers relays from kinds 10050/10002, reads opaque events, handles NIP-42 and publishes the original event to the local relay. It never calls GraphQL or an admin service.
+
 ## Planned GraphQL Frontend Migration
 
 The admin dashboard will migrate from the current REST service layer to the internal GraphQL surface exposed by the relay backend.

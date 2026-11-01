@@ -100,6 +100,7 @@ relay:
   max_size_event_in_bytes: 100000
   filter_limit: 99999999
   reporting_limit: 5
+  reporting_auto_ban_enabled: false
   enable_anonymous_req: true
   max_tag_value_length: 100
   protected_kinds: [30078, 4]
@@ -598,6 +599,7 @@ Supports the standard NIP-11 fee groups:
 | `relay.max_size_event_in_bytes` | int | `100000` | Max event payload size. |
 | `relay.filter_limit` | int | `99999999` | Internal filter guard limit. |
 | `relay.reporting_limit` | int64 | `5` | Reports threshold for moderation actions. |
+| `relay.reporting_auto_ban_enabled` | bool | `false` | Apply a ban when reports reach `relay.reporting_limit`; reports are still recorded when disabled. |
 | `relay.enable_anonymous_req` | bool | `true` | Allow unauthenticated REQ. |
 | `relay.protected_kinds` | int[] | `[30078,4]` | Kinds requiring stricter checks. |
 | `relay.minimum_pow_limit` | int | `0` | Minimum POW required. |

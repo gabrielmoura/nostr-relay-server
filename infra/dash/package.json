@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "pnpm run build:landing-css && tsc -b && vite build",
+    "build": "pnpm run build:landing-css && tsc -b && vite build && pnpm run build:public",
+    "build:public": "vite build --config vite.public.config.ts",
     "build:landing-css": "tailwindcss --input todash.source.css --output todash.css --minify",
     "test": "vitest run",
     "graphql:codegen": "graphql-codegen --config codegen.ts",

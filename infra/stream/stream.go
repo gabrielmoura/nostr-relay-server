@@ -11,6 +11,7 @@ import (
 	"github.com/gabrielmoura/nostr-relay-server/infra/metrics"
 	nostr_custom "github.com/gabrielmoura/nostr-relay-server/infra/nostr-custom"
 	"github.com/gabrielmoura/nostr-relay-server/internal/db"
+	"github.com/gabrielmoura/nostr-relay-server/internal/dmimport"
 	"github.com/gabrielmoura/nostr-relay-server/internal/dto"
 	"github.com/gabrielmoura/nostr-relay-server/pkg/nostrpool"
 	"github.com/nbd-wtf/go-nostr"
@@ -179,6 +180,9 @@ func (d *Dispatcher) runRequestWorker(ctx context.Context) {
 			}
 
 			for ev := range allEvents {
+				if !dmimport.VisibleToWithConcord(job.ws.Authed, ev, config.Cfg.Concord.Enabled) {
+					continue
+				}
 				metrics.NostrRelayRequestForwardedTotal.Inc()
 				_ = db.DbQueries.InsertEvent(job.ws.Ctx, ev)
 				job.ws.ChanSender <- nostr.EventEnvelope{Event: *ev, SubscriptionID: job.id}

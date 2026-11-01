@@ -129,6 +129,30 @@ func TestValidateAuthEventAcceptsCanonicalAndActiveOnionURLs(t *testing.T) {
 	}
 }
 
+func TestValidateAuthEventAcceptsExplicitTrustedAlias(t *testing.T) {
+	privKey := nostr.GeneratePrivateKey()
+	pubKey, err := nostr.GetPublicKey(privKey)
+	if err != nil {
+		t.Fatalf("get public key: %v", err)
+	}
+	evt := nostr.Event{
+		PubKey:    pubKey,
+		CreatedAt: nostr.Now(),
+		Kind:      nostr.KindClientAuthentication,
+		Tags: nostr.Tags{
+			{"relay", "ws://localhost:4869"},
+			{"challenge", "test-challenge"},
+		},
+	}
+	if err := evt.Sign(privKey); err != nil {
+		t.Fatalf("sign event: %v", err)
+	}
+
+	if _, reason := validateAuthEvent(&evt, "test-challenge", "wss://relay.example", "ws://localhost:4869"); reason != "" {
+		t.Fatalf("validateAuthEvent() reason = %q, want success", reason)
+	}
+}
+
 func TestValidateAuthEventAcceptsDefaultWebSocketPort(t *testing.T) {
 	privKey := nostr.GeneratePrivateKey()
 	pubKey, err := nostr.GetPublicKey(privKey)

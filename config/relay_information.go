@@ -28,6 +28,10 @@ type RelayInformationDocument struct {
 	Version        string `json:"version,omitempty" yaml:"version" mapstructure:"version"`
 	TermsOfService string `json:"terms_of_service,omitempty" yaml:"terms_of_service" mapstructure:"terms_of_service"`
 	CanonicalURL   string `json:"canonical_url,omitempty" yaml:"canonical_url" mapstructure:"canonical_url"`
+	// AuthRelayURLs are additional, explicitly trusted WebSocket origins for
+	// NIP-42 relay tags. They are useful when the same public listener is
+	// reachable through a reverse proxy or a local development hostname.
+	AuthRelayURLs []string `json:"-" yaml:"auth_relay_urls" mapstructure:"auth_relay_urls"`
 
 	Limitation             *RelayLimitationDocument `json:"limitation,omitempty" yaml:"limitation" mapstructure:"limitation"`
 	RelayCountries         []string                 `json:"relay_countries,omitempty" yaml:"relay_countries" mapstructure:"relay_countries"`
@@ -64,6 +68,12 @@ func (cfg *RelayInformationDocument) Check() []error {
 			errs = append(errs, errors2.ErrInvalidCanonicalURL)
 		}
 	}
+	for _, relayURL := range cfg.AuthRelayURLs {
+		parsed, err := url.Parse(strings.TrimSpace(relayURL))
+		if err != nil || parsed == nil || (parsed.Scheme != "ws" && parsed.Scheme != "wss") || parsed.Host == "" || parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" {
+			errs = append(errs, errors2.ErrInvalidCanonicalURL)
+		}
+	}
 
 	if relayURL := strings.TrimSpace(cfg.URL); relayURL != "" {
 		url2, err := url.Parse(relayURL)
@@ -73,6 +83,22 @@ func (cfg *RelayInformationDocument) Check() []error {
 	}
 
 	return errs
+}
+
+// TrustedAuthRelayURLs returns the canonical relay URL followed by configured
+// aliases. The values are validated during configuration loading and are used
+// exclusively to validate NIP-42 relay tags.
+func (cfg RelayInformationDocument) TrustedAuthRelayURLs() []string {
+	urls := make([]string, 0, 1+len(cfg.AuthRelayURLs))
+	if canonicalURL := strings.TrimSpace(cfg.CanonicalURL); canonicalURL != "" {
+		urls = append(urls, canonicalURL)
+	}
+	for _, relayURL := range cfg.AuthRelayURLs {
+		if relayURL = strings.TrimSpace(relayURL); relayURL != "" {
+			urls = append(urls, relayURL)
+		}
+	}
+	return urls
 }
 
 type RelayLimitationDocument struct {

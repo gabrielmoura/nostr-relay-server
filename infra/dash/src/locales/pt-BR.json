@@ -54,6 +54,7 @@
       "usersSearch": "Busca de usuários",
       "sync": "Sincronização",
       "download": "Download",
+      "importDM": "Importar DMs",
       "groups": "Grupos NIP-29",
       "wot": "Web of Trust"
     }
@@ -430,6 +431,29 @@
     "nip86Description": "Superfície operacional para allowlists, bloqueios de IP, eventos banidos e metadata dinâmica do relay.",
     "nip86Body": "Use o workspace dedicado do NIP-86 para aplicar ações de gerenciamento do relay com contexto auditável e fluxo enxuto.",
     "nip86Action": "Abrir workspace NIP-86"
+    ,"snapshot": {
+      "eyebrow": "Snapshot local",
+      "title": "Métricas do relay neste instante",
+      "description": "Valores coletados pelo adminOverview; não representam disponibilidade ou topologia.",
+      "activeConnections": "Conexões ativas",
+      "queueDepth": "Fila em memória",
+      "indexedEvents": "Eventos indexados"
+    }
+    ,"ingestion": {
+      "title": "Ingestão local",
+      "description": "Contadores somente deste processo do relay. Não representam a atividade global do Nostr.",
+      "scope": "ESTE RELAY",
+      "accepted": "Eventos aceitos",
+      "inserted": "Eventos inseridos",
+      "duplicates": "Duplicados",
+      "rejected": "Rejeições por política",
+      "uncertain": "Resultados incertos",
+      "queueDepth": "Profundidade da fila",
+      "batchErrors": "Erros de lote",
+      "backpressure": "Retenção por fila cheia",
+      "sinceStart": "Desde o início deste processo",
+      "queueDepthHelper": "Em memória agora; exclui lotes já no worker"
+    }
   },
   "nip86": {
     "shared": {

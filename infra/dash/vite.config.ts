@@ -10,7 +10,9 @@ export default defineConfig({
   base: appBasePath,
   plugins: [react(), tailwindcss()],
   build: {
+    outDir: "dist",
     rollupOptions: {
+      input: path.resolve(__dirname, "index.html"),
       onwarn(warning, warn) {
         if (warning.code === "COMMONJS_VARIABLE_IN_ESM") {
           return

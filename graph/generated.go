@@ -320,6 +320,18 @@ type ComplexityRoot struct {
 		Total      func(childComplexity int) int
 	}
 
+	AdminIngestionMetrics struct {
+		AcceptedEvents func(childComplexity int) int
+		Backpressure   func(childComplexity int) int
+		BatchErrors    func(childComplexity int) int
+		Batches        func(childComplexity int) int
+		Duplicates     func(childComplexity int) int
+		InsertedEvents func(childComplexity int) int
+		QueueDepth     func(childComplexity int) int
+		Rejected       func(childComplexity int) int
+		Uncertain      func(childComplexity int) int
+	}
+
 	AdminJob struct {
 		Attempts    func(childComplexity int) int
 		CreatedAt   func(childComplexity int) int
@@ -459,6 +471,7 @@ type ComplexityRoot struct {
 		BannedUsers       func(childComplexity int) int
 		EventsPerMinute   func(childComplexity int) int
 		IndexedEvents     func(childComplexity int) int
+		Ingestion         func(childComplexity int) int
 		LoggedUsers       func(childComplexity int) int
 		RelayStatus       func(childComplexity int) int
 	}
@@ -1920,6 +1933,61 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.AdminImportFileResult.Total(childComplexity), true
 
+	case "AdminIngestionMetrics.acceptedEvents":
+		if e.ComplexityRoot.AdminIngestionMetrics.AcceptedEvents == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminIngestionMetrics.AcceptedEvents(childComplexity), true
+	case "AdminIngestionMetrics.backpressure":
+		if e.ComplexityRoot.AdminIngestionMetrics.Backpressure == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminIngestionMetrics.Backpressure(childComplexity), true
+	case "AdminIngestionMetrics.batchErrors":
+		if e.ComplexityRoot.AdminIngestionMetrics.BatchErrors == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminIngestionMetrics.BatchErrors(childComplexity), true
+	case "AdminIngestionMetrics.batches":
+		if e.ComplexityRoot.AdminIngestionMetrics.Batches == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminIngestionMetrics.Batches(childComplexity), true
+	case "AdminIngestionMetrics.duplicates":
+		if e.ComplexityRoot.AdminIngestionMetrics.Duplicates == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminIngestionMetrics.Duplicates(childComplexity), true
+	case "AdminIngestionMetrics.insertedEvents":
+		if e.ComplexityRoot.AdminIngestionMetrics.InsertedEvents == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminIngestionMetrics.InsertedEvents(childComplexity), true
+	case "AdminIngestionMetrics.queueDepth":
+		if e.ComplexityRoot.AdminIngestionMetrics.QueueDepth == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminIngestionMetrics.QueueDepth(childComplexity), true
+	case "AdminIngestionMetrics.rejected":
+		if e.ComplexityRoot.AdminIngestionMetrics.Rejected == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminIngestionMetrics.Rejected(childComplexity), true
+	case "AdminIngestionMetrics.uncertain":
+		if e.ComplexityRoot.AdminIngestionMetrics.Uncertain == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminIngestionMetrics.Uncertain(childComplexity), true
+
 	case "AdminJob.attempts":
 		if e.ComplexityRoot.AdminJob.Attempts == nil {
 			break
@@ -2442,6 +2510,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.AdminOverview.IndexedEvents(childComplexity), true
+	case "AdminOverview.ingestion":
+		if e.ComplexityRoot.AdminOverview.Ingestion == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminOverview.Ingestion(childComplexity), true
 	case "AdminOverview.loggedUsers":
 		if e.ComplexityRoot.AdminOverview.LoggedUsers == nil {
 			break
@@ -4540,6 +4614,30 @@ func (ec *executionContext) childFields_AdminImportFileResult(ctx context.Contex
 	return nil, fmt.Errorf("no field named %q was found under type AdminImportFileResult", field.Name)
 }
 
+func (ec *executionContext) childFields_AdminIngestionMetrics(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "acceptedEvents":
+		return ec.fieldContext_AdminIngestionMetrics_acceptedEvents(ctx, field)
+	case "insertedEvents":
+		return ec.fieldContext_AdminIngestionMetrics_insertedEvents(ctx, field)
+	case "duplicates":
+		return ec.fieldContext_AdminIngestionMetrics_duplicates(ctx, field)
+	case "rejected":
+		return ec.fieldContext_AdminIngestionMetrics_rejected(ctx, field)
+	case "uncertain":
+		return ec.fieldContext_AdminIngestionMetrics_uncertain(ctx, field)
+	case "batchErrors":
+		return ec.fieldContext_AdminIngestionMetrics_batchErrors(ctx, field)
+	case "batches":
+		return ec.fieldContext_AdminIngestionMetrics_batches(ctx, field)
+	case "backpressure":
+		return ec.fieldContext_AdminIngestionMetrics_backpressure(ctx, field)
+	case "queueDepth":
+		return ec.fieldContext_AdminIngestionMetrics_queueDepth(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type AdminIngestionMetrics", field.Name)
+}
+
 func (ec *executionContext) childFields_AdminJob(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "id":
@@ -4822,6 +4920,8 @@ func (ec *executionContext) childFields_AdminOverview(ctx context.Context, field
 		return ec.fieldContext_AdminOverview_eventsPerMinute(ctx, field)
 	case "relayStatus":
 		return ec.fieldContext_AdminOverview_relayStatus(ctx, field)
+	case "ingestion":
+		return ec.fieldContext_AdminOverview_ingestion(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type AdminOverview", field.Name)
 }
@@ -11010,6 +11110,213 @@ func (ec *executionContext) fieldContext_AdminImportFileResult_error(_ context.C
 	return graphql.NewScalarFieldContext("AdminImportFileResult", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
+func (ec *executionContext) _AdminIngestionMetrics_acceptedEvents(ctx context.Context, field graphql.CollectedField, obj *model.AdminIngestionMetrics) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminIngestionMetrics_acceptedEvents(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.AcceptedEvents, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt642int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminIngestionMetrics_acceptedEvents(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminIngestionMetrics", field, false, false, errors.New("field of type Int64 does not have child fields"))
+}
+
+func (ec *executionContext) _AdminIngestionMetrics_insertedEvents(ctx context.Context, field graphql.CollectedField, obj *model.AdminIngestionMetrics) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminIngestionMetrics_insertedEvents(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.InsertedEvents, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt642int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminIngestionMetrics_insertedEvents(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminIngestionMetrics", field, false, false, errors.New("field of type Int64 does not have child fields"))
+}
+
+func (ec *executionContext) _AdminIngestionMetrics_duplicates(ctx context.Context, field graphql.CollectedField, obj *model.AdminIngestionMetrics) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminIngestionMetrics_duplicates(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Duplicates, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt642int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminIngestionMetrics_duplicates(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminIngestionMetrics", field, false, false, errors.New("field of type Int64 does not have child fields"))
+}
+
+func (ec *executionContext) _AdminIngestionMetrics_rejected(ctx context.Context, field graphql.CollectedField, obj *model.AdminIngestionMetrics) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminIngestionMetrics_rejected(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Rejected, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt642int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminIngestionMetrics_rejected(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminIngestionMetrics", field, false, false, errors.New("field of type Int64 does not have child fields"))
+}
+
+func (ec *executionContext) _AdminIngestionMetrics_uncertain(ctx context.Context, field graphql.CollectedField, obj *model.AdminIngestionMetrics) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminIngestionMetrics_uncertain(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Uncertain, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt642int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminIngestionMetrics_uncertain(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminIngestionMetrics", field, false, false, errors.New("field of type Int64 does not have child fields"))
+}
+
+func (ec *executionContext) _AdminIngestionMetrics_batchErrors(ctx context.Context, field graphql.CollectedField, obj *model.AdminIngestionMetrics) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminIngestionMetrics_batchErrors(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.BatchErrors, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt642int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminIngestionMetrics_batchErrors(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminIngestionMetrics", field, false, false, errors.New("field of type Int64 does not have child fields"))
+}
+
+func (ec *executionContext) _AdminIngestionMetrics_batches(ctx context.Context, field graphql.CollectedField, obj *model.AdminIngestionMetrics) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminIngestionMetrics_batches(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Batches, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt642int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminIngestionMetrics_batches(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminIngestionMetrics", field, false, false, errors.New("field of type Int64 does not have child fields"))
+}
+
+func (ec *executionContext) _AdminIngestionMetrics_backpressure(ctx context.Context, field graphql.CollectedField, obj *model.AdminIngestionMetrics) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminIngestionMetrics_backpressure(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Backpressure, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt642int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminIngestionMetrics_backpressure(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminIngestionMetrics", field, false, false, errors.New("field of type Int64 does not have child fields"))
+}
+
+func (ec *executionContext) _AdminIngestionMetrics_queueDepth(ctx context.Context, field graphql.CollectedField, obj *model.AdminIngestionMetrics) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminIngestionMetrics_queueDepth(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.QueueDepth, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt642int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminIngestionMetrics_queueDepth(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminIngestionMetrics", field, false, false, errors.New("field of type Int64 does not have child fields"))
+}
+
 func (ec *executionContext) _AdminJob_id(ctx context.Context, field graphql.CollectedField, obj *model.AdminJob) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -13175,6 +13482,38 @@ func (ec *executionContext) _AdminOverview_relayStatus(ctx context.Context, fiel
 }
 func (ec *executionContext) fieldContext_AdminOverview_relayStatus(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("AdminOverview", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _AdminOverview_ingestion(ctx context.Context, field graphql.CollectedField, obj *model.AdminOverview) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminOverview_ingestion(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Ingestion, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.AdminIngestionMetrics) graphql.Marshaler {
+			return ec.marshalNAdminIngestionMetrics2ᚖgithubᚗcomᚋgabrielmouraᚋnostrᚑrelayᚑserverᚋgraphᚋmodelᚐAdminIngestionMetrics(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminOverview_ingestion(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AdminOverview",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_AdminIngestionMetrics(ctx, field)
+		},
+	}
+	return fc, nil
 }
 
 func (ec *executionContext) _AdminProfile_pubkey(ctx context.Context, field graphql.CollectedField, obj *model.AdminProfile) (ret graphql.Marshaler) {
@@ -22936,6 +23275,85 @@ func (ec *executionContext) _AdminImportFileResult(ctx context.Context, sel ast.
 	return out
 }
 
+var adminIngestionMetricsImplementors = []string{"AdminIngestionMetrics"}
+
+func (ec *executionContext) _AdminIngestionMetrics(ctx context.Context, sel ast.SelectionSet, obj *model.AdminIngestionMetrics) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, adminIngestionMetricsImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("AdminIngestionMetrics")
+		case "acceptedEvents":
+			out.Values[i] = ec._AdminIngestionMetrics_acceptedEvents(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "insertedEvents":
+			out.Values[i] = ec._AdminIngestionMetrics_insertedEvents(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "duplicates":
+			out.Values[i] = ec._AdminIngestionMetrics_duplicates(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "rejected":
+			out.Values[i] = ec._AdminIngestionMetrics_rejected(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "uncertain":
+			out.Values[i] = ec._AdminIngestionMetrics_uncertain(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "batchErrors":
+			out.Values[i] = ec._AdminIngestionMetrics_batchErrors(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "batches":
+			out.Values[i] = ec._AdminIngestionMetrics_batches(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "backpressure":
+			out.Values[i] = ec._AdminIngestionMetrics_backpressure(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "queueDepth":
+			out.Values[i] = ec._AdminIngestionMetrics_queueDepth(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferred), math.MaxInt32)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
 var adminJobImplementors = []string{"AdminJob"}
 
 func (ec *executionContext) _AdminJob(ctx context.Context, sel ast.SelectionSet, obj *model.AdminJob) graphql.Marshaler {
@@ -23905,6 +24323,11 @@ func (ec *executionContext) _AdminOverview(ctx context.Context, sel ast.Selectio
 			}
 		case "relayStatus":
 			out.Values[i] = ec._AdminOverview_relayStatus(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "ingestion":
+			out.Values[i] = ec._AdminOverview_ingestion(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -27347,6 +27770,16 @@ func (ec *executionContext) marshalNAdminImportFileResult2ᚖgithubᚗcomᚋgabr
 		return graphql.Null
 	}
 	return ec._AdminImportFileResult(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNAdminIngestionMetrics2ᚖgithubᚗcomᚋgabrielmouraᚋnostrᚑrelayᚑserverᚋgraphᚋmodelᚐAdminIngestionMetrics(ctx context.Context, sel ast.SelectionSet, v *model.AdminIngestionMetrics) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._AdminIngestionMetrics(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNAdminJob2githubᚗcomᚋgabrielmouraᚋnostrᚑrelayᚑserverᚋgraphᚋmodelᚐAdminJob(ctx context.Context, sel ast.SelectionSet, v model.AdminJob) graphql.Marshaler {

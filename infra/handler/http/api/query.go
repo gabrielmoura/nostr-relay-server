@@ -97,7 +97,7 @@ func (h *Handler) maxScan() int {
 func visibleEvents(ctx context.Context, filter nostr.Filter, candidates []*nostr.Event, excluded map[string]map[string]struct{}) ([]*nostr.Event, error) {
 	public := make([]*nostr.Event, 0, len(candidates))
 	for _, event := range candidates {
-		if event != nil && event.Kind != 1059 && !hasProtectedTag(event) && !hasExcludedTag(event, excluded) {
+		if event != nil && event.Kind != 1059 && event.Kind != nostr.KindEncryptedDirectMessage && !hasProtectedTag(event) && !hasExcludedTag(event, excluded) {
 			public = append(public, event)
 		}
 	}

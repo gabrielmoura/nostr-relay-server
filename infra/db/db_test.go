@@ -52,6 +52,31 @@ func TestInsertEventBatchIsolatesAndSkipsInvalidEvents(t *testing.T) {
 	}, result)
 }
 
+func TestReplaceableKeysAreDeterministicAndSeparateAddressableIdentifiers(t *testing.T) {
+	keys := replaceableKeys([]*nostr.Event{
+		{ID: "one", PubKey: "pubkey", Kind: nostr.KindProfileMetadata},
+		{ID: "two", PubKey: "pubkey", Kind: nostr.KindProfileMetadata},
+		{ID: "three", PubKey: "pubkey", Kind: 30023, Tags: nostr.Tags{{"d", "first"}}},
+		{ID: "four", PubKey: "pubkey", Kind: 30023, Tags: nostr.Tags{{"d", "second"}}},
+	})
+
+	require.Len(t, keys, 3)
+	require.Equal(t, "a:pubkey:30023:first", keys[0].lock)
+	require.Equal(t, "a:pubkey:30023:second", keys[1].lock)
+	require.Equal(t, "r:pubkey:0", keys[2].lock)
+}
+
+func TestRemovePrunedInsertionsDoesNotConfirmSupersededEvent(t *testing.T) {
+	result := removePrunedInsertions(BatchInsertResult{
+		Inserted:    2,
+		InsertedIDs: []string{"newest", "oldest"},
+	}, map[string]struct{}{"oldest": {}})
+
+	require.Equal(t, 1, result.Inserted)
+	require.Equal(t, 1, result.Duplicates)
+	require.Equal(t, []string{"newest"}, result.InsertedIDs)
+}
+
 func TestPurgeExpiredNIP40EventsAccumulatesChunks(t *testing.T) {
 	queries := New(&expirationDBTX{tags: []pgconn.CommandTag{
 		pgconn.NewCommandTag("DELETE 2"),

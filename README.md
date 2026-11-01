@@ -593,6 +593,7 @@ relay:
   max_size_event_in_bytes: 100000
   filter_limit: 9999999999
   reporting_limit: 5
+  reporting_auto_ban_enabled: false
   enable_anonymous_req: true
   max_tag_value_length: 150
 

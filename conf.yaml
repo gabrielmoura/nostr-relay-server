@@ -35,6 +35,17 @@ cordn:
     max_concurrent_subscriptions: 1000
 concord:
     enabled: false
+dm_import:
+    # Browser-originated, NIP-42-authenticated encrypted DM imports only.
+    enabled: false
+    # Must not exceed relay.max_size_event_in_bytes (100000 by default).
+    max_event_bytes: 100000
+    rate_limit:
+        enabled: true
+        requests_per_second: 20
+        burst: 50
+        max_clients: 10000
+        idle_ttl_seconds: 600
 relay_information:
     url: http:/kqzk4pnydptareyj7b4uzxg4rqkeh6wmntcjuoppy6wv72nkj3na2vad.onion
     name: Nostr Relay Server
@@ -70,6 +81,9 @@ relay:
     max_size_event_in_bytes: 1000000
     filter_limit: 9999999999
     reporting_limit: 5
+    # Report events are recorded, but automatic bans stay disabled unless
+    # explicitly enabled by the operator.
+    reporting_auto_ban_enabled: false
     enable_anonymous_req: true
     max_tag_value_length: 35000
     enable_empty_filter: true

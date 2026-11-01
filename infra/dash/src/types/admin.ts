@@ -17,11 +17,27 @@ export type AdminPage<T> = {
 }
 
 export type RelayMetricCard = {
+  metric: RelayMetricID
   label: string
   value: string
   tone?: "default" | "success" | "danger" | "warning"
   helper?: string
 }
+
+export type RelayMetricID =
+  | "active-connections"
+  | "authed-connections"
+  | "banned-users"
+  | "indexed-events"
+  | "events-per-minute"
+  | "accepted-events"
+  | "inserted-events"
+  | "duplicate-events"
+  | "rejected-events"
+  | "uncertain-events"
+  | "queue-depth"
+  | "batch-errors"
+  | "backpressure"
 
 export type NIP86PubKeyRecord = {
   pubkey: string
@@ -138,10 +154,22 @@ export type DownloadJobsResponse = {
 
 export type RelayOverview = {
   cards: RelayMetricCard[]
-  status: "operational" | "degraded"
   activeConnections: number
   authedConnections: number
   bannedUsers: number
+  ingestion: RelayIngestionMetrics
+}
+
+export type RelayIngestionMetrics = {
+  accepted_events: number
+  inserted_events: number
+  duplicates: number
+  rejected: number
+  uncertain: number
+  batch_errors: number
+  batches: number
+  backpressure: number
+  queue_depth: number
 }
 
 export type StreamRelayStatus = {

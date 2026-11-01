@@ -23,10 +23,28 @@ func TestNIP11CapabilitiesReflectEnabledRelayFeatures(t *testing.T) {
 	}
 
 	cfg.applyNIP11Capabilities()
-	for _, nip := range []int{1, 9, 11, 13, 29, 40, 42, 45, 50, 62, 70, 77, 86, 96, 98} {
+	for _, nip := range []int{1, 9, 11, 13, 29, 40, 42, 45, 50, 62, 70, 77, 96} {
 		if !containsNIP(cfg.RelayInformation.SupportedNIPs, nip) {
 			t.Fatalf("supported_nips = %v, want %d", cfg.RelayInformation.SupportedNIPs, nip)
 		}
+	}
+	if containsNIP(cfg.RelayInformation.SupportedNIPs, 86) || containsNIP(cfg.RelayInformation.SupportedNIPs, 98) {
+		t.Fatalf("public NIP-11 advertised internal NIP-86 capability: %v", cfg.RelayInformation.SupportedNIPs)
+	}
+}
+
+func TestNIP11CapabilitiesAdvertiseNIP42ForDMImport(t *testing.T) {
+	cfg := &Config{DMImport: DMImportConfig{Enabled: true}}
+	cfg.applyNIP11Capabilities()
+	if !containsNIP(cfg.RelayInformation.SupportedNIPs, 42) {
+		t.Fatalf("supported_nips = %v, want 42", cfg.RelayInformation.SupportedNIPs)
+	}
+}
+
+func TestNIP42EnabledForDMImportWithoutGlobalWebSocketAuth(t *testing.T) {
+	cfg := &Config{DMImport: DMImportConfig{Enabled: true}}
+	if !cfg.NIP42Enabled() {
+		t.Fatal("DM import did not enable NIP-42 authentication")
 	}
 }
 

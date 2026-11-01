@@ -88,6 +88,9 @@ func applyLoadedConfig() error {
 	if err := cfg.ValidateCordnConcordFeatures(); err != nil {
 		return err
 	}
+	if err := cfg.ValidateDMImportFeatures(); err != nil {
+		return err
+	}
 
 	Cfg = cfg
 	cfg.applySecurityRelayInformationDefaults()
@@ -136,13 +139,15 @@ func (cfg *Config) applyNIP11Capabilities() {
 	cfg.setNIP11Capability(13, cfg.Relay.MinimumPOWLimit > 0)
 	cfg.setNIP11Capability(29, cfg.NIP29.Enabled)
 	cfg.setNIP11Capability(50, cfg.Search.Enabled)
-	cfg.setNIP11Capability(42, cfg.Ws.AuthEnabled())
+	cfg.setNIP11Capability(42, cfg.NIP42Enabled())
 	cfg.setNIP11Capability(62, cfg.Relay.VanishEvent)
 	cfg.setNIP11Capability(70, cfg.NIP70.Enabled)
 	cfg.setNIP11Capability(77, cfg.EnableNegentropy)
-	cfg.setNIP11Capability(86, cfg.NIP86Enabled())
+	// NIP-86 is served exclusively on the internal administrative listener.
+	// NIP-11 describes the public listener, so it must never advertise it.
+	cfg.setNIP11Capability(86, false)
 	cfg.setNIP11Capability(96, cfg.Store.Enabled)
-	cfg.setNIP11Capability(98, cfg.NIP86Enabled() || cfg.API.NIP98.Enabled || cfg.API.NIPFE.Enabled)
+	cfg.setNIP11Capability(98, cfg.API.NIP98.Enabled || cfg.API.NIPFE.Enabled)
 }
 
 func (cfg *Config) setNIP11Capability(nip int, enabled bool) {

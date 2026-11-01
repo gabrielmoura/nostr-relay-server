@@ -34,7 +34,7 @@ func TestAPIRejectsRequestsOverPerIPRateLimit(t *testing.T) {
 	}
 }
 
-func TestQueryHidesProtectedAndGiftWrapBeforePagination(t *testing.T) {
+func TestQueryHidesProtectedAndDirectMessagesBeforePagination(t *testing.T) {
 	cfg := &config.Config{
 		API:      config.APIConfig{Enabled: true, MaxLimit: 2, MaxScan: 20},
 		Security: config.SecurityConfig{Limits: config.SecurityLimitsConfig{MaxLimit: 2}},
@@ -43,8 +43,10 @@ func TestQueryHidesProtectedAndGiftWrapBeforePagination(t *testing.T) {
 		{ID: testID('1'), Kind: 1},
 		{ID: testID('2'), Kind: 1, Tags: nostr.Tags{{"-"}}},
 		{ID: testID('3'), Kind: 1059},
-		{ID: testID('4'), Kind: 1},
+		{ID: testID('4'), Kind: nostr.KindEncryptedDirectMessage},
 		{ID: testID('5'), Kind: 1},
+		{ID: testID('6'), Kind: 1},
+		{ID: testID('7'), Kind: 1},
 	}
 	handler := NewWithSource(cfg, func(_ context.Context, filter nostr.Filter, offset int) ([]*nostr.Event, error) {
 		end := offset + filter.Limit
@@ -71,7 +73,7 @@ func TestQueryHidesProtectedAndGiftWrapBeforePagination(t *testing.T) {
 	if err := json.NewDecoder(response.Body).Decode(&body); err != nil {
 		t.Fatalf("decode response: %v", err)
 	}
-	if body.Count != 2 || body.Events[0].ID != testID('1') || body.Events[1].ID != testID('4') || !body.More {
+	if body.Count != 2 || body.Events[0].ID != testID('1') || body.Events[1].ID != testID('5') || !body.More {
 		t.Fatalf("response = %#v", body)
 	}
 }

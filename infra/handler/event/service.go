@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"time"
 
 	"github.com/gabrielmoura/nostr-relay-server/config"
 	"github.com/gabrielmoura/nostr-relay-server/infra/handler/auth"
@@ -11,6 +12,7 @@ import (
 	"github.com/gabrielmoura/nostr-relay-server/infra/log"
 	"github.com/gabrielmoura/nostr-relay-server/infra/metrics"
 	nostr_custom "github.com/gabrielmoura/nostr-relay-server/infra/nostr-custom"
+	"github.com/gabrielmoura/nostr-relay-server/internal/dmimport"
 	"github.com/gabrielmoura/nostr-relay-server/internal/dto"
 	policies "github.com/gabrielmoura/nostr-relay-server/internal/policies"
 	"github.com/gabrielmoura/nostr-relay-server/internal/security"
@@ -30,7 +32,6 @@ func processEvent(ws *dto.WsServer, evt *nostr.Event) string {
 	if evt == nil {
 		return "failed to decode event: missing payload"
 	}
-
 	if config.Cfg.Ws.RequireAuthForEvent() && ws.Authed == "" {
 		auth.SendAuthChallenge(ws)
 		rejectEvent(ws, evt, "auth-required: this relay requires NIP-42 authentication before EVENT")
@@ -63,6 +64,44 @@ func processEvent(ws *dto.WsServer, evt *nostr.Event) string {
 		return ""
 	}
 
+	if config.Cfg.DMImport.Enabled && dmimport.IsImportKind(evt.Kind) {
+		if ws.Authed == "" {
+			auth.SendAuthChallenge(ws)
+			rejectEvent(ws, evt, "auth-required: DM import requires NIP-42 authentication")
+			return ""
+		}
+		admission, admitted := dmimport.Authorize(ws.Authed, evt)
+		if !admitted {
+			rejectEvent(ws, evt, "restricted: authenticated pubkey is not involved in this DM event")
+			return ""
+		}
+		if ws.DMImportAllow == nil || !ws.DMImportAllow(ws.Authed+"|"+ws.RemoteIP) {
+			rejectEvent(ws, evt, "rate-limited: DM import rate limit exceeded")
+			return ""
+		}
+		if len(evt.Serialize()) > config.Cfg.DMImport.MaxEventBytes {
+			rejectEvent(ws, evt, "restricted: DM import event exceeds configured size")
+			return ""
+		}
+		if reject, reason := policies.P.ValidateDMImportEvent(ctx, evt); reject {
+			rejectEvent(ws, evt, reason)
+			return ""
+		}
+		importCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
+		defer cancel()
+		receipt, ok := ingestion.PushDMImport(importCtx, evt, admission)
+		if !ok || receipt.Reason != "" {
+			reason := receipt.Reason
+			if reason == "" {
+				reason = "error: DM import failed"
+			}
+			rejectEvent(ws, evt, reason)
+			return ""
+		}
+		ws.Send(dmImportOK(evt.ID, receipt))
+		return ""
+	}
+
 	if reject, reason := policies.P.ValidateIncomingEvent(ctx, evt); reject {
 		rejectEvent(ws, evt, reason)
 		return ""
@@ -82,6 +121,14 @@ func processEvent(ws *dto.WsServer, evt *nostr.Event) string {
 	}
 
 	return ""
+}
+
+func dmImportOK(eventID string, receipt ingestion.Receipt) nostr.OKEnvelope {
+	reason := ""
+	if receipt.Duplicate {
+		reason = "duplicate: event already exists"
+	}
+	return nostr.OKEnvelope{EventID: eventID, OK: true, Reason: reason}
 }
 
 // ProcessOneShot executes EVENT validation and ingestion without a WebSocket
@@ -132,11 +179,11 @@ func enqueueEvent(ws *dto.WsServer, evt *nostr.Event) bool {
 	if ingestion.Push(evt) {
 		metrics.NostrEventsAcceptedTotal.Inc()
 		log.Logger.Debug("event queued for ingestion", zap.String("event_id", evt.ID), zap.Int("kind", evt.Kind))
-		ws.ChanSender <- nostr.OKEnvelope{EventID: evt.ID, OK: true}
+		ws.Send(nostr.OKEnvelope{EventID: evt.ID, OK: true})
 		return true
 	}
 
-	ws.ChanSender <- nostr.OKEnvelope{EventID: evt.ID, OK: false, Reason: "error: ingestion queue is full"}
+	ws.Send(nostr.OKEnvelope{EventID: evt.ID, OK: false, Reason: "error: ingestion queue is full"})
 	return false
 }
 
@@ -145,10 +192,10 @@ func rejectEvent(ws *dto.WsServer, evt *nostr.Event, reason string) {
 		metrics.NostrRelayEventSignatureFailures.Inc()
 	}
 	if evt == nil {
-		ws.ChanSender <- nostr.NoticeEnvelope(reason)
+		ws.Send(nostr.NoticeEnvelope(reason))
 		return
 	}
-	ws.ChanSender <- nostr.OKEnvelope{EventID: evt.ID, OK: false, Reason: reason}
+	ws.Send(nostr.OKEnvelope{EventID: evt.ID, OK: false, Reason: reason})
 }
 
 func wrapErr(prefix string, err error) error {

@@ -88,3 +88,22 @@ func TestRelayInformationCheckDoesNotPanicOnInvalidCanonicalURL(t *testing.T) {
 		t.Fatal("expected validation error for canonical_url without scheme")
 	}
 }
+
+func TestRelayInformationAuthRelayAliasesAreValidatedAndTrusted(t *testing.T) {
+	cfg := &RelayInformationDocument{
+		CanonicalURL:  "wss://relay.example",
+		AuthRelayURLs: []string{"ws://localhost:4869", "wss://relay.example"},
+	}
+	if errs := cfg.Check(); len(errs) != 0 {
+		t.Fatalf("Check() errors = %v", errs)
+	}
+	trusted := cfg.TrustedAuthRelayURLs()
+	if len(trusted) != 3 || trusted[0] != "wss://relay.example" || trusted[1] != "ws://localhost:4869" {
+		t.Fatalf("TrustedAuthRelayURLs() = %#v", trusted)
+	}
+
+	cfg.AuthRelayURLs = []string{"https://not-a-websocket.example"}
+	if errs := cfg.Check(); len(errs) == 0 {
+		t.Fatal("Check() accepted an invalid auth relay alias")
+	}
+}

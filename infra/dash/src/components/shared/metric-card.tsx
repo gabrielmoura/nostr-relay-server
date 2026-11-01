@@ -1,23 +1,30 @@
-import { Activity, Ban, Cable, Database, ShieldCheck, Users } from "lucide-react"
+import { Activity, Ban, Cable, Database, Rows3, ShieldAlert, ShieldCheck, Users } from "lucide-react"
 
 import { Card, CardContent } from "@/components/ui/card"
 import type { RelayMetricCard } from "@/types/admin"
 import { cn } from "@/lib/utils"
 
 const iconMap = {
-  "Conexoes ativas": Cable,
-  "Conexoes logadas": Users,
-  "Usuarios banidos": Ban,
-  "Eventos indexados": Database,
-  "Eventos / min": Activity,
-  "Status do relay": ShieldCheck,
+  "active-connections": Cable,
+  "authed-connections": Users,
+  "banned-users": Ban,
+  "indexed-events": Database,
+  "events-per-minute": Activity,
+  "accepted-events": ShieldCheck,
+  "inserted-events": Database,
+  "duplicate-events": Rows3,
+  "rejected-events": ShieldAlert,
+  "uncertain-events": ShieldAlert,
+  "queue-depth": Rows3,
+  "batch-errors": ShieldAlert,
+  backpressure: ShieldAlert,
 } as const
 
 export function MetricCard({ card }: { card: RelayMetricCard }) {
-  const Icon = iconMap[card.label as keyof typeof iconMap] ?? Activity
+  const Icon = iconMap[card.metric] ?? Activity
 
   return (
-    <Card className="overflow-hidden">
+    <Card className={cn("admin-metric-card overflow-hidden", card.tone && `admin-metric-card--${card.tone}`)}>
       <CardContent className="flex h-full flex-col gap-4 p-4">
         <div className="flex items-center justify-between">
           <span className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">{card.label}</span>

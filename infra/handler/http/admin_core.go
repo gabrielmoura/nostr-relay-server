@@ -121,3 +121,14 @@ func counterValue(counter prometheus.Counter) float64 {
 	}
 	return metric.Counter.GetValue()
 }
+
+func gaugeValue(gauge prometheus.Gauge) float64 {
+	metric := &promdto.Metric{}
+	if err := gauge.Write(metric); err != nil {
+		return 0
+	}
+	if metric.Gauge == nil {
+		return 0
+	}
+	return metric.Gauge.GetValue()
+}

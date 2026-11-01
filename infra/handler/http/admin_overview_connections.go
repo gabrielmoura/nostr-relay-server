@@ -13,6 +13,7 @@ import (
 	"github.com/gabrielmoura/nostr-relay-server/internal/db"
 	"github.com/gabrielmoura/nostr-relay-server/pkg/nostrpool"
 	"github.com/gofiber/fiber/v2"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 func AdminOverview() fiber.Handler {
@@ -45,7 +46,39 @@ func AdminOverview() fiber.Handler {
 			IndexedEvents:     indexedEvents,
 			EventsPerMinute:   eventsPerMinute,
 			RelayStatus:       "operational",
+			Ingestion:         adminIngestionMetrics(),
 		})
+	}
+}
+
+func adminIngestionMetrics() adminIngestionMetricsResponse {
+	return adminIngestionMetricsFromCollectors(
+		metrics.NostrEventsAcceptedTotal,
+		metrics.NostrRelayEventsInserted,
+		metrics.NostrRelayIngestionDuplicates,
+		metrics.NostrRelayIngestionRejected,
+		metrics.NostrRelayIngestionUncertain,
+		metrics.NostrRelayIngestionErrors,
+		metrics.NostrRelayBatchProcessed,
+		metrics.NostrRelayIngestionBackpressure,
+		metrics.NostrRelayIngestionQueueDepth,
+	)
+}
+
+func adminIngestionMetricsFromCollectors(
+	accepted, inserted, duplicates, rejected, uncertain, batchErrors, batches, backpressure prometheus.Counter,
+	queueDepth prometheus.Gauge,
+) adminIngestionMetricsResponse {
+	return adminIngestionMetricsResponse{
+		AcceptedEvents: int64(counterValue(accepted)),
+		InsertedEvents: int64(counterValue(inserted)),
+		Duplicates:     int64(counterValue(duplicates)),
+		Rejected:       int64(counterValue(rejected)),
+		Uncertain:      int64(counterValue(uncertain)),
+		BatchErrors:    int64(counterValue(batchErrors)),
+		Batches:        int64(counterValue(batches)),
+		Backpressure:   int64(counterValue(backpressure)),
+		QueueDepth:     int64(gaugeValue(queueDepth)),
 	}
 }
 

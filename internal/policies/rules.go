@@ -31,6 +31,14 @@ func (p Policies) validateWhitelistBlacklist(evt *nostr.Event) (bool, string) {
 	return false, ""
 }
 
+func (p Policies) validateKindBlacklist(evt *nostr.Event) (bool, string) {
+	if len(p.Config.Relay.BlacklistKinds) > 0 && slices.Contains(p.Config.Relay.BlacklistKinds, evt.Kind) {
+		metrics.NostrBlockedKindsTotal.WithLabelValues("blacklist").Inc()
+		return true, security.Reason(security.PrefixRestricted, "event kind is blacklisted")
+	}
+	return false, ""
+}
+
 func (p Policies) rejectEventBannedUser(ctx context.Context, evt *nostr.Event) (bool, string) {
 	if evt.PubKey == "" {
 		return true, security.Reason(security.PrefixInvalid, "missing public key")
@@ -175,14 +183,24 @@ func (p Policies) checkKindsAuth(filter nostr.Filter, ws *dto.WsServer) (bool, s
 }
 
 func (p Policies) checkDirectMessageAccess(filter nostr.Filter, ws *dto.WsServer) (bool, string) {
-	if !p.Config.Ws.RequireAuthForReq() || !slices.Contains(filter.Kinds, nostr.KindEncryptedDirectMessage) {
+	if !slices.Contains(filter.Kinds, nostr.KindEncryptedDirectMessage) && !slices.Contains(filter.Kinds, 1059) {
 		return false, ""
 	}
 	senders := filter.Authors
 	receivers, _ := filter.Tags["p"]
+	// A kind-1059 filter without a recipient is the distinct Concord stream
+	// query form; leave it to checkConcordGiftwrapAccess below.
+	if slices.Contains(filter.Kinds, 1059) && len(receivers) == 0 {
+		return false, ""
+	}
 	switch {
 	case ws.Authed == "":
-		return true, "restricted: this relay does not serve kind-4 to unauthenticated users, does your client implement NIP-42?"
+		return true, "restricted: this relay does not serve private messages to unauthenticated users, does your client implement NIP-42?"
+	case slices.Contains(filter.Kinds, 1059):
+		if len(filter.Kinds) != 1 || len(receivers) != 1 || receivers[0] != ws.Authed {
+			return true, "restricted: kind-1059 requires exactly one recipient matching the authenticated pubkey"
+		}
+		return false, ""
 	case len(senders) == 1 && len(receivers) < 2 && senders[0] == ws.Authed:
 		return false, ""
 	case len(receivers) == 1 && len(senders) < 2 && receivers[0] == ws.Authed:
@@ -206,6 +224,11 @@ func (p Policies) checkConcordGiftwrapAccess(filter nostr.Filter) (bool, string)
 		return true, "restricted: Concord requires an explicit non-giftwrap kind filter"
 	}
 	if !slices.Contains(filter.Kinds, 1059) {
+		return false, ""
+	}
+	// A recipient-tagged gift wrap is NIP-17 and is authorized by the DM
+	// policy before this Concord-specific stream policy.
+	if len(filter.Tags["p"]) > 0 {
 		return false, ""
 	}
 	if len(filter.Kinds) != 1 || filter.Kinds[0] != 1059 {

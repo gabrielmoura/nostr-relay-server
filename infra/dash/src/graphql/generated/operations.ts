@@ -438,6 +438,19 @@ export type AdminImportFileResult = {
   total: Scalars['Int']['output'];
 };
 
+export type AdminIngestionMetrics = {
+  __typename: 'AdminIngestionMetrics';
+  acceptedEvents: Scalars['Int64']['output'];
+  backpressure: Scalars['Int64']['output'];
+  batchErrors: Scalars['Int64']['output'];
+  batches: Scalars['Int64']['output'];
+  duplicates: Scalars['Int64']['output'];
+  insertedEvents: Scalars['Int64']['output'];
+  queueDepth: Scalars['Int64']['output'];
+  rejected: Scalars['Int64']['output'];
+  uncertain: Scalars['Int64']['output'];
+};
+
 export type AdminJob = {
   __typename: 'AdminJob';
   attempts: Scalars['Int']['output'];
@@ -638,6 +651,7 @@ export type AdminOverview = {
   bannedUsers: Scalars['Int']['output'];
   eventsPerMinute: Scalars['Int64']['output'];
   indexedEvents: Scalars['Int64']['output'];
+  ingestion: AdminIngestionMetrics;
   loggedUsers: Scalars['Int']['output'];
   relayStatus: Scalars['String']['output'];
 };
@@ -1341,7 +1355,7 @@ export type TimelineBucket =
 export type AdminOverviewQueryVariables = Exact<{ [key: string]: never; }>;
 
 
-export type AdminOverviewQuery = { __typename: 'Query', adminOverview: { __typename: 'AdminOverview', activeConnections: number, authedConnections: number, loggedUsers: number, bannedUsers: number, indexedEvents: number, eventsPerMinute: number, relayStatus: string } };
+export type AdminOverviewQuery = { __typename: 'Query', adminOverview: { __typename: 'AdminOverview', activeConnections: number, authedConnections: number, loggedUsers: number, bannedUsers: number, indexedEvents: number, eventsPerMinute: number, relayStatus: string, ingestion: { __typename: 'AdminIngestionMetrics', acceptedEvents: number, insertedEvents: number, duplicates: number, rejected: number, uncertain: number, batchErrors: number, batches: number, backpressure: number, queueDepth: number } } };
 
 export type AdminStreamStatusQueryVariables = Exact<{ [key: string]: never; }>;
 
@@ -1904,7 +1918,7 @@ export type BlossomAuditQueryVariables = Exact<{
 export type BlossomAuditQuery = { __typename: 'Query', blossomAudit: { __typename: 'AdminBlossomAuditPage', items: Array<Record<string, unknown>>, pageInfo: { __typename: 'PageInfo', total: number, limit: number, offset: number, hasMore: boolean } } };
 
 
-export const AdminOverviewDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"AdminOverview"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"adminOverview"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"activeConnections"}},{"kind":"Field","name":{"kind":"Name","value":"authedConnections"}},{"kind":"Field","name":{"kind":"Name","value":"loggedUsers"}},{"kind":"Field","name":{"kind":"Name","value":"bannedUsers"}},{"kind":"Field","name":{"kind":"Name","value":"indexedEvents"}},{"kind":"Field","name":{"kind":"Name","value":"eventsPerMinute"}},{"kind":"Field","name":{"kind":"Name","value":"relayStatus"}}]}}]}}]} as unknown as DocumentNode<AdminOverviewQuery, AdminOverviewQueryVariables>;
+export const AdminOverviewDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"AdminOverview"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"adminOverview"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"activeConnections"}},{"kind":"Field","name":{"kind":"Name","value":"authedConnections"}},{"kind":"Field","name":{"kind":"Name","value":"loggedUsers"}},{"kind":"Field","name":{"kind":"Name","value":"bannedUsers"}},{"kind":"Field","name":{"kind":"Name","value":"indexedEvents"}},{"kind":"Field","name":{"kind":"Name","value":"eventsPerMinute"}},{"kind":"Field","name":{"kind":"Name","value":"relayStatus"}},{"kind":"Field","name":{"kind":"Name","value":"ingestion"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"acceptedEvents"}},{"kind":"Field","name":{"kind":"Name","value":"insertedEvents"}},{"kind":"Field","name":{"kind":"Name","value":"duplicates"}},{"kind":"Field","name":{"kind":"Name","value":"rejected"}},{"kind":"Field","name":{"kind":"Name","value":"uncertain"}},{"kind":"Field","name":{"kind":"Name","value":"batchErrors"}},{"kind":"Field","name":{"kind":"Name","value":"batches"}},{"kind":"Field","name":{"kind":"Name","value":"backpressure"}},{"kind":"Field","name":{"kind":"Name","value":"queueDepth"}}]}}]}}]}}]} as unknown as DocumentNode<AdminOverviewQuery, AdminOverviewQueryVariables>;
 export const AdminStreamStatusDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"AdminStreamStatus"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"adminStreamStatus"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"config"}},{"kind":"Field","name":{"kind":"Name","value":"dispatcher"}},{"kind":"Field","name":{"kind":"Name","value":"pool"}},{"kind":"Field","name":{"kind":"Name","value":"counters"}}]}}]}}]} as unknown as DocumentNode<AdminStreamStatusQuery, AdminStreamStatusQueryVariables>;
 export const PrivacyStatusDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"PrivacyStatus"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"privacyStatus"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"enabled"}},{"kind":"Field","name":{"kind":"Name","value":"degraded"}},{"kind":"Field","name":{"kind":"Name","value":"persistence"}},{"kind":"Field","name":{"kind":"Name","value":"stateDir"}},{"kind":"Field","name":{"kind":"Name","value":"networks"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"mode"}},{"kind":"Field","name":{"kind":"Name","value":"enabled"}},{"kind":"Field","name":{"kind":"Name","value":"started"}},{"kind":"Field","name":{"kind":"Name","value":"status"}},{"kind":"Field","name":{"kind":"Name","value":"addresses"}},{"kind":"Field","name":{"kind":"Name","value":"metrics"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"txBytes"}},{"kind":"Field","name":{"kind":"Name","value":"rxBytes"}},{"kind":"Field","name":{"kind":"Name","value":"peers"}},{"kind":"Field","name":{"kind":"Name","value":"connections"}}]}},{"kind":"Field","name":{"kind":"Name","value":"error"}},{"kind":"Field","name":{"kind":"Name","value":"uptimeMs"}}]}}]}}]}}]} as unknown as DocumentNode<PrivacyStatusQuery, PrivacyStatusQueryVariables>;
 export const ActiveConnectionsDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"ActiveConnections"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"page"}},"type":{"kind":"NamedType","name":{"kind":"Name","value":"OffsetPageInput"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"activeConnections"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"page"},"value":{"kind":"Variable","name":{"kind":"Name","value":"page"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"pageInfo"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"total"}},{"kind":"Field","name":{"kind":"Name","value":"limit"}},{"kind":"Field","name":{"kind":"Name","value":"offset"}},{"kind":"Field","name":{"kind":"Name","value":"hasMore"}}]}},{"kind":"Field","name":{"kind":"Name","value":"items"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"wsid"}},{"kind":"Field","name":{"kind":"Name","value":"ip"}},{"kind":"Field","name":{"kind":"Name","value":"authed"}},{"kind":"Field","name":{"kind":"Name","value":"subscriptionCount"}},{"kind":"Field","name":{"kind":"Name","value":"connectedAt"}},{"kind":"Field","name":{"kind":"Name","value":"lastSeenAt"}},{"kind":"Field","name":{"kind":"Name","value":"userAgent"}}]}}]}}]}}]} as unknown as DocumentNode<ActiveConnectionsQuery, ActiveConnectionsQueryVariables>;

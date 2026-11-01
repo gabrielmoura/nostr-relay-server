@@ -52,6 +52,18 @@ Located in `infra/dash/src/components/shared/`
 
 ## Feature Components
 
+### DM import (`features/dm-import/`)
+
+```
+ImportDMPage (Smart route)
+└── DMImportPanel (Smart browser container, mode: admin | public)
+    ├── signer.ts (NIP-07 / short-lived nsec signer)
+    ├── relay-client.ts (NIP-42 WebSocket transport)
+    └── importer.ts (discovery, dedupe and progress orchestration)
+```
+
+The panel has no GraphQL or admin-context dependency and may be mounted by a future public route.
+
 ### NIP-29 Groups (`components/features/groups/`) - Planned
 
 ```

@@ -20,15 +20,15 @@ import (
 const AuthContextKey = "authed"
 
 func DoAUTH(ws *dto.WsServer, data dto.Data) string {
-	if config.Cfg.Ws.AuthEnabled() {
+	if config.Cfg.NIP42Enabled() {
 		var evt nostr.Event
 		if err := json.Unmarshal(data[1], &evt); err != nil {
 			return "failed to decode auth event: " + err.Error()
 		}
-		allowedRelayURLs := append([]string{config.Cfg.RelayInformation.CanonicalURL}, privacy.GetActiveAuthURLs()...)
+		allowedRelayURLs := append(config.Cfg.RelayInformation.TrustedAuthRelayURLs(), privacy.GetActiveAuthURLs()...)
 		if pubkey, reason := validateAuthEvent(&evt, ws.Challenge, allowedRelayURLs...); reason == "" {
-			ws.Authed = pubkey
-			ws.Ctx = context.WithValue(ws.Ctx, AuthContextKey, pubkey)
+			_, currentCtx := ws.AuthSnapshot()
+			ws.SetAuth(pubkey, context.WithValue(currentCtx, AuthContextKey, pubkey))
 			ws.ChanSender <- nostr.OKEnvelope{EventID: evt.ID, OK: true}
 		} else {
 			metrics.NostrRelayAuthFailuresTotal.Inc()
@@ -50,7 +50,7 @@ func DoAUTH(ws *dto.WsServer, data dto.Data) string {
 }
 
 func SendAuthChallenge(ws *dto.WsServer) {
-	if !config.Cfg.Ws.AuthEnabled() {
+	if !config.Cfg.NIP42Enabled() {
 		return
 	}
 	if ws.Challenge == "" {
@@ -60,7 +60,7 @@ func SendAuthChallenge(ws *dto.WsServer) {
 }
 
 func SendAuthChallengeNow(ws *dto.WsServer) error {
-	if !config.Cfg.Ws.AuthEnabled() {
+	if !config.Cfg.NIP42Enabled() {
 		return nil
 	}
 	if ws.Challenge == "" {

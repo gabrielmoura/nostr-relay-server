@@ -115,8 +115,7 @@ func (r *RouterFactory) setupInternalRoutes(app *fiber.App) {
 		p(c.Context())
 		return nil
 	})
-	app.Get("/healthz", httphandler.Readiness())
-	app.Get("/readyz", httphandler.Readiness())
+	app.Get("/health", httphandler.Readiness())
 
 	admin := app.Group("/admin", httphandler.AdminTokenMiddleware(r.Config))
 	graphqlHandler := fasthttpadaptor.NewFastHTTPHandler(graph.HTTPHandler())
@@ -158,6 +157,14 @@ func (r *RouterFactory) setupExternalRoutes(app *fiber.App) error {
 		negentropyRateLimit.MaxClients,
 		negentropyRateLimit.IdleTTLSeconds,
 	)
+	dmImportRateLimit := r.Config.DMImport.RateLimit
+	dmImportLimiter := ratelimit.NewFromConfig(
+		dmImportRateLimit.Enabled && r.Config.DMImport.Enabled,
+		dmImportRateLimit.RequestsPerSec,
+		dmImportRateLimit.Burst,
+		dmImportRateLimit.MaxClients,
+		dmImportRateLimit.IdleTTLSeconds,
+	)
 	// Middlewares Globais
 	app.Use(cors.New(cors.Config{
 		AllowOrigins: "*",
@@ -167,6 +174,9 @@ func (r *RouterFactory) setupExternalRoutes(app *fiber.App) error {
 	app.Use(compress.New())
 
 	app.Get("/nostr.png", httphandler.NostrIcon())
+	// Public UI assets are a separate Vite bundle. Do not reuse /panel assets
+	// here: the external listener must never expose admin application code.
+	app.Get("/assets/*", httphandler.PublicUIAsset())
 
 	// Rotas Auxiliares
 	app.Get("/terms-of-service", httphandler.TermsOfService(r.Config))
@@ -191,7 +201,7 @@ func (r *RouterFactory) setupExternalRoutes(app *fiber.App) error {
 	}
 
 	// Rota Raiz: Lida com NIP-11 (Info) e Upgrade para WebSocket
-	app.Use("/", httphandler.RootUpgrade(r.Config, negentropyLimiter))
+	app.Use("/", httphandler.RootUpgradeWithPublicUI(r.Config, httphandler.PublicUIIndex(), negentropyLimiter, dmImportLimiter))
 	app.Get("/", websocket.New(r.handleWebSocketConnection))
 	return nil
 }

@@ -12,11 +12,14 @@ import (
 	"github.com/gabrielmoura/nostr-relay-server/config"
 	"github.com/gabrielmoura/nostr-relay-server/infra/db"
 	"github.com/gabrielmoura/nostr-relay-server/infra/handler/event"
+	"github.com/gabrielmoura/nostr-relay-server/internal/dmimport"
 	"github.com/gabrielmoura/nostr-relay-server/internal/groups"
 	"github.com/gabrielmoura/nostr-relay-server/internal/nip86"
 	"github.com/gofiber/fiber/v2"
 	"github.com/nbd-wtf/go-nostr"
 )
+
+var findNIPFEEvents = oneShotEvents
 
 // NIPFE handles exactly one NIP-01 frame and never creates a subscription.
 // Its newline-delimited output makes every response frame independently
@@ -127,10 +130,11 @@ func executeREQ(ctx context.Context, frame []json.RawMessage, authed string) ([]
 		if json.Unmarshal(raw, &filter) != nil {
 			return []any{[]any{"CLOSED", id, "invalid: filter"}}, fiber.StatusBadRequest
 		}
-		events, err := oneShotEvents(ctx, authed, filter)
+		events, err := findNIPFEEvents(ctx, authed, filter)
 		if err != nil {
 			return []any{[]any{"CLOSED", id, "error: query failed"}}, fiber.StatusInternalServerError
 		}
+		events = filterNIPFEVisibleEvents(events, authed)
 		for _, evt := range events {
 			if _, exists := seen[evt.ID]; exists {
 				continue
@@ -157,10 +161,11 @@ func executeCOUNT(ctx context.Context, frame []json.RawMessage, authed string) (
 		if json.Unmarshal(raw, &filter) != nil {
 			return []any{[]any{"CLOSED", id, "invalid: filter"}}, fiber.StatusBadRequest
 		}
-		events, err := oneShotEvents(ctx, authed, filter)
+		events, err := findNIPFEEvents(ctx, authed, filter)
 		if err != nil {
 			return []any{[]any{"CLOSED", id, "error: query failed"}}, fiber.StatusInternalServerError
 		}
+		events = filterNIPFEVisibleEvents(events, authed)
 		total += int64(len(events))
 	}
 	return []any{[]any{"COUNT", id, map[string]int64{"count": total}}}, fiber.StatusOK
@@ -207,5 +212,21 @@ func oneShotEvents(ctx context.Context, authed string, filter nostr.Filter) ([]*
 	for evt := range events {
 		result = append(result, evt)
 	}
-	return result, nil
+	return filterNIPFEVisibleEvents(result, authed), nil
+}
+
+// filterNIPFEVisibleEvents applies the same private-delivery gate as WebSocket
+// REQ. NIP-FE is a finite transport, not an authorization bypass for stored DM
+// envelopes.
+func filterNIPFEVisibleEvents(events []*nostr.Event, authed string) []*nostr.Event {
+	visible := make([]*nostr.Event, 0, len(events))
+	for _, evt := range events {
+		// NIP-FE does not implement the narrowly validated Concord stream
+		// filter (kind 1059 with an exact author). Keep its finite HTTP reads
+		// on the recipient/author delivery rule instead of widening access.
+		if dmimport.VisibleToWithConcord(authed, evt, false) {
+			visible = append(visible, evt)
+		}
+	}
+	return visible
 }

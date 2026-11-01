@@ -14,6 +14,7 @@ import (
 	"github.com/gabrielmoura/nostr-relay-server/infra/log"
 	"github.com/gabrielmoura/nostr-relay-server/infra/metrics"
 	"github.com/gabrielmoura/nostr-relay-server/infra/pubsub"
+	"github.com/gabrielmoura/nostr-relay-server/internal/dmimport"
 	"github.com/gabrielmoura/nostr-relay-server/internal/dto"
 	json "github.com/gabrielmoura/nostr-relay-server/internal/jsonx"
 	"github.com/nbd-wtf/go-nostr"
@@ -126,6 +127,9 @@ func notifyLocalListeners(event *nostr.Event) {
 	defer localListenersMutex.RUnlock()
 
 	for ws, subs := range localListeners {
+		if !dmimport.VisibleToWithConcord(ws.Authed, event, config.Cfg.Concord.Enabled) {
+			continue
+		}
 		for id, listener := range subs {
 			if listener.filters.Match(event) {
 				select {

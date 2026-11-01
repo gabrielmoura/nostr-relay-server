@@ -18,7 +18,8 @@ type TagCount { tag: String! count: Int64! }
 type PubkeyCount { pubkey: String! displayName: String count: Int64! }
 type TargetCount { targetEventId: ID! count: Int64! }
 
-type AdminOverview { activeConnections: Int! authedConnections: Int! loggedUsers: Int! bannedUsers: Int! indexedEvents: Int64! eventsPerMinute: Int64! relayStatus: String! }
+type AdminIngestionMetrics { acceptedEvents: Int64! insertedEvents: Int64! duplicates: Int64! rejected: Int64! uncertain: Int64! batchErrors: Int64! batches: Int64! backpressure: Int64! queueDepth: Int64! }
+type AdminOverview { activeConnections: Int! authedConnections: Int! loggedUsers: Int! bannedUsers: Int! indexedEvents: Int64! eventsPerMinute: Int64! relayStatus: String! ingestion: AdminIngestionMetrics! }
 type AdminStreamStatus { config: JSON! dispatcher: JSON! pool: JSON! counters: JSON! }
 type AdminConnection { wsid: ID! ip: String! authed: String subscriptionCount: Int! connectedAt: String lastSeenAt: String userAgent: String }
 type AdminProfile { pubkey: String! npub: String displayName: String! handle: String picture: String nip05: String about: String website: String bot: Boolean! status: String reason: String relatedIds: [String!]! createdAt: String }

@@ -24,13 +24,29 @@ type adminPage[T any] struct {
 }
 
 type adminOverviewResponse struct {
-	ActiveConnections int    `json:"active_connections"`
-	AuthedConnections int    `json:"authed_connections"`
-	LoggedUsers       int    `json:"logged_users"`
-	BannedUsers       int    `json:"banned_users"`
-	IndexedEvents     int64  `json:"indexed_events"`
-	EventsPerMinute   int64  `json:"events_per_minute"`
-	RelayStatus       string `json:"relay_status"`
+	ActiveConnections int                           `json:"active_connections"`
+	AuthedConnections int                           `json:"authed_connections"`
+	LoggedUsers       int                           `json:"logged_users"`
+	BannedUsers       int                           `json:"banned_users"`
+	IndexedEvents     int64                         `json:"indexed_events"`
+	EventsPerMinute   int64                         `json:"events_per_minute"`
+	RelayStatus       string                        `json:"relay_status"`
+	Ingestion         adminIngestionMetricsResponse `json:"ingestion"`
+}
+
+// adminIngestionMetricsResponse is a point-in-time view of the relay's own
+// ingestion pipeline. Counters are process-lifetime Prometheus counters;
+// QueueDepth is sampled at request time.
+type adminIngestionMetricsResponse struct {
+	AcceptedEvents int64 `json:"accepted_events"`
+	InsertedEvents int64 `json:"inserted_events"`
+	Duplicates     int64 `json:"duplicates"`
+	Rejected       int64 `json:"rejected"`
+	Uncertain      int64 `json:"uncertain"`
+	BatchErrors    int64 `json:"batch_errors"`
+	Batches        int64 `json:"batches"`
+	Backpressure   int64 `json:"backpressure"`
+	QueueDepth     int64 `json:"queue_depth"`
 }
 
 type adminStreamConfigResponse struct {

@@ -458,9 +458,27 @@ Returns the dashboard KPIs required by the admin SPA.
   "banned_users": 37,
   "indexed_events": 42300000,
   "events_per_minute": 2418,
-  "relay_status": "operational"
+  "relay_status": "operational",
+  "ingestion": {
+    "accepted_events": 1955,
+    "inserted_events": 943,
+    "duplicates": 1012,
+    "rejected": 0,
+    "uncertain": 0,
+    "batch_errors": 0,
+    "batches": 384,
+    "backpressure": 0,
+    "queue_depth": 0
+  }
 }
 ```
+
+`ingestion` is a local, process-lifetime snapshot of the relay ingestion
+pipeline. It must not be interpreted as Nostr-wide activity: `accepted_events`
+is accepted into the local queue, `inserted_events` are rows persisted here,
+and duplicates, policy rejections, uncertain outcomes, batch errors and
+backpressure remain separate outcomes. `queue_depth` is the current bounded
+channel depth and excludes events already being processed in worker batches.
 
 ### `GET /admin/users/logged`
 

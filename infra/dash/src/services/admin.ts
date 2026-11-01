@@ -38,35 +38,27 @@ export async function getRelayOverview(): Promise<RelayOverview> {
       activeConnections: payload.activeConnections,
       authedConnections: payload.authedConnections,
       bannedUsers: payload.bannedUsers,
-      status: payload.relayStatus === "operational" ? "operational" : "degraded",
+      ingestion: {
+        accepted_events: payload.ingestion.acceptedEvents,
+        inserted_events: payload.ingestion.insertedEvents,
+        duplicates: payload.ingestion.duplicates,
+        rejected: payload.ingestion.rejected,
+        uncertain: payload.ingestion.uncertain,
+        batch_errors: payload.ingestion.batchErrors,
+        batches: payload.ingestion.batches,
+        backpressure: payload.ingestion.backpressure,
+        queue_depth: payload.ingestion.queueDepth,
+      },
       cards: [
-        { label: "Conexoes ativas", value: formatCount(payload.activeConnections) },
-        { label: "Conexoes logadas", value: formatCount(payload.authedConnections), tone: "success" },
-        { label: "Usuarios banidos", value: formatCount(payload.bannedUsers), tone: "danger" },
-        { label: "Eventos indexados", value: formatCount(payload.indexedEvents) },
-        { label: "Eventos / min", value: formatCount(payload.eventsPerMinute) },
-        { label: "Status do relay", value: payload.relayStatus, tone: payload.relayStatus === "operational" ? "success" : "warning" },
+        { metric: "active-connections", label: "Conexoes ativas", value: formatCount(payload.activeConnections) },
+        { metric: "authed-connections", label: "Conexoes logadas", value: formatCount(payload.authedConnections), tone: "success" },
+        { metric: "banned-users", label: "Usuarios banidos", value: formatCount(payload.bannedUsers), tone: "danger" },
+        { metric: "indexed-events", label: "Eventos indexados", value: formatCount(payload.indexedEvents) },
+        { metric: "events-per-minute", label: "Eventos / min", value: formatCount(payload.eventsPerMinute) },
       ],
     }
   } catch (error) {
-    if (!isMockEnabled()) {
-      throw error
-    }
-
-    return {
-      activeConnections: mockConnections.length,
-      authedConnections: mockConnections.filter((connection) => Boolean(connection.authed)).length,
-      bannedUsers: seedBannedUsers.length,
-      status: "operational",
-      cards: [
-        { label: "Conexoes ativas", value: formatCount(mockConnections.length) },
-        { label: "Conexoes logadas", value: formatCount(mockConnections.filter((connection) => Boolean(connection.authed)).length), tone: "success" },
-        { label: "Usuarios banidos", value: formatCount(seedBannedUsers.length), tone: "danger" },
-        { label: "Eventos indexados", value: "42,3M" },
-        { label: "Eventos / min", value: "2.418" },
-        { label: "Status do relay", value: "operational", tone: "success" },
-      ],
-    }
+    throw error
   }
 }
 

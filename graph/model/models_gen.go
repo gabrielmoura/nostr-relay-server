@@ -395,6 +395,18 @@ type AdminImportFileResult struct {
 	Error      *string `json:"error,omitempty"`
 }
 
+type AdminIngestionMetrics struct {
+	AcceptedEvents int `json:"acceptedEvents"`
+	InsertedEvents int `json:"insertedEvents"`
+	Duplicates     int `json:"duplicates"`
+	Rejected       int `json:"rejected"`
+	Uncertain      int `json:"uncertain"`
+	BatchErrors    int `json:"batchErrors"`
+	Batches        int `json:"batches"`
+	Backpressure   int `json:"backpressure"`
+	QueueDepth     int `json:"queueDepth"`
+}
+
 type AdminJob struct {
 	ID          string         `json:"id"`
 	Queue       string         `json:"queue"`
@@ -571,13 +583,14 @@ type AdminNip86RelayMetadataInput struct {
 }
 
 type AdminOverview struct {
-	ActiveConnections int32  `json:"activeConnections"`
-	AuthedConnections int32  `json:"authedConnections"`
-	LoggedUsers       int32  `json:"loggedUsers"`
-	BannedUsers       int32  `json:"bannedUsers"`
-	IndexedEvents     int    `json:"indexedEvents"`
-	EventsPerMinute   int    `json:"eventsPerMinute"`
-	RelayStatus       string `json:"relayStatus"`
+	ActiveConnections int32                  `json:"activeConnections"`
+	AuthedConnections int32                  `json:"authedConnections"`
+	LoggedUsers       int32                  `json:"loggedUsers"`
+	BannedUsers       int32                  `json:"bannedUsers"`
+	IndexedEvents     int                    `json:"indexedEvents"`
+	EventsPerMinute   int                    `json:"eventsPerMinute"`
+	RelayStatus       string                 `json:"relayStatus"`
+	Ingestion         *AdminIngestionMetrics `json:"ingestion"`
 }
 
 type AdminProfile struct {

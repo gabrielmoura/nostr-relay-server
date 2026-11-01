@@ -54,6 +54,7 @@
       "usersSearch": "User search",
       "sync": "Sync",
       "download": "Download",
+      "importDM": "Import DMs",
       "groups": "NIP-29 Groups",
       "wot": "Web of Trust"
     }
@@ -430,6 +431,29 @@
     "nip86Description": "Operational surface for allowlists, blocked IPs, banned events and runtime relay metadata.",
     "nip86Body": "Use the dedicated NIP-86 workspace to apply safe relay-management actions with visible audit context.",
     "nip86Action": "Open NIP-86 workspace"
+    ,"snapshot": {
+      "eyebrow": "Local snapshot",
+      "title": "Relay metrics right now",
+      "description": "Values sampled by adminOverview; they do not represent availability or topology.",
+      "activeConnections": "Active connections",
+      "queueDepth": "In-memory queue",
+      "indexedEvents": "Indexed events"
+    }
+    ,"ingestion": {
+      "title": "Local ingestion",
+      "description": "Counters from this relay process only. They do not represent Nostr-wide activity.",
+      "scope": "THIS RELAY",
+      "accepted": "Accepted events",
+      "inserted": "Inserted events",
+      "duplicates": "Duplicates",
+      "rejected": "Policy rejections",
+      "uncertain": "Uncertain outcomes",
+      "queueDepth": "Queue depth",
+      "batchErrors": "Batch errors",
+      "backpressure": "Backpressure",
+      "sinceStart": "Since this process started",
+      "queueDepthHelper": "Buffered now; worker batches excluded"
+    }
   },
   "nip86": {
     "shared": {

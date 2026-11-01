@@ -19,11 +19,11 @@ func reportingEvent(ctx context.Context, event nostr.Event) {
 		denunciator string
 	)
 	for _, tag := range event.Tags {
-		if tag[0] == "p" {
+		if len(tag) >= 3 && tag[0] == "p" {
 			key = tag[1]
 			reason = tag[2]
 		}
-		if tag[0] == "e" {
+		if len(tag) >= 2 && tag[0] == "e" {
 			denunciator = tag[1]
 		}
 	}
@@ -46,7 +46,7 @@ func reportingEvent(ctx context.Context, event nostr.Event) {
 		return
 	}
 
-	if count+1 >= config.Cfg.Relay.ReportingLimit {
+	if shouldAutoBanReportedPubkey(config.Cfg.Relay.ReportingAutoBanEnabled, count, config.Cfg.Relay.ReportingLimit) {
 		err := db.DbQueries.BanUserByPubKey(ctx, key, reason, []string{})
 		if err != nil {
 			log.Logger.Error("failed to ban user", zap.Error(err))
@@ -54,4 +54,8 @@ func reportingEvent(ctx context.Context, event nostr.Event) {
 		}
 	}
 
+}
+
+func shouldAutoBanReportedPubkey(enabled bool, reportCount, limit int64) bool {
+	return enabled && limit > 0 && reportCount+1 >= limit
 }

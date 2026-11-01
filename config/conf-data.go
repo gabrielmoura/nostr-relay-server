@@ -39,6 +39,15 @@ type Config struct {
 	RelaySync           RelaySyncConfig          `json:"relay_sync" yaml:"relay_sync" mapstructure:"relay_sync"`
 	Cordn               CordnConfig              `json:"cordn" yaml:"cordn" mapstructure:"cordn"`
 	Concord             ConcordConfig            `json:"concord" yaml:"concord" mapstructure:"concord"`
+	DMImport            DMImportConfig           `json:"dm_import" yaml:"dm_import" mapstructure:"dm_import"`
+}
+
+// DMImportConfig enables a tightly scoped, authenticated path for importing
+// encrypted direct-message envelopes from a user's browser.
+type DMImportConfig struct {
+	Enabled       bool                     `json:"enabled" yaml:"enabled" mapstructure:"enabled"`
+	MaxEventBytes int                      `json:"max_event_bytes" yaml:"max_event_bytes" mapstructure:"max_event_bytes"`
+	RateLimit     IPRequestRateLimitConfig `json:"rate_limit" yaml:"rate_limit" mapstructure:"rate_limit"`
 }
 
 // CordnConfig enables the optional Cordn coordinator hosted by this binary.
@@ -262,24 +271,25 @@ type DbConfig struct {
 	HealthCheckPeriodSeconds int32  `json:"health_check_period_seconds" yaml:"health_check_period_seconds" mapstructure:"health_check_period_seconds"`
 }
 type RelayConfig struct {
-	QueryLimit         int   `json:"query_limit" yaml:"query_limit" mapstructure:"query_limit"`
-	QueryIDsLimit      int   `json:"query_ids_limit" yaml:"query_ids_limit" mapstructure:"query_ids_limit"`
-	QueryAuthorsLimit  int   `json:"query_authors_limit" yaml:"query_authors_limit" mapstructure:"query_authors_limit"`
-	QueryKindsLimit    int   `json:"query_kinds_limit" yaml:"query_kinds_limit" mapstructure:"query_kinds_limit"`
-	QueryTagsLimit     int   `json:"query_tags_limit" yaml:"query_tags_limit" mapstructure:"query_tags_limit"`
-	KeepRecentEvents   bool  `json:"keep_recent_events" yaml:"keep_recent_events" mapstructure:"keep_recent_events"`
-	MaxEventSize       int   `json:"max_size_event_in_bytes" yaml:"max_size_event_in_bytes" mapstructure:"max_size_event_in_bytes"`
-	FilterLimit        int   `json:"filter_limit" yaml:"filter_limit" mapstructure:"filter_limit"`
-	ReportingLimit     int64 `json:"reporting_limit" yaml:"reporting_limit" mapstructure:"reporting_limit"`
-	EnableAnonymousReq bool  `json:"enable_anonymous_req" yaml:"enable_anonymous_req" mapstructure:"enable_anonymous_req"`
-	MaxTagValueLength  int   `json:"max_tag_value_length" yaml:"max_tag_value_length" mapstructure:"max_tag_value_length"`
-	ProtectedKinds     []int `json:"-" yaml:"protected_kinds" mapstructure:"protected_kinds"`
-	MinimumPOWLimit    int   `json:"-" yaml:"minimum_pow_limit" mapstructure:"minimum_pow_limit"`
-	FakeDeletion       bool  `json:"fake_deletion" yaml:"fake_deletion" mapstructure:"fake_deletion"`
-	VanishEvent        bool  `json:"vanish_event" yaml:"vanish_event" mapstructure:"vanish_event"`
-	EnableEmptyFilter  bool  `json:"enable_empty_filter" yaml:"enable_empty_filter" mapstructure:"enable_empty_filter"`
-	WhitelistKinds     []int `json:"whitelist_kinds" yaml:"whitelist_kinds" mapstructure:"whitelist_kinds"`
-	BlacklistKinds     []int `json:"blacklist_kinds" yaml:"blacklist_kinds" mapstructure:"blacklist_kinds"`
+	QueryLimit              int   `json:"query_limit" yaml:"query_limit" mapstructure:"query_limit"`
+	QueryIDsLimit           int   `json:"query_ids_limit" yaml:"query_ids_limit" mapstructure:"query_ids_limit"`
+	QueryAuthorsLimit       int   `json:"query_authors_limit" yaml:"query_authors_limit" mapstructure:"query_authors_limit"`
+	QueryKindsLimit         int   `json:"query_kinds_limit" yaml:"query_kinds_limit" mapstructure:"query_kinds_limit"`
+	QueryTagsLimit          int   `json:"query_tags_limit" yaml:"query_tags_limit" mapstructure:"query_tags_limit"`
+	KeepRecentEvents        bool  `json:"keep_recent_events" yaml:"keep_recent_events" mapstructure:"keep_recent_events"`
+	MaxEventSize            int   `json:"max_size_event_in_bytes" yaml:"max_size_event_in_bytes" mapstructure:"max_size_event_in_bytes"`
+	FilterLimit             int   `json:"filter_limit" yaml:"filter_limit" mapstructure:"filter_limit"`
+	ReportingLimit          int64 `json:"reporting_limit" yaml:"reporting_limit" mapstructure:"reporting_limit"`
+	ReportingAutoBanEnabled bool  `json:"reporting_auto_ban_enabled" yaml:"reporting_auto_ban_enabled" mapstructure:"reporting_auto_ban_enabled"`
+	EnableAnonymousReq      bool  `json:"enable_anonymous_req" yaml:"enable_anonymous_req" mapstructure:"enable_anonymous_req"`
+	MaxTagValueLength       int   `json:"max_tag_value_length" yaml:"max_tag_value_length" mapstructure:"max_tag_value_length"`
+	ProtectedKinds          []int `json:"-" yaml:"protected_kinds" mapstructure:"protected_kinds"`
+	MinimumPOWLimit         int   `json:"-" yaml:"minimum_pow_limit" mapstructure:"minimum_pow_limit"`
+	FakeDeletion            bool  `json:"fake_deletion" yaml:"fake_deletion" mapstructure:"fake_deletion"`
+	VanishEvent             bool  `json:"vanish_event" yaml:"vanish_event" mapstructure:"vanish_event"`
+	EnableEmptyFilter       bool  `json:"enable_empty_filter" yaml:"enable_empty_filter" mapstructure:"enable_empty_filter"`
+	WhitelistKinds          []int `json:"whitelist_kinds" yaml:"whitelist_kinds" mapstructure:"whitelist_kinds"`
+	BlacklistKinds          []int `json:"blacklist_kinds" yaml:"blacklist_kinds" mapstructure:"blacklist_kinds"`
 }
 type WsConfig struct {
 	ReteLimit rate.Limit `json:"rate_limit" yaml:"rate_limit" mapstructure:"rate_limit"`
@@ -301,6 +311,12 @@ func (cfg WsConfig) NormalizedAuthMode() string {
 
 func (cfg WsConfig) AuthEnabled() bool {
 	return cfg.NormalizedAuthMode() != "none"
+}
+
+// NIP42Enabled reports whether the public listener can authenticate a client.
+// DM imports need NIP-42 even when general relay authentication is disabled.
+func (cfg *Config) NIP42Enabled() bool {
+	return cfg != nil && (cfg.Ws.AuthEnabled() || cfg.DMImport.Enabled)
 }
 
 func (cfg WsConfig) RequireAuthForReq() bool {

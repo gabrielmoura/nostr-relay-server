@@ -31,6 +31,7 @@ import { BlossomReportsPage } from "@/routes/blossom-reports-page"
 import { BlossomAuditPage } from "@/routes/blossom-audit-page"
 import { normalizeBlossomSearch, type BlossomRouteSearch } from "@/lib/blossom"
 import { normalizeLabelsSearch, type LabelsRouteSearch } from "@/lib/labels"
+import { ImportDMPage } from "@/routes/import-dm-page"
 
 const rootRoute = createRootRoute({
   component: AppShell,
@@ -204,6 +205,8 @@ const wotRoute = createRoute({
   component: WoTPage,
 })
 
+const importDMRoute = createRoute({ getParentRoute: () => rootRoute, path: "/import-dm", component: ImportDMPage })
+
 const routeTree = rootRoute.addChildren([
   overviewRoute,
   loggedUsersRoute,
@@ -231,6 +234,7 @@ const routeTree = rootRoute.addChildren([
   groupsRoute,
   groupDetailRoute,
   wotRoute,
+	importDMRoute,
 ])
 
 const normalizedBasePath = import.meta.env.BASE_URL === "/" ? "/" : import.meta.env.BASE_URL.replace(/\/$/, "")

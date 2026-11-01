@@ -1,7 +1,7 @@
 import { useMemo } from "react"
 import { Link } from "@tanstack/react-router"
 import { useTranslation } from "react-i18next"
-import { ArrowRight, Search, ShieldCheck } from "lucide-react"
+import { ArrowRight, Database, Radio, Search, ShieldCheck, Users } from "lucide-react"
 
 import { BanUserDialog } from "@/components/features/ban-user-dialog"
 import { MetricCard } from "@/components/shared/metric-card"
@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { useInfiniteBannedUsers, useInfiniteConnections, useInfiniteLoggedUsers, useRelayOverview, useStreamStatus } from "@/hooks/use-admin-data"
+import { formatCount } from "@/lib/utils"
 
 export function OverviewPage() {
   const { t } = useTranslation()
@@ -39,6 +40,17 @@ export function OverviewPage() {
     )
   }
 
+  const ingestionCards = [
+    { metric: "accepted-events" as const, label: t("overview.ingestion.accepted"), value: overview.data.ingestion.accepted_events, helper: t("overview.ingestion.sinceStart") },
+    { metric: "inserted-events" as const, label: t("overview.ingestion.inserted"), value: overview.data.ingestion.inserted_events, helper: t("overview.ingestion.sinceStart"), tone: "success" as const },
+    { metric: "duplicate-events" as const, label: t("overview.ingestion.duplicates"), value: overview.data.ingestion.duplicates, helper: t("overview.ingestion.sinceStart") },
+    { metric: "rejected-events" as const, label: t("overview.ingestion.rejected"), value: overview.data.ingestion.rejected, helper: t("overview.ingestion.sinceStart"), tone: overview.data.ingestion.rejected > 0 ? "warning" as const : undefined },
+    { metric: "uncertain-events" as const, label: t("overview.ingestion.uncertain"), value: overview.data.ingestion.uncertain, helper: t("overview.ingestion.sinceStart"), tone: overview.data.ingestion.uncertain > 0 ? "warning" as const : undefined },
+    { metric: "queue-depth" as const, label: t("overview.ingestion.queueDepth"), value: overview.data.ingestion.queue_depth, helper: t("overview.ingestion.queueDepthHelper") },
+    { metric: "batch-errors" as const, label: t("overview.ingestion.batchErrors"), value: overview.data.ingestion.batch_errors, helper: t("overview.ingestion.sinceStart"), tone: overview.data.ingestion.batch_errors > 0 ? "danger" as const : undefined },
+    { metric: "backpressure" as const, label: t("overview.ingestion.backpressure"), value: overview.data.ingestion.backpressure, helper: t("overview.ingestion.sinceStart"), tone: overview.data.ingestion.backpressure > 0 ? "warning" as const : undefined },
+  ]
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -57,10 +69,38 @@ export function OverviewPage() {
         title={t("overview.title")}
       />
 
+      <section aria-label={t("overview.snapshot.title")} className="admin-overview-snapshot">
+        <div>
+          <p className="admin-overview-snapshot__eyebrow">{t("overview.snapshot.eyebrow")}</p>
+          <h2 className="font-heading text-xl font-semibold text-foreground">{t("overview.snapshot.title")}</h2>
+          <p className="mt-1 text-sm text-muted-foreground">{t("overview.snapshot.description")}</p>
+        </div>
+        <div className="admin-overview-snapshot__metrics">
+          <SnapshotMetric icon={Users} label={t("overview.snapshot.activeConnections")} value={formatCount(overview.data.activeConnections)} />
+          <SnapshotMetric icon={Radio} label={t("overview.snapshot.queueDepth")} value={formatCount(overview.data.ingestion.queue_depth)} />
+          <SnapshotMetric icon={Database} label={t("overview.snapshot.indexedEvents")} value={overview.data.cards.find((card) => card.metric === "indexed-events")?.value ?? "0"} />
+        </div>
+      </section>
+
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {overview.data.cards.map((card) => (
-          <MetricCard card={card} key={card.label} />
+          <MetricCard card={card} key={card.metric} />
         ))}
+      </section>
+
+      <section aria-labelledby="ingestion-metrics-title" className="space-y-4">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h2 className="text-lg font-semibold tracking-tight" id="ingestion-metrics-title">{t("overview.ingestion.title")}</h2>
+            <p className="text-sm text-muted-foreground">{t("overview.ingestion.description")}</p>
+          </div>
+          <Badge variant="muted">{t("overview.ingestion.scope")}</Badge>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {ingestionCards.map((card) => (
+            <MetricCard card={{ ...card, value: formatCount(card.value) }} key={card.metric} />
+          ))}
+        </div>
       </section>
 
       <section className="grid gap-4 xl:grid-cols-[1.2fr_1fr]">
@@ -182,20 +222,18 @@ export function OverviewPage() {
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>{t("overview.clusterTopologyTitle")}</CardTitle>
-              <CardDescription>{t("overview.clusterTopologyDescription")}</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-2 text-sm text-muted-foreground">
-              <p><strong>LB</strong> (Nginx/HAProxy) {"->"} <strong>Relay Node A</strong> + <strong>Relay Node B</strong></p>
-              <p><strong>Redis</strong> {t("overview.redisRole")}</p>
-              <p><strong>PostgreSQL</strong> {t("overview.postgresRole")}</p>
-              <p>{t("overview.currentStreamState")}: {stream.data?.pool.connected_relays ?? 0} {t("overview.connectedRelays")}</p>
-            </CardContent>
-          </Card>
         </div>
       </section>
+    </div>
+  )
+}
+
+function SnapshotMetric({ icon: Icon, label, value }: { icon: typeof Users; label: string; value: string }) {
+  return (
+    <div className="admin-overview-snapshot__metric">
+      <Icon aria-hidden="true" className="size-4 text-primary" />
+      <span>{label}</span>
+      <strong>{value}</strong>
     </div>
   )
 }

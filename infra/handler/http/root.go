@@ -90,9 +90,6 @@ func NostrJSON(cfg *config.Config) fiber.Handler {
 func NIP11WithPrivacy(cfg *config.Config) any {
 	doc := cfg.RelayInformation.PublicNIP11()
 	addrs := privacy.GetActiveAddresses()
-	if len(addrs) == 0 && !cfg.NIP29.Enabled && !cfg.NIP70.Enabled && !cfg.API.NIPFE.Enabled && !(cfg.RelaySync.Enabled && cfg.RelaySync.HTTPEnabled && cfg.RelaySync.SnapshotEnabled) {
-		return doc
-	}
 	raw, err := json.Marshal(doc)
 	if err != nil {
 		return doc
@@ -120,15 +117,26 @@ func NIP11WithPrivacy(cfg *config.Config) any {
 	}
 	if cfg.NIP70.Enabled {
 		supported, _ := m["supported_nips"].([]any)
+		hasNIP70 := false
 		for _, nip := range supported {
 			if isNIPNumber(nip, 70) {
-				return m
+				hasNIP70 = true
+				break
 			}
 		}
-		m["supported_nips"] = append(supported, 70)
+		if !hasNIP70 {
+			m["supported_nips"] = append(supported, 70)
+		}
 	}
 	if cfg.API.NIPFE.Enabled {
 		m["nip_fe"] = true
+	}
+	if cfg.NIP42Enabled() {
+		trustedAuthURLs := cfg.RelayInformation.TrustedAuthRelayURLs()
+		if len(trustedAuthURLs) > 0 {
+			m["auth_relay_url"] = trustedAuthURLs[0]
+			m["auth_relay_urls"] = trustedAuthURLs
+		}
 	}
 	if cfg.RelaySync.Enabled && cfg.RelaySync.HTTPEnabled && cfg.RelaySync.SnapshotEnabled {
 		extensions, _ := m["supported_nip_extensions"].([]any)
@@ -144,7 +152,43 @@ func NIP11WithPrivacy(cfg *config.Config) any {
 		}
 		m["relay_sync_v2"] = map[string]any{"http": true, "live": cfg.RelaySync.LiveEnabled}
 	}
+	m["public_endpoints"] = publicEndpoints(cfg)
 	return m
+}
+
+type publicEndpoint struct {
+	Method      string `json:"method"`
+	Path        string `json:"path"`
+	Description string `json:"description"`
+}
+
+// publicEndpoints is a truthful, public-listener-only endpoint list consumed
+// by the landing page. Each optional endpoint matches setupExternalRoutes.
+func publicEndpoints(cfg *config.Config) []publicEndpoint {
+	endpoints := []publicEndpoint{
+		{Method: fiber.MethodGet, Path: "/", Description: "NIP-11 relay information"},
+		{Method: fiber.MethodGet, Path: "/", Description: "Nostr WebSocket relay (Upgrade)"},
+		{Method: fiber.MethodGet, Path: "/.well-known/nostr.json", Description: "NIP-05 identifiers"},
+		{Method: fiber.MethodGet, Path: "/.well-known/nostr/nip96.json", Description: "NIP-96 file-server information"},
+		{Method: fiber.MethodGet, Path: "/terms-of-service", Description: "Terms of service"},
+	}
+	if cfg.Store.Enabled {
+		endpoints = append(endpoints,
+			publicEndpoint{Method: fiber.MethodPost, Path: "/upload", Description: "Blossom file upload"},
+			publicEndpoint{Method: fiber.MethodPut, Path: "/mirror", Description: "Blossom file mirror"},
+			publicEndpoint{Method: fiber.MethodPut, Path: "/media", Description: "Blossom media upload"},
+			publicEndpoint{Method: fiber.MethodGet, Path: "/blob/:id", Description: "Blossom blob download"},
+			publicEndpoint{Method: fiber.MethodPut, Path: "/report", Description: "Blossom moderation report"},
+			publicEndpoint{Method: fiber.MethodGet, Path: "/list/:id", Description: "Blossom media list"},
+		)
+	}
+	if cfg.API.Enabled {
+		endpoints = append(endpoints, publicEndpoint{Method: "API", Path: "/api/v1", Description: "Public relay API"})
+	}
+	if cfg.API.NIPFE.Enabled {
+		endpoints = append(endpoints, publicEndpoint{Method: fiber.MethodPost, Path: "/", Description: "NIP-FE finite relay transport"})
+	}
+	return endpoints
 }
 
 func isNIP29Number(value any) bool {
@@ -163,13 +207,37 @@ func isNIPNumber(value any, nip int) bool {
 }
 
 func RootUpgrade(cfg *config.Config, limiters ...*ratelimit.PerIP) fiber.Handler {
+	return rootUpgrade(cfg, nil, true, limiters...)
+}
+
+// RootUpgradeWithPublicUI keeps the relay protocol multiplexed at / while
+// serving the isolated public UI only to ordinary HTML GET requests.
+func RootUpgradeWithPublicUI(cfg *config.Config, landing fiber.Handler, limiters ...*ratelimit.PerIP) fiber.Handler {
+	return rootUpgrade(cfg, landing, false, limiters...)
+}
+
+func rootUpgrade(cfg *config.Config, landing fiber.Handler, allowNIP86 bool, limiters ...*ratelimit.PerIP) fiber.Handler {
 	var negentropyLimiter *ratelimit.PerIP
+	var dmImportLimiter *ratelimit.PerIP
+	var negentropyAllow func(string) bool
+	var dmImportAllow func(string) bool
 	if len(limiters) > 0 {
 		negentropyLimiter = limiters[0]
 	}
+	if len(limiters) > 1 {
+		dmImportLimiter = limiters[1]
+	}
+	if negentropyLimiter != nil {
+		negentropyAllow = negentropyLimiter.Allow
+	}
+	if dmImportLimiter != nil {
+		dmImportAllow = dmImportLimiter.Allow
+	}
 	return func(c *fiber.Ctx) error {
-		if handled, err := handleNIP86JSONRPC(c, cfg); handled {
-			return err
+		if allowNIP86 {
+			if handled, err := handleNIP86JSONRPC(c, cfg); handled {
+				return err
+			}
 		}
 		if strings.Contains(c.Get("Accept"), "application/nostr+json") {
 			return serveNIP11(c, cfg)
@@ -198,9 +266,13 @@ func RootUpgrade(cfg *config.Config, limiters ...*ratelimit.PerIP) fiber.Handler
 				LastSeen:        now,
 				UserAgent:       userAgent,
 				RemoteIP:        remoteIP,
-				NegentropyAllow: negentropyLimiter.Allow,
+				NegentropyAllow: negentropyAllow,
+				DMImportAllow:   dmImportAllow,
 			})
 			return c.Next()
+		}
+		if landing != nil && c.Method() == fiber.MethodGet && strings.Contains(c.Get(fiber.HeaderAccept), fiber.MIMETextHTML) {
+			return landing(c)
 		}
 		return c.Status(fiber.StatusUpgradeRequired).SendString("Please use a Nostr client to connect.")
 	}

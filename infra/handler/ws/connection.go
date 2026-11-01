@@ -1,11 +1,13 @@
 package ws
 
 import (
+	"context"
 	"sync"
 	"time"
 
 	"github.com/gabrielmoura/nostr-relay-server/config"
 	"github.com/gabrielmoura/nostr-relay-server/infra/handler/auth"
+	"github.com/gabrielmoura/nostr-relay-server/infra/handler/event"
 	"github.com/gabrielmoura/nostr-relay-server/infra/handler/listener"
 	"github.com/gabrielmoura/nostr-relay-server/infra/log"
 	"github.com/gabrielmoura/nostr-relay-server/infra/metrics"
@@ -35,7 +37,59 @@ const (
 	pongWait       = 60 * time.Second
 	pingPeriod     = pongWait / 2
 	maxMessageSize = 1024 * 1024
+
+	dmImportDispatchWorkers   = 4
+	dmImportDispatchQueueSize = 64
 )
+
+type dmImportDispatcher struct {
+	queue  chan dmImportJob
+	stopCh chan struct{}
+	wg     sync.WaitGroup
+}
+
+type dmImportJob struct {
+	ws      *dto.WsServer
+	message []byte
+}
+
+func newDMImportDispatcher(handle func(*dto.WsServer, []byte)) *dmImportDispatcher {
+	d := &dmImportDispatcher{
+		queue:  make(chan dmImportJob, dmImportDispatchQueueSize),
+		stopCh: make(chan struct{}),
+	}
+	for range dmImportDispatchWorkers {
+		d.wg.Add(1)
+		go func() {
+			defer d.wg.Done()
+			for {
+				select {
+				case job := <-d.queue:
+					handle(job.ws, job.message)
+				case <-d.stopCh:
+					return
+				}
+			}
+		}()
+	}
+	return d
+}
+
+func (d *dmImportDispatcher) dispatch(ws *dto.WsServer, message []byte) bool {
+	select {
+	case d.queue <- dmImportJob{ws: ws, message: message}:
+		return true
+	case <-d.stopCh:
+		return false
+	default:
+		return false
+	}
+}
+
+func (d *dmImportDispatcher) stop() {
+	close(d.stopCh)
+	d.wg.Wait()
+}
 
 func HandleConnection(wss *dto.WsServer) {
 	metrics.NostrConnectionCounter.Inc()
@@ -63,14 +117,20 @@ func HandleConnection(wss *dto.WsServer) {
 		}
 	}
 
+	connectionCtx, cancelConnection := context.WithCancel(wss.Ctx)
+	defer cancelConnection()
+	wss.Ctx = connectionCtx
 	lifecycle := newConnectionLifecycle()
+	wss.Done = lifecycle.done
 	go writeLoop(wss, ticker, lifecycle)
-	if config.Cfg.Ws.NormalizedAuthMode() != "optional" && config.Cfg.Ws.AuthEnabled() && wss.Challenge != "" {
+	needsImportAuthChallenge := config.Cfg.DMImport.Enabled
+	needsGlobalAuthChallenge := config.Cfg.Ws.NormalizedAuthMode() != "optional" && config.Cfg.Ws.AuthEnabled()
+	if (needsImportAuthChallenge || needsGlobalAuthChallenge) && wss.Challenge != "" {
 		if !sendToWriter(wss.ChanSender, any([]any{"AUTH", wss.Challenge}), lifecycle.done) {
 			log.Logger.Debug("discarded AUTH challenge because WebSocket writer stopped", zap.String("for", wss.RemoteIP))
 		}
 	}
-	readLoop(wss, lifecycle)
+	readLoop(wss, lifecycle, cancelConnection)
 	lifecycle.stop()
 	<-lifecycle.writerDone
 }
@@ -100,15 +160,18 @@ func writeLoop(wss *dto.WsServer, ticker *time.Ticker, lifecycle *connectionLife
 				stopWriterAndReader(wss, lifecycle)
 				return
 			}
-		case <-wss.Ctx.Done():
-			return
 		case <-lifecycle.done:
 			return
 		}
 	}
 }
 
-func readLoop(wss *dto.WsServer, lifecycle *connectionLifecycle) {
+func readLoop(wss *dto.WsServer, lifecycle *connectionLifecycle, cancelConnection context.CancelFunc) {
+	dispatcher := newDMImportDispatcher(func(snapshot *dto.WsServer, message []byte) { handleMessage(snapshot, message) })
+	defer func() {
+		cancelConnection()
+		dispatcher.stop()
+	}()
 	for {
 		typ, message, err := wss.Conn.ReadMessage()
 		limit := maxMessageSize
@@ -142,8 +205,22 @@ func readLoop(wss *dto.WsServer, lifecycle *connectionLifecycle) {
 			continue
 		}
 		listener.Touch(wss)
+		authed, _ := wss.AuthSnapshot()
+		if config.Cfg.DMImport.Enabled && authed != "" && isDMImportMessage(message) {
+			if !dispatcher.dispatch(wss.ImportSnapshot(), message) {
+				if !sendToWriter(wss.ChanSender, any(nostr.NoticeEnvelope("rate-limited: DM import dispatch queue is full")), lifecycle.done) {
+					return
+				}
+			}
+			continue
+		}
 		handleMessage(wss, message)
 	}
+}
+
+func isDMImportMessage(message []byte) bool {
+	typ, data, err := decodeMessage(message)
+	return err == nil && typ == dto.TypeEVENT && event.IsDMImportData(data)
 }
 
 func sendToWriter[T any](channel chan<- T, value T, done <-chan struct{}) bool {

@@ -56,6 +56,16 @@ func (p Policies) ValidateBatchEvent(ctx context.Context, evt *nostr.Event) (boo
 	return p.validateStorageEvent(ctx, evt)
 }
 
+// ValidateDMImportEvent retains all normal integrity and moderation checks but
+// permits the optional DM import path to bypass only kind allowlists and WoT.
+// The caller must have already bound the event to a NIP-42 identity.
+func (p Policies) ValidateDMImportEvent(ctx context.Context, evt *nostr.Event) (bool, string) {
+	if reject, reason := p.validateEventIdentity(evt); reject {
+		return true, reason
+	}
+	return p.validateStorageEventWithDMImport(ctx, evt, true)
+}
+
 func (p Policies) ValidateReq(ctx context.Context, ws *dto.WsServer, filters nostr.Filters) (nostr.Filters, bool, string) {
 	return p.validateRequestFilters(ctx, ws, filters)
 }
@@ -150,6 +160,10 @@ func (p Policies) validateEventIdentity(evt *nostr.Event) (bool, string) {
 }
 
 func (p Policies) validateStorageEvent(ctx context.Context, evt *nostr.Event) (bool, string) {
+	return p.validateStorageEventWithDMImport(ctx, evt, false)
+}
+
+func (p Policies) validateStorageEventWithDMImport(ctx context.Context, evt *nostr.Event, dmImport bool) (bool, string) {
 	encoded, _ := json.Marshal(evt)
 	if len(encoded) > p.Config.Relay.MaxEventSize {
 		return true, security.Reason(security.PrefixRestricted, "event exceeds configured size")
@@ -161,6 +175,13 @@ func (p Policies) validateStorageEvent(ctx context.Context, evt *nostr.Event) (b
 	}
 	if security.BypassFromContext(ctx).PublicationRestrictionsBypassed() {
 		return false, ""
+	}
+	// DM import is allowed to bypass only a positive kind whitelist and WoT;
+	// explicit operator blacklists remain a hard moderation boundary.
+	if dmImport {
+		if reject, reason := p.validateKindBlacklist(evt); reject {
+			return true, reason
+		}
 	}
 	if reject, reason := p.rejectEventBannedUser(ctx, evt); reject {
 		return true, reason
@@ -189,13 +210,15 @@ func (p Policies) validateStorageEvent(ctx context.Context, evt *nostr.Event) (b
 	if reject, reason := p.validateMarmotMIP00Event(evt); reject {
 		return true, reason
 	}
-	if reject, reason := p.validateWhitelistBlacklist(evt); reject {
-		return true, reason
+	if !dmImport {
+		if reject, reason := p.validateWhitelistBlacklist(evt); reject {
+			return true, reason
+		}
 	}
 	if reject, reason := p.checkContentSpam(ctx, evt); reject {
 		return true, reason
 	}
-	if !wot.Validate(evt.PubKey) {
+	if !dmImport && !wot.Validate(evt.PubKey) {
 		return true, security.Reason(security.PrefixRestricted, "pubkey not in web of trust")
 	}
 	return false, ""
