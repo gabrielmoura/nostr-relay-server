@@ -14,11 +14,19 @@ import (
 type fakeBlossomObjectSource struct {
 	filter        dbstore.BlossomObjectFilters
 	limit, offset int
+	summary       bool
+	fullCalls     int
 }
 
 func (source *fakeBlossomObjectSource) ListBlossomObjects(_ context.Context, filter dbstore.BlossomObjectFilters, limit, offset int) ([]dbstore.BlossomObjectRow, int64, error) {
 	source.filter, source.limit, source.offset = filter, limit, offset
+	source.fullCalls++
 	return []dbstore.BlossomObjectRow{{Hash: "abc", MIMEType: "image/png", ReviewState: "ready", ExifStatus: "pending"}}, 9, nil
+}
+
+func (source *fakeBlossomObjectSource) ListBlossomObjectSummaries(ctx context.Context, filter dbstore.BlossomObjectFilters, limit, offset int) ([]dbstore.BlossomObjectRow, int64, error) {
+	source.summary = true
+	return source.ListBlossomObjects(ctx, filter, limit, offset)
 }
 
 func TestBlossomObjectsGraphQLPassesSearchAndPaginationToSource(t *testing.T) {
@@ -51,8 +59,33 @@ func TestBlossomObjectsGraphQLPassesSearchAndPaginationToSource(t *testing.T) {
 	if source.filter.Query != "image" || source.limit != 2 || source.offset != 3 {
 		t.Fatalf("source received filter=%+v limit=%d offset=%d", source.filter, source.limit, source.offset)
 	}
+	if !source.summary {
+		t.Fatal("expected summary query for list fields")
+	}
 	if len(response.Data.BlossomObjects.Items) != 1 || response.Data.BlossomObjects.Items[0].Hash != "abc" || response.Data.BlossomObjects.PageInfo.Total != 9 || !response.Data.BlossomObjects.PageInfo.HasMore {
 		t.Fatalf("unexpected data: %+v", response.Data.BlossomObjects)
+	}
+}
+
+func TestBlossomObjectsGraphQLUsesFullQueryForDetails(t *testing.T) {
+	source := &fakeBlossomObjectSource{}
+	req := httptest.NewRequest(http.MethodPost, "/graphql", bytes.NewBufferString(`{"query":"query { blossomObjects { items { hash uploaderPubkey } } }"}`))
+	req.Header.Set("Content-Type", "application/json")
+	recorder := httptest.NewRecorder()
+	httpHandler(&Resolver{blossomObjectSource: source}).ServeHTTP(recorder, req)
+	if recorder.Code != http.StatusOK || source.summary || source.fullCalls != 1 {
+		t.Fatalf("expected full query: status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+}
+
+func TestBlossomObjectsGraphQLUsesFullQueryForFragmentDetails(t *testing.T) {
+	source := &fakeBlossomObjectSource{}
+	req := httptest.NewRequest(http.MethodPost, "/graphql", bytes.NewBufferString(`{"query":"query { blossomObjects { items { hash ...Details } } } fragment Details on AdminBlossomObject { uploaderPubkey }"}`))
+	req.Header.Set("Content-Type", "application/json")
+	recorder := httptest.NewRecorder()
+	httpHandler(&Resolver{blossomObjectSource: source}).ServeHTTP(recorder, req)
+	if recorder.Code != http.StatusOK || source.summary || source.fullCalls != 1 {
+		t.Fatalf("expected full query for fragment: status=%d body=%s", recorder.Code, recorder.Body.String())
 	}
 }
 

@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/99designs/gqlgen/graphql"
 	"github.com/gabrielmoura/nostr-relay-server/config"
 	"github.com/gabrielmoura/nostr-relay-server/graph/model"
 	dbstore "github.com/gabrielmoura/nostr-relay-server/infra/db"
@@ -20,6 +21,10 @@ import (
 
 type blossomObjectListSource interface {
 	ListBlossomObjects(context.Context, dbstore.BlossomObjectFilters, int, int) ([]dbstore.BlossomObjectRow, int64, error)
+}
+
+type blossomObjectSummarySource interface {
+	ListBlossomObjectSummaries(context.Context, dbstore.BlossomObjectFilters, int, int) ([]dbstore.BlossomObjectRow, int64, error)
 }
 
 func (r *Resolver) queryBlossomObjects(ctx context.Context, filter *model.AdminBlossomObjectFilterInput, page *model.OffsetPageInput) (*model.AdminBlossomObjectPage, error) {
@@ -40,7 +45,14 @@ func (r *Resolver) queryBlossomObjects(ctx context.Context, filter *model.AdminB
 		}
 	}
 	limit, offset := loggedUsersPage(page)
-	rows, total, err := source.ListBlossomObjects(ctx, filters, limit, offset)
+	var rows []dbstore.BlossomObjectRow
+	var total int64
+	var err error
+	if summary, ok := source.(blossomObjectSummarySource); ok && blossomObjectSummarySelected(ctx) {
+		rows, total, err = summary.ListBlossomObjectSummaries(ctx, filters, limit, offset)
+	} else {
+		rows, total, err = source.ListBlossomObjects(ctx, filters, limit, offset)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -51,6 +63,28 @@ func (r *Resolver) queryBlossomObjects(ctx context.Context, filter *model.AdminB
 	return &model.AdminBlossomObjectPage{Items: items, PageInfo: &model.PageInfo{
 		Total: int32(min(total, math.MaxInt32)), Limit: int32(limit), Offset: int32(offset), HasMore: int64(offset)+int64(len(rows)) < total,
 	}}, nil
+}
+
+// Only select the reduced database projection when every requested object
+// field is available from it; arbitrary GraphQL callers can request details.
+func blossomObjectSummarySelected(ctx context.Context) bool {
+	field, operation := graphql.GetFieldContext(ctx), graphql.GetOperationContext(ctx)
+	if field == nil || operation == nil {
+		return false
+	}
+	for _, child := range graphql.CollectFields(operation, field.Field.Selections, nil) {
+		if child.Name != "items" {
+			continue
+		}
+		for _, item := range graphql.CollectFields(operation, child.Selections, nil) {
+			switch item.Name {
+			case "__typename", "hash", "mimeType", "size", "createdAt", "thumbnailURL", "reviewState", "exifStatus":
+			default:
+				return false
+			}
+		}
+	}
+	return true
 }
 
 func blossomObjectModel(row dbstore.BlossomObjectRow) *model.AdminBlossomObject {
