@@ -7,6 +7,7 @@ package graph
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/gabrielmoura/nostr-relay-server/graph/model"
@@ -402,11 +403,25 @@ func (r *queryResolver) WotSummary(ctx context.Context) (*model.AdminWoTSummary,
 	return r.wotSummary(ctx)
 }
 
+// BlossomPlanChanged is the resolver for the blossomPlanChanged field.
+func (r *subscriptionResolver) BlossomPlanChanged(ctx context.Context) (<-chan *model.AdminBlossomPlan, error) {
+	panic(fmt.Errorf("not implemented: BlossomPlanChanged - blossomPlanChanged"))
+}
+
+// BlossomObjectChanged is the resolver for the blossomObjectChanged field.
+func (r *subscriptionResolver) BlossomObjectChanged(ctx context.Context) (<-chan *model.AdminBlossomObject, error) {
+	panic(fmt.Errorf("not implemented: BlossomObjectChanged - blossomObjectChanged"))
+}
+
 // Mutation returns MutationResolver implementation.
 func (r *Resolver) Mutation() MutationResolver { return &mutationResolver{r} }
 
 // Query returns QueryResolver implementation.
 func (r *Resolver) Query() QueryResolver { return &queryResolver{r} }
 
+// Subscription returns SubscriptionResolver implementation.
+func (r *Resolver) Subscription() SubscriptionResolver { return &subscriptionResolver{r} }
+
 type mutationResolver struct{ *Resolver }
 type queryResolver struct{ *Resolver }
+type subscriptionResolver struct{ *Resolver }

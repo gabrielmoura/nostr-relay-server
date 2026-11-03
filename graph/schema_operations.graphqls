@@ -81,3 +81,8 @@ type Mutation {
   removeTrustedPubkey(pubkey: String!): AdminWoTSummary!
   deleteGroup(groupId: ID!, input: AdminDeleteGroupInput!): AdminDeleteGroupPayload!
 }
+
+type Subscription {
+  blossomPlanChanged: AdminBlossomPlan!
+  blossomObjectChanged: AdminBlossomObject!
+}

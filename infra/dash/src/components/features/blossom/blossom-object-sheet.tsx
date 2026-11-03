@@ -30,7 +30,7 @@ export function BlossomObjectSheet({ hash, open, onOpenChange, onApprove, onDele
           <div className="space-y-5 pr-6">
             <div className="space-y-3">
               <div className="overflow-hidden rounded-[var(--radius)] border border-border bg-muted/30">
-                {detail.thumbnail_url ? <img alt={detail.hash} className="aspect-video w-full object-cover" src={detail.thumbnail_url} /> : null}
+                {detail.preview_url || detail.thumbnail_url ? <img alt={detail.hash} className="aspect-video w-full object-cover" src={detail.preview_url ?? detail.thumbnail_url} /> : null}
               </div>
               <div className="flex flex-wrap gap-2">
                 <Badge variant={blossomReviewVariant(detail.review_state)}>{detail.review_state}</Badge>
@@ -58,7 +58,7 @@ export function BlossomObjectSheet({ hash, open, onOpenChange, onApprove, onDele
               <div className="flex flex-wrap gap-2">
                 <Button
                   onClick={() => {
-                    void navigator.clipboard.writeText(detail.direct_url)
+                    void navigator.clipboard.writeText(detail.preview_url ?? detail.direct_url)
                     toast.success(t("blossom.sheet.copied", "URL direta copiada"))
                   }}
                   type="button"
@@ -82,7 +82,7 @@ export function BlossomObjectSheet({ hash, open, onOpenChange, onApprove, onDele
                   {t("blossom.sheet.copyBlossomId", "Copiar Blossom ID")}
                 </Button>
                 <Button asChild type="button" variant="outline">
-                  <a href={detail.direct_url} rel="noreferrer" target="_blank">
+                  <a href={detail.preview_url ?? detail.direct_url} rel="noreferrer" target="_blank">
                     <Download className="size-4" />
                     {t("blossom.sheet.download", "Baixar")}
                   </a>

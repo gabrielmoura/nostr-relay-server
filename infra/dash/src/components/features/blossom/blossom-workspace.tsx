@@ -406,7 +406,7 @@ function LibraryGrid({ items, selectedHashes, onToggleSelection, onOpen }: { ite
     <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
       {items.map((item) => (
         <Card className="overflow-hidden" key={item.hash}>
-          {item.thumbnail_url ? <img alt={item.hash} className="aspect-video w-full object-cover" src={item.thumbnail_url} /> : null}
+          {item.preview_url || item.thumbnail_url ? <img alt={item.hash} className="aspect-video w-full object-cover" src={item.preview_url ?? item.thumbnail_url} /> : null}
           <CardContent className="space-y-3 p-4">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0"><p className="font-mono text-xs break-all">{shortenId(item.hash, 14, 8)}</p><p className="text-sm text-muted-foreground">{item.mime_type}</p></div>

@@ -133,6 +133,7 @@ export function normalizeBlossomObjectRecord(item: any) {
     duration_ms: item.durationMS,
     bitrate_kbps: item.bitrateKbps,
     thumbnail_url: item.thumbnailURL,
+    preview_url: item.previewURL,
     direct_url: item.directURL,
     optimized_url: item.optimizedURL,
     review_state: item.reviewState,

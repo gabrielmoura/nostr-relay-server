@@ -2,6 +2,7 @@ package graph
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -11,8 +12,10 @@ import (
 
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/gabrielmoura/nostr-relay-server/graph/model"
+	dbmodel "github.com/gabrielmoura/nostr-relay-server/infra/db"
 	storedb "github.com/gabrielmoura/nostr-relay-server/infra/db"
 	httphandler "github.com/gabrielmoura/nostr-relay-server/infra/handler/http"
+	internalblossom "github.com/gabrielmoura/nostr-relay-server/internal/blossom"
 	"github.com/gabrielmoura/nostr-relay-server/internal/db"
 	jsonx "github.com/gabrielmoura/nostr-relay-server/internal/jsonx"
 	"github.com/gofiber/fiber/v2"
@@ -106,42 +109,118 @@ func (r *Resolver) upsertBlossomPolicy(ctx context.Context, input model.AdminBlo
 	return decodeRESTModel[model.AdminBlossomPolicy](payload)
 }
 
+func blossomPlanToGraphQL(item dbmodel.BlossomPlan) *model.AdminBlossomPlan {
+	scope := model.BlossomPlanScopeFree
+	if strings.EqualFold(item.Scope, "enabled_users") {
+		scope = model.BlossomPlanScopeEnabledUsers
+	}
+
+	plan := &model.AdminBlossomPlan{
+		ID:        item.ID,
+		Name:      item.Name,
+		Scope:     scope,
+		IsDefault: item.IsDefault,
+	}
+
+	if item.StorageQuotaBytes.Valid {
+		v := int(item.StorageQuotaBytes.Int64)
+		plan.StorageQuotaBytes = &v
+	}
+	if item.EgressQuotaBytes.Valid {
+		v := int(item.EgressQuotaBytes.Int64)
+		plan.EgressQuotaBytes = &v
+	}
+	if strings.TrimSpace(item.Description) != "" {
+		desc := item.Description
+		plan.Description = &desc
+	}
+	if !item.UpdatedAt.IsZero() {
+		updatedAt := item.UpdatedAt.UTC().Format(time.RFC3339)
+		plan.UpdatedAt = &updatedAt
+	}
+	return plan
+}
+
 func (r *Resolver) upsertBlossomPlan(ctx context.Context, input model.AdminBlossomPlanInput) (*model.AdminBlossomPlan, error) {
-	body := map[string]any{"id": input.ID, "name": input.Name, "scope": strings.ToLower(input.Scope.String()), "storage_quota_bytes": input.StorageQuotaBytes, "egress_quota_bytes": input.EgressQuotaBytes, "description": stringValue(input.Description), "is_default": input.IsDefault}
-	payload, err := executeAdminRequest(ctx, adminRequest{method: http.MethodPut, route: "/blossom/plans", path: "/blossom/plans", body: body, handlerFunc: httphandler.BlossomPlanUpsert()})
+	if strings.TrimSpace(input.ID) == "" {
+		return nil, newClientGraphQLError(GraphQLErrorCodeBadInput, "O ID do plano é obrigatório.", internalblossom.ErrInvalidPlanID)
+	}
+	if strings.TrimSpace(input.Name) == "" {
+		return nil, newClientGraphQLError(GraphQLErrorCodeBadInput, "O nome do plano é obrigatório.", internalblossom.ErrInvalidPlanName)
+	}
+	if (input.StorageQuotaBytes != nil && *input.StorageQuotaBytes < 0) || (input.EgressQuotaBytes != nil && *input.EgressQuotaBytes < 0) {
+		return nil, newClientGraphQLError(GraphQLErrorCodeBadInput, "As cotas de armazenamento e egress não podem ser negativas.", internalblossom.ErrNegativeQuota)
+	}
+
+	scope := strings.ToLower(input.Scope.String())
+	if scope != "free" && scope != "enabled_users" {
+		return nil, newClientGraphQLError(GraphQLErrorCodeBadInput, "Escopo do plano inválido.", internalblossom.ErrInvalidPlanScope)
+	}
+
+	plan := dbmodel.BlossomPlan{
+		ID:          strings.TrimSpace(input.ID),
+		Name:        strings.TrimSpace(input.Name),
+		Scope:       scope,
+		Description: stringValue(input.Description),
+		IsDefault:   input.IsDefault,
+		UpdatedBy:   internalblossom.ActorPubkey(),
+	}
+	if input.StorageQuotaBytes != nil {
+		plan.StorageQuotaBytes.Valid = true
+		plan.StorageQuotaBytes.Int64 = int64(*input.StorageQuotaBytes)
+	}
+	if input.EgressQuotaBytes != nil {
+		plan.EgressQuotaBytes.Valid = true
+		plan.EgressQuotaBytes.Int64 = int64(*input.EgressQuotaBytes)
+	}
+
+	saved, err := internalblossom.UpsertPlan(ctx, plan)
 	if err != nil {
+		if errors.Is(err, internalblossom.ErrInvalidPlanID) || errors.Is(err, internalblossom.ErrInvalidPlanName) ||
+			errors.Is(err, internalblossom.ErrInvalidPlanScope) || errors.Is(err, internalblossom.ErrNegativeQuota) {
+			return nil, newClientGraphQLError(GraphQLErrorCodeBadInput, err.Error(), err)
+		}
 		return nil, err
 	}
-	out, err := decodeRESTModel[model.AdminBlossomPlan](payload)
-	if err != nil {
-		return nil, err
-	}
-	out.Scope = model.BlossomPlanScope(strings.ToUpper(out.Scope.String()))
-	return out, nil
+
+	gqlPlan := blossomPlanToGraphQL(*saved)
+	GetSubscriptionsBroker().PublishPlanChange(gqlPlan)
+	return gqlPlan, nil
 }
 
 func (r *Resolver) deleteBlossomPlan(ctx context.Context, id string) (*model.MutationAck, error) {
-	_, err := executeAdminRequest(ctx, adminRequest{method: http.MethodDelete, route: "/blossom/plans/:id", path: fmt.Sprintf("/blossom/plans/%s", id), handlerFunc: httphandler.BlossomPlanDelete()})
-	if err != nil {
+	cleanID := strings.TrimSpace(id)
+	if cleanID == "" {
+		return nil, newClientGraphQLError(GraphQLErrorCodeBadInput, "O ID do plano é obrigatório.", internalblossom.ErrInvalidPlanID)
+	}
+	if err := internalblossom.DeletePlan(ctx, cleanID); err != nil {
 		return nil, err
 	}
-	return adminMutationAck(true, &id, "plan deleted"), nil
+	return adminMutationAck(true, &cleanID, "plan deleted"), nil
 }
 
 func (r *Resolver) assignBlossomPlan(ctx context.Context, planID string, pubkey string) (*model.MutationAck, error) {
-	_, err := executeAdminRequest(ctx, adminRequest{method: http.MethodPost, route: "/blossom/plans/:id/assign", path: fmt.Sprintf("/blossom/plans/%s/assign", planID), body: map[string]any{"pubkey": pubkey}, handlerFunc: httphandler.BlossomPlanAssign()})
-	if err != nil {
+	cleanID := strings.TrimSpace(planID)
+	cleanPubkey := strings.TrimSpace(pubkey)
+	if cleanID == "" || cleanPubkey == "" {
+		return nil, newClientGraphQLError(GraphQLErrorCodeBadInput, "O ID do plano e a pubkey são obrigatórios.", errors.New("missing plan id or pubkey"))
+	}
+	if err := internalblossom.AssignPlan(ctx, cleanID, cleanPubkey, internalblossom.ActorPubkey()); err != nil {
 		return nil, err
 	}
-	return adminMutationAck(true, &planID, "plan assigned"), nil
+	return adminMutationAck(true, &cleanID, "plan assigned"), nil
 }
 
 func (r *Resolver) unassignBlossomPlan(ctx context.Context, planID string, pubkey string) (*model.MutationAck, error) {
-	_, err := executeAdminRequest(ctx, adminRequest{method: http.MethodDelete, route: "/blossom/plans/:id/assign/:pubkey", path: fmt.Sprintf("/blossom/plans/%s/assign/%s", planID, pubkey), handlerFunc: httphandler.BlossomPlanUnassign()})
-	if err != nil {
+	cleanID := strings.TrimSpace(planID)
+	cleanPubkey := strings.TrimSpace(pubkey)
+	if cleanID == "" || cleanPubkey == "" {
+		return nil, newClientGraphQLError(GraphQLErrorCodeBadInput, "O ID do plano e a pubkey são obrigatórios.", errors.New("missing plan id or pubkey"))
+	}
+	if err := internalblossom.UnassignPlan(ctx, cleanID, cleanPubkey, internalblossom.ActorPubkey()); err != nil {
 		return nil, err
 	}
-	return adminMutationAck(true, &planID, "plan unassigned"), nil
+	return adminMutationAck(true, &cleanID, "plan unassigned"), nil
 }
 
 func (r *Resolver) reviewBlossomObjects(ctx context.Context, input model.AdminBlossomBulkReviewInput) (*model.MutationAck, error) {

@@ -6,11 +6,18 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/gabrielmoura/nostr-relay-server/graph/model"
 	httphandler "github.com/gabrielmoura/nostr-relay-server/infra/handler/http"
+	"github.com/gabrielmoura/nostr-relay-server/infra/handler/listener"
 	"github.com/gabrielmoura/nostr-relay-server/infra/log"
 	"go.uber.org/zap"
+)
+
+var (
+	activeConnectionsSnapshot = listener.ActiveConnections
+	authedConnectionsSnapshot = listener.AuthedConnections
 )
 
 func (r *Resolver) adminOverview(ctx context.Context) (*model.AdminOverview, error) {
@@ -30,27 +37,52 @@ func (r *Resolver) adminStreamStatus(ctx context.Context) (*model.AdminStreamSta
 }
 
 func (r *Resolver) activeConnections(ctx context.Context, page *model.OffsetPageInput) (*model.AdminConnectionPage, error) {
-	payload, err := executeAdminRequest(ctx, adminRequest{method: http.MethodGet, route: "/connections/active", path: "/connections/active", query: adminPageQuery(page), handlerFunc: httphandler.ActiveConnections()})
-	if err != nil {
-		return nil, err
-	}
-	items, pageInfo, err := decodeRESTPage[model.AdminConnection](payload)
-	if err != nil {
-		return nil, err
-	}
-	return &model.AdminConnectionPage{PageInfo: pageInfo, Items: items}, nil
+	return adminConnectionPage(activeConnectionsSnapshot(), page), nil
 }
 
 func (r *Resolver) authedConnections(ctx context.Context, page *model.OffsetPageInput) (*model.AdminConnectionPage, error) {
-	payload, err := executeAdminRequest(ctx, adminRequest{method: http.MethodGet, route: "/connections/authed", path: "/connections/authed", query: adminPageQuery(page), handlerFunc: httphandler.AuthedConnections()})
-	if err != nil {
-		return nil, err
+	return adminConnectionPage(authedConnectionsSnapshot(), page), nil
+}
+
+func adminConnectionPage(connections []listener.ConnectionInfo, page *model.OffsetPageInput) *model.AdminConnectionPage {
+	limit, offset := loggedUsersPage(page)
+	windowStart := min(offset, len(connections))
+	end := min(windowStart+limit, len(connections))
+	if offset >= len(connections) {
+		end = windowStart
 	}
-	items, pageInfo, err := decodeRESTPage[model.AdminConnection](payload)
-	if err != nil {
-		return nil, err
+
+	items := make([]*model.AdminConnection, 0, end-windowStart)
+	for _, connection := range connections[windowStart:end] {
+		item := &model.AdminConnection{
+			Wsid:              connection.WSID,
+			IP:                connection.IP,
+			Authed:            optionalString(connection.Authed),
+			SubscriptionCount: int32(connection.SubscriptionCount),
+			ConnectedAt:       unixTimestamp(connection.ConnectedAt),
+			LastSeenAt:        unixTimestamp(connection.LastSeenAt),
+			UserAgent:         optionalString(connection.UserAgent),
+		}
+		items = append(items, item)
 	}
-	return &model.AdminConnectionPage{PageInfo: pageInfo, Items: items}, nil
+
+	return &model.AdminConnectionPage{
+		PageInfo: &model.PageInfo{
+			Total:   int32(len(connections)),
+			Limit:   int32(limit),
+			Offset:  int32(offset),
+			HasMore: end < len(connections),
+		},
+		Items: items,
+	}
+}
+
+func unixTimestamp(value int64) *string {
+	if value <= 0 {
+		return nil
+	}
+	formatted := time.Unix(value, 0).UTC().Format(time.RFC3339)
+	return &formatted
 }
 
 func (r *Resolver) loggedUsers(ctx context.Context, page *model.OffsetPageInput) (*model.AdminLoggedUserPage, error) {

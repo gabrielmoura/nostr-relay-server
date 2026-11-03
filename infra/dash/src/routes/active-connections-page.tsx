@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useDisconnectConnectionMutation, useInfiniteConnections } from "@/hooks/use-admin-data"
-import { shortenId } from "@/lib/utils"
+import { formatDateTime, shortenId } from "@/lib/utils"
 
 export function ActiveConnectionsPage() {
   const { t } = useTranslation()
@@ -69,6 +69,7 @@ export function ActiveConnectionsPage() {
                   <div className="space-y-1">
                     <p className="font-mono text-xs text-foreground">{connection.ws_id}</p>
                     <p className="text-sm text-foreground">{connection.ip}</p>
+                    <p className="text-xs text-muted-foreground">Origem de rede: não identificada</p>
                     {connection.authed ? (
                       <p className="text-xs text-muted-foreground">
                         {t("activeConnections.user")}: {" "}
@@ -82,6 +83,7 @@ export function ActiveConnectionsPage() {
                       <Badge variant="muted">{t("activeConnections.subscriptionsCount", { count: connection.subscription_count })}</Badge>
                       {connection.user_agent ? <Badge variant="muted">{connection.user_agent}</Badge> : null}
                     </div>
+                    <p className="text-xs text-muted-foreground">Conectado: {connection.connected_at ? formatDateTime(connection.connected_at) : "não informado"} · Última atividade: {connection.last_seen_at ? formatDateTime(connection.last_seen_at) : "não informada"}</p>
                   </div>
                   <Button
                     disabled={disconnectMutation.isPending}

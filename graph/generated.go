@@ -31,6 +31,7 @@ type Config = graphql.Config[ResolverRoot, DirectiveRoot, ComplexityRoot]
 type ResolverRoot interface {
 	Mutation() MutationResolver
 	Query() QueryResolver
+	Subscription() SubscriptionResolver
 }
 
 type DirectiveRoot struct {
@@ -77,6 +78,7 @@ type ComplexityRoot struct {
 		Mirrors        func(childComplexity int) int
 		Nip94Tags      func(childComplexity int) int
 		OptimizedURL   func(childComplexity int) int
+		PreviewURL     func(childComplexity int) int
 		ReportCount    func(childComplexity int) int
 		ReviewState    func(childComplexity int) int
 		Size           func(childComplexity int) int
@@ -705,6 +707,11 @@ type ComplexityRoot struct {
 		WotSummary             func(childComplexity int) int
 	}
 
+	Subscription struct {
+		BlossomObjectChanged func(childComplexity int) int
+		BlossomPlanChanged   func(childComplexity int) int
+	}
+
 	TagCount struct {
 		Count func(childComplexity int) int
 		Tag   func(childComplexity int) int
@@ -797,6 +804,10 @@ type QueryResolver interface {
 	GroupStats(ctx context.Context, groupID string) (*model.AdminGroupStats, error)
 	GroupMembers(ctx context.Context, groupID string, page *model.OffsetPageInput) (*model.AdminGroupMemberPage, error)
 	WotSummary(ctx context.Context) (*model.AdminWoTSummary, error)
+}
+type SubscriptionResolver interface {
+	BlossomPlanChanged(ctx context.Context) (<-chan *model.AdminBlossomPlan, error)
+	BlossomObjectChanged(ctx context.Context) (<-chan *model.AdminBlossomObject, error)
 }
 
 type executableSchema graphql.ExecutableSchemaState[ResolverRoot, DirectiveRoot, ComplexityRoot]
@@ -996,6 +1007,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.AdminBlossomObject.OptimizedURL(childComplexity), true
+	case "AdminBlossomObject.previewURL":
+		if e.ComplexityRoot.AdminBlossomObject.PreviewURL == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminBlossomObject.PreviewURL(childComplexity), true
 	case "AdminBlossomObject.reportCount":
 		if e.ComplexityRoot.AdminBlossomObject.ReportCount == nil {
 			break
@@ -3892,6 +3909,19 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.Query.WotSummary(childComplexity), true
 
+	case "Subscription.blossomObjectChanged":
+		if e.ComplexityRoot.Subscription.BlossomObjectChanged == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Subscription.BlossomObjectChanged(childComplexity), true
+	case "Subscription.blossomPlanChanged":
+		if e.ComplexityRoot.Subscription.BlossomPlanChanged == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Subscription.BlossomPlanChanged(childComplexity), true
+
 	case "TagCount.count":
 		if e.ComplexityRoot.TagCount.Count == nil {
 			break
@@ -3995,6 +4025,23 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 			ctx = graphql.WithUnmarshalerMap(ctx, inputUnmarshalMap)
 			data := ec._Mutation(ctx, opCtx.Operation.SelectionSet)
 			var buf bytes.Buffer
+			data.MarshalGQL(&buf)
+
+			return &graphql.Response{
+				Data: buf.Bytes(),
+			}
+		}
+	case ast.Subscription:
+		next := ec._Subscription(ctx, opCtx.Operation.SelectionSet)
+
+		var buf bytes.Buffer
+		return func(ctx context.Context) *graphql.Response {
+			buf.Reset()
+			data := next(ctx)
+
+			if data == nil {
+				return nil
+			}
 			data.MarshalGQL(&buf)
 
 			return &graphql.Response{
@@ -4112,6 +4159,8 @@ func (ec *executionContext) childFields_AdminBlossomObject(ctx context.Context, 
 		return ec.fieldContext_AdminBlossomObject_gpsDetected(ctx, field)
 	case "directURL":
 		return ec.fieldContext_AdminBlossomObject_directURL(ctx, field)
+	case "previewURL":
+		return ec.fieldContext_AdminBlossomObject_previewURL(ctx, field)
 	case "optimizedURL":
 		return ec.fieldContext_AdminBlossomObject_optimizedURL(ctx, field)
 	case "thumbnailURL":
@@ -7180,6 +7229,29 @@ func (ec *executionContext) _AdminBlossomObject_directURL(ctx context.Context, f
 	)
 }
 func (ec *executionContext) fieldContext_AdminBlossomObject_directURL(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminBlossomObject", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _AdminBlossomObject_previewURL(ctx context.Context, field graphql.CollectedField, obj *model.AdminBlossomObject) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminBlossomObject_previewURL(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.PreviewURL, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_AdminBlossomObject_previewURL(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("AdminBlossomObject", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
@@ -19048,6 +19120,70 @@ func (ec *executionContext) fieldContext_Query___schema(_ context.Context, field
 	return fc, nil
 }
 
+func (ec *executionContext) _Subscription_blossomPlanChanged(ctx context.Context, field graphql.CollectedField) (ret func(ctx context.Context) graphql.Marshaler) {
+	return graphql.ResolveFieldStream(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Subscription_blossomPlanChanged(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Subscription().BlossomPlanChanged(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.AdminBlossomPlan) graphql.Marshaler {
+			return ec.marshalNAdminBlossomPlan2ᚖgithubᚗcomᚋgabrielmouraᚋnostrᚑrelayᚑserverᚋgraphᚋmodelᚐAdminBlossomPlan(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Subscription_blossomPlanChanged(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Subscription",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_AdminBlossomPlan(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Subscription_blossomObjectChanged(ctx context.Context, field graphql.CollectedField) (ret func(ctx context.Context) graphql.Marshaler) {
+	return graphql.ResolveFieldStream(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Subscription_blossomObjectChanged(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Subscription().BlossomObjectChanged(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.AdminBlossomObject) graphql.Marshaler {
+			return ec.marshalNAdminBlossomObject2ᚖgithubᚗcomᚋgabrielmouraᚋnostrᚑrelayᚑserverᚋgraphᚋmodelᚐAdminBlossomObject(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Subscription_blossomObjectChanged(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Subscription",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_AdminBlossomObject(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _TagCount_tag(ctx context.Context, field graphql.CollectedField, obj *model.TagCount) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -21609,6 +21745,8 @@ func (ec *executionContext) _AdminBlossomObject(ctx context.Context, sel ast.Sel
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "previewURL":
+			out.Values[i] = ec._AdminBlossomObject_previewURL(ctx, field, obj)
 		case "optimizedURL":
 			out.Values[i] = ec._AdminBlossomObject_optimizedURL(ctx, field, obj)
 		case "thumbnailURL":
@@ -26671,6 +26809,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 	}
 
 	return out
+}
+
+var subscriptionImplementors = []string{"Subscription"}
+
+func (ec *executionContext) _Subscription(ctx context.Context, sel ast.SelectionSet) func(ctx context.Context) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, subscriptionImplementors)
+	ctx = graphql.WithFieldContext(ctx, &graphql.FieldContext{
+		Object: "Subscription",
+	})
+	if len(fields) != 1 {
+		graphql.AddErrorf(ctx, "must subscribe to exactly one stream")
+		return nil
+	}
+
+	switch fields[0].Name {
+	case "blossomPlanChanged":
+		return ec._Subscription_blossomPlanChanged(ctx, fields[0])
+	case "blossomObjectChanged":
+		return ec._Subscription_blossomObjectChanged(ctx, fields[0])
+	default:
+		panic("unknown field " + strconv.Quote(fields[0].Name))
+	}
 }
 
 var tagCountImplementors = []string{"TagCount"}

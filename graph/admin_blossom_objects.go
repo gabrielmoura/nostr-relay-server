@@ -16,6 +16,7 @@ import (
 	"github.com/gabrielmoura/nostr-relay-server/config"
 	"github.com/gabrielmoura/nostr-relay-server/graph/model"
 	dbstore "github.com/gabrielmoura/nostr-relay-server/infra/db"
+	internalblossom "github.com/gabrielmoura/nostr-relay-server/internal/blossom"
 	internaldb "github.com/gabrielmoura/nostr-relay-server/internal/db"
 )
 
@@ -134,6 +135,9 @@ func blossomObjectModel(row dbstore.BlossomObjectRow) *model.AdminBlossomObject 
 		DownloadCount: int(row.DownloadCount), IngressBytes: int(row.IngressBytes), EgressBytes: int(row.EgressBytes),
 		FlagReason: optionalString(row.FlagReason), Mirrors: []string{}, Nip94Tags: []*model.NostrTag{},
 	}
+	if preview := internalblossom.BrowserURL(row.Hash); preview != "" {
+		object.PreviewURL = &preview
+	}
 	if row.Width.Valid {
 		object.Width = &row.Width.Int32
 	}
@@ -148,11 +152,11 @@ func blossomObjectModel(row dbstore.BlossomObjectRow) *model.AdminBlossomObject 
 		object.BitrateKbps = &row.BitrateKbps.Int32
 	}
 	if row.ThumbnailHash != "" {
-		value := directURL(row.ThumbnailHash, "")
+		value := internalblossom.BrowserURL(row.ThumbnailHash)
 		object.ThumbnailURL = &value
 	}
 	if row.OptimizedHash != "" {
-		value := directURL(row.OptimizedHash, "")
+		value := internalblossom.BrowserURL(row.OptimizedHash)
 		object.OptimizedURL = &value
 	}
 	if err := json.Unmarshal(row.Mirrors, &object.Mirrors); err != nil || object.Mirrors == nil {

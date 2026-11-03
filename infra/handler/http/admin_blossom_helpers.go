@@ -28,6 +28,7 @@ func mapBlossomObjectResponse(item dbmodel.BlossomObjectRow) adminBlossomObjectR
 		CreatedAt:      formatTime(item.CreatedAt),
 		Blurhash:       item.Blurhash,
 		DirectURL:      blossomDirectURL(item.Hash, item.Extension),
+		PreviewURL:     internalblossom.BrowserURL(item.Hash),
 		BlossomID:      blossomObjectID(item.Hash, item.Extension, item.UploaderPubkey, item.Size),
 		ReviewState:    item.ReviewState,
 		ExifStatus:     item.ExifStatus,
@@ -59,10 +60,10 @@ func mapBlossomObjectResponse(item dbmodel.BlossomObjectRow) adminBlossomObjectR
 		response.LastDownloadedAt = formatTime(item.LastDownloadedAt.Time)
 	}
 	if item.ThumbnailHash != "" {
-		response.ThumbnailURL = blossomDirectURL(item.ThumbnailHash, "")
+		response.ThumbnailURL = internalblossom.BrowserURL(item.ThumbnailHash)
 	}
 	if item.OptimizedHash != "" {
-		response.OptimizedURL = blossomDirectURL(item.OptimizedHash, "")
+		response.OptimizedURL = internalblossom.BrowserURL(item.OptimizedHash)
 	}
 	return response
 }

@@ -45,6 +45,13 @@ export function LoggedUsersPage() {
                   {user.lastSeenAt ? <Badge variant="muted">{t("loggedUsers.lastSeen")} {new Date(user.lastSeenAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: "UTC" })} UTC</Badge> : null}
                 </div>
               </div>
+              <div className="mt-3 space-y-1 text-xs text-muted-foreground">
+                {user.nip05 ? <p className="break-all">NIP-05: {user.nip05}</p> : null}
+                {user.website ? <p className="break-all">Site informado: {user.website}</p> : null}
+                {user.metadata ? <p className="line-clamp-2 whitespace-pre-wrap">{user.metadata}</p> : null}
+                {user.bot ? <p>Perfil identificado como bot</p> : null}
+                <p>Origem de rede: não identificada</p>
+              </div>
               <div className="mt-4 flex flex-wrap gap-2">
                 <Link className="inline-flex items-center rounded-[calc(var(--radius)-0.3rem)] border border-border px-3 py-2 text-sm hover:bg-muted" params={{ pubkey: user.pubkey }} to="/users/$pubkey">
                   {t("overview.viewDetails")}

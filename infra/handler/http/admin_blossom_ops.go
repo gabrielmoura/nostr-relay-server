@@ -1,6 +1,7 @@
 package http
 
 import (
+	"errors"
 	"strconv"
 	"strings"
 
@@ -73,7 +74,7 @@ func BlossomPlanUpsert() fiber.Handler {
 		if strings.TrimSpace(req.ID) == "" || strings.TrimSpace(req.Name) == "" {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "plan id and name are required"})
 		}
-		scope := strings.TrimSpace(req.Scope)
+		scope := strings.ToLower(strings.TrimSpace(req.Scope))
 		if scope != "free" && scope != "enabled_users" {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid blossom plan scope"})
 		}
@@ -96,20 +97,15 @@ func BlossomPlanUpsert() fiber.Handler {
 			plan.EgressQuotaBytes.Valid = true
 			plan.EgressQuotaBytes.Int64 = *req.EgressQuotaBytes
 		}
-		if err := db.DbQueries.UpsertBlossomPlan(c.UserContext(), plan); err != nil {
-			return internalServerError(c, err)
-		}
-		_ = internalblossom.RecordAudit(c.UserContext(), blossomActorPubkey(), "plan.upsert", "plan", plan.ID, map[string]string{"scope": plan.Scope})
-		items, err := db.DbQueries.ListBlossomPlans(c.UserContext(), "")
+		saved, err := internalblossom.UpsertPlan(c.UserContext(), plan)
 		if err != nil {
+			if errors.Is(err, internalblossom.ErrInvalidPlanID) || errors.Is(err, internalblossom.ErrInvalidPlanName) ||
+				errors.Is(err, internalblossom.ErrInvalidPlanScope) || errors.Is(err, internalblossom.ErrNegativeQuota) {
+				return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+			}
 			return internalServerError(c, err)
 		}
-		for _, item := range items {
-			if item.ID == plan.ID {
-				return c.JSON(mapBlossomPlanResponse(item))
-			}
-		}
-		return c.JSON(mapBlossomPlanResponse(plan))
+		return c.JSON(mapBlossomPlanResponse(*saved))
 	}
 }
 
@@ -119,10 +115,9 @@ func BlossomPlanDelete() fiber.Handler {
 		if id == "" {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid plan id"})
 		}
-		if err := db.DbQueries.DeleteBlossomPlan(c.UserContext(), id); err != nil {
+		if err := internalblossom.DeletePlan(c.UserContext(), id); err != nil {
 			return internalServerError(c, err)
 		}
-		_ = internalblossom.RecordAudit(c.UserContext(), blossomActorPubkey(), "plan.delete", "plan", id, nil)
 		return c.JSON(fiber.Map{"ok": true, "id": id})
 	}
 }
@@ -141,10 +136,9 @@ func BlossomPlanAssign() fiber.Handler {
 		if err != nil {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 		}
-		if err := db.DbQueries.AssignPlanToUser(c.UserContext(), id, pubkey, blossomActorPubkey()); err != nil {
+		if err := internalblossom.AssignPlan(c.UserContext(), id, pubkey, blossomActorPubkey()); err != nil {
 			return internalServerError(c, err)
 		}
-		_ = internalblossom.RecordAudit(c.UserContext(), blossomActorPubkey(), "plan.assign", "pubkey", pubkey, map[string]string{"plan_id": id})
 		return c.JSON(adminBlossomPlanAssignResponse{OK: true, PlanID: id, Pubkey: pubkey})
 	}
 }
@@ -155,7 +149,7 @@ func BlossomPlanAssignments() fiber.Handler {
 		if id == "" {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid plan id"})
 		}
-		items, err := db.DbQueries.ListPlanAssignments(c.UserContext(), id)
+		items, err := internalblossom.ListPlanAssignments(c.UserContext(), id)
 		if err != nil {
 			return internalServerError(c, err)
 		}
@@ -177,10 +171,9 @@ func BlossomPlanUnassign() fiber.Handler {
 		if err != nil {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 		}
-		if err := db.DbQueries.UnassignPlanFromUser(c.UserContext(), id, pubkey); err != nil {
+		if err := internalblossom.UnassignPlan(c.UserContext(), id, pubkey, blossomActorPubkey()); err != nil {
 			return internalServerError(c, err)
 		}
-		_ = internalblossom.RecordAudit(c.UserContext(), blossomActorPubkey(), "plan.unassign", "pubkey", pubkey, map[string]string{"plan_id": id})
 		return c.JSON(fiber.Map{"ok": true, "plan_id": id, "pubkey": pubkey})
 	}
 }

@@ -47,6 +47,7 @@ type adminBlossomObjectResponse struct {
 	Blurhash         string     `json:"blurhash,omitempty"`
 	ThumbnailURL     string     `json:"thumbnail_url,omitempty"`
 	DirectURL        string     `json:"direct_url"`
+	PreviewURL       string     `json:"preview_url,omitempty"`
 	BlossomID        string     `json:"blossom_id,omitempty"`
 	OptimizedURL     string     `json:"optimized_url,omitempty"`
 	ReviewState      string     `json:"review_state"`

@@ -219,6 +219,8 @@ export type UserProfile = {
   handle: string
   picture?: string
   nip05?: string
+  website?: string
+  bot?: boolean
   trustScore?: number
   relayCount?: number
   followers?: number
@@ -695,6 +697,7 @@ export type BlossomObjectRecord = {
   bitrate_kbps?: number
   blurhash?: string
   thumbnail_url?: string
+  preview_url?: string
   direct_url: string
   optimized_url?: string
   review_state: BlossomReviewState

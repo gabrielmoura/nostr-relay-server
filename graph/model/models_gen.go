@@ -57,6 +57,7 @@ type AdminBlossomObject struct {
 	ExifStatus     string      `json:"exifStatus"`
 	GpsDetected    bool        `json:"gpsDetected"`
 	DirectURL      string      `json:"directURL"`
+	PreviewURL     *string     `json:"previewURL,omitempty"`
 	OptimizedURL   *string     `json:"optimizedURL,omitempty"`
 	ThumbnailURL   *string     `json:"thumbnailURL,omitempty"`
 	BlossomID      *string     `json:"blossomID,omitempty"`
@@ -758,6 +759,9 @@ type PubkeyCount struct {
 }
 
 type Query struct {
+}
+
+type Subscription struct {
 }
 
 type TagCount struct {
