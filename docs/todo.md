@@ -799,3 +799,18 @@ desligadas por padrão.
 - [ ] Revisar a página administrativa `/panel/blossom` e seus fluxos de configuração para torná-los mais intuitivos.
 - [ ] Validar entradas e combinações de configurações no formulário, usando Zod quando adequado, com mensagens claras e limites consistentes com os contratos do backend.
 - [ ] Revisar instruções, estados de carregamento, erros e confirmação de alterações; verificar os fluxos reais de leitura e gravação.
+- [ ] Fazer a busca geral da biblioteca chegar ao armazenamento por um resolver GraphQL direto; consultar somente campos necessários e usar cache Apollo coerente.
+- [ ] Evitar consultas e polling de áreas não visíveis, validar mirror no fluxo GraphQL direto e confirmar ações destrutivas.
+
+## Phase 42: Conexões e usuários conectados
+
+- [ ] Revisar `/panel/connections/logged`, `/panel/connections/active` e `/panel/users/logged`, com informações úteis de conexão e perfil.
+- [ ] Expor a origem TOR, I2P ou Yggdrasil somente quando houver evidência no ingresso; usar origem desconhecida caso contrário.
+- [ ] Migrar as consultas dessas páginas para resolvers GraphQL diretos e cache Apollo, com perfis em lote e testes de contrato e paginação.
+- [ ] Validar `loggedUsers` no serviço em execução, incluindo perfis ausentes e falhas de armazenamento.
+
+## Phase 43: Garantias pendentes de visibilidade NIP-29
+
+- [ ] Definir e persistir a associação ao grupo para conteúdo com tag `h`, de modo que falha de projeção não exponha dados sem classificar indevidamente eventos alheios ao NIP-29.
+- [ ] Testar concorrência entre alterações de privacidade, revogação de membro e entrega histórica/live com PostgreSQL e Redis reais.
+- [ ] Limitar o custo do fan-out por evento e tratar falhas de projeção com recuperação durável; verificar também o snapshot e journal RelaySync público.
