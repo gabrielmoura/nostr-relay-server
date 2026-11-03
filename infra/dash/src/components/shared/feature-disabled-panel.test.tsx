@@ -32,7 +32,7 @@ describe("FeatureDisabledPanel", () => {
     expect(screen.getByRole("heading", { name: "Privacy feature is disabled" })).toBeTruthy()
     expect(screen.getByText("How to enable")).toBeTruthy()
     expect(screen.getByText("privacy.enabled")).toBeTruthy()
-    expect(screen.getByText("privacy:\n  enabled: true")).toBeTruthy()
+    expect(screen.getByText(/privacy:\s+enabled: true/)).toBeTruthy()
     expect(screen.getByRole("button", { name: "Check again" })).toBeTruthy()
   })
 })
