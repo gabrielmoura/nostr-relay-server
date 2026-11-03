@@ -74,6 +74,7 @@ type AdminBlossomObject struct {
 }
 
 type AdminBlossomObjectFilterInput struct {
+	Q             *string `json:"q,omitempty"`
 	Sha256        *string `json:"sha256,omitempty"`
 	MimeType      *string `json:"mimeType,omitempty"`
 	Extension     *string `json:"extension,omitempty"`

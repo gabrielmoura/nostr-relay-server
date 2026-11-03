@@ -131,36 +131,7 @@ func (r *Resolver) blossomPlanAssignments(ctx context.Context, planID string, pa
 }
 
 func (r *Resolver) blossomObjects(ctx context.Context, filter *model.AdminBlossomObjectFilterInput, page *model.OffsetPageInput) (*model.AdminBlossomObjectPage, error) {
-	query := adminPageQuery(page)
-	if filter != nil {
-		if value := strings.TrimSpace(stringValue(filter.Sha256)); value != "" {
-			query.Set("sha256", value)
-		}
-		if value := strings.TrimSpace(stringValue(filter.MimeType)); value != "" {
-			query.Set("mime_type", value)
-		}
-		if value := strings.TrimSpace(stringValue(filter.Extension)); value != "" {
-			query.Set("extension", value)
-		}
-		if value := strings.TrimSpace(stringValue(filter.ReviewState)); value != "" {
-			query.Set("review_state", value)
-		}
-		if value := strings.TrimSpace(stringValue(filter.Pubkey)); value != "" {
-			query.Set("pubkey", value)
-		}
-		if value := strings.TrimSpace(stringValue(filter.UploaderQuery)); value != "" {
-			query.Set("uploader_q", value)
-		}
-	}
-	payload, err := executeAdminRequest(ctx, adminRequest{method: http.MethodGet, route: "/blossom/objects", path: "/blossom/objects", query: query, handlerFunc: httphandler.BlossomObjects()})
-	if err != nil {
-		return nil, err
-	}
-	items, pageInfo, err := decodeRESTPage[model.AdminBlossomObject](payload)
-	if err != nil {
-		return nil, err
-	}
-	return &model.AdminBlossomObjectPage{PageInfo: pageInfo, Items: items}, nil
+	return r.queryBlossomObjects(ctx, filter, page)
 }
 
 func (r *Resolver) blossomObject(ctx context.Context, hash string) (*model.AdminBlossomObject, error) {

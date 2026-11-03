@@ -231,7 +231,7 @@ export function extractDeletedCount(message?: string | null) {
 }
 
 export function blossomObjectFilterVars(search: URLSearchParams) {
-  return { sha256: emptyToNull(search.get("sha256")), mimeType: emptyToNull(search.get("mime_type")), extension: emptyToNull(search.get("extension")), reviewState: emptyToNull(search.get("review_state")), pubkey: emptyToNull(search.get("pubkey")), uploaderQuery: emptyToNull(search.get("uploader_q")) }
+  return { q: emptyToNull(search.get("q")), sha256: emptyToNull(search.get("sha256")), mimeType: emptyToNull(search.get("mime_type")), extension: emptyToNull(search.get("extension")), reviewState: emptyToNull(search.get("review_state")), pubkey: emptyToNull(search.get("pubkey")), uploaderQuery: emptyToNull(search.get("uploader_q")) }
 }
 
 export function blossomUserFilterVars(search: URLSearchParams) {

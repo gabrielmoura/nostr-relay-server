@@ -6,5 +6,6 @@ package graph
 // here.
 
 type Resolver struct {
-	loggedUsersSource LoggedUsersSource
+	loggedUsersSource   LoggedUsersSource
+	blossomObjectSource blossomObjectListSource
 }

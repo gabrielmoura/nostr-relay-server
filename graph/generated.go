@@ -20328,13 +20328,20 @@ func (ec *executionContext) unmarshalInputAdminBlossomObjectFilterInput(ctx cont
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"sha256", "mimeType", "extension", "reviewState", "pubkey", "uploaderQuery"}
+	fieldsInOrder := [...]string{"q", "sha256", "mimeType", "extension", "reviewState", "pubkey", "uploaderQuery"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
 			continue
 		}
 		switch k {
+		case "q":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("q"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Q = data
 		case "sha256":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("sha256"))
 			data, err := ec.unmarshalOString2ᚖstring(ctx, v)

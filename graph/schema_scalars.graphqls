@@ -77,6 +77,7 @@ input AdminLabelFilterInput {
 }
 
 input AdminBlossomObjectFilterInput {
+  q: String
   sha256: String
   mimeType: String
   extension: String
