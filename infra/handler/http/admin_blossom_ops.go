@@ -77,6 +77,9 @@ func BlossomPlanUpsert() fiber.Handler {
 		if scope != "free" && scope != "enabled_users" {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid blossom plan scope"})
 		}
+		if (req.StorageQuotaBytes != nil && *req.StorageQuotaBytes < 0) || (req.EgressQuotaBytes != nil && *req.EgressQuotaBytes < 0) {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "plan quotas must not be negative"})
+		}
 		plan := dbmodel.BlossomPlan{
 			ID:          strings.TrimSpace(req.ID),
 			Name:        strings.TrimSpace(req.Name),
