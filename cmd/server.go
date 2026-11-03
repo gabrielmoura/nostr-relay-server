@@ -271,6 +271,23 @@ func runServer(cmd *cobra.Command, args []string) {
 
 		metrics.RegisterMetrics()
 		metrics.RegisterSecurityMetrics()
+		if err := groups.Init(db.DbQueries); err != nil {
+			log.Logger.Error("Erro ao inicializar NIP-29", zap.Error(err))
+			return
+		}
+		if err := security.Init(); err != nil {
+			log.Logger.Error("Erro ao inicializar a camada de seguranca", zap.Error(err))
+			return
+		}
+		policies2.Init()
+
+		// Workers may depend on policies and durable event ingestion. Start
+		// these services before allowing the queue to claim jobs.
+		ingestion.Init()
+		ingestion.Start(mainCtx)
+		wot.Start(mainCtx)
+		stream.Start(mainCtx)
+
 		if config.Cfg.Jobs.Enabled {
 			queueRuntime, err := redisqueue.NewRuntime(redis.GetClient(), config.Cfg.Redis.Queue, config.Cfg.Jobs)
 			if err != nil {
@@ -299,22 +316,6 @@ func runServer(cmd *cobra.Command, args []string) {
 				}
 			}
 		}
-		if err := groups.Init(db.DbQueries); err != nil {
-			log.Logger.Error("Erro ao inicializar NIP-29", zap.Error(err))
-			return
-		}
-		if err := security.Init(); err != nil {
-			log.Logger.Error("Erro ao inicializar a camada de seguranca", zap.Error(err))
-			return
-		}
-		policies2.Init()
-
-		// Initialize and start batch ingestion
-		ingestion.Init()
-		ingestion.Start(mainCtx)
-		wot.Start(mainCtx)
-		stream.Start(mainCtx)
-
 		// Camada de privacidade opcional (Tor / I2P / Yggdrasil)
 		if config.Cfg.Privacy.Enabled {
 			pm = privacy.NewManager(config.Cfg.Privacy, log.Logger)
