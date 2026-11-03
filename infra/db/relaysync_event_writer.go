@@ -14,6 +14,9 @@ import (
 // the relay's existing authorization, retention and moderation decisions.
 type RelaySyncEventPolicy func(context.Context, relaysync.Event) error
 
+// ErrRelaySyncPolicyUnavailable marks a transient inability to evaluate policy.
+var ErrRelaySyncPolicyUnavailable = errors.New("relaysync: event policy unavailable")
+
 // RelaySyncEventWriter adapts the existing PostgreSQL batch writer to the
 // framework-independent EventWriter contract. It does not bypass host policy:
 // callers may provide a policy hook, while NIP-01 shape/signature validation
@@ -45,7 +48,8 @@ func (w *RelaySyncEventWriter) WriteEvents(ctx context.Context, batch relaysync.
 	results := make([]relaysync.WriteResult, len(batch.Events))
 	accepted := make([]*nostr.Event, 0, len(batch.Events))
 	acceptedIndexes := make(map[string]int, len(batch.Events))
-	seen := make(map[string]struct{}, len(batch.Events))
+	seen := make(map[string]int, len(batch.Events))
+	duplicates := make(map[int]int)
 	for i := range batch.Events {
 		event := batch.Events[i]
 		results[i] = relaysync.WriteResult{ID: event.ID}
@@ -55,21 +59,26 @@ func (w *RelaySyncEventWriter) WriteEvents(ctx context.Context, batch relaysync.
 			results[i].Message = err.Error()
 			continue
 		}
-		if _, exists := seen[event.ID.String()]; exists {
-			results[i].Status = relaysync.WriteAlreadyExists
-			results[i].Code = "duplicate_batch"
+		if first, exists := seen[event.ID.String()]; exists {
+			duplicates[i] = first
 			continue
 		}
-		seen[event.ID.String()] = struct{}{}
+		seen[event.ID.String()] = i
 		if w.policy != nil {
 			if err := w.policy(ctx, event); err != nil {
+				if ctx.Err() != nil {
+					return nil, ctx.Err()
+				}
+				if errors.Is(err, ErrRelaySyncPolicyUnavailable) {
+					return nil, err
+				}
 				results[i].Status = relaysync.WriteRejectedPermanent
 				results[i].Code = "policy_rejected"
 				results[i].Message = err.Error()
 				continue
 			}
 		}
-		native, err := relaySyncEventToNostr(event)
+		native, err := RelaySyncEventToNostr(event)
 		if err != nil {
 			results[i].Status = relaysync.WriteRejectedPermanent
 			results[i].Code = "storage_shape"
@@ -80,6 +89,7 @@ func (w *RelaySyncEventWriter) WriteEvents(ctx context.Context, batch relaysync.
 		accepted = append(accepted, native)
 	}
 	if len(accepted) == 0 {
+		resolveRelaySyncBatchDuplicates(results, duplicates)
 		return results, nil
 	}
 	inserted, err := w.queries.InsertEventBatch(ctx, accepted)
@@ -112,6 +122,7 @@ func (w *RelaySyncEventWriter) WriteEvents(ctx context.Context, batch relaysync.
 			results[i].DecisionID = batch.OperationID + ":" + event.ID
 		}
 	}
+	resolveRelaySyncBatchDuplicates(results, duplicates)
 	for i := range results {
 		if results[i].Status == relaysync.WriteStatusUnspecified {
 			results[i].Status = relaysync.WriteRejectedPermanent
@@ -121,7 +132,20 @@ func (w *RelaySyncEventWriter) WriteEvents(ctx context.Context, batch relaysync.
 	return results, nil
 }
 
-func relaySyncEventToNostr(event relaysync.Event) (*nostr.Event, error) {
+// A repeated ID can only be acknowledged as existing after the first copy is
+// actually accepted or found in storage. Rejections must remain rejections.
+func resolveRelaySyncBatchDuplicates(results []relaysync.WriteResult, duplicates map[int]int) {
+	for duplicate, first := range duplicates {
+		results[duplicate] = results[first]
+		if results[first].Status == relaysync.WriteAccepted {
+			results[duplicate].Status = relaysync.WriteAlreadyExists
+			results[duplicate].Code = "duplicate_batch"
+		}
+	}
+}
+
+// RelaySyncEventToNostr converts a validated protocol event to the host model.
+func RelaySyncEventToNostr(event relaysync.Event) (*nostr.Event, error) {
 	if event.CreatedAt < math.MinInt32 || event.CreatedAt > math.MaxInt32 || uint64(event.Kind) > math.MaxInt32 {
 		return nil, errors.New("event integer fields exceed PostgreSQL range")
 	}
