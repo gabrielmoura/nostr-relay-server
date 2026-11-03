@@ -8,5 +8,7 @@ describe("DMImportPanel", () => {
     render(<DMImportPanel mode="public" bootstrapRelays={[]} localRelayURL="ws://local" />)
     expect(screen.getByText("Importar dados Nostr")).toBeTruthy()
     expect(screen.getByLabelText("nsec ou chave hexadecimal")).toBeTruthy()
+    expect(screen.getByRole("button", { name: "Importar DMs com nsec" })).toBeTruthy()
+    expect(screen.getByRole("button", { name: "Importar outros eventos com nsec" })).toBeTruthy()
   })
 })

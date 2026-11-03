@@ -16,7 +16,21 @@ describe("importDMs", () => it("deduplicates remote events and preserves them wh
 }))
 
 describe("DM importer protocol", () => {
-  it("uses profile, settings, DM, and note filters with bounded since/until pagination", async () => {
+  it("separates private messages from other authored events even if a relay returns extra events", async () => {
+    const note = { ...event, id: "note", kind: 1, content: "public" }
+    const giftwrap = { ...event, id: "gift", kind: 1059, pubkey: "other", tags: [["p", "owner"]] }
+    const unrelated = { ...event, id: "unrelated", pubkey: "other" }
+    for (const scope of ["dm", "events"] as const) {
+      const published: string[] = []
+      const transport: RelayTransport = {
+        query: async (_url, filters) => "since" in filters[0]! ? [event, note, giftwrap, unrelated] : [],
+        publish: async (_url, value) => { published.push(value.id); return "inserted" },
+      }
+      await importDMs({ transport, signer, bootstrap: ["wss://relay.example"], localRelay: "ws://local", scope })
+      expect(published.sort()).toEqual(scope === "dm" ? ["gift", "one"] : ["note"])
+    }
+  })
+  it("uses only DM filters with bounded since/until pagination", async () => {
     const calls: Record<string, unknown>[][] = []
     let request = 0
     const transport: RelayTransport = {
@@ -25,7 +39,7 @@ describe("DM importer protocol", () => {
     }
     await importDMs({ transport, signer, bootstrap: ["wss://relay.example"], localRelay: "ws://local" })
     const paged = calls.flat()
-    expect(paged).toEqual(expect.arrayContaining([{ kinds: [0, 3, 10000, 10002, 10003, 10050, 10063, 30000, 30078], authors: ["owner"], since: 0, until: expect.any(Number), limit: 500 }, { kinds: [1059], "#p": ["owner"], since: 0, until: expect.any(Number), limit: 500 }, { kinds: [4], authors: ["owner"], since: 0, until: expect.any(Number), limit: 500 }, { kinds: [4], "#p": ["owner"], since: 0, until: expect.any(Number), limit: 500 }, { kinds: [1, 7, 20, 21, 22, 1111, 1063, 6, 16, 30023, 30024], authors: ["owner"], since: 0, until: expect.any(Number), limit: 500 }]))
+    expect(paged).toEqual(expect.arrayContaining([{ kinds: [1059], "#p": ["owner"], since: 0, until: expect.any(Number), limit: 500 }, { kinds: [4], authors: ["owner"], since: 0, until: expect.any(Number), limit: 500 }, { kinds: [4], "#p": ["owner"], since: 0, until: expect.any(Number), limit: 500 }]))
   })
 
   it("keeps a source session from relay discovery through collection, then awaits its close", async () => {
@@ -35,7 +49,7 @@ describe("DM importer protocol", () => {
       query: async (filters: Record<string, unknown>[]) => {
         const kinds = filters[0]?.kinds as number[]
         if (kinds.includes(10050)) return [{ ...event, kind: 10050, tags: [] }]
-        return kinds.includes(0) ? [event] : []
+        return kinds.includes(4) ? [event] : []
       },
       publish: async () => "inserted" as const,
       close: async () => { closed++ },
@@ -86,7 +100,7 @@ describe("DM importer protocol", () => {
       query: async (filters: Record<string, unknown>[]) => {
         const kinds = filters[0]?.kinds as number[]
         if (kinds.includes(10050) || kinds.includes(10002)) return []
-        return kinds.includes(0) ? [event] : []
+        return kinds.includes(4) ? [event] : []
       },
       publish: async () => "inserted" as const,
       close: async () => undefined,
@@ -153,7 +167,7 @@ describe("DM importer protocol", () => {
       query: async (_url, filters) => {
         calls.push(filters)
         const kinds = filters[0]?.kinds as number[]
-        return kinds.includes(0) ? [sameSecond] : []
+        return kinds.includes(4) ? [sameSecond] : []
       },
       publish: async () => "inserted",
     }
@@ -166,7 +180,7 @@ describe("DM importer protocol", () => {
   it("bounds total collected events and marks the import incomplete", async () => {
     const many = Array.from({ length: 10_001 }, (_, index) => ({ ...event, id: `event-${index}` }))
     const transport: RelayTransport = {
-      query: async (_url, filters) => (filters[0]?.kinds as number[]).includes(0) ? many : [],
+      query: async (_url, filters) => (filters[0]?.kinds as number[]).includes(4) ? many : [],
       publish: async () => "inserted",
     }
     const result = await importDMs({ transport, signer, bootstrap: ["wss://relay.example"], localRelay: "ws://local" })

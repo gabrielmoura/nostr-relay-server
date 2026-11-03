@@ -1,16 +1,16 @@
 import type { ImportProgress, ImportSigner, NostrEvent, RelaySession, RelayTransport } from "./types"
 
-const FILTERS = (pubkey: string) => [
-  { kinds: [0, 3, 10000, 10002, 10003, 10050, 10063, 30000, 30078], authors: [pubkey] },
+export type ImportScope = "dm" | "events"
+const DM_FILTERS = (pubkey: string) => [
   { kinds: [1059], "#p": [pubkey] },
   { kinds: [4], authors: [pubkey] },
   { kinds: [4], "#p": [pubkey] },
-  { kinds: [1, 7, 20, 21, 22, 1111, 1063, 6, 16, 30023, 30024], authors: [pubkey] },
 ]
+const EVENT_FILTERS = (pubkey: string) => [{ authors: [pubkey] }]
 const maxImportEvents = 10_000
 const maxImportBytes = 32 * 1024 * 1024
 
-export async function discoverRelays(transport: RelayTransport, signer: ImportSigner, bootstrap: string[], signal?: AbortSignal, sessions?: Map<string, RelaySession>) {
+export async function discoverRelays(transport: RelayTransport, signer: ImportSigner, bootstrap: string[], signal?: AbortSignal, sessions?: Map<string, RelaySession>, scope: ImportScope = "dm") {
   const pubkey = await signer.getPublicKey()
   const urls = new Set(bootstrap.map(normalizeRelay).filter(Boolean))
   const ownedSessions = sessions ?? new Map<string, RelaySession>()
@@ -27,6 +27,12 @@ export async function discoverRelays(transport: RelayTransport, signer: ImportSi
     if (signal?.aborted) break
     try {
       let events: NostrEvent[] = []
+      if (scope === "events") {
+        events = await query(relay, [{ kinds: [10002], authors: [pubkey], limit: 1 }])
+        const newest = events.sort((left, right) => right.created_at - left.created_at)[0]
+        for (const tag of newest?.tags ?? []) if (newest?.kind === 10002 && tag[0] === "r" && tag[2] !== "write" && tag[1]) urls.add(normalizeRelay(tag[1]))
+        continue
+      }
       try { events = await query(relay, [{ kinds: [10050], authors: [pubkey], limit: 1 }]) } catch {
         if (signal?.aborted) break
         /* NIP-65 is the discovery fallback. */
@@ -54,10 +60,11 @@ export async function discoverRelays(transport: RelayTransport, signer: ImportSi
   return [...urls].filter(Boolean).slice(0, 20)
 }
 
-export async function importDMs(options: { transport: RelayTransport; signer: ImportSigner; bootstrap: string[]; localRelay: string; localAuthRelay?: string; onProgress?: (p: ImportProgress) => void; signal?: AbortSignal }) {
+export async function importDMs(options: { transport: RelayTransport; signer: ImportSigner; bootstrap: string[]; localRelay: string; localAuthRelay?: string; scope?: ImportScope; onProgress?: (p: ImportProgress) => void; signal?: AbortSignal }) {
   const pubkey = await options.signer.getPublicKey()
+  const scope = options.scope ?? "dm"
   const sourceSessions = new Map<string, RelaySession>()
-  const relays = await discoverRelays(options.transport, options.signer, options.bootstrap, options.signal, sourceSessions)
+  const relays = await discoverRelays(options.transport, options.signer, options.bootstrap, options.signal, sourceSessions, scope)
   const progress: ImportProgress = { relays: relays.length, completedRelays: 0, failedRelays: 0, found: 0, imported: 0, duplicates: 0, rejected: 0, uncertain: 0, errors: [], incomplete: false, phase: "collecting" }
   const events = new Map<string, NostrEvent>()
   let eventBytes = 0
@@ -71,8 +78,10 @@ export async function importDMs(options: { transport: RelayTransport; signer: Im
     try {
       session = sourceSessions.get(relay) ?? await openReadSession(options.transport, relay, options.signer)
       sourceSessions.delete(relay)
-      const collection = await fetchPaginated(session, FILTERS(pubkey), options.signal)
+      const collection = await fetchPaginated(session, scope === "dm" ? DM_FILTERS(pubkey) : EVENT_FILTERS(pubkey), options.signal)
       for (const event of collection.events) {
+        const addressed = event.tags.some((tag) => tag[0] === "p" && tag[1] === pubkey)
+        if (scope === "dm" ? !((event.kind === 4 && (event.pubkey === pubkey || addressed)) || (event.kind === 1059 && addressed)) : event.pubkey !== pubkey || event.kind === 4 || event.kind === 1059) continue
         if (events.has(event.id)) continue
         const bytes = JSON.stringify(event).length
         if (events.size >= maxImportEvents || eventBytes + bytes > maxImportBytes) {
