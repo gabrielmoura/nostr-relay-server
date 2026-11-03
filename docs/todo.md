@@ -791,3 +791,11 @@ desligadas por padrão.
 - [ ] Validar com clientes de referência e cenários de reinício/cancelamento
 - [ ] Validar ausência de vazamento de tokens, payloads MLS e giftwraps
 - [ ] Executar `go build ./...` e `go vet ./...` antes de habilitar defaults
+
+---
+
+## Phase 41: Revisão de UX e configurações do painel Blossom
+
+- [ ] Revisar a página administrativa `/panel/blossom` e seus fluxos de configuração para torná-los mais intuitivos.
+- [ ] Validar entradas e combinações de configurações no formulário, usando Zod quando adequado, com mensagens claras e limites consistentes com os contratos do backend.
+- [ ] Revisar instruções, estados de carregamento, erros e confirmação de alterações; verificar os fluxos reais de leitura e gravação.
