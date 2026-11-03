@@ -44,7 +44,7 @@ func RegisterQueueHandlers(registry *jobcore.MemoryRegistry) error {
 		}
 
 		var syncResult SyncResult
-		executeSync(ctx, cfg, &syncResult)
+		syncResult.Error = executeSyncWithResult(ctx, cfg, &syncResult)
 
 		result := QueueJobResult{
 			Remote:     job.Remote,
