@@ -23,12 +23,19 @@ func NewAllowlistAuthorizer(values []string) (*AllowlistAuthorizer, error) {
 	for _, raw := range values {
 		value := strings.TrimSpace(raw)
 		if addr, err := netip.ParseAddr(value); err == nil {
-			prefixes = append(prefixes, netip.PrefixFrom(addr.Unmap(), addr.BitLen()))
+			addr = addr.Unmap()
+			prefixes = append(prefixes, netip.PrefixFrom(addr, addr.BitLen()))
 			continue
 		}
 		prefix, err := netip.ParsePrefix(value)
 		if err != nil {
 			return nil, fmt.Errorf("relaysync: invalid allowed IP %q: %w", raw, err)
+		}
+		if prefix.Addr().Is4In6() {
+			if prefix.Bits() < 96 {
+				return nil, fmt.Errorf("relaysync: mapped IPv4 prefix %q must have at least 96 bits", raw)
+			}
+			prefix = netip.PrefixFrom(prefix.Addr().Unmap(), prefix.Bits()-96)
 		}
 		prefixes = append(prefixes, prefix.Masked())
 	}
@@ -38,6 +45,9 @@ func NewAllowlistAuthorizer(values []string) (*AllowlistAuthorizer, error) {
 func (a *AllowlistAuthorizer) Authorize(ctx context.Context, principal core.Principal, _ core.Action, requested core.Scope) (core.AuthorizedScope, error) {
 	if err := ctx.Err(); err != nil {
 		return core.AuthorizedScope{}, err
+	}
+	if requested.Name != "public" || requested.Version != 1 || requested.Hash != [32]byte{} {
+		return core.AuthorizedScope{}, core.ErrUnauthorized
 	}
 	addr, err := netip.ParseAddr(strings.TrimSpace(principal.ID))
 	if err != nil {
