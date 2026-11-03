@@ -814,3 +814,9 @@ desligadas por padrão.
 - [ ] Definir e persistir a associação ao grupo para conteúdo com tag `h`, de modo que falha de projeção não exponha dados sem classificar indevidamente eventos alheios ao NIP-29.
 - [ ] Testar concorrência entre alterações de privacidade, revogação de membro e entrega histórica/live com PostgreSQL e Redis reais.
 - [ ] Limitar o custo do fan-out por evento e tratar falhas de projeção com recuperação durável; verificar também o snapshot e journal RelaySync público.
+
+## Phase 44: Sincronização integral e importações separadas
+
+- [ ] Fazer o RelaySync transferir todos os eventos do relay entre peers explicitamente autorizados, inclusive eventos protegidos e privados, sem publicá-los em escopos públicos ou exigir descriptografia.
+- [ ] Definir e testar autorização de replicação integral, snapshot consistente, journal, remoções, retomada e divergência de políticas entre relays.
+- [ ] Validar nos modos público e administrativo os fluxos separados de DMs e de outros eventos, incluindo NIP-42, recibos, cancelamento e ausência de envio ou persistência de nsec.
