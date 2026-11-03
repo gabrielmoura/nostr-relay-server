@@ -73,7 +73,10 @@ type SyncSession struct {
 
 func Sync(cf *ConfSync) {
 	var result SyncResult
-	executeSync(cf, &result)
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	executeSync(ctx, cf, &result)
 	if result.Error != nil {
 		log.Logger.Error("Sync process finished with error", zap.Error(result.Error))
 		return
@@ -96,14 +99,21 @@ func Execute(ctx context.Context, cf *ConfSync) error {
 	return result.Error
 }
 
-func executeSync(cf *ConfSync, result *SyncResult) {
-	if err := setupEnvironment(); err != nil {
+// executeSync prepares the process dependencies and runs one sync operation.
+// Callers that already have a request or job context must pass it through so a
+// cancelled job also cancels database and remote RelaySync operations.
+func executeSync(ctx context.Context, cf *ConfSync, result *SyncResult) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		result.Error = err
+		return
+	}
+	if err := setupEnvironment(ctx); err != nil {
 		result.Error = fmt.Errorf("setup error: %w", err)
 		return
 	}
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	go handleGracefulShutdown(cancel)
 
 	result.Error = executeSyncWithResult(ctx, cf, result)
 }
@@ -114,6 +124,9 @@ func executeSyncWithResult(ctx context.Context, cf *ConfSync, result *SyncResult
 	}
 	if ctx == nil {
 		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return err
 	}
 
 	if err := validateRemote(cf.Remote); err != nil {
@@ -270,10 +283,10 @@ func (s *SyncSession) Run() error {
 	// 2. CONEXÃO WEBSOCKET
 	log.Logger.Info("Step 2: Connecting to remote relay...", zap.String("url", s.RemoteURL))
 
-	dialer := websocket.DefaultDialer
+	dialer := *websocket.DefaultDialer
 	dialer.HandshakeTimeout = 10 * time.Second
 
-	conn, resp, err := dialer.Dial(s.RemoteURL, http.Header{
+	conn, resp, err := dialer.DialContext(s.Context, s.RemoteURL, http.Header{
 		"User-Agent": []string{"NostrRelaySync/1.0"},
 	})
 	if err != nil {
@@ -284,6 +297,8 @@ func (s *SyncSession) Run() error {
 	}
 	s.Conn = conn
 	defer conn.Close()
+	stopCloseOnCancel := closeOnCancellation(s.Context, conn)
+	defer stopCloseOnCancel()
 
 	log.Logger.Info("Connected to relay", zap.String("remote_addr", conn.RemoteAddr().String()))
 
@@ -305,6 +320,10 @@ func (s *SyncSession) Run() error {
 	// 4. LOOP DE LEITURA
 	log.Logger.Info("Step 4: Waiting for server response...")
 	return s.listenLoop()
+}
+
+func closeOnCancellation(ctx context.Context, conn *websocket.Conn) func() bool {
+	return context.AfterFunc(ctx, func() { _ = conn.Close() })
 }
 
 func (s *SyncSession) listenLoop() error {
@@ -329,6 +348,9 @@ func (s *SyncSession) listenLoop() error {
 			// Leitura bloqueante
 			mt, message, err := s.Conn.ReadMessage()
 			if err != nil {
+				if ctxErr := s.Context.Err(); ctxErr != nil {
+					return ctxErr
+				}
 				if websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
 					log.Logger.Info("Connection closed normally by server")
 					return nil
@@ -1071,23 +1093,15 @@ func (s *SyncSession) applyReadDeadline() {
 
 // --- Helpers e Boilerplate ---
 
-func setupEnvironment() error {
+func setupEnvironment(ctx context.Context) error {
 	if err := config.LoadConfig(); err != nil {
 		return err
 	}
 	log.Init()
-	if err := db.Init(context.Background()); err != nil {
+	if err := db.Init(ctx); err != nil {
 		return fmt.Errorf("init database: %w", err)
 	}
 	return nil
-}
-
-func handleGracefulShutdown(cancel context.CancelFunc) {
-	stopChan := make(chan os.Signal, 1)
-	signal.Notify(stopChan, os.Interrupt, syscall.SIGTERM)
-	<-stopChan
-	log.Logger.Info("Shutdown signal received")
-	cancel()
 }
 
 func validateRemote(remote string) error {

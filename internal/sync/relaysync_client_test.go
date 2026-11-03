@@ -107,6 +107,27 @@ func TestRelaySyncFailureContinuationPolicy(t *testing.T) {
 	}
 }
 
+func TestExecuteSyncWithResultHonorsCancelledContext(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	err := executeSyncWithResult(ctx, &ConfSync{Remote: "wss://relay.example"}, &SyncResult{})
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("executeSyncWithResult() error = %v, want context.Canceled", err)
+	}
+}
+
+func TestExecuteSyncDoesNotInitializeCancelledJob(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	result := SyncResult{}
+	executeSync(ctx, &ConfSync{Remote: "wss://relay.example"}, &result)
+	if !errors.Is(result.Error, context.Canceled) {
+		t.Fatalf("executeSync() error = %v, want context.Canceled", result.Error)
+	}
+}
+
 func TestRetryRelaySyncReadRetriesOnlyWhenResilienceIsEnabled(t *testing.T) {
 	previous := config.Cfg
 	t.Cleanup(func() { config.Cfg = previous })
