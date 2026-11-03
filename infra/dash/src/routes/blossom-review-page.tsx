@@ -6,7 +6,7 @@ import { toast } from "sonner"
 
 import { BlossomObjectSheet } from "@/components/features/blossom/blossom-object-sheet"
 import { PageHeader } from "@/components/shared/page-header"
-import { EmptyPanel } from "@/components/shared/state-panels"
+import { EmptyPanel, ErrorPanel, LoadingPanel } from "@/components/shared/state-panels"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -37,6 +37,12 @@ export function BlossomReviewPage() {
     }
   }
 
+  if (policyQuery.isLoading || (objectsQuery.isLoading && objects.length === 0)) {
+    return <LoadingPanel label={t("blossom.loading", "Carregando biblioteca Blossom...")} />
+  }
+  if (policyQuery.error || (objectsQuery.error && objects.length === 0)) {
+    return <ErrorPanel title="Falha ao carregar a fila de revisão" description="Não foi possível obter a política ou os arquivos. Tente novamente." onRetry={() => { void policyQuery.refetch(); void objectsQuery.refetch() }} />
+  }
   if (!reviewEnabled) {
     return (
       <EmptyPanel
@@ -57,10 +63,12 @@ export function BlossomReviewPage() {
 
       <div className="grid gap-4 lg:grid-cols-[1fr_auto]">
         <Input onChange={(event) => setQuery(event.target.value)} placeholder={t("blossom.review.search", "Buscar hash, MIME ou uploader")} value={query} />
-        <Badge variant="warning">{reviewItems.length} {t("blossom.review.pending", "pendentes")}</Badge>
+        <Badge variant="warning">{reviewItems.length} {t("blossom.review.loadedPending", "pendentes carregados")}</Badge>
       </div>
 
-      {reviewItems.length === 0 ? <EmptyPanel description={t("blossom.review.emptyDescription", "Nenhum arquivo está pendente de revisão agora.")} title={t("blossom.review.emptyTitle", "Fila de revisão vazia")} /> : (
+      {objectsQuery.error && objects.length > 0 ? <ErrorPanel title="Falha ao atualizar a fila" description="Os itens já carregados continuam disponíveis." onRetry={() => { void objectsQuery.refetch() }} /> : null}
+
+      {reviewItems.length === 0 ? <EmptyPanel description={objectsQuery.hasNextPage ? "Nenhum arquivo pendente nos itens carregados. Carregue mais para continuar a busca." : t("blossom.review.emptyDescription", "Nenhum arquivo está pendente de revisão agora.")} title={t("blossom.review.noLoadedTitle", "Nenhum item pendente carregado")} /> : (
         <Card>
           <Table>
             <TableHeader><TableRow><TableHead>SHA-256</TableHead><TableHead>MIME</TableHead><TableHead>Tamanho</TableHead><TableHead>Data</TableHead><TableHead>Estado</TableHead><TableHead>Ações</TableHead></TableRow></TableHeader>
@@ -79,6 +87,8 @@ export function BlossomReviewPage() {
           </Table>
         </Card>
       )}
+
+      {objectsQuery.hasNextPage ? <Button disabled={objectsQuery.isFetchingNextPage} onClick={() => void objectsQuery.fetchNextPage()} type="button" variant="outline">{objectsQuery.isFetchingNextPage ? t("common.loading", "Carregando...") : t("blossom.loadMore", "Carregar mais")}</Button> : null}
 
       <BlossomObjectSheet hash={selectedHash} onApprove={(hash) => void runAction(hash, "approve")} onDelete={(hash) => void runAction(hash, "hard_delete")} onOpenChange={(open) => { if (!open) setSelectedHash("") }} onRequeue={(hash) => void runAction(hash, "requeue_optimization")} open={Boolean(selectedHash)} />
     </div>

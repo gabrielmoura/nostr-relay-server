@@ -1,4 +1,6 @@
-import { useEffect } from "react"
+import { useEffect, useRef, useState } from "react"
+import { NetworkStatus } from "@apollo/client"
+import { useQuery as useApolloQuery } from "@apollo/client/react"
 
 import type {
   AdminJobsFilters,
@@ -27,15 +29,31 @@ import {
 } from "@/services/admin"
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient, useSuspenseQuery } from "@/hooks/query-compat"
 import { fetchEventFromRelays, getEventDetail, getEventTags, importEventsFiles } from "@/services/admin-event-detail"
+import { adminApolloClient } from "@/graphql/client"
+import { BlossomObjectsDocument } from "@/graphql/generated/operations"
+import { normalizeBlossomObject, pageFromGraph } from "@/graphql/helpers"
 import { getEventSearchAggregates, getEventSearchTimeline, searchEventsPage } from "@/services/admin-event-search"
 import { createLabel, getLabelsPage, getLabelsSummary } from "@/services/admin-labels"
 import { addTrustedPubkey, cancelJob, deleteGroup, deleteJobsHistory, getDownloadJob, getDownloadJobs, getGroup, getGroupMembers, getGroupsPage, getGroupStats, getJob, getJobs, getWoTSummary, removeTrustedPubkey, resumeJob, retryJob, startDownloadEvents, startNegentropySync } from "@/services/admin-jobs-wot"
 import { allowNIP86PubKey, banNIP86Event, blockNIP86IP, deleteNIP05Identity, getNIP05Page, getNIP86AllowedPubKeysPage, getNIP86BannedEventsPage, getNIP86BlockedIPsPage, getNIP86RelayMetadata, getUserNIP05, unallowNIP86PubKey, unbanNIP86Event, unblockNIP86IP, updateNIP86RelayMetadata, upsertNIP05Identity } from "@/services/admin-nip05-nip86"
 import { getEventReports, getReportedEventsPage, getReportedEventsSummary } from "@/services/admin-reported"
-import { assignBlossomPlan, createBlossomMirrorJob, deleteBlossomPlan, getBlossomAnalytics, getBlossomAudit, getBlossomObjectDetail, getBlossomObjects, getBlossomOverview, getBlossomPlanAssignments, getBlossomPlans, getBlossomPolicy, getBlossomReports, getBlossomUserDetail, getBlossomUsers, getBlossomWorkers, purgeBlossomUser, resolveBlossomReport, reviewBlossomObjects, unassignBlossomPlan, updateBlossomPolicy, upsertBlossomPlan, upsertBlossomWhitelistEntry } from "@/services/admin-blossom"
+import { assignBlossomPlan, createBlossomMirrorJob, deleteBlossomPlan, getBlossomAnalytics, getBlossomAudit, getBlossomObjectDetail, getBlossomOverview, getBlossomPlanAssignments, getBlossomPlans, getBlossomPolicy, getBlossomReports, getBlossomUserDetail, getBlossomUsers, getBlossomWorkers, purgeBlossomUser, resolveBlossomReport, reviewBlossomObjects, unassignBlossomPlan, updateBlossomPolicy, upsertBlossomPlan, upsertBlossomWhitelistEntry } from "@/services/admin-blossom"
 import { banUser, disconnectConnection, getBanStatus, getBannedUsersPage, getConnectionsPage, getLoggedUsersPage, getUser, searchUsersPage, unbanUser } from "@/services/admin-users"
 
 const defaultPageSize = 50
+
+async function invalidateBlossomObjects() {
+  // Evict all filter variants, then refetch mounted views. A failed refresh
+  // must not turn an already successful destructive mutation into a failure.
+  try {
+    await adminApolloClient.refetchQueries({
+      include: [BlossomObjectsDocument],
+      updateCache(cache) { cache.evict({ id: "ROOT_QUERY", fieldName: "blossomObjects" }) },
+    })
+  } catch {
+    // Apollo exposes the query error to the affected view.
+  }
+}
 
 export function useRelayOverview() {
   return useQuery({ queryKey: ["relay-overview"], queryFn: getRelayOverview })
@@ -54,12 +72,53 @@ export function useBlossomPlans(scope?: string) {
 }
 
 export function useInfiniteBlossomObjects(filters: BlossomObjectsFilters) {
-  return useInfiniteQuery({
-    initialPageParam: 0,
-    queryKey: ["blossom-objects", filters],
-    queryFn: ({ pageParam }) => getBlossomObjects(filters, { limit: defaultPageSize, offset: pageParam }),
-    getNextPageParam: (lastPage) => (lastPage.has_more ? lastPage.offset + lastPage.items.length : undefined),
+  const filter = {
+    q: filters.q || null, sha256: filters.sha256 || null, mimeType: filters.mime_type || null,
+    extension: filters.extension || null, reviewState: filters.review_state || null,
+    pubkey: filters.pubkey || null, uploaderQuery: filters.uploader_q || null,
+  }
+  const filterKey = JSON.stringify(filter)
+  const [pageError, setPageError] = useState<unknown>(null)
+  const fetchingPage = useRef<string | null>(null)
+  const currentFilter = useRef(filterKey)
+  currentFilter.current = filterKey
+  useEffect(() => { setPageError(null) }, [filterKey])
+  const query = useApolloQuery(BlossomObjectsDocument, {
+    client: adminApolloClient,
+    variables: { filter, page: { limit: defaultPageSize, offset: 0 } },
+    fetchPolicy: "cache-and-network",
+    notifyOnNetworkStatusChange: true,
   })
+  const page = query.data?.blossomObjects
+  const normalized = page ? pageFromGraph(page, normalizeBlossomObject) : undefined
+  return {
+    data: normalized ? { pages: [normalized] } : undefined,
+    isLoading: !page && query.loading,
+    isError: Boolean(pageError || query.error),
+    error: pageError || query.error,
+    isFetching: query.loading,
+    isFetchingNextPage: query.networkStatus === NetworkStatus.fetchMore,
+    hasNextPage: page?.pageInfo.hasMore ?? false,
+    refetch: async () => {
+      setPageError(null)
+      try {
+        const result = await query.refetch()
+        return result.data ? { pages: [pageFromGraph(result.data.blossomObjects, normalizeBlossomObject)] } : undefined
+      } catch { return undefined }
+    },
+    fetchNextPage: async () => {
+      if (!page?.pageInfo.hasMore || fetchingPage.current === filterKey) return
+      fetchingPage.current = filterKey
+      setPageError(null)
+      try {
+        await query.fetchMore({ variables: { filter, page: { limit: defaultPageSize, offset: page.pageInfo.offset + page.items.length } } })
+      } catch (error) {
+        if (currentFilter.current === filterKey) setPageError(error)
+      } finally {
+        if (fetchingPage.current === filterKey) fetchingPage.current = null
+      }
+    },
+  }
 }
 
 export function useBlossomObjectDetail(hash: string, enabled = true) {
@@ -517,7 +576,7 @@ export function useBlossomBulkReviewMutation() {
     onSuccess: async () => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["blossom-overview"] }),
-        queryClient.invalidateQueries({ queryKey: ["blossom-objects"] }),
+        invalidateBlossomObjects(),
         queryClient.invalidateQueries({ queryKey: ["blossom-object"] }),
         queryClient.invalidateQueries({ queryKey: ["blossom-audit"] }),
         queryClient.invalidateQueries({ queryKey: ["blossom-workers"] }),
@@ -550,7 +609,7 @@ export function usePurgeBlossomUserMutation() {
         queryClient.invalidateQueries({ queryKey: ["blossom-overview"] }),
         queryClient.invalidateQueries({ queryKey: ["blossom-users"] }),
         queryClient.invalidateQueries({ queryKey: ["blossom-user", pubkey] }),
-        queryClient.invalidateQueries({ queryKey: ["blossom-objects"] }),
+        invalidateBlossomObjects(),
         queryClient.invalidateQueries({ queryKey: ["blossom-audit"] }),
       ])
     },

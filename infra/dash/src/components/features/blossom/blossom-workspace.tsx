@@ -108,7 +108,7 @@ export function BlossomWorkspace({ search, onSearchChange }: BlossomWorkspacePro
   }, [hydrateMirrorHistory, mirrorHistoryLoaded])
 
   const loading = overviewQuery.isLoading && objects.length === 0
-  const error = overviewQuery.error ?? objectsQuery.error
+  const error = overviewQuery.error ?? (objects.length === 0 ? objectsQuery.error : undefined)
 
   const runBulkAction = async (hashes: string[], action: "approve" | "hard_delete" | "requeue_optimization") => {
     if (hashes.length === 0) {
@@ -233,10 +233,11 @@ export function BlossomWorkspace({ search, onSearchChange }: BlossomWorkspacePro
         </TabsContent>
 
         <TabsContent className="mt-4 space-y-4" value="library">
+          {objectsQuery.error && objects.length > 0 ? <ErrorPanel title="Falha ao atualizar a biblioteca" description="Os itens já carregados continuam disponíveis. Tente carregar novamente." onRetry={() => { void objectsQuery.refetch() }} /> : null}
           {objects.length === 0 ? <EmptyPanel description={t("blossom.emptyDescription", "Nenhum arquivo corresponde aos filtros atuais.")} title={t("blossom.emptyTitle", "Biblioteca vazia")} /> : null}
           {objects.length > 0 && view === "table" ? <LibraryTable items={objects} onOpen={setSelectedHash} onToggleSelection={toggleHashSelection(setSelectedHashes)} selectedHashes={selectedHashes} /> : null}
           {objects.length > 0 && view === "grid" ? <LibraryGrid items={objects} onOpen={setSelectedHash} onToggleSelection={toggleHashSelection(setSelectedHashes)} selectedHashes={selectedHashes} /> : null}
-          {objectsQuery.hasNextPage ? <Button onClick={() => void objectsQuery.fetchNextPage()} type="button" variant="outline">{t("blossom.loadMore", "Carregar mais")}</Button> : null}
+          {objectsQuery.hasNextPage ? <Button disabled={objectsQuery.isFetchingNextPage} onClick={() => void objectsQuery.fetchNextPage()} type="button" variant="outline">{objectsQuery.isFetchingNextPage ? t("common.loading", "Carregando...") : t("blossom.loadMore", "Carregar mais")}</Button> : null}
         </TabsContent>
 
         <TabsContent className="mt-4 space-y-4" value="users">
