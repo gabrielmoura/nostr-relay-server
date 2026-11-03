@@ -3,6 +3,7 @@ import { Link } from "@tanstack/react-router"
 import { AlertTriangle, BarChart3, CopyPlus, ImageIcon, List, RefreshCw, ShieldCheck, Workflow } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
+import { z } from "zod"
 
 import { BlossomAnalyticsDialog } from "@/components/features/blossom/blossom-analytics-dialog"
 import { BlossomKpiStrip } from "@/components/features/blossom/blossom-kpi-strip"
@@ -38,6 +39,12 @@ import { useBlossomOperatorStore } from "@/stores/blossom-operator-store"
 import type { BlossomLibraryView, BlossomReviewState, BlossomTab, BlossomWorkerRecord } from "@/types/admin"
 
 const allValue = "__all__"
+const mirrorSchema = z.object({
+  sourceURL: z.string().trim().url("Informe uma URL HTTP ou HTTPS válida.").refine((value) => {
+    try { const url = new URL(value); return ["http:", "https:"].includes(url.protocol) && !url.username && !url.password } catch { return false }
+  }, "Use HTTP ou HTTPS sem credenciais na URL."),
+  expectedSHA256: z.string().trim().regex(/^[a-fA-F0-9]{64}$/, "Informe os 64 caracteres hexadecimais do SHA-256."),
+})
 
 type BlossomWorkspaceProps = {
   search: BlossomRouteSearch
@@ -50,6 +57,7 @@ export function BlossomWorkspace({ search, onSearchChange }: BlossomWorkspacePro
   const [selectedHashes, setSelectedHashes] = useState<string[]>([])
   const [workersModalOpen, setWorkersModalOpen] = useState(false)
   const [analyticsOpen, setAnalyticsOpen] = useState(false)
+  const [mirrorErrors, setMirrorErrors] = useState<Record<string, string>>({})
   const recentMimeFilters = useBlossomOperatorStore((state) => state.recentMimeFilters)
   const mirrorDraft = useBlossomOperatorStore((state) => state.mirrorDraft)
   const mirrorHistory = useBlossomOperatorStore((state) => state.mirrorHistory)
@@ -267,11 +275,19 @@ export function BlossomWorkspace({ search, onSearchChange }: BlossomWorkspacePro
           <Card>
             <CardHeader><CardTitle>{t("blossom.workers.mirrorTitle", "Gerenciador de mirroring")}</CardTitle></CardHeader>
             <CardContent className="grid gap-3 lg:grid-cols-[1.4fr_1fr_auto]">
-              <Input onChange={(event) => setMirrorDraft({ sourceURL: event.target.value })} placeholder={t("blossom.workers.mirrorUrl", "URL remota do arquivo")} value={mirrorDraft.sourceURL} />
-              <Input onChange={(event) => setMirrorDraft({ expectedSHA256: event.target.value })} placeholder={t("blossom.workers.mirrorHash", "SHA-256 esperado")} value={mirrorDraft.expectedSHA256} />
+              <div className="space-y-1"><label className="text-sm font-medium" htmlFor="blossom-mirror-url">URL remota do arquivo</label><Input id="blossom-mirror-url" aria-invalid={Boolean(mirrorErrors.sourceURL)} onChange={(event) => setMirrorDraft({ sourceURL: event.target.value })} placeholder={t("blossom.workers.mirrorUrl", "URL remota do arquivo")} value={mirrorDraft.sourceURL} />{mirrorErrors.sourceURL ? <p className="text-sm text-destructive" role="alert">{mirrorErrors.sourceURL}</p> : null}</div>
+              <div className="space-y-1"><label className="text-sm font-medium" htmlFor="blossom-mirror-hash">SHA-256 esperado</label><Input id="blossom-mirror-hash" aria-invalid={Boolean(mirrorErrors.expectedSHA256)} onChange={(event) => setMirrorDraft({ expectedSHA256: event.target.value })} placeholder={t("blossom.workers.mirrorHash", "SHA-256 esperado")} value={mirrorDraft.expectedSHA256} />{mirrorErrors.expectedSHA256 ? <p className="text-sm text-destructive" role="alert">{mirrorErrors.expectedSHA256}</p> : null}</div>
               <Button onClick={async () => {
+                const validation = mirrorSchema.safeParse(mirrorDraft)
+                if (!validation.success) {
+                  const errors: Record<string, string> = {}
+                  for (const issue of validation.error.issues) errors[String(issue.path[0])] ??= issue.message
+                  setMirrorErrors(errors)
+                  return
+                }
+                setMirrorErrors({})
                 try {
-                  const response = await mirrorMutation.mutateAsync({ source_url: mirrorDraft.sourceURL, expected_sha256: mirrorDraft.expectedSHA256 })
+                  const response = await mirrorMutation.mutateAsync({ source_url: validation.data.sourceURL, expected_sha256: validation.data.expectedSHA256 })
                   toast.success(t("blossom.workers.mirrorQueued", "Mirror enfileirado") + ` ${response.job_id}`)
                   await addMirrorHistory({
                     id: response.job_id,
@@ -285,7 +301,7 @@ export function BlossomWorkspace({ search, onSearchChange }: BlossomWorkspacePro
                 } catch (mutationError) {
                   toast.error(mutationError instanceof Error ? mutationError.message : t("common.error"))
                 }
-              }} type="button"><CopyPlus className="size-4" />{t("blossom.workers.mirrorAction", "Espelhar")}</Button>
+              }} disabled={mirrorMutation.isPending} type="button"><CopyPlus className="size-4" />{t("blossom.workers.mirrorAction", "Espelhar")}</Button>
             </CardContent>
           </Card>
           <MirrorHistoryCard history={mirrorHistory} onClear={() => { void clearMirrorHistory() }} />

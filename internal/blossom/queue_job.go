@@ -38,6 +38,10 @@ type MirrorJob struct {
 	RequestedBy    string `json:"requested_by,omitempty"`
 }
 
+// Validate checks the mirror input before enqueueing; the worker validates it
+// again before downloading, including its network address checks.
+func (job MirrorJob) Validate() error { return validateMirrorJob(job) }
+
 func (MirrorJob) Name() string { return mirrorJobName }
 
 type MediaJob struct {

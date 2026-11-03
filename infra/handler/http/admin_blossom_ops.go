@@ -279,11 +279,16 @@ func BlossomMirror() fiber.Handler {
 		if err := parseAdminJSONBody(c, &req); err != nil {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request body"})
 		}
+		job := internalblossom.MirrorJob{SourceURL: strings.TrimSpace(req.SourceURL), ExpectedSHA256: strings.TrimSpace(req.ExpectedSHA256)}
+		if err := job.Validate(); err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		}
 		service := jobcore.Default()
 		if service == nil || service.Dispatcher == nil {
 			return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"error": "job runtime is not initialized"})
 		}
-		id, err := service.Dispatcher.Dispatch(c.UserContext(), internalblossom.MirrorJob{SourceURL: strings.TrimSpace(req.SourceURL), ExpectedSHA256: strings.TrimSpace(req.ExpectedSHA256), RequestedBy: blossomActorPubkey()}, jobcore.WithQueue(config.Cfg.Jobs.DefaultQueue))
+		job.RequestedBy = blossomActorPubkey()
+		id, err := service.Dispatcher.Dispatch(c.UserContext(), job, jobcore.WithQueue(config.Cfg.Jobs.DefaultQueue))
 		if err != nil {
 			return internalServerError(c, err)
 		}
