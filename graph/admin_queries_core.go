@@ -54,15 +54,11 @@ func (r *Resolver) authedConnections(ctx context.Context, page *model.OffsetPage
 }
 
 func (r *Resolver) loggedUsers(ctx context.Context, page *model.OffsetPageInput) (*model.AdminLoggedUserPage, error) {
-	payload, err := executeAdminRequest(ctx, adminRequest{method: http.MethodGet, route: "/users/logged", path: "/users/logged", query: adminPageQuery(page), handlerFunc: httphandler.LoggedUsers()})
-	if err != nil {
-		return nil, err
+	source := r.loggedUsersSource
+	if source == nil {
+		source = runtimeLoggedUsersSource{}
 	}
-	items, pageInfo, err := decodeRESTPage[model.AdminLoggedUser](payload)
-	if err != nil {
-		return nil, err
-	}
-	return &model.AdminLoggedUserPage{PageInfo: pageInfo, Items: items}, nil
+	return source.LoggedUsers(ctx, page, loggedUserProfileSelected(ctx))
 }
 
 func (r *Resolver) bannedUsers(ctx context.Context, q *string, page *model.OffsetPageInput) (*model.AdminProfilePage, error) {
