@@ -80,6 +80,8 @@ type AdminImportFileResult { filename: String! total: Int! inserted: Int! duplic
 type AdminImportEventsPayload { files: [AdminImportFileResult!]! }
 type AdminCreateLabelPayload { event: NostrEvent! stored: Boolean! }
 type AdminJob { id: ID! queue: String! priority: String! jobName: String! status: String! attempts: Int! maxAttempts: Int! createdAt: String! startedAt: String finishedAt: String runAt: String lastError: String payload: JSON result: JSON }
+type AdminJobEvent { id: ID! queue: String! name: String! status: String! attempts: Int! maxAttempts: Int! progressCurrent: Int64! progressTotal: Int64! stage: String error: String updatedAt: String! }
+type AdminPresenceEvent { action: String! wsid: String activeConnections: Int! authedConnections: Int! changedAt: String! }
 type AdminGroup { groupId: ID! name: String! description: String! picture: String private: Boolean! closed: Boolean! hidden: Boolean! memberCount: Int! createdAt: String updatedAt: String estimated: Boolean! }
 type AdminGroupPage { pageInfo: PageInfo! items: [AdminGroup!]! }
 type AdminGroupStats { messageCount: Int64! estimated: Boolean! computedAt: String! }

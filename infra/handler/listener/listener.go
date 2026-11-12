@@ -16,6 +16,7 @@ import (
 	"github.com/gabrielmoura/nostr-relay-server/infra/pubsub"
 	"github.com/gabrielmoura/nostr-relay-server/internal/dmimport"
 	"github.com/gabrielmoura/nostr-relay-server/internal/dto"
+	"github.com/gabrielmoura/nostr-relay-server/internal/events"
 	json "github.com/gabrielmoura/nostr-relay-server/internal/jsonx"
 	"github.com/nbd-wtf/go-nostr"
 	"go.uber.org/zap"
@@ -48,9 +49,37 @@ var (
 	wsToID              = make(map[*dto.WsServer]string)
 	wsToIDMutex         sync.RWMutex
 	cleanupOnce         sync.Once
+	liveEventAuthorizer = struct {
+		sync.RWMutex
+		fn LiveEventAuthorizer
+	}{fn: allowLiveEvent}
 )
 
 const wsLastSeenPrefix = "ws:last_seen:"
+
+// LiveEventAuthorizer is the authorization boundary used before a live event
+// is delivered to a local websocket subscription.
+type LiveEventAuthorizer func(context.Context, string, *nostr.Event) (bool, error)
+
+// SetLiveEventAuthorizer installs the policy used for live delivery. Passing
+// nil restores the public-event policy for deployments without group support.
+func SetLiveEventAuthorizer(authorizer LiveEventAuthorizer) {
+	if authorizer == nil {
+		authorizer = allowLiveEvent
+	}
+	liveEventAuthorizer.Lock()
+	liveEventAuthorizer.fn = authorizer
+	liveEventAuthorizer.Unlock()
+}
+
+func authorizeLiveEvent(ctx context.Context, authed string, event *nostr.Event) (bool, error) {
+	liveEventAuthorizer.RLock()
+	authorizer := liveEventAuthorizer.fn
+	liveEventAuthorizer.RUnlock()
+	return authorizer(ctx, authed, event)
+}
+
+func allowLiveEvent(context.Context, string, *nostr.Event) (bool, error) { return true, nil }
 
 func getWsID(ws *dto.WsServer) string {
 	wsToIDMutex.RLock()
@@ -122,31 +151,114 @@ func registerPubSubHandlers() {
 	})
 }
 
+type localDelivery struct {
+	ws            *dto.WsServer
+	authed        string
+	ctx           context.Context
+	subscriptions []localSubscription
+}
+
+type localSubscription struct {
+	id      string
+	filters nostr.Filters
+}
+
+type liveAuthorization struct {
+	allowed bool
+	err     error
+}
+
 func notifyLocalListeners(event *nostr.Event) {
 	localListenersMutex.RLock()
-	defer localListenersMutex.RUnlock()
-
+	deliveries := make([]localDelivery, 0, len(localListeners))
 	for ws, subs := range localListeners {
-		if !dmimport.VisibleToWithConcord(ws.Authed, event, config.Cfg.Concord.Enabled) {
+		authed, ctx := ws.AuthSnapshot()
+		if ctx == nil {
+			ctx = context.Background()
+		}
+		subscriptions := make([]localSubscription, 0, len(subs))
+		for id, listener := range subs {
+			subscriptions = append(subscriptions, localSubscription{id: id, filters: listener.filters})
+		}
+		deliveries = append(deliveries, localDelivery{
+			ws:            ws,
+			authed:        authed,
+			ctx:           ctx,
+			subscriptions: subscriptions,
+		})
+	}
+	localListenersMutex.RUnlock()
+
+	// This map is intentionally scoped to one event delivery. It avoids repeated
+	// group membership lookups for multiple websocket connections authenticated
+	// as the same principal, without retaining authorization state past the event.
+	authorizations := make(map[string]liveAuthorization, len(deliveries))
+	for _, delivery := range deliveries {
+		if !dmimport.VisibleToWithConcord(delivery.authed, event, concordEnabled()) {
 			continue
 		}
-		for id, listener := range subs {
-			if listener.filters.Match(event) {
-				select {
-				case ws.ChanSender <- nostr.EventEnvelope{
-					SubscriptionID: &id,
-					Event:          *event,
-				}:
-					metrics.NostrEventsNotifiedCounter.Inc()
-				default:
-					log.Logger.Warn("failed to send event to listener buffer full",
-						zap.String("ws_id", getWsID(ws)),
-						zap.String("sub_id", id),
-					)
-				}
+		matching := matchingSubscriptions(delivery.subscriptions, event)
+		if len(matching) == 0 {
+			continue
+		}
+
+		decision, cached := authorizations[delivery.authed]
+		if !cached {
+			decision.allowed, decision.err = authorizeLiveEvent(delivery.ctx, delivery.authed, event)
+			authorizations[delivery.authed] = decision
+		}
+		if decision.err != nil {
+			// A group projection error must never turn into an authorization bypass.
+			logLiveAuthorizationError(delivery.ws, event, decision.err)
+			continue
+		}
+		if !decision.allowed {
+			continue
+		}
+		for _, subscription := range matching {
+			select {
+			case delivery.ws.ChanSender <- nostr.EventEnvelope{
+				SubscriptionID: &subscription.id,
+				Event:          *event,
+			}:
+				metrics.NostrEventsNotifiedCounter.Inc()
+			default:
+				log.Logger.Warn("failed to send event to listener buffer full",
+					zap.String("ws_id", getWsID(delivery.ws)),
+					zap.String("sub_id", subscription.id),
+				)
 			}
 		}
 	}
+}
+
+func matchingSubscriptions(subscriptions []localSubscription, event *nostr.Event) []localSubscription {
+	matching := make([]localSubscription, 0, len(subscriptions))
+	for _, subscription := range subscriptions {
+		if subscription.filters.Match(event) {
+			matching = append(matching, subscription)
+		}
+	}
+	return matching
+}
+
+func logLiveAuthorizationError(ws *dto.WsServer, event *nostr.Event, err error) {
+	if log.Logger == nil {
+		return
+	}
+	eventID := ""
+	if event != nil {
+		eventID = event.ID
+	}
+	log.Logger.Warn("failed to authorize live NIP-29 event delivery",
+		zap.String("ws_id", getWsID(ws)),
+		zap.String("event_id", eventID),
+		zap.Error(err),
+	)
+}
+
+func concordEnabled() bool {
+	return config.Cfg != nil && config.Cfg.Concord.Enabled
 }
 
 func handleRemoteSubCreate(wsID, subID string, filter json.RawMessage) error {
@@ -239,7 +351,9 @@ func SetListener(id string, ws *dto.WsServer, filters nostr.Filters) {
 	localListenersMutex.Lock()
 	defer localListenersMutex.Unlock()
 
+	newConnection := false
 	if localListeners[ws] == nil {
+		newConnection = true
 		localListeners[ws] = make(map[string]*Listener)
 		wsID := fmt.Sprintf("ws_%s_%d", ws.Conn.IP(), time.Now().UnixNano())
 		setWsID(ws, wsID)
@@ -292,6 +406,10 @@ func SetListener(id string, ws *dto.WsServer, filters nostr.Filters) {
 			dataJSON, _ := json.Marshal(data)
 			redisClient.HSet(ctx, key, id, string(dataJSON))
 		}
+	}
+
+	if newConnection {
+		go PublishPresenceChanged("connected", getWsID(ws))
 	}
 }
 
@@ -349,6 +467,7 @@ func RemoveListenerId(ws *dto.WsServer, id string) {
 		}
 		if len(subs) == 0 {
 			delete(localListeners, ws)
+			go PublishPresenceChanged("disconnected", getWsID(ws))
 		}
 	}
 }
@@ -365,6 +484,9 @@ func RemoveListener(ws *dto.WsServer) {
 		metrics.NostrListenerGauge.Sub(float64(removedCount))
 		metrics.NostrListenerRemoveCounter.Add(float64(removedCount))
 		listenerCount.Add(-int32(removedCount))
+		if wsID != "" {
+			go PublishPresenceChanged("disconnected", wsID)
+		}
 	}
 
 	if wsID != "" {
@@ -527,6 +649,22 @@ func AuthedConnections() []ConnectionInfo {
 	}
 	return authed
 }
+
+// PublishPresenceChanged emits a best-effort connection lifecycle event for
+// admin subscriptions. Call it after the listener lock has been released, or
+// from a goroutine, because it takes a read lock to count connections.
+func PublishPresenceChanged(action, wsID string) {
+	events.Default().Publish(events.TopicPresence, events.PresenceEvent{
+		Action:    action,
+		WSID:      wsID,
+		Active:    len(ActiveConnections()),
+		Authed:    len(AuthedConnections()),
+		ChangedAt: time.Now().UTC(),
+	})
+}
+
+// CurrentID returns the stable local identifier for a websocket connection.
+func CurrentID(ws *dto.WsServer) string { return getWsID(ws) }
 
 func Disconnect(wsID string) bool {
 	wsToIDMutex.RLock()

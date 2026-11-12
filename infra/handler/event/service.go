@@ -38,10 +38,6 @@ func processEvent(ws *dto.WsServer, evt *nostr.Event) string {
 		return ""
 	}
 
-	if handled := handleSpecialEvent(ws, evt); handled {
-		return ""
-	}
-
 	ctx := ws.Ctx
 	if security.S != nil {
 		var reject bool
@@ -107,6 +103,50 @@ func processEvent(ws *dto.WsServer, evt *nostr.Event) string {
 		return ""
 	}
 
+	// A content-discovery request is a normal signed event. Validate and
+	// persist it before starting the bounded read-only discovery work.
+	if evt.Kind == nostr_custom.KindContentDiscovery {
+		if hasTag(evt.Tags, "-") || hasDiscoveryEncryption(evt.Tags) {
+			rejectEvent(ws, evt, "unsupported: private discovery requests are not supported")
+			return ""
+		}
+		if _, err := parseDiscoveryRequest(evt); err != nil {
+			rejectEvent(ws, evt, "invalid: "+err.Error())
+			return ""
+		}
+		if !reserveDiscovery(evt) {
+			rejectEvent(ws, evt, "rate-limited: discovery service is busy")
+			return ""
+		}
+		durableCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		workCtx := context.WithoutCancel(ctx)
+		receipt, accepted, queued := ingestion.PushDurableWithCompletion(durableCtx, evt, func(result ingestion.Receipt) {
+			if result.Inserted || result.Duplicate {
+				startDiscovery(workCtx, evt)
+			} else {
+				releaseDiscovery(evt.ID)
+			}
+		})
+		cancel()
+		if !queued {
+			releaseDiscovery(evt.ID)
+		}
+		if !accepted {
+			rejectEvent(ws, evt, receipt.Reason)
+			return ""
+		}
+		if receipt.Duplicate {
+			ws.Send(nostr.OKEnvelope{EventID: evt.ID, OK: true, Reason: "duplicate: event already exists"})
+			return ""
+		}
+		ws.Send(nostr.OKEnvelope{EventID: evt.ID, OK: true})
+		return ""
+	}
+
+	if handled := handleSpecialEvent(ws, evt); handled {
+		return ""
+	}
+
 	// Cordn requests are signed ContextVM events addressed to this relay. They
 	// are handled only after the normal identity and policy checks, and remain
 	// ephemeral: no coordinator request enters Nostr event ingestion.
@@ -149,9 +189,6 @@ func ProcessOneShot(ctx context.Context, authed string, evt *nostr.Event) []any 
 
 func handleSpecialEvent(ws *dto.WsServer, evt *nostr.Event) bool {
 	switch {
-	case nostr_custom.IsJobRequest(evt.Kind):
-		_ = handleJobRequest(ws, evt)
-		return true
 	case evt.Kind == nostr.KindNostrConnect:
 		_ = handleNostrConnect(ws, evt)
 		return true

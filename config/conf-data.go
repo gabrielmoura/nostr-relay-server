@@ -146,10 +146,12 @@ type APINIP98Config struct {
 }
 
 type NIPFEConfig struct {
-	Enabled        bool `json:"enabled" yaml:"enabled" mapstructure:"enabled"`
-	MaxBodyBytes   int  `json:"max_body_bytes" yaml:"max_body_bytes" mapstructure:"max_body_bytes"`
-	TimeoutSeconds int  `json:"timeout_seconds" yaml:"timeout_seconds" mapstructure:"timeout_seconds"`
-	MaxConcurrent  int  `json:"max_concurrent" yaml:"max_concurrent" mapstructure:"max_concurrent"`
+	Enabled           bool `json:"enabled" yaml:"enabled" mapstructure:"enabled"`
+	MaxBodyBytes      int  `json:"max_body_bytes" yaml:"max_body_bytes" mapstructure:"max_body_bytes"`
+	MaxResponseBytes  int  `json:"max_response_bytes" yaml:"max_response_bytes" mapstructure:"max_response_bytes"`
+	MaxResponseEvents int  `json:"max_response_events" yaml:"max_response_events" mapstructure:"max_response_events"`
+	TimeoutSeconds    int  `json:"timeout_seconds" yaml:"timeout_seconds" mapstructure:"timeout_seconds"`
+	MaxConcurrent     int  `json:"max_concurrent" yaml:"max_concurrent" mapstructure:"max_concurrent"`
 }
 
 type WoTConfig struct {

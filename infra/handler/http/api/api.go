@@ -7,10 +7,11 @@ import (
 	"errors"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gabrielmoura/nostr-relay-server/config"
-	"github.com/gabrielmoura/nostr-relay-server/infra/db"
 	"github.com/gabrielmoura/nostr-relay-server/infra/ratelimit"
+	"github.com/gabrielmoura/nostr-relay-server/internal/db"
 	"github.com/gabrielmoura/nostr-relay-server/internal/nip86"
 	"github.com/gofiber/fiber/v2"
 	"github.com/nbd-wtf/go-nostr"
@@ -18,12 +19,14 @@ import (
 )
 
 type eventSource func(context.Context, nostr.Filter, int) ([]*nostr.Event, error)
+type orderedEventSource func(context.Context, nostr.Filter, int, bool) ([]*nostr.Event, error)
 
 type Handler struct {
-	cfg     *config.Config
-	source  eventSource
-	sem     chan struct{}
-	limiter *ratelimit.PerIP
+	cfg           *config.Config
+	source        eventSource
+	orderedSource orderedEventSource
+	sem           chan struct{}
+	limiter       *ratelimit.PerIP
 }
 
 type eventsResponse struct {
@@ -33,14 +36,21 @@ type eventsResponse struct {
 }
 
 func New(cfg *config.Config) *Handler {
-	return NewWithSource(cfg, func(ctx context.Context, filter nostr.Filter, offset int) ([]*nostr.Event, error) {
-		queries := db.DbQueries()
+	h := NewWithSource(cfg, func(ctx context.Context, filter nostr.Filter, offset int) ([]*nostr.Event, error) {
+		queries := db.DbQueries
 		if queries == nil {
 			return nil, errors.New("database is not initialized")
 		}
-		events, _, err := queries.QueryEventsWindow(ctx, filter, offset)
-		return events, err
+		return queries.QueryEventsWindowOnly(ctx, filter, offset)
 	})
+	h.orderedSource = func(ctx context.Context, filter nostr.Filter, offset int, ascending bool) ([]*nostr.Event, error) {
+		queries := db.DbQueries
+		if queries == nil {
+			return nil, errors.New("database is not initialized")
+		}
+		return queries.QueryEventsWindowSorted(ctx, filter, offset, ascending)
+	}
+	return h
 }
 
 func NewWithSource(cfg *config.Config, source eventSource) *Handler {
@@ -63,7 +73,17 @@ func (h *Handler) Register(app fiber.Router) {
 	app.Use(h.middleware)
 	app.Get("/query", h.query)
 	app.Get("/count", h.count)
+	app.Get("/ids/:id/related", h.relatedEvents)
 	app.Get("/ids/:id", h.eventByHexID)
+	app.Get("/relay/kinds", h.relayKinds)
+	app.Get("/relay/top-authors", h.relayTopAuthors)
+	app.Get("/:npub/kinds", h.authorKinds)
+	app.Get("/:npub/stats", h.authorStats)
+	app.Get("/:npub/follows", h.authorFollows)
+	app.Get("/:npub/relays", h.authorRelays)
+	app.Get("/:npub/:kind/daily", h.authorDaily)
+	app.Get("/:npub/:kind/hourly", h.authorHourly)
+	app.Get("/:npub/:kind/monthly", h.authorMonthly)
 	app.Get("/:npub/:kind", h.eventsByAuthorAndKind)
 	app.Get("/:identifier", h.identifier)
 }
@@ -97,6 +117,11 @@ func (h *Handler) middleware(c *fiber.Ctx) error {
 	select {
 	case h.sem <- struct{}{}:
 		defer func() { <-h.sem }()
+		if h.cfg.API.TimeoutSeconds > 0 {
+			ctx, cancel := context.WithTimeout(c.UserContext(), time.Duration(h.cfg.API.TimeoutSeconds)*time.Second)
+			defer cancel()
+			c.SetUserContext(ctx)
+		}
 		return c.Next()
 	default:
 		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"error": "api is busy"})
@@ -121,7 +146,11 @@ func (h *Handler) query(c *fiber.Ctx) error {
 	if err != nil {
 		return badRequest(c, err)
 	}
-	response, err := h.pageWithExcluded(c.UserContext(), filter, offset, excludedTags(c))
+	ascending, err := parseSort(c.Query("sort"))
+	if err != nil {
+		return badRequest(c, err)
+	}
+	response, err := h.pageWithOrder(c.UserContext(), filter, offset, excludedTags(c), ascending)
 	if err != nil {
 		return internalError(c, err)
 	}
@@ -158,7 +187,7 @@ func (h *Handler) identifier(c *fiber.Ctx) error {
 }
 
 func (h *Handler) eventsByAuthorAndKind(c *fiber.Ctx) error {
-	pubkey, err := decodeNPub(c.Params("npub"))
+	pubkey, err := decodeAuthor(c.Params("npub"))
 	if err != nil {
 		return badRequest(c, err)
 	}
@@ -172,10 +201,37 @@ func (h *Handler) eventsByAuthorAndKind(c *fiber.Ctx) error {
 	}
 	filter.Authors = []string{pubkey}
 	filter.Kinds = []int{kind}
-	response, err := h.pageWithExcluded(c.UserContext(), filter, offset, excludedTags(c))
+	ascending, err := parseSort(c.Query("sort"))
+	if err != nil {
+		return badRequest(c, err)
+	}
+	response, err := h.pageWithOrder(c.UserContext(), filter, offset, excludedTags(c), ascending)
 	if err != nil {
 		return internalError(c, err)
 	}
+	return c.JSON(response)
+}
+
+func (h *Handler) authorFollows(c *fiber.Ctx) error { return h.authorLatest(c, 3) }
+func (h *Handler) authorRelays(c *fiber.Ctx) error  { return h.authorLatest(c, 10002) }
+
+func (h *Handler) authorLatest(c *fiber.Ctx, kind int) error {
+	pubkey, err := decodeAuthor(c.Params("npub"))
+	if err != nil {
+		return badRequest(c, err)
+	}
+	offset, err := nonNegativeInt(c.Query("offset"), 0)
+	if err != nil {
+		return badRequest(c, errors.New("offset must be a non-negative integer"))
+	}
+	if offset > 0 {
+		return c.JSON(eventsResponse{Events: []*nostr.Event{}})
+	}
+	response, err := h.page(c.UserContext(), nostr.Filter{Authors: []string{pubkey}, Kinds: []int{kind}, Limit: 1}, 0)
+	if err != nil {
+		return internalError(c, err)
+	}
+	response.More = false
 	return c.JSON(response)
 }
 
@@ -200,6 +256,9 @@ func badRequest(c *fiber.Ctx, err error) error {
 }
 
 func internalError(c *fiber.Ctx, err error) error {
+	if errors.Is(err, errScanLimit) {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"error": "query exceeds scan limit"})
+	}
 	return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "query failed"})
 }
 
@@ -247,6 +306,23 @@ func decodeNPub(value string) (string, error) {
 		return "", errors.New("invalid npub")
 	}
 	return pubkey, nil
+}
+
+func decodeAuthor(value string) (string, error) {
+	value = strings.TrimSpace(value)
+	if isHexID(value) {
+		return strings.ToLower(value), nil
+	}
+	if strings.HasPrefix(value, "nprofile") {
+		prefix, decoded, err := nip19.Decode(value)
+		if err == nil && prefix == "nprofile" {
+			if profile, ok := decoded.(nostr.ProfilePointer); ok && isHexID(profile.PublicKey) {
+				return strings.ToLower(profile.PublicKey), nil
+			}
+		}
+		return "", errors.New("invalid nprofile")
+	}
+	return decodeNPub(value)
 }
 
 func decodeEventID(value string) (string, error) {

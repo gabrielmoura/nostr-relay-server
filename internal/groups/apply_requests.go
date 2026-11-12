@@ -101,8 +101,11 @@ func (m *Manager) saveInternalEventAndApply(ctx context.Context, evt *nostr.Even
 	if err := m.persistRelayEvent(ctx, evt); err != nil {
 		return err
 	}
+	if err := AfterStoreEvent(ctx, evt); err != nil {
+		return err
+	}
 	listener.NotifyListeners(evt)
-	return AfterStoreEvent(ctx, evt)
+	return nil
 }
 
 func (m *Manager) persistRelayEvent(ctx context.Context, evt *nostr.Event) error {

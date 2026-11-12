@@ -41,24 +41,49 @@ func (q *Queries) CountEventsSince(ctx context.Context, since int64) (int64, err
 
 func (q *Queries) QueryEventsWindow(ctx context.Context, filter nostr.Filter, offset int) ([]*nostr.Event, int64, error) {
 	filter = helper.NormalizeFilter(&config.Cfg.Relay, filter)
-	query, params, err := helper.QueryEventsSql(&config.Cfg.Relay, filter, false)
-	if err != nil {
-		return nil, 0, err
-	}
-	query += fmt.Sprintf(" OFFSET $%d", len(params)+1)
-	params = append(params, offset)
-
 	total, err := q.CountEvents(ctx, filter)
 	if err != nil {
 		return nil, 0, err
 	}
+	events, err := q.QueryEventsWindowOnly(ctx, filter, offset)
+	return events, total, err
+}
+
+// QueryEventsWindowOnly reads a window without performing a separate total count.
+func (q *Queries) QueryEventsWindowOnly(ctx context.Context, filter nostr.Filter, offset int) ([]*nostr.Event, error) {
+	return q.queryEventsWindow(ctx, filter, offset, nil)
+}
+
+// QueryEventsWindowSorted reads a chronologically ordered window for the public API.
+func (q *Queries) QueryEventsWindowSorted(ctx context.Context, filter nostr.Filter, offset int, ascending bool) ([]*nostr.Event, error) {
+	return q.queryEventsWindow(ctx, filter, offset, &ascending)
+}
+
+func (q *Queries) queryEventsWindow(ctx context.Context, filter nostr.Filter, offset int, ascending *bool) ([]*nostr.Event, error) {
+	filter = helper.NormalizeFilter(&config.Cfg.Relay, filter)
+	var query string
+	var params []any
+	var err error
+	if ascending == nil {
+		query, params, err = helper.QueryEventsSql(&config.Cfg.Relay, filter, false)
+	} else {
+		filter, err = helper.NormalizeAndValidateFilter(&config.Cfg.Relay, filter)
+		if err == nil {
+			query, params, err = helper.BuildChronologicalQuery(filter, &config.Cfg.Relay, *ascending)
+		}
+	}
+	if err != nil {
+		return nil, err
+	}
+	query += fmt.Sprintf(" OFFSET $%d", len(params)+1)
+	params = append(params, offset)
 
 	rows, err := q.db.Query(ctx, query, params...)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return nil, 0, fmt.Errorf("failed to fetch admin events using query %q: %w", query, err)
+		return nil, fmt.Errorf("failed to fetch event page using query %q: %w", query, err)
 	}
 	if err != nil {
-		return []*nostr.Event{}, total, nil
+		return []*nostr.Event{}, nil
 	}
 	defer rows.Close()
 
@@ -66,12 +91,12 @@ func (q *Queries) QueryEventsWindow(ctx context.Context, filter nostr.Filter, of
 	for rows.Next() {
 		evt, scanErr := scanNostrEvent(rows)
 		if scanErr != nil {
-			return nil, 0, scanErr
+			return nil, scanErr
 		}
 		events = append(events, evt)
 	}
 
-	return events, total, rows.Err()
+	return events, rows.Err()
 }
 
 func (q *Queries) GetEventAggregates(ctx context.Context, filter nostr.Filter) (EventAggregates, error) {

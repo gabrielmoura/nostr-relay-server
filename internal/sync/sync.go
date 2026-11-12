@@ -13,10 +13,19 @@ import (
 	"time"
 
 	"github.com/gabrielmoura/nostr-relay-server/config"
+	"github.com/gabrielmoura/nostr-relay-server/infra/handler/listener"
+	"github.com/gabrielmoura/nostr-relay-server/infra/ingestion"
 	"github.com/gabrielmoura/nostr-relay-server/infra/log"
+	"github.com/gabrielmoura/nostr-relay-server/infra/pubsub"
+	"github.com/gabrielmoura/nostr-relay-server/infra/redis"
+	"github.com/gabrielmoura/nostr-relay-server/infra/stream"
 	"github.com/gabrielmoura/nostr-relay-server/infra/util"
 	"github.com/gabrielmoura/nostr-relay-server/internal/db"
+	"github.com/gabrielmoura/nostr-relay-server/internal/groups"
 	json "github.com/gabrielmoura/nostr-relay-server/internal/jsonx"
+	"github.com/gabrielmoura/nostr-relay-server/internal/policies"
+	"github.com/gabrielmoura/nostr-relay-server/internal/security"
+	"github.com/gabrielmoura/nostr-relay-server/internal/wot"
 
 	// Seu pacote compartilhado
 	ng "github.com/gabrielmoura/nostr-relay-server/pkg/negentropy"
@@ -110,10 +119,12 @@ func executeSync(ctx context.Context, cf *ConfSync, result *SyncResult) {
 		result.Error = err
 		return
 	}
-	if err := setupEnvironment(ctx); err != nil {
+	cleanup, err := setupEnvironment(ctx)
+	if err != nil {
 		result.Error = fmt.Errorf("setup error: %w", err)
 		return
 	}
+	defer cleanup()
 
 	result.Error = executeSyncWithResult(ctx, cf, result)
 }
@@ -1093,15 +1104,52 @@ func (s *SyncSession) applyReadDeadline() {
 
 // --- Helpers e Boilerplate ---
 
-func setupEnvironment(ctx context.Context) error {
+func setupEnvironment(ctx context.Context) (func(), error) {
 	if err := config.LoadConfig(); err != nil {
-		return err
+		return nil, err
 	}
 	log.Init()
-	if err := db.Init(ctx); err != nil {
-		return fmt.Errorf("init database: %w", err)
+	serviceCtx, cancel := context.WithCancel(ctx)
+	cleanup := func() {
+		cancel()
+		ingestion.Stop()
+		if ps := pubsub.GetPubSub(); ps != nil {
+			ps.Close()
+		}
+		if db.Pool != nil {
+			db.Pool.Close()
+		}
+		if client := redis.GetClient(); client != nil {
+			_ = client.Close()
+		}
 	}
-	return nil
+	if err := redis.Init(&config.Cfg.Redis); err != nil {
+		cleanup()
+		return nil, fmt.Errorf("init redis: %w", err)
+	}
+	if err := pubsub.Init(); err != nil {
+		cleanup()
+		return nil, fmt.Errorf("init pubsub: %w", err)
+	}
+	listener.Init()
+	if err := db.Init(ctx); err != nil {
+		cleanup()
+		return nil, fmt.Errorf("init database: %w", err)
+	}
+	if err := groups.Init(db.DbQueries); err != nil {
+		cleanup()
+		return nil, fmt.Errorf("init groups: %w", err)
+	}
+	if err := security.Init(); err != nil {
+		cleanup()
+		return nil, fmt.Errorf("init security: %w", err)
+	}
+	policies.Init()
+	ingestion.Init()
+	ingestion.Start(serviceCtx)
+	wot.Start(serviceCtx)
+	stream.Start(serviceCtx)
+	return cleanup, nil
 }
 
 func validateRemote(remote string) error {

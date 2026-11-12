@@ -7,7 +7,6 @@ package graph
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/gabrielmoura/nostr-relay-server/graph/model"
@@ -403,14 +402,46 @@ func (r *queryResolver) WotSummary(ctx context.Context) (*model.AdminWoTSummary,
 	return r.wotSummary(ctx)
 }
 
+// AdminOverviewChanged is the resolver for the adminOverviewChanged field.
+func (r *subscriptionResolver) AdminOverviewChanged(ctx context.Context) (<-chan *model.AdminPresenceEvent, error) {
+	return GetSubscriptionsBroker().SubscribePresence(ctx), nil
+}
+
+// ConnectionChanged is the resolver for the connectionChanged field.
+func (r *subscriptionResolver) ConnectionChanged(ctx context.Context) (<-chan *model.AdminPresenceEvent, error) {
+	return GetSubscriptionsBroker().SubscribePresence(ctx), nil
+}
+
+// JobChanged is the resolver for the jobChanged field.
+func (r *subscriptionResolver) JobChanged(ctx context.Context, queue *string, jobID *string) (<-chan *model.AdminJobEvent, error) {
+	return GetSubscriptionsBroker().SubscribeJobs(ctx, derefString(queue), derefString(jobID)), nil
+}
+
+// SyncProgress is the resolver for the syncProgress field.
+func (r *subscriptionResolver) SyncProgress(ctx context.Context, jobID *string) (<-chan *model.AdminJobEvent, error) {
+	return GetSubscriptionsBroker().SubscribeJobs(ctx, "", derefString(jobID), "sync.negentropy"), nil
+}
+
+// DownloadProgress is the resolver for the downloadProgress field.
+func (r *subscriptionResolver) DownloadProgress(ctx context.Context, jobID *string) (<-chan *model.AdminJobEvent, error) {
+	return GetSubscriptionsBroker().SubscribeJobs(ctx, "", derefString(jobID), "download.events"), nil
+}
+
 // BlossomPlanChanged is the resolver for the blossomPlanChanged field.
 func (r *subscriptionResolver) BlossomPlanChanged(ctx context.Context) (<-chan *model.AdminBlossomPlan, error) {
-	panic(fmt.Errorf("not implemented: BlossomPlanChanged - blossomPlanChanged"))
+	return GetSubscriptionsBroker().SubscribePlanChanges(ctx), nil
 }
 
 // BlossomObjectChanged is the resolver for the blossomObjectChanged field.
 func (r *subscriptionResolver) BlossomObjectChanged(ctx context.Context) (<-chan *model.AdminBlossomObject, error) {
-	panic(fmt.Errorf("not implemented: BlossomObjectChanged - blossomObjectChanged"))
+	return GetSubscriptionsBroker().SubscribeObjectChanges(ctx), nil
+}
+
+func derefString(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return *value
 }
 
 // Mutation returns MutationResolver implementation.

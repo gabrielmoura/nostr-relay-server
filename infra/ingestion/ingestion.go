@@ -3,6 +3,7 @@ package ingestion
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -41,14 +42,16 @@ type batchResult struct {
 type Receipt struct {
 	Inserted  bool
 	Duplicate bool
+	Rejected  bool
 	Uncertain bool
 	Reason    string
 }
 type queueItem struct {
-	event     *nostr.Event
-	dmImport  bool
-	receipt   chan Receipt
-	admission dmimport.Admission
+	event      *nostr.Event
+	dmImport   bool
+	receipt    chan Receipt
+	completion func(Receipt)
+	admission  dmimport.Admission
 }
 
 type IngestionConfig struct {
@@ -195,6 +198,42 @@ func Push(event *nostr.Event) bool {
 	}
 }
 
+// PushDurable waits for the worker to finish validation and persistence of one
+// ordinary event. It is for protocol flows that must not start dependent work
+// before their request is durably known to the relay.
+func PushDurable(ctx context.Context, event *nostr.Event) (Receipt, bool) {
+	receipt, accepted, _ := PushDurableWithCompletion(ctx, event, nil)
+	return receipt, accepted
+}
+
+// PushDurableWithCompletion invokes completion after the worker has resolved
+// an enqueued event, even if the caller stops waiting. queued reports whether
+// the worker owns completion; callbacks must return promptly.
+func PushDurableWithCompletion(ctx context.Context, event *nostr.Event, completion func(Receipt)) (receipt Receipt, accepted, queued bool) {
+	if ctx.Err() != nil {
+		return Receipt{Reason: "error: event queue wait timed out"}, false, false
+	}
+	queue, stop, ok := beginPush()
+	if !ok {
+		return Receipt{Reason: "error: ingestion is not running"}, false, false
+	}
+	receiptCh := make(chan Receipt, 1)
+	item := queueItem{event: event, receipt: receiptCh, completion: completion}
+	select {
+	case queue <- item:
+		metrics.NostrRelayIngestionQueueDepth.Set(float64(len(queue)))
+		pushes.Done()
+		result, ok := waitDurableReceipt(ctx, receiptCh, "event")
+		return result, ok, true
+	case <-stop:
+		pushes.Done()
+		return Receipt{Reason: "error: ingestion is stopping"}, false, false
+	case <-ctx.Done():
+		pushes.Done()
+		return Receipt{Reason: "error: event queue wait timed out"}, false, false
+	}
+}
+
 // PushDMImport waits for the database outcome so browser clients can report
 // durable insertions separately from idempotent duplicates.
 func PushDMImport(ctx context.Context, event *nostr.Event, admission dmimport.Admission) (Receipt, bool) {
@@ -251,6 +290,10 @@ func beginPush() (chan queueItem, <-chan struct{}, bool) {
 }
 
 func waitDMImportReceipt(ctx context.Context, receipt <-chan Receipt) (Receipt, bool) {
+	return waitDurableReceipt(ctx, receipt, "import")
+}
+
+func waitDurableReceipt(ctx context.Context, receipt <-chan Receipt, subject string) (Receipt, bool) {
 	select {
 	case result := <-receipt:
 		return result, result.Reason == ""
@@ -258,7 +301,7 @@ func waitDMImportReceipt(ctx context.Context, receipt <-chan Receipt) (Receipt, 
 		metrics.NostrRelayIngestionUncertain.Inc()
 		return Receipt{
 			Uncertain: true,
-			Reason:    "error: import outcome uncertain (timed out after queueing)",
+			Reason:    "error: " + subject + " outcome uncertain (timed out after queueing)",
 		}, false
 	}
 }
@@ -271,6 +314,13 @@ func (w *worker) run(ctx context.Context, workerID int) {
 			if !ok {
 				w.flush(ctx)
 				return
+			}
+
+			if item.receipt != nil && !item.dmImport {
+				w.flush(ctx)
+				w.processDurableEvent(ctx, item)
+				w.resetTimer()
+				continue
 			}
 
 			if !item.dmImport && w.isDuplicate(item.event) {
@@ -294,6 +344,33 @@ func (w *worker) run(ctx context.Context, workerID int) {
 			w.flush(ctx)
 			return
 		}
+	}
+}
+
+func (w *worker) processDurableEvent(ctx context.Context, item queueItem) {
+	result, err := insertBatch(ctx, []*nostr.Event{item.event})
+	completeDurable(item, durableReceipt(result, err))
+}
+
+func durableReceipt(result batchResult, err error) Receipt {
+	receipt := Receipt{}
+	switch {
+	case err != nil:
+		receipt = Receipt{Uncertain: true, Reason: "error: event outcome uncertain after persistence or projection failure"}
+	case result.Inserted == 1:
+		receipt = Receipt{Inserted: true}
+	case result.Duplicates == 1:
+		receipt = Receipt{Duplicate: true}
+	default:
+		receipt = Receipt{Rejected: true, Reason: "error: event rejected"}
+	}
+	return receipt
+}
+
+func completeDurable(item queueItem, receipt Receipt) {
+	item.receipt <- receipt
+	if item.completion != nil {
+		item.completion(receipt)
 	}
 }
 
@@ -428,6 +505,9 @@ func insertBatch(ctx context.Context, events []*nostr.Event) (batchResult, error
 	for _, evt := range events {
 		reject, reason := policies.P.ValidateBatchEvent(ctx, evt)
 		if reject {
+			if policies.IsTemporaryRejection(reason) {
+				return result, fmt.Errorf("event policy unavailable: %s", reason)
+			}
 			result.Rejected++
 			log.Logger.Debug("ingestion policy rejected event", zap.String("event_id", evt.ID), zap.String("reason", reason))
 			continue
@@ -458,22 +538,26 @@ func insertBatch(ctx context.Context, events []*nostr.Event) (batchResult, error
 		accepted = removeRejectedEvents(accepted, batchInsertResult.RejectedEventIDs)
 	}
 
+	var projectionErrors []error
 	for _, evt := range accepted {
 		if !nostr.IsEphemeralKind(evt.Kind) && policies.ContentSpamFlagged(evt) {
 			if err := db.DbQueries.UpsertContentSpamFlag(ctx, evt.ID); err != nil {
 				log.Logger.Warn("content spam flag persistence failed", zap.String("event_id", evt.ID), zap.Error(err))
 			}
 		}
-		listener.NotifyListeners(evt)
-		stream.ForwardEvent(*evt)
-		if ps := pubsub.GetPubSub(); ps != nil && ps.IsEnabled() {
-			_ = ps.PublishEvent(ctx, evt)
-		}
+		if err := deliverAfterGroupProjection(ctx, evt, groups.AfterStoreEvent, func() {
+			listener.NotifyListeners(evt)
+			stream.ForwardEvent(*evt)
+			if ps := pubsub.GetPubSub(); ps != nil && ps.IsEnabled() {
+				_ = ps.PublishEvent(ctx, evt)
+			}
 
-		serialized, _ := json.Marshal(evt)
-		_ = cache.SetEvent(evt.ID, string(serialized))
-		metrics.NostrKindEventCounter.WithLabelValues(metrics.GetKindName(evt.Kind)).Inc()
-		if err := groups.AfterStoreEvent(ctx, evt); err != nil {
+			serialized, _ := json.Marshal(evt)
+			_ = cache.SetEvent(evt.ID, string(serialized))
+			metrics.NostrKindEventCounter.WithLabelValues(metrics.GetKindName(evt.Kind)).Inc()
+		}); err != nil {
+			result.Uncertain++
+			projectionErrors = append(projectionErrors, fmt.Errorf("event %s: %w", evt.ID, err))
 			log.Logger.Warn("nip29 post-persist handling failed",
 				zap.String("event_id", evt.ID),
 				zap.Int("kind", evt.Kind),
@@ -482,7 +566,19 @@ func insertBatch(ctx context.Context, events []*nostr.Event) (batchResult, error
 		}
 	}
 
-	return result, nil
+	return result, errors.Join(projectionErrors...)
+}
+
+// deliverAfterGroupProjection keeps a stored group event private until its
+// current projection has been applied. A projection failure deliberately
+// suppresses every delivery mechanism; callers retain the durable event and
+// can reconcile the projection without exposing a stale visibility policy.
+func deliverAfterGroupProjection(ctx context.Context, evt *nostr.Event, project func(context.Context, *nostr.Event) error, deliver func()) error {
+	if err := project(ctx, evt); err != nil {
+		return err
+	}
+	deliver()
+	return nil
 }
 
 // insertDMImportBatch validates admitted browser imports, performs one set-based

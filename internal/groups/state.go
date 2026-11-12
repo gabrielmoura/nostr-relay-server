@@ -62,12 +62,11 @@ func (m *Manager) shouldValidateFilter(filter nostr.Filter) bool {
 }
 
 func (m *Manager) shouldFilterQueryResults(filter nostr.Filter) bool {
-	for _, kind := range filter.Kinds {
-		if isNIP29MetadataKind(kind) {
-			return true
-		}
-	}
-	return len(filter.Tags["h"]) > 0 || len(filter.Tags["d"]) > 0 || len(filter.IDs) > 0 || len(filter.Tags["e"]) > 0 || len(filter.Tags["a"]) > 0
+	// Filtering must happen for every read while NIP-29 is enabled. A generic
+	// filter can return regular events that carry an h tag for a private group;
+	// deciding from the requested filter alone would expose them to anonymous
+	// clients.
+	return true
 }
 
 func (m *Manager) isRelevantEvent(evt *nostr.Event) bool {
@@ -82,8 +81,9 @@ func (m *Manager) isRelevantEvent(evt *nostr.Event) bool {
 
 func (m *Manager) forwardAllowedEvents(ctx context.Context, authed string, results <-chan *nostr.Event, out chan<- *nostr.Event) {
 	defer close(out)
+	reader := newReadAuthorizer(m, authed)
 	for evt := range results {
-		allowed, err := m.canReadEvent(ctx, authed, evt)
+		allowed, err := reader.canReadEvent(ctx, evt)
 		if err != nil {
 			log.Logger.Debug("nip29 read filter error", zap.Error(err), zap.String("event_id", evt.ID))
 			continue
@@ -99,17 +99,84 @@ func (m *Manager) forwardAllowedEvents(ctx context.Context, authed string, resul
 	}
 }
 
-func (m *Manager) canReadEvent(ctx context.Context, authed string, evt *nostr.Event) (bool, error) {
-	groupID := groupIDFromEvent(evt)
+type groupReadResult struct {
+	group  *dbstore.NIP29Group
+	exists bool
+	err    error
+}
+
+type memberReadResult struct {
+	allowed bool
+	err     error
+}
+
+type readAuthorizer struct {
+	lookupGroup  func(context.Context, string) (*dbstore.NIP29Group, bool, error)
+	lookupMember func(context.Context, string, string) (bool, error)
+	authed       string
+	groups       map[string]groupReadResult
+	members      map[string]memberReadResult
+}
+
+func newReadAuthorizer(m *Manager, authed string) *readAuthorizer {
+	// Authorization must not rely on cache-aside entries: an older read can
+	// repopulate the cache after a privacy change or membership revocation.
+	// The authorizer still memoizes lookups for the duration of this read.
+	return &readAuthorizer{
+		lookupGroup: func(ctx context.Context, groupID string) (*dbstore.NIP29Group, bool, error) {
+			return m.queries.GetNIP29Group(ctx, m.relayScope, groupID)
+		},
+		lookupMember: func(ctx context.Context, groupID, pubkey string) (bool, error) {
+			if pubkey == "" {
+				return false, nil
+			}
+			return m.queries.IsNIP29Member(ctx, m.relayScope, groupID, pubkey)
+		},
+		authed: authed, groups: make(map[string]groupReadResult), members: make(map[string]memberReadResult),
+	}
+}
+
+func (r *readAuthorizer) canReadEvent(ctx context.Context, evt *nostr.Event) (bool, error) {
+	groupID, metadata := readEventGroup(evt)
 	if groupID == "" {
+		return !metadata && !isNIP29ScopedWriteKind(evt.Kind), nil
+	}
+	groupResult, cached := r.groups[groupID]
+	if !cached {
+		groupResult.group, groupResult.exists, groupResult.err = r.lookupGroup(ctx, groupID)
+		r.groups[groupID] = groupResult
+	}
+	if groupResult.err != nil {
+		return false, groupResult.err
+	}
+	if !groupResult.exists {
+		// A missing projection must not expose events that are unmistakably
+		// NIP-29 operations. Generic events with an h tag remain readable: that
+		// tag is not exclusively owned by NIP-29 and cannot be classified safely
+		// without a durable group-scope marker at ingestion time.
+		return !isNIP29ScopedWriteKind(evt.Kind), nil
+	}
+	if !groupResult.group.Private && !(groupResult.group.Hidden && metadata) {
 		return true, nil
 	}
-	group, ok, err := m.getGroup(ctx, groupID)
-	if err != nil || !ok {
-		return true, err
+	member, cached := r.members[groupID]
+	if !cached {
+		member.allowed, member.err = r.lookupMember(ctx, groupID, r.authed)
+		r.members[groupID] = member
 	}
-	isMetadata := evt.Kind >= nostr.KindSimpleGroupMetadata && evt.Kind <= nostr.KindSimpleGroupRoles
-	return m.canReadGroup(ctx, authed, group, isMetadata)
+	return member.allowed, member.err
+}
+
+func readEventGroup(evt *nostr.Event) (string, bool) {
+	if evt == nil {
+		return "", false
+	}
+	metadata := isNIP29MetadataKind(evt.Kind)
+	groupID := firstTagValue(evt, "h")
+	if metadata {
+		groupID = firstTagValue(evt, "d")
+	}
+	return groupID, metadata
 }
 
 func (m *Manager) canReadGroup(ctx context.Context, authed string, group *dbstore.NIP29Group, metadata bool) (bool, error) {

@@ -123,6 +123,14 @@ func (r *RouterFactory) setupInternalRoutes(app *fiber.App) {
 		graphqlHandler(c.Context())
 		return nil
 	})
+	// Subscriptions use graphql-transport-ws because gqlgen's HTTP transport
+	// cannot upgrade through the fasthttp adaptor. The admin token arrives in
+	// the connection_init payload (browsers cannot set WebSocket headers), with
+	// the X-Admin-Token header still accepted for non-browser clients.
+	app.Get("/admin/graphql", func(c *fiber.Ctx) error {
+		c.Locals("admin-token", c.Get("X-Admin-Token"))
+		return c.Next()
+	}, graph.WebSocketHandler(r.Config.AdminToken))
 	schemaHandler := fasthttpadaptor.NewFastHTTPHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		sdl, err := graph.SchemaSDL()
 		if err != nil {

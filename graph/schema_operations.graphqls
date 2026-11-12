@@ -83,6 +83,11 @@ type Mutation {
 }
 
 type Subscription {
+  adminOverviewChanged: AdminPresenceEvent!
+  connectionChanged: AdminPresenceEvent!
+  jobChanged(queue: String, jobId: ID): AdminJobEvent!
+  syncProgress(jobId: ID): AdminJobEvent!
+  downloadProgress(jobId: ID): AdminJobEvent!
   blossomPlanChanged: AdminBlossomPlan!
   blossomObjectChanged: AdminBlossomObject!
 }

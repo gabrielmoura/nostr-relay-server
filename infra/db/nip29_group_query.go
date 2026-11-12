@@ -84,8 +84,8 @@ func nonNilStringSlice(values []string) []string {
 }
 
 const getNIP29Group = `
-SELECT relay, group_id, name, picture, about, topics, geohashes, private, closed, restricted, hidden,
-	created_by, updated_at, deleted_at, min_pow, require_moderation_timeline_ref,
+SELECT relay, group_id, name, COALESCE(picture, ''), COALESCE(about, ''), topics, geohashes, private, closed, restricted, hidden,
+	COALESCE(created_by, ''), updated_at, deleted_at, min_pow, require_moderation_timeline_ref,
 	min_timeline_references, timeline_recent_window, allow_late_publication,
 	last_metadata_update, last_admins_update, last_members_update, last_roles_update
 FROM nip29_groups
@@ -165,8 +165,8 @@ func (q *Queries) CountNIP29ActiveGroups(ctx context.Context, relay string) (int
 
 const listNIP29Groups = `
 SELECT 
-    g.relay, g.group_id, g.name, g.picture, g.about, g.topics, g.geohashes, g.private, g.closed, g.restricted, g.hidden,
-    g.created_by, g.updated_at, g.deleted_at, g.min_pow, g.require_moderation_timeline_ref,
+    g.relay, g.group_id, g.name, COALESCE(g.picture, ''), COALESCE(g.about, ''), g.topics, g.geohashes, g.private, g.closed, g.restricted, g.hidden,
+    COALESCE(g.created_by, ''), g.updated_at, g.deleted_at, g.min_pow, g.require_moderation_timeline_ref,
     g.min_timeline_references, g.timeline_recent_window, g.allow_late_publication,
     g.last_metadata_update, g.last_admins_update, g.last_members_update, g.last_roles_update,
     (SELECT COUNT(*) FROM nip29_group_members m WHERE m.relay = g.relay AND m.group_id = g.group_id) as member_count
@@ -177,8 +177,8 @@ LIMIT $2 OFFSET $3
 `
 
 const listNIP29GroupsAfter = `
-SELECT g.relay, g.group_id, g.name, g.picture, g.about, g.topics, g.geohashes, g.private, g.closed, g.restricted, g.hidden,
-    g.created_by, g.updated_at, g.deleted_at, g.min_pow, g.require_moderation_timeline_ref,
+SELECT g.relay, g.group_id, g.name, COALESCE(g.picture, ''), COALESCE(g.about, ''), g.topics, g.geohashes, g.private, g.closed, g.restricted, g.hidden,
+    COALESCE(g.created_by, ''), g.updated_at, g.deleted_at, g.min_pow, g.require_moderation_timeline_ref,
     g.min_timeline_references, g.timeline_recent_window, g.allow_late_publication,
     g.last_metadata_update, g.last_admins_update, g.last_members_update, g.last_roles_update,
     (SELECT COUNT(*) FROM nip29_group_members m WHERE m.relay = g.relay AND m.group_id = g.group_id) AS member_count
@@ -219,6 +219,9 @@ func (q *Queries) ListNIP29Groups(ctx context.Context, relay string, limit, offs
 		groups = append(groups, g)
 	}
 
+	if err := rows.Err(); err != nil {
+		return nil, 0, err
+	}
 	return groups, int64(total), nil
 }
 

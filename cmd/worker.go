@@ -17,6 +17,7 @@ import (
 	internalblossom "github.com/gabrielmoura/nostr-relay-server/internal/blossom"
 	"github.com/gabrielmoura/nostr-relay-server/internal/db"
 	"github.com/gabrielmoura/nostr-relay-server/internal/down"
+	"github.com/gabrielmoura/nostr-relay-server/internal/events"
 	jobcore "github.com/gabrielmoura/nostr-relay-server/internal/jobs"
 	syncjob "github.com/gabrielmoura/nostr-relay-server/internal/sync"
 	"github.com/spf13/cobra"
@@ -52,6 +53,7 @@ func runWorker(_ *cobra.Command, _ []string) {
 
 	mainCtx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+	redis.StartEventBridge(mainCtx, events.Default())
 
 	blobStore, err := blobstore.NewConfiguredStore(mainCtx, config.Cfg.Store, "files")
 	if err != nil {

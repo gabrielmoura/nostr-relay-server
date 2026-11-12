@@ -9,12 +9,27 @@ import (
 	"github.com/nbd-wtf/go-nostr"
 )
 
+func parseSort(value string) (bool, error) {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "", "desc", "descending":
+		return false, nil
+	case "asc", "ascending":
+		return true, nil
+	default:
+		return false, errors.New("sort must be asc or desc")
+	}
+}
+
 func parseFilter(c *fiber.Ctx, maxLimit int) (nostr.Filter, int, error) {
 	filter := nostr.Filter{Tags: make(nostr.TagMap)}
 	args := c.Request().URI().QueryArgs()
 	filter.IDs = stringValues(args.PeekMulti("id"))
 	filter.Authors = stringValues(args.PeekMulti("author"))
-	filter.Kinds = intValues(args.PeekMulti("kind"))
+	var err error
+	filter.Kinds, err = parseKinds(args.PeekMulti("kind"))
+	if err != nil {
+		return nostr.Filter{}, 0, err
+	}
 	filter.Search = strings.TrimSpace(c.Query("search"))
 	for _, key := range []string{"e", "p", "t", "d"} {
 		values := stringValues(args.PeekMulti(key))
@@ -32,7 +47,11 @@ func parseFilter(c *fiber.Ctx, maxLimit int) (nostr.Filter, int, error) {
 		return nostr.Filter{}, 0, err
 	}
 
-	limit, err := positiveInt(c.Query("limit"), 100)
+	defaultLimit := 100
+	if maxLimit > 0 && maxLimit < defaultLimit {
+		defaultLimit = maxLimit
+	}
+	limit, err := positiveInt(c.Query("limit"), defaultLimit)
 	if err != nil || limit > maxLimit {
 		return nostr.Filter{}, 0, errors.New("limit must be a positive integer within the configured maximum")
 	}
@@ -129,15 +148,20 @@ func stringValues(values [][]byte) []string {
 	return result
 }
 
-func intValues(values [][]byte) []int {
+func parseKinds(values [][]byte) ([]int, error) {
 	result := make([]int, 0, len(values))
 	for _, value := range values {
-		parsed, err := strconv.Atoi(string(value))
-		if err == nil && parsed >= 0 {
-			result = append(result, parsed)
+		raw := strings.TrimSpace(string(value))
+		if raw == "" {
+			return nil, errors.New("kind must be a non-negative integer")
 		}
+		parsed, err := strconv.Atoi(raw)
+		if err != nil || parsed < 0 {
+			return nil, errors.New("kind must be a non-negative integer")
+		}
+		result = append(result, parsed)
 	}
-	return result
+	return result, nil
 }
 
 func positiveInt(raw string, fallback int) (int, error) {

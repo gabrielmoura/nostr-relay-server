@@ -426,6 +426,20 @@ type AdminJob struct {
 	Result      map[string]any `json:"result,omitempty"`
 }
 
+type AdminJobEvent struct {
+	ID              string  `json:"id"`
+	Queue           string  `json:"queue"`
+	Name            string  `json:"name"`
+	Status          string  `json:"status"`
+	Attempts        int32   `json:"attempts"`
+	MaxAttempts     int32   `json:"maxAttempts"`
+	ProgressCurrent int     `json:"progressCurrent"`
+	ProgressTotal   int     `json:"progressTotal"`
+	Stage           *string `json:"stage,omitempty"`
+	Error           *string `json:"error,omitempty"`
+	UpdatedAt       string  `json:"updatedAt"`
+}
+
 type AdminJobFilterInput struct {
 	Queue    *string  `json:"queue,omitempty"`
 	JobName  *string  `json:"jobName,omitempty"`
@@ -593,6 +607,14 @@ type AdminOverview struct {
 	EventsPerMinute   int                    `json:"eventsPerMinute"`
 	RelayStatus       string                 `json:"relayStatus"`
 	Ingestion         *AdminIngestionMetrics `json:"ingestion"`
+}
+
+type AdminPresenceEvent struct {
+	Action            string  `json:"action"`
+	Wsid              *string `json:"wsid,omitempty"`
+	ActiveConnections int32   `json:"activeConnections"`
+	AuthedConnections int32   `json:"authedConnections"`
+	ChangedAt         string  `json:"changedAt"`
 }
 
 type AdminProfile struct {

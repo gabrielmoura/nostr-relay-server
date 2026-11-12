@@ -21,6 +21,8 @@ import (
 	infradb "github.com/gabrielmoura/nostr-relay-server/infra/db"
 	"github.com/gabrielmoura/nostr-relay-server/infra/log"
 	internaldb "github.com/gabrielmoura/nostr-relay-server/internal/db"
+	jobcore "github.com/gabrielmoura/nostr-relay-server/internal/jobs"
+	hostsync "github.com/gabrielmoura/nostr-relay-server/internal/relaysync"
 	core "github.com/gabrielmoura/nostr-relay-server/pkg/relaySync"
 	relaysyncv2 "github.com/gabrielmoura/nostr-relay-server/pkg/relaySync/proto/relaysync/v2"
 	"github.com/nbd-wtf/go-nostr"
@@ -114,6 +116,7 @@ func containsVersion(versions []uint32, want uint32) bool {
 
 func runRelaySyncHTTP(ctx context.Context, client *core.HTTPClient, cfg *ConfSync) (result *SyncResult, err error) {
 	progress := newRelaySyncProgress(log.Logger, cfg.Direction)
+	progress.ctx = ctx
 	defer func() {
 		progress.complete(err)
 	}()
@@ -415,6 +418,7 @@ func (f *relaySyncPartialFailures) Error() string {
 type relaySyncProgress struct {
 	logger    *zap.Logger
 	direction Direction
+	ctx       context.Context
 	startedAt time.Time
 
 	localPartitions     int
@@ -430,6 +434,13 @@ type relaySyncProgress struct {
 
 func newRelaySyncProgress(logger *zap.Logger, direction Direction) *relaySyncProgress {
 	return &relaySyncProgress{logger: logger, direction: direction, startedAt: time.Now()}
+}
+
+func (p *relaySyncProgress) report(stage string) {
+	if p.ctx == nil {
+		return
+	}
+	jobcore.ReportProgress(p.ctx, int64(p.completedPartitions+p.pulledEvents), int64(p.remotePartitions), stage)
 }
 
 func (p *relaySyncProgress) start(localPartitions int) {
@@ -492,6 +503,7 @@ func (p *relaySyncProgress) partitionComplete(startedAt time.Time, localCount in
 	}
 	p.completedPartitions++
 	fields = append(fields, zap.Int("partitions_completed", p.completedPartitions))
+	p.report("partitions")
 	p.debug("RelaySync v2 partition reconciliation completed", fields...)
 	if p.completedPartitions%relaySyncProgressLogInterval == 0 {
 		p.info("RelaySync v2 sync progress checkpoint", fields...)
@@ -527,6 +539,7 @@ func (p *relaySyncProgress) pullBatchStarted(batchSize int) {
 func (p *relaySyncProgress) pullBatchCompleted(batchSize, received int, elapsed time.Duration) {
 	p.pullBatches++
 	p.pulledEvents += received
+	p.report("pull")
 	p.debug("RelaySync v2 pull batch completed",
 		zap.Int("requested_event_count", batchSize),
 		zap.Int("received_event_count", received),
@@ -770,7 +783,7 @@ func pullAndStoreEvents(ctx context.Context, client *core.HTTPClient, id core.Se
 			requested[string(requestedID[:])] = struct{}{}
 		}
 		responded := make(map[string]struct{}, len(response.GetEvents())+len(response.GetMissingEventIds()))
-		events := make([]*nostr.Event, 0, len(response.GetEvents()))
+		events := make([]core.Event, 0, len(response.GetEvents()))
 		invalidEvents := 0
 		for _, wire := range response.GetEvents() {
 			if wire == nil || len(wire.GetId()) != 32 {
@@ -798,7 +811,7 @@ func pullAndStoreEvents(ctx context.Context, client *core.HTTPClient, id core.Se
 			if string(event.ID[:]) != key {
 				return fmt.Errorf("%w: pull response event id changed during decode", errRelaySyncIntegrity)
 			}
-			events = append(events, nostrEventFromCore(event))
+			events = append(events, event)
 		}
 		for _, missingID := range response.GetMissingEventIds() {
 			if len(missingID) != 32 {
@@ -817,13 +830,19 @@ func pullAndStoreEvents(ctx context.Context, client *core.HTTPClient, id core.Se
 			return fmt.Errorf("%w: pull response does not account for every requested event", errRelaySyncIntegrity)
 		}
 		if len(events) > 0 {
-			inserted, err := internaldb.DbQueries.InsertEventBatch(ctx, events)
+			results, err := hostsync.NewIngestionWriter().WriteEvents(ctx, core.EventBatch{OperationID: fmt.Sprintf("pull-%d", start), Events: events})
 			if err != nil {
 				return fmt.Errorf("store pulled events: %w", err)
 			}
-			if len(inserted.RejectedEventIDs) > 0 {
-				invalidEvents += len(inserted.RejectedEventIDs)
-				progress.pullEventRejected(start, "local_storage_rejected", fmt.Errorf("%d events rejected by local storage", len(inserted.RejectedEventIDs)))
+			for _, result := range results {
+				switch result.Status {
+				case core.WriteAccepted, core.WriteAlreadyExists:
+				case core.WriteRejectedPermanent:
+					invalidEvents++
+					progress.pullEventRejected(start, result.Code, errors.New("event rejected by local policy"))
+				default:
+					return fmt.Errorf("store pulled events: temporary or invalid outcome %q", result.Code)
+				}
 			}
 		}
 		progress.pullBatchCompleted(len(wireIDs), len(events), time.Since(startedAt))
@@ -917,12 +936,4 @@ func handleRelaySyncPushReceipts(receipts []*relaysyncv2.EventReceipt, events []
 		}
 	}
 	return nil
-}
-
-func nostrEventFromCore(event core.Event) *nostr.Event {
-	tags := make(nostr.Tags, len(event.Tags))
-	for i := range event.Tags {
-		tags[i] = append(nostr.Tag(nil), event.Tags[i]...)
-	}
-	return &nostr.Event{ID: event.ID.String(), PubKey: event.PublicKey.String(), Sig: event.Signature.String(), CreatedAt: nostr.Timestamp(event.CreatedAt), Kind: int(event.Kind), Tags: tags, Content: event.Content}
 }

@@ -2,6 +2,7 @@ package ingestion
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -9,6 +10,45 @@ import (
 	"github.com/gabrielmoura/nostr-relay-server/internal/dmimport"
 	"github.com/nbd-wtf/go-nostr"
 )
+
+func TestDeliverAfterGroupProjectionDeliversOnlyAfterSuccessfulProjection(t *testing.T) {
+	steps := make([]string, 0, 2)
+	err := deliverAfterGroupProjection(context.Background(), &nostr.Event{ID: "private-group-event"}, func(context.Context, *nostr.Event) error {
+		steps = append(steps, "project")
+		return nil
+	}, func() {
+		steps = append(steps, "deliver")
+	})
+	if err != nil {
+		t.Fatalf("deliverAfterGroupProjection() error = %v", err)
+	}
+	if got, want := len(steps), 2; got != want || steps[0] != "project" || steps[1] != "deliver" {
+		t.Fatalf("delivery order = %#v, want [project deliver]", steps)
+	}
+}
+
+func TestDeliverAfterGroupProjectionSuppressesPrivateEventOnProjectionFailure(t *testing.T) {
+	delivered := false
+	projectionErr := errors.New("group projection unavailable")
+	err := deliverAfterGroupProjection(context.Background(), &nostr.Event{ID: "private-group-event"}, func(context.Context, *nostr.Event) error {
+		return projectionErr
+	}, func() {
+		delivered = true
+	})
+	if !errors.Is(err, projectionErr) {
+		t.Fatalf("deliverAfterGroupProjection() error = %v, want %v", err, projectionErr)
+	}
+	if delivered {
+		t.Fatal("private event was delivered after group projection failure")
+	}
+}
+
+func TestDurableReceiptDoesNotAcknowledgeFailedProjection(t *testing.T) {
+	receipt := durableReceipt(batchResult{Inserted: 1, Uncertain: 1}, errors.New("projection failed after persistence"))
+	if !receipt.Uncertain || receipt.Inserted || receipt.Duplicate || receipt.Rejected {
+		t.Fatalf("failed projection returned a final receipt: %#v", receipt)
+	}
+}
 
 func TestPushDMImportWaitsForQueueCapacityUntilContextExpires(t *testing.T) {
 	queue := make(chan queueItem, 1)
@@ -67,6 +107,80 @@ func TestPushDMImportTimeoutAfterQueueingIsUncertain(t *testing.T) {
 		}
 	case <-time.After(time.Second):
 		t.Fatal("PushDMImport did not return after cancellation")
+	}
+}
+
+func TestPushDurableTimeoutAfterQueueingIsUncertain(t *testing.T) {
+	queue := make(chan queueItem, 1)
+	restore := setIngestionStateForTest(t, queue)
+	defer restore()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	type response struct {
+		receipt Receipt
+		ok      bool
+	}
+	result := make(chan response, 1)
+	go func() {
+		receipt, accepted := PushDurable(ctx, &nostr.Event{ID: "event"})
+		result <- response{receipt, accepted}
+	}()
+	select {
+	case <-queue:
+	case <-time.After(time.Second):
+		t.Fatal("event was not queued")
+	}
+	cancel()
+	select {
+	case got := <-result:
+		if got.ok || !got.receipt.Uncertain || got.receipt.Reason != "error: event outcome uncertain (timed out after queueing)" {
+			t.Fatalf("PushDurable() = (%#v, %t)", got.receipt, got.ok)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("PushDurable did not return after cancellation")
+	}
+}
+
+func TestDurableCompletionRunsAfterCallerCancellation(t *testing.T) {
+	queue := make(chan queueItem, 1)
+	restore := setIngestionStateForTest(t, queue)
+	defer restore()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	completed := make(chan Receipt, 1)
+	type outcome struct {
+		receipt          Receipt
+		accepted, queued bool
+	}
+	result := make(chan outcome, 1)
+	go func() {
+		receipt, accepted, queued := PushDurableWithCompletion(ctx, &nostr.Event{ID: "event"}, func(r Receipt) { completed <- r })
+		result <- outcome{receipt, accepted, queued}
+	}()
+	var item queueItem
+	select {
+	case item = <-queue:
+	case <-time.After(time.Second):
+		t.Fatal("event was not queued")
+	}
+	cancel()
+	select {
+	case got := <-result:
+		if got.accepted || !got.queued || !got.receipt.Uncertain {
+			t.Fatalf("outcome=%#v", got)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("caller did not return")
+	}
+	completeDurable(item, Receipt{Inserted: true})
+	select {
+	case got := <-completed:
+		if !got.Inserted {
+			t.Fatalf("receipt=%#v", got)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("completion did not run")
 	}
 }
 

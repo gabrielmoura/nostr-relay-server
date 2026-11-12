@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"github.com/gabrielmoura/nostr-relay-server/config"
-	"github.com/gabrielmoura/nostr-relay-server/infra/db"
 	"github.com/gabrielmoura/nostr-relay-server/infra/handler/event"
+	"github.com/gabrielmoura/nostr-relay-server/internal/db"
 	"github.com/gabrielmoura/nostr-relay-server/internal/dmimport"
 	"github.com/gabrielmoura/nostr-relay-server/internal/groups"
 	"github.com/gabrielmoura/nostr-relay-server/internal/nip86"
@@ -20,6 +20,62 @@ import (
 )
 
 var findNIPFEEvents = oneShotEvents
+var findNIPFECountPage = oneShotCountPage
+
+const defaultNIPFEMaxResponseBytes = 8 << 20
+const defaultNIPFEMaxFilters = 16
+const defaultNIPFEMaxResponseEvents = 2000
+const defaultNIPFEMaxScan = 2000
+
+type nipFEWorkBudget struct {
+	remainingScans int
+}
+
+type nipFEWorkBudgetKey struct{}
+
+type nipFEConfigKey struct{}
+
+func newNIPFEWorkBudget(cfg *config.Config) *nipFEWorkBudget {
+	maxScans := defaultNIPFEMaxScan
+	if cfg != nil && cfg.API.MaxScan > 0 {
+		maxScans = cfg.API.MaxScan
+	}
+	return &nipFEWorkBudget{remainingScans: maxScans}
+}
+
+func (budget *nipFEWorkBudget) pageLimit(requested int) (int, error) {
+	if budget == nil {
+		return requested, nil
+	}
+	if budget.remainingScans <= 0 {
+		return 0, errScanLimit
+	}
+	return min(requested, budget.remainingScans), nil
+}
+
+func (budget *nipFEWorkBudget) consume(scanned, limit int) error {
+	if scanned < 0 || scanned > limit {
+		return errors.New("invalid NIP-FE page size")
+	}
+	if budget == nil {
+		return nil
+	}
+	budget.remainingScans -= scanned
+	return nil
+}
+
+func nipFEWorkBudgetFromContext(ctx context.Context) *nipFEWorkBudget {
+	budget, _ := ctx.Value(nipFEWorkBudgetKey{}).(*nipFEWorkBudget)
+	return budget
+}
+
+func nipFEConfigFromContext(ctx context.Context) *config.Config {
+	cfg, _ := ctx.Value(nipFEConfigKey{}).(*config.Config)
+	if cfg != nil {
+		return cfg
+	}
+	return config.Cfg
+}
 
 // NIPFE handles exactly one NIP-01 frame and never creates a subscription.
 // Its newline-delimited output makes every response frame independently
@@ -57,7 +113,7 @@ func NIPFE(cfg *config.Config) fiber.Handler {
 			ctx, cancel = context.WithTimeout(ctx, time.Duration(cfg.API.NIPFE.TimeoutSeconds)*time.Second)
 			defer cancel()
 		}
-		frames, status := executeNIPFE(ctx, body, authed)
+		frames, status := executeNIPFEWithConfig(ctx, body, authed, cfg)
 		payload := bytes.Buffer{}
 		for _, frame := range frames {
 			encoded, marshalErr := json.Marshal(frame)
@@ -90,6 +146,10 @@ func validateNIPFEAuth(c *fiber.Ctx, body []byte) (string, error) {
 }
 
 func executeNIPFE(ctx context.Context, body []byte, authed string) ([]any, int) {
+	return executeNIPFEWithConfig(ctx, body, authed, config.Cfg)
+}
+
+func executeNIPFEWithConfig(ctx context.Context, body []byte, authed string, cfg *config.Config) ([]any, int) {
 	decoder := json.NewDecoder(bytes.NewReader(body))
 	var frame []json.RawMessage
 	if err := decoder.Decode(&frame); err != nil || len(frame) == 0 {
@@ -103,11 +163,30 @@ func executeNIPFE(ctx context.Context, body []byte, authed string) ([]any, int) 
 	if err := json.Unmarshal(frame[0], &command); err != nil {
 		return []any{[]any{"CLOSED", "", "invalid: command is required"}}, fiber.StatusBadRequest
 	}
+	maxFilters, maxBytes, maxEvents := defaultNIPFEMaxFilters, defaultNIPFEMaxResponseBytes, defaultNIPFEMaxResponseEvents
+	if cfg != nil {
+		if cfg.Security.Limits.MaxFiltersPerReq > 0 {
+			maxFilters = cfg.Security.Limits.MaxFiltersPerReq
+		}
+		if cfg.API.NIPFE.MaxResponseBytes > 0 {
+			maxBytes = cfg.API.NIPFE.MaxResponseBytes
+		}
+		if cfg.API.NIPFE.MaxResponseEvents > 0 {
+			maxEvents = cfg.API.NIPFE.MaxResponseEvents
+		}
+	}
+	if (command == "REQ" || command == "COUNT") && len(frame)-2 > maxFilters {
+		return []any{[]any{"CLOSED", "", "invalid: too many filters"}}, fiber.StatusBadRequest
+	}
 	switch command {
 	case "REQ":
-		return executeREQ(ctx, frame, authed)
+		ctx = context.WithValue(ctx, nipFEWorkBudgetKey{}, newNIPFEWorkBudget(cfg))
+		ctx = context.WithValue(ctx, nipFEConfigKey{}, cfg)
+		return executeREQ(ctx, frame, authed, maxBytes, maxEvents)
 	case "COUNT":
-		return executeCOUNT(ctx, frame, authed)
+		ctx = context.WithValue(ctx, nipFEWorkBudgetKey{}, newNIPFEWorkBudget(cfg))
+		ctx = context.WithValue(ctx, nipFEConfigKey{}, cfg)
+		return executeCOUNT(ctx, frame, authed, cfg)
 	case "EVENT":
 		return executeEVENT(ctx, frame, authed)
 	default:
@@ -115,7 +194,7 @@ func executeNIPFE(ctx context.Context, body []byte, authed string) ([]any, int) 
 	}
 }
 
-func executeREQ(ctx context.Context, frame []json.RawMessage, authed string) ([]any, int) {
+func executeREQ(ctx context.Context, frame []json.RawMessage, authed string, maxBytes, maxEvents int) ([]any, int) {
 	if len(frame) < 3 {
 		return []any{[]any{"CLOSED", "", "invalid: REQ requires id and filter"}}, fiber.StatusBadRequest
 	}
@@ -125,6 +204,7 @@ func executeREQ(ctx context.Context, frame []json.RawMessage, authed string) ([]
 	}
 	frames := make([]any, 0)
 	seen := make(map[string]struct{})
+	responseBytes := 0
 	for _, raw := range frame[2:] {
 		var filter nostr.Filter
 		if json.Unmarshal(raw, &filter) != nil {
@@ -132,6 +212,9 @@ func executeREQ(ctx context.Context, frame []json.RawMessage, authed string) ([]
 		}
 		events, err := findNIPFEEvents(ctx, authed, filter)
 		if err != nil {
+			if errors.Is(err, errScanLimit) {
+				return []any{[]any{"CLOSED", id, "error: request work limit exceeded"}}, fiber.StatusServiceUnavailable
+			}
 			return []any{[]any{"CLOSED", id, "error: query failed"}}, fiber.StatusInternalServerError
 		}
 		events = filterNIPFEVisibleEvents(events, authed)
@@ -139,15 +222,35 @@ func executeREQ(ctx context.Context, frame []json.RawMessage, authed string) ([]
 			if _, exists := seen[evt.ID]; exists {
 				continue
 			}
+			if len(seen) >= maxEvents {
+				return []any{[]any{"CLOSED", id, "error: response exceeds event limit"}}, fiber.StatusRequestEntityTooLarge
+			}
+			envelope := nostr.EventEnvelope{SubscriptionID: &id, Event: *evt}
+			encoded, err := json.Marshal(envelope)
+			if err != nil {
+				return []any{[]any{"CLOSED", id, "error: response encoding failed"}}, fiber.StatusInternalServerError
+			}
+			responseBytes += len(encoded) + 1
+			if responseBytes > maxBytes {
+				return []any{[]any{"CLOSED", id, "error: response exceeds limit"}}, fiber.StatusRequestEntityTooLarge
+			}
 			seen[evt.ID] = struct{}{}
-			frames = append(frames, nostr.EventEnvelope{SubscriptionID: &id, Event: *evt})
+			frames = append(frames, envelope)
 		}
 	}
-	frames = append(frames, nostr.EOSEEnvelope(id))
+	eose := nostr.EOSEEnvelope(id)
+	encoded, err := json.Marshal(eose)
+	if err != nil {
+		return []any{[]any{"CLOSED", id, "error: response encoding failed"}}, fiber.StatusInternalServerError
+	}
+	if responseBytes+len(encoded)+1 > maxBytes {
+		return []any{[]any{"CLOSED", id, "error: response exceeds limit"}}, fiber.StatusRequestEntityTooLarge
+	}
+	frames = append(frames, eose)
 	return frames, fiber.StatusOK
 }
 
-func executeCOUNT(ctx context.Context, frame []json.RawMessage, authed string) ([]any, int) {
+func executeCOUNT(ctx context.Context, frame []json.RawMessage, authed string, cfg *config.Config) ([]any, int) {
 	if len(frame) < 3 {
 		return []any{[]any{"CLOSED", "", "invalid: COUNT requires id and filter"}}, fiber.StatusBadRequest
 	}
@@ -155,20 +258,57 @@ func executeCOUNT(ctx context.Context, frame []json.RawMessage, authed string) (
 	if json.Unmarshal(frame[1], &id) != nil || id == "" {
 		return []any{[]any{"CLOSED", "", "invalid: COUNT id is required"}}, fiber.StatusBadRequest
 	}
-	var total int64
+	seen := make(map[string]struct{})
 	for _, raw := range frame[2:] {
 		var filter nostr.Filter
 		if json.Unmarshal(raw, &filter) != nil {
 			return []any{[]any{"CLOSED", id, "invalid: filter"}}, fiber.StatusBadRequest
 		}
-		events, err := findNIPFEEvents(ctx, authed, filter)
-		if err != nil {
-			return []any{[]any{"CLOSED", id, "error: query failed"}}, fiber.StatusInternalServerError
+		// COUNT concerns the complete matching set, regardless of REQ's limit.
+		// Bound work and fail explicitly if the scan cannot be completed.
+		batchSize := 100
+		if cfg != nil && cfg.Relay.QueryLimit > 0 {
+			batchSize = min(batchSize, cfg.Relay.QueryLimit)
 		}
-		events = filterNIPFEVisibleEvents(events, authed)
-		total += int64(len(events))
+		for offset := 0; ; {
+			limit, budgetErr := nipFEWorkBudgetFromContext(ctx).pageLimit(batchSize)
+			if budgetErr != nil {
+				return []any{[]any{"CLOSED", id, "error: request work limit exceeded"}}, fiber.StatusServiceUnavailable
+			}
+			filter.Limit = limit
+			events, rawCount, err := findNIPFECountPage(ctx, authed, filter, offset)
+			if err != nil {
+				return []any{[]any{"CLOSED", id, "error: query failed"}}, fiber.StatusInternalServerError
+			}
+			if err := nipFEWorkBudgetFromContext(ctx).consume(rawCount, limit); err != nil {
+				return []any{[]any{"CLOSED", id, "error: query returned an invalid page"}}, fiber.StatusInternalServerError
+			}
+			for _, event := range filterNIPFEVisibleEvents(events, authed) {
+				seen[event.ID] = struct{}{}
+			}
+			if rawCount < limit {
+				break
+			}
+			offset += rawCount
+		}
 	}
-	return []any{[]any{"COUNT", id, map[string]int64{"count": total}}}, fiber.StatusOK
+	return []any{[]any{"COUNT", id, map[string]int64{"count": int64(len(seen))}}}, fiber.StatusOK
+}
+
+func oneShotCountPage(ctx context.Context, authed string, filter nostr.Filter, offset int) ([]*nostr.Event, int, error) {
+	queries := db.DbQueries
+	if queries == nil {
+		return nil, 0, errors.New("database is not initialized")
+	}
+	candidates, err := queries.QueryEventsWindowOnly(ctx, filter, offset)
+	if err != nil {
+		return nil, 0, err
+	}
+	visible, err := groups.FilterEvents(ctx, authed, filter, candidates)
+	if err != nil {
+		return nil, 0, err
+	}
+	return visible, len(candidates), nil
 }
 
 func executeEVENT(ctx context.Context, frame []json.RawMessage, authed string) ([]any, int) {
@@ -187,32 +327,47 @@ func executeEVENT(ctx context.Context, frame []json.RawMessage, authed string) (
 }
 
 func oneShotEvents(ctx context.Context, authed string, filter nostr.Filter) ([]*nostr.Event, error) {
-	if filter.Limit <= 0 {
-		filter.Limit = config.Cfg.Relay.QueryLimit
-	}
-	if filter.Limit <= 0 {
+	cfg := nipFEConfigFromContext(ctx)
+	if cfg == nil || cfg.Relay.QueryLimit <= 0 {
 		return nil, errors.New("invalid filter limit")
 	}
-	queries := db.DbQueries()
-	if queries == nil {
-		return nil, errors.New("database is not initialized")
+	limit := filter.Limit
+	if limit <= 0 || limit > cfg.Relay.QueryLimit {
+		limit = cfg.Relay.QueryLimit
 	}
-	query := queries.QueryEventsChan
-	events, handled, err := groups.QueryEvents(ctx, authed, filter, query)
-	if err != nil {
-		return nil, err
+	batchSize := min(100, cfg.Relay.QueryLimit)
+	result := make([]*nostr.Event, 0, min(limit, batchSize))
+	budget := nipFEWorkBudgetFromContext(ctx)
+	if budget == nil {
+		budget = newNIPFEWorkBudget(cfg)
 	}
-	if !handled {
-		events, err = query(ctx, filter)
+	for offset := 0; ; {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		batch, err := budget.pageLimit(batchSize)
 		if err != nil {
 			return nil, err
 		}
+		filter.Limit = batch
+		events, rawCount, err := findNIPFECountPage(ctx, authed, filter, offset)
+		if err != nil {
+			return nil, err
+		}
+		if err := budget.consume(rawCount, batch); err != nil {
+			return nil, err
+		}
+		for _, event := range filterNIPFEVisibleEvents(events, authed) {
+			result = append(result, event)
+			if len(result) == limit {
+				return result, nil
+			}
+		}
+		if rawCount < batch {
+			return result, nil
+		}
+		offset += rawCount
 	}
-	result := make([]*nostr.Event, 0, filter.Limit)
-	for evt := range events {
-		result = append(result, evt)
-	}
-	return filterNIPFEVisibleEvents(result, authed), nil
 }
 
 // filterNIPFEVisibleEvents applies the same private-delivery gate as WebSocket
@@ -224,7 +379,7 @@ func filterNIPFEVisibleEvents(events []*nostr.Event, authed string) []*nostr.Eve
 		// NIP-FE does not implement the narrowly validated Concord stream
 		// filter (kind 1059 with an exact author). Keep its finite HTTP reads
 		// on the recipient/author delivery rule instead of widening access.
-		if dmimport.VisibleToWithConcord(authed, evt, false) {
+		if evt != nil && !hasProtectedTag(evt) && dmimport.VisibleToWithConcord(authed, evt, false) {
 			visible = append(visible, evt)
 		}
 	}

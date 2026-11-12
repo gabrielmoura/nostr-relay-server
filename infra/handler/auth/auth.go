@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/gabrielmoura/nostr-relay-server/config"
+	"github.com/gabrielmoura/nostr-relay-server/infra/handler/listener"
 	"github.com/gabrielmoura/nostr-relay-server/infra/log"
 	"github.com/gabrielmoura/nostr-relay-server/infra/metrics"
 	"github.com/gabrielmoura/nostr-relay-server/infra/net/privacy"
@@ -29,6 +30,7 @@ func DoAUTH(ws *dto.WsServer, data dto.Data) string {
 		if pubkey, reason := validateAuthEvent(&evt, ws.Challenge, allowedRelayURLs...); reason == "" {
 			_, currentCtx := ws.AuthSnapshot()
 			ws.SetAuth(pubkey, context.WithValue(currentCtx, AuthContextKey, pubkey))
+			listener.PublishPresenceChanged("authenticated", listener.CurrentID(ws))
 			ws.ChanSender <- nostr.OKEnvelope{EventID: evt.ID, OK: true}
 		} else {
 			metrics.NostrRelayAuthFailuresTotal.Inc()

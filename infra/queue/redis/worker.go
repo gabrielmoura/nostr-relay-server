@@ -11,6 +11,7 @@ import (
 	"github.com/gabrielmoura/nostr-relay-server/infra/log"
 	"github.com/gabrielmoura/nostr-relay-server/infra/metrics"
 	iredis "github.com/gabrielmoura/nostr-relay-server/infra/redis"
+	"github.com/gabrielmoura/nostr-relay-server/internal/events"
 	"github.com/gabrielmoura/nostr-relay-server/internal/jobs"
 	syncjob "github.com/gabrielmoura/nostr-relay-server/internal/sync"
 	goredis "github.com/redis/go-redis/v9"
@@ -199,6 +200,15 @@ func (w *Worker) handleMessage(ctx context.Context, queueName string, priority j
 
 	metrics.NostrQueueJobsStartedTotal.WithLabelValues(queueName, envelope.Name, w.name).Inc()
 	metrics.NostrQueueJobLatencySeconds.WithLabelValues(queueName, envelope.Name).Observe(time.Since(time.UnixMilli(envelope.CreatedAtMS)).Seconds())
+	jobs.PublishEvent(events.JobEvent{
+		ID:          jobID.String(),
+		Queue:       queueName,
+		Name:        envelope.Name,
+		Status:      jobs.StatusRunning.String(),
+		Attempts:    int(attempts),
+		MaxAttempts: int(envelope.MaxAttempts),
+		UpdatedAt:   now,
+	})
 	workerBucket := keys.WorkersBucket(now)
 	if err := w.client.Raw().PFAdd(ctx, workerBucket, w.name).Err(); err == nil {
 		_ = w.client.Expire(ctx, workerBucket, w.config.WorkerWindow)
@@ -251,6 +261,15 @@ func (w *Worker) handleMessage(ctx context.Context, queueName string, priority j
 			return fmt.Errorf("ack success: %w", ackErr)
 		}
 		metrics.NostrQueueJobsSucceededTotal.WithLabelValues(queueName, envelope.Name).Inc()
+		jobs.PublishEvent(events.JobEvent{
+			ID:          jobID.String(),
+			Queue:       queueName,
+			Name:        envelope.Name,
+			Status:      jobs.StatusSucceeded.String(),
+			Attempts:    int(attempts),
+			MaxAttempts: int(envelope.MaxAttempts),
+			UpdatedAt:   time.Now().UTC(),
+		})
 		return nil
 	}
 
@@ -273,6 +292,16 @@ func (w *Worker) handleMessage(ctx context.Context, queueName string, priority j
 		return fmt.Errorf("schedule retry: %w", retryErr)
 	}
 	metrics.NostrQueueJobsRetriedTotal.WithLabelValues(queueName, envelope.Name).Inc()
+	jobs.PublishEvent(events.JobEvent{
+		ID:          jobID.String(),
+		Queue:       queueName,
+		Name:        envelope.Name,
+		Status:      jobs.StatusDelayed.String(),
+		Attempts:    int(attempts),
+		MaxAttempts: int(envelope.MaxAttempts),
+		Error:       truncateError(err),
+		UpdatedAt:   time.Now().UTC(),
+	})
 
 	return nil
 }
@@ -322,6 +351,14 @@ func (w *Worker) deferIfRemoteSyncAtCapacity(
 		metrics.NostrQueueLuaErrorsTotal.WithLabelValues(queueName, "defer_remote_cap").Inc()
 		return false, fmt.Errorf("defer sync job %s: %w", jobID.String(), err)
 	}
+	jobs.PublishEvent(events.JobEvent{
+		ID:        jobID.String(),
+		Queue:     queueName,
+		Name:      jobName,
+		Status:    jobs.StatusDelayed.String(),
+		Error:     syncRemoteConcurrencyReason,
+		UpdatedAt: time.Now().UTC(),
+	})
 	return true, nil
 }
 
@@ -370,6 +407,12 @@ func (w *Worker) ackCanceled(ctx context.Context, queueName, streamKey, messageI
 	if err := w.client.Raw().XDel(ctx, streamKey, messageID).Err(); err != nil {
 		return fmt.Errorf("delete canceled job %s: %w", jobID.String(), err)
 	}
+	jobs.PublishEvent(events.JobEvent{
+		ID:        jobID.String(),
+		Queue:     queueName,
+		Status:    jobs.StatusCanceled.String(),
+		UpdatedAt: time.Now().UTC(),
+	})
 	return nil
 }
 
@@ -393,6 +436,14 @@ func (w *Worker) failDead(ctx context.Context, queueName, jobName string, jobID 
 	}
 	metrics.NostrQueueJobsFailedTotal.WithLabelValues(queueName, jobName, jobs.StatusDead.String()).Inc()
 	metrics.NostrQueueJobsDeadTotal.WithLabelValues(queueName, jobName).Inc()
+	jobs.PublishEvent(events.JobEvent{
+		ID:        jobID.String(),
+		Queue:     queueName,
+		Name:      jobName,
+		Status:    jobs.StatusDead.String(),
+		Error:     truncateError(cause),
+		UpdatedAt: time.Now().UTC(),
+	})
 	return cause
 }
 

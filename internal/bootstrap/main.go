@@ -154,20 +154,20 @@ type ProfileMetadata struct {
 func discoveryServices(pubKey, privKey string) []nostr.Event {
 	// Exemplo de evento de recomendação de aplicativo
 	j, _ := json.Marshal(RecommendAppData{
-		Name:                "Popular from npubs you follow",
+		Name:                "Recent notes from npubs you follow",
 		Image:               "https://i.nostr.build/ZJqko0W9ApEVZAPt.png",
 		Picture:             "https://i.nostr.build/ZJqko0W9ApEVZAPt.png",
-		About:               "I show notes that are currently popular from people you follow",
+		About:               "I return recent public notes from people followed by the requested pubkey, when those events are available on this relay",
 		LUD16:               "discovery_content_followers@nostrdvm.com",
-		EncryptionSupported: true,
-		CashuAccepted:       true,
+		EncryptionSupported: false,
+		CashuAccepted:       false,
 		Personalized:        true,
 		Amount:              "free",
 		NIP90Params: NIP90Params{
 			MaxResults: MaxResults{
 				Required:    false,
 				Values:      []string{},
-				Description: "The number of maximum results to return (default currently 100)",
+				Description: "The number of results to return (default 20, maximum 100)",
 			},
 		},
 	})

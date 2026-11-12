@@ -351,6 +351,20 @@ type ComplexityRoot struct {
 		Status      func(childComplexity int) int
 	}
 
+	AdminJobEvent struct {
+		Attempts        func(childComplexity int) int
+		Error           func(childComplexity int) int
+		ID              func(childComplexity int) int
+		MaxAttempts     func(childComplexity int) int
+		Name            func(childComplexity int) int
+		ProgressCurrent func(childComplexity int) int
+		ProgressTotal   func(childComplexity int) int
+		Queue           func(childComplexity int) int
+		Stage           func(childComplexity int) int
+		Status          func(childComplexity int) int
+		UpdatedAt       func(childComplexity int) int
+	}
+
 	AdminJobPage struct {
 		Items    func(childComplexity int) int
 		PageInfo func(childComplexity int) int
@@ -476,6 +490,14 @@ type ComplexityRoot struct {
 		Ingestion         func(childComplexity int) int
 		LoggedUsers       func(childComplexity int) int
 		RelayStatus       func(childComplexity int) int
+	}
+
+	AdminPresenceEvent struct {
+		Action            func(childComplexity int) int
+		ActiveConnections func(childComplexity int) int
+		AuthedConnections func(childComplexity int) int
+		ChangedAt         func(childComplexity int) int
+		Wsid              func(childComplexity int) int
 	}
 
 	AdminProfile struct {
@@ -708,8 +730,13 @@ type ComplexityRoot struct {
 	}
 
 	Subscription struct {
+		AdminOverviewChanged func(childComplexity int) int
 		BlossomObjectChanged func(childComplexity int) int
 		BlossomPlanChanged   func(childComplexity int) int
+		ConnectionChanged    func(childComplexity int) int
+		DownloadProgress     func(childComplexity int, jobID *string) int
+		JobChanged           func(childComplexity int, queue *string, jobID *string) int
+		SyncProgress         func(childComplexity int, jobID *string) int
 	}
 
 	TagCount struct {
@@ -806,6 +833,11 @@ type QueryResolver interface {
 	WotSummary(ctx context.Context) (*model.AdminWoTSummary, error)
 }
 type SubscriptionResolver interface {
+	AdminOverviewChanged(ctx context.Context) (<-chan *model.AdminPresenceEvent, error)
+	ConnectionChanged(ctx context.Context) (<-chan *model.AdminPresenceEvent, error)
+	JobChanged(ctx context.Context, queue *string, jobID *string) (<-chan *model.AdminJobEvent, error)
+	SyncProgress(ctx context.Context, jobID *string) (<-chan *model.AdminJobEvent, error)
+	DownloadProgress(ctx context.Context, jobID *string) (<-chan *model.AdminJobEvent, error)
 	BlossomPlanChanged(ctx context.Context) (<-chan *model.AdminBlossomPlan, error)
 	BlossomObjectChanged(ctx context.Context) (<-chan *model.AdminBlossomObject, error)
 }
@@ -2090,6 +2122,73 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.AdminJob.Status(childComplexity), true
 
+	case "AdminJobEvent.attempts":
+		if e.ComplexityRoot.AdminJobEvent.Attempts == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminJobEvent.Attempts(childComplexity), true
+	case "AdminJobEvent.error":
+		if e.ComplexityRoot.AdminJobEvent.Error == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminJobEvent.Error(childComplexity), true
+	case "AdminJobEvent.id":
+		if e.ComplexityRoot.AdminJobEvent.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminJobEvent.ID(childComplexity), true
+	case "AdminJobEvent.maxAttempts":
+		if e.ComplexityRoot.AdminJobEvent.MaxAttempts == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminJobEvent.MaxAttempts(childComplexity), true
+	case "AdminJobEvent.name":
+		if e.ComplexityRoot.AdminJobEvent.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminJobEvent.Name(childComplexity), true
+	case "AdminJobEvent.progressCurrent":
+		if e.ComplexityRoot.AdminJobEvent.ProgressCurrent == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminJobEvent.ProgressCurrent(childComplexity), true
+	case "AdminJobEvent.progressTotal":
+		if e.ComplexityRoot.AdminJobEvent.ProgressTotal == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminJobEvent.ProgressTotal(childComplexity), true
+	case "AdminJobEvent.queue":
+		if e.ComplexityRoot.AdminJobEvent.Queue == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminJobEvent.Queue(childComplexity), true
+	case "AdminJobEvent.stage":
+		if e.ComplexityRoot.AdminJobEvent.Stage == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminJobEvent.Stage(childComplexity), true
+	case "AdminJobEvent.status":
+		if e.ComplexityRoot.AdminJobEvent.Status == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminJobEvent.Status(childComplexity), true
+	case "AdminJobEvent.updatedAt":
+		if e.ComplexityRoot.AdminJobEvent.UpdatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminJobEvent.UpdatedAt(childComplexity), true
+
 	case "AdminJobPage.items":
 		if e.ComplexityRoot.AdminJobPage.Items == nil {
 			break
@@ -2545,6 +2644,37 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.AdminOverview.RelayStatus(childComplexity), true
+
+	case "AdminPresenceEvent.action":
+		if e.ComplexityRoot.AdminPresenceEvent.Action == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminPresenceEvent.Action(childComplexity), true
+	case "AdminPresenceEvent.activeConnections":
+		if e.ComplexityRoot.AdminPresenceEvent.ActiveConnections == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminPresenceEvent.ActiveConnections(childComplexity), true
+	case "AdminPresenceEvent.authedConnections":
+		if e.ComplexityRoot.AdminPresenceEvent.AuthedConnections == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminPresenceEvent.AuthedConnections(childComplexity), true
+	case "AdminPresenceEvent.changedAt":
+		if e.ComplexityRoot.AdminPresenceEvent.ChangedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminPresenceEvent.ChangedAt(childComplexity), true
+	case "AdminPresenceEvent.wsid":
+		if e.ComplexityRoot.AdminPresenceEvent.Wsid == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminPresenceEvent.Wsid(childComplexity), true
 
 	case "AdminProfile.about":
 		if e.ComplexityRoot.AdminProfile.About == nil {
@@ -3909,6 +4039,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.Query.WotSummary(childComplexity), true
 
+	case "Subscription.adminOverviewChanged":
+		if e.ComplexityRoot.Subscription.AdminOverviewChanged == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Subscription.AdminOverviewChanged(childComplexity), true
 	case "Subscription.blossomObjectChanged":
 		if e.ComplexityRoot.Subscription.BlossomObjectChanged == nil {
 			break
@@ -3921,6 +4057,45 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Subscription.BlossomPlanChanged(childComplexity), true
+	case "Subscription.connectionChanged":
+		if e.ComplexityRoot.Subscription.ConnectionChanged == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Subscription.ConnectionChanged(childComplexity), true
+	case "Subscription.downloadProgress":
+		if e.ComplexityRoot.Subscription.DownloadProgress == nil {
+			break
+		}
+
+		args, err := ec.field_Subscription_downloadProgress_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Subscription.DownloadProgress(childComplexity, args["jobId"].(*string)), true
+	case "Subscription.jobChanged":
+		if e.ComplexityRoot.Subscription.JobChanged == nil {
+			break
+		}
+
+		args, err := ec.field_Subscription_jobChanged_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Subscription.JobChanged(childComplexity, args["queue"].(*string), args["jobId"].(*string)), true
+	case "Subscription.syncProgress":
+		if e.ComplexityRoot.Subscription.SyncProgress == nil {
+			break
+		}
+
+		args, err := ec.field_Subscription_syncProgress_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Subscription.SyncProgress(childComplexity, args["jobId"].(*string)), true
 
 	case "TagCount.count":
 		if e.ComplexityRoot.TagCount.Count == nil {
@@ -4721,6 +4896,34 @@ func (ec *executionContext) childFields_AdminJob(ctx context.Context, field grap
 	return nil, fmt.Errorf("no field named %q was found under type AdminJob", field.Name)
 }
 
+func (ec *executionContext) childFields_AdminJobEvent(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_AdminJobEvent_id(ctx, field)
+	case "queue":
+		return ec.fieldContext_AdminJobEvent_queue(ctx, field)
+	case "name":
+		return ec.fieldContext_AdminJobEvent_name(ctx, field)
+	case "status":
+		return ec.fieldContext_AdminJobEvent_status(ctx, field)
+	case "attempts":
+		return ec.fieldContext_AdminJobEvent_attempts(ctx, field)
+	case "maxAttempts":
+		return ec.fieldContext_AdminJobEvent_maxAttempts(ctx, field)
+	case "progressCurrent":
+		return ec.fieldContext_AdminJobEvent_progressCurrent(ctx, field)
+	case "progressTotal":
+		return ec.fieldContext_AdminJobEvent_progressTotal(ctx, field)
+	case "stage":
+		return ec.fieldContext_AdminJobEvent_stage(ctx, field)
+	case "error":
+		return ec.fieldContext_AdminJobEvent_error(ctx, field)
+	case "updatedAt":
+		return ec.fieldContext_AdminJobEvent_updatedAt(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type AdminJobEvent", field.Name)
+}
+
 func (ec *executionContext) childFields_AdminJobPage(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "pageInfo":
@@ -4973,6 +5176,22 @@ func (ec *executionContext) childFields_AdminOverview(ctx context.Context, field
 		return ec.fieldContext_AdminOverview_ingestion(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type AdminOverview", field.Name)
+}
+
+func (ec *executionContext) childFields_AdminPresenceEvent(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "action":
+		return ec.fieldContext_AdminPresenceEvent_action(ctx, field)
+	case "wsid":
+		return ec.fieldContext_AdminPresenceEvent_wsid(ctx, field)
+	case "activeConnections":
+		return ec.fieldContext_AdminPresenceEvent_activeConnections(ctx, field)
+	case "authedConnections":
+		return ec.fieldContext_AdminPresenceEvent_authedConnections(ctx, field)
+	case "changedAt":
+		return ec.fieldContext_AdminPresenceEvent_changedAt(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type AdminPresenceEvent", field.Name)
 }
 
 func (ec *executionContext) childFields_AdminProfile(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -6650,6 +6869,56 @@ func (ec *executionContext) field_Query_userProfile_args(ctx context.Context, ra
 		return nil, err
 	}
 	args["pubkey"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Subscription_downloadProgress_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "jobId",
+		func(ctx context.Context, v any) (*string, error) {
+			return ec.unmarshalOID2ᚖstring(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["jobId"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Subscription_jobChanged_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "queue",
+		func(ctx context.Context, v any) (*string, error) {
+			return ec.unmarshalOString2ᚖstring(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["queue"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "jobId",
+		func(ctx context.Context, v any) (*string, error) {
+			return ec.unmarshalOID2ᚖstring(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["jobId"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Subscription_syncProgress_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "jobId",
+		func(ctx context.Context, v any) (*string, error) {
+			return ec.unmarshalOID2ᚖstring(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["jobId"] = arg0
 	return args, nil
 }
 
@@ -11711,6 +11980,259 @@ func (ec *executionContext) fieldContext_AdminJob_result(_ context.Context, fiel
 	return graphql.NewScalarFieldContext("AdminJob", field, false, false, errors.New("field of type JSON does not have child fields"))
 }
 
+func (ec *executionContext) _AdminJobEvent_id(ctx context.Context, field graphql.CollectedField, obj *model.AdminJobEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminJobEvent_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNID2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminJobEvent_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminJobEvent", field, false, false, errors.New("field of type ID does not have child fields"))
+}
+
+func (ec *executionContext) _AdminJobEvent_queue(ctx context.Context, field graphql.CollectedField, obj *model.AdminJobEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminJobEvent_queue(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Queue, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminJobEvent_queue(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminJobEvent", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _AdminJobEvent_name(ctx context.Context, field graphql.CollectedField, obj *model.AdminJobEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminJobEvent_name(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminJobEvent_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminJobEvent", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _AdminJobEvent_status(ctx context.Context, field graphql.CollectedField, obj *model.AdminJobEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminJobEvent_status(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Status, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminJobEvent_status(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminJobEvent", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _AdminJobEvent_attempts(ctx context.Context, field graphql.CollectedField, obj *model.AdminJobEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminJobEvent_attempts(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Attempts, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminJobEvent_attempts(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminJobEvent", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _AdminJobEvent_maxAttempts(ctx context.Context, field graphql.CollectedField, obj *model.AdminJobEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminJobEvent_maxAttempts(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.MaxAttempts, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminJobEvent_maxAttempts(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminJobEvent", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _AdminJobEvent_progressCurrent(ctx context.Context, field graphql.CollectedField, obj *model.AdminJobEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminJobEvent_progressCurrent(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ProgressCurrent, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt642int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminJobEvent_progressCurrent(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminJobEvent", field, false, false, errors.New("field of type Int64 does not have child fields"))
+}
+
+func (ec *executionContext) _AdminJobEvent_progressTotal(ctx context.Context, field graphql.CollectedField, obj *model.AdminJobEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminJobEvent_progressTotal(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ProgressTotal, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt642int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminJobEvent_progressTotal(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminJobEvent", field, false, false, errors.New("field of type Int64 does not have child fields"))
+}
+
+func (ec *executionContext) _AdminJobEvent_stage(ctx context.Context, field graphql.CollectedField, obj *model.AdminJobEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminJobEvent_stage(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Stage, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_AdminJobEvent_stage(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminJobEvent", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _AdminJobEvent_error(ctx context.Context, field graphql.CollectedField, obj *model.AdminJobEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminJobEvent_error(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Error, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_AdminJobEvent_error(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminJobEvent", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _AdminJobEvent_updatedAt(ctx context.Context, field graphql.CollectedField, obj *model.AdminJobEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminJobEvent_updatedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.UpdatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminJobEvent_updatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminJobEvent", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
 func (ec *executionContext) _AdminJobPage_pageInfo(ctx context.Context, field graphql.CollectedField, obj *model.AdminJobPage) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -13586,6 +14108,121 @@ func (ec *executionContext) fieldContext_AdminOverview_ingestion(_ context.Conte
 		},
 	}
 	return fc, nil
+}
+
+func (ec *executionContext) _AdminPresenceEvent_action(ctx context.Context, field graphql.CollectedField, obj *model.AdminPresenceEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminPresenceEvent_action(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Action, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminPresenceEvent_action(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminPresenceEvent", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _AdminPresenceEvent_wsid(ctx context.Context, field graphql.CollectedField, obj *model.AdminPresenceEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminPresenceEvent_wsid(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Wsid, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_AdminPresenceEvent_wsid(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminPresenceEvent", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _AdminPresenceEvent_activeConnections(ctx context.Context, field graphql.CollectedField, obj *model.AdminPresenceEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminPresenceEvent_activeConnections(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ActiveConnections, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminPresenceEvent_activeConnections(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminPresenceEvent", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _AdminPresenceEvent_authedConnections(ctx context.Context, field graphql.CollectedField, obj *model.AdminPresenceEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminPresenceEvent_authedConnections(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.AuthedConnections, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminPresenceEvent_authedConnections(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminPresenceEvent", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _AdminPresenceEvent_changedAt(ctx context.Context, field graphql.CollectedField, obj *model.AdminPresenceEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminPresenceEvent_changedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ChangedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminPresenceEvent_changedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminPresenceEvent", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
 func (ec *executionContext) _AdminProfile_pubkey(ctx context.Context, field graphql.CollectedField, obj *model.AdminProfile) (ret graphql.Marshaler) {
@@ -19120,6 +19757,202 @@ func (ec *executionContext) fieldContext_Query___schema(_ context.Context, field
 	return fc, nil
 }
 
+func (ec *executionContext) _Subscription_adminOverviewChanged(ctx context.Context, field graphql.CollectedField) (ret func(ctx context.Context) graphql.Marshaler) {
+	return graphql.ResolveFieldStream(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Subscription_adminOverviewChanged(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Subscription().AdminOverviewChanged(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.AdminPresenceEvent) graphql.Marshaler {
+			return ec.marshalNAdminPresenceEvent2ᚖgithubᚗcomᚋgabrielmouraᚋnostrᚑrelayᚑserverᚋgraphᚋmodelᚐAdminPresenceEvent(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Subscription_adminOverviewChanged(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Subscription",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_AdminPresenceEvent(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Subscription_connectionChanged(ctx context.Context, field graphql.CollectedField) (ret func(ctx context.Context) graphql.Marshaler) {
+	return graphql.ResolveFieldStream(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Subscription_connectionChanged(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Subscription().ConnectionChanged(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.AdminPresenceEvent) graphql.Marshaler {
+			return ec.marshalNAdminPresenceEvent2ᚖgithubᚗcomᚋgabrielmouraᚋnostrᚑrelayᚑserverᚋgraphᚋmodelᚐAdminPresenceEvent(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Subscription_connectionChanged(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Subscription",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_AdminPresenceEvent(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Subscription_jobChanged(ctx context.Context, field graphql.CollectedField) (ret func(ctx context.Context) graphql.Marshaler) {
+	return graphql.ResolveFieldStream(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Subscription_jobChanged(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Subscription().JobChanged(ctx, fc.Args["queue"].(*string), fc.Args["jobId"].(*string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.AdminJobEvent) graphql.Marshaler {
+			return ec.marshalNAdminJobEvent2ᚖgithubᚗcomᚋgabrielmouraᚋnostrᚑrelayᚑserverᚋgraphᚋmodelᚐAdminJobEvent(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Subscription_jobChanged(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Subscription",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_AdminJobEvent(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Subscription_jobChanged_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Subscription_syncProgress(ctx context.Context, field graphql.CollectedField) (ret func(ctx context.Context) graphql.Marshaler) {
+	return graphql.ResolveFieldStream(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Subscription_syncProgress(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Subscription().SyncProgress(ctx, fc.Args["jobId"].(*string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.AdminJobEvent) graphql.Marshaler {
+			return ec.marshalNAdminJobEvent2ᚖgithubᚗcomᚋgabrielmouraᚋnostrᚑrelayᚑserverᚋgraphᚋmodelᚐAdminJobEvent(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Subscription_syncProgress(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Subscription",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_AdminJobEvent(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Subscription_syncProgress_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Subscription_downloadProgress(ctx context.Context, field graphql.CollectedField) (ret func(ctx context.Context) graphql.Marshaler) {
+	return graphql.ResolveFieldStream(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Subscription_downloadProgress(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Subscription().DownloadProgress(ctx, fc.Args["jobId"].(*string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.AdminJobEvent) graphql.Marshaler {
+			return ec.marshalNAdminJobEvent2ᚖgithubᚗcomᚋgabrielmouraᚋnostrᚑrelayᚑserverᚋgraphᚋmodelᚐAdminJobEvent(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Subscription_downloadProgress(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Subscription",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_AdminJobEvent(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Subscription_downloadProgress_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Subscription_blossomPlanChanged(ctx context.Context, field graphql.CollectedField) (ret func(ctx context.Context) graphql.Marshaler) {
 	return graphql.ResolveFieldStream(
 		ctx,
@@ -23585,6 +24418,89 @@ func (ec *executionContext) _AdminJob(ctx context.Context, sel ast.SelectionSet,
 	return out
 }
 
+var adminJobEventImplementors = []string{"AdminJobEvent"}
+
+func (ec *executionContext) _AdminJobEvent(ctx context.Context, sel ast.SelectionSet, obj *model.AdminJobEvent) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, adminJobEventImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("AdminJobEvent")
+		case "id":
+			out.Values[i] = ec._AdminJobEvent_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "queue":
+			out.Values[i] = ec._AdminJobEvent_queue(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "name":
+			out.Values[i] = ec._AdminJobEvent_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "status":
+			out.Values[i] = ec._AdminJobEvent_status(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "attempts":
+			out.Values[i] = ec._AdminJobEvent_attempts(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "maxAttempts":
+			out.Values[i] = ec._AdminJobEvent_maxAttempts(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "progressCurrent":
+			out.Values[i] = ec._AdminJobEvent_progressCurrent(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "progressTotal":
+			out.Values[i] = ec._AdminJobEvent_progressTotal(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "stage":
+			out.Values[i] = ec._AdminJobEvent_stage(ctx, field, obj)
+		case "error":
+			out.Values[i] = ec._AdminJobEvent_error(ctx, field, obj)
+		case "updatedAt":
+			out.Values[i] = ec._AdminJobEvent_updatedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferred), math.MaxInt32)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
 var adminJobPageImplementors = []string{"AdminJobPage"}
 
 func (ec *executionContext) _AdminJobPage(ctx context.Context, sel ast.SelectionSet, obj *model.AdminJobPage) graphql.Marshaler {
@@ -24473,6 +25389,62 @@ func (ec *executionContext) _AdminOverview(ctx context.Context, sel ast.Selectio
 			}
 		case "ingestion":
 			out.Values[i] = ec._AdminOverview_ingestion(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferred), math.MaxInt32)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var adminPresenceEventImplementors = []string{"AdminPresenceEvent"}
+
+func (ec *executionContext) _AdminPresenceEvent(ctx context.Context, sel ast.SelectionSet, obj *model.AdminPresenceEvent) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, adminPresenceEventImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("AdminPresenceEvent")
+		case "action":
+			out.Values[i] = ec._AdminPresenceEvent_action(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "wsid":
+			out.Values[i] = ec._AdminPresenceEvent_wsid(ctx, field, obj)
+		case "activeConnections":
+			out.Values[i] = ec._AdminPresenceEvent_activeConnections(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "authedConnections":
+			out.Values[i] = ec._AdminPresenceEvent_authedConnections(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "changedAt":
+			out.Values[i] = ec._AdminPresenceEvent_changedAt(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -26824,6 +27796,16 @@ func (ec *executionContext) _Subscription(ctx context.Context, sel ast.Selection
 	}
 
 	switch fields[0].Name {
+	case "adminOverviewChanged":
+		return ec._Subscription_adminOverviewChanged(ctx, fields[0])
+	case "connectionChanged":
+		return ec._Subscription_connectionChanged(ctx, fields[0])
+	case "jobChanged":
+		return ec._Subscription_jobChanged(ctx, fields[0])
+	case "syncProgress":
+		return ec._Subscription_syncProgress(ctx, fields[0])
+	case "downloadProgress":
+		return ec._Subscription_downloadProgress(ctx, fields[0])
 	case "blossomPlanChanged":
 		return ec._Subscription_blossomPlanChanged(ctx, fields[0])
 	case "blossomObjectChanged":
@@ -27979,6 +28961,20 @@ func (ec *executionContext) marshalNAdminJob2ᚖgithubᚗcomᚋgabrielmouraᚋno
 	return ec._AdminJob(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalNAdminJobEvent2githubᚗcomᚋgabrielmouraᚋnostrᚑrelayᚑserverᚋgraphᚋmodelᚐAdminJobEvent(ctx context.Context, sel ast.SelectionSet, v model.AdminJobEvent) graphql.Marshaler {
+	return ec._AdminJobEvent(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNAdminJobEvent2ᚖgithubᚗcomᚋgabrielmouraᚋnostrᚑrelayᚑserverᚋgraphᚋmodelᚐAdminJobEvent(ctx context.Context, sel ast.SelectionSet, v *model.AdminJobEvent) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._AdminJobEvent(ctx, sel, v)
+}
+
 func (ec *executionContext) marshalNAdminJobPage2githubᚗcomᚋgabrielmouraᚋnostrᚑrelayᚑserverᚋgraphᚋmodelᚐAdminJobPage(ctx context.Context, sel ast.SelectionSet, v model.AdminJobPage) graphql.Marshaler {
 	return ec._AdminJobPage(ctx, sel, &v)
 }
@@ -28321,6 +29317,20 @@ func (ec *executionContext) marshalNAdminOverview2ᚖgithubᚗcomᚋgabrielmoura
 		return graphql.Null
 	}
 	return ec._AdminOverview(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNAdminPresenceEvent2githubᚗcomᚋgabrielmouraᚋnostrᚑrelayᚑserverᚋgraphᚋmodelᚐAdminPresenceEvent(ctx context.Context, sel ast.SelectionSet, v model.AdminPresenceEvent) graphql.Marshaler {
+	return ec._AdminPresenceEvent(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNAdminPresenceEvent2ᚖgithubᚗcomᚋgabrielmouraᚋnostrᚑrelayᚑserverᚋgraphᚋmodelᚐAdminPresenceEvent(ctx context.Context, sel ast.SelectionSet, v *model.AdminPresenceEvent) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._AdminPresenceEvent(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNAdminProfile2githubᚗcomᚋgabrielmouraᚋnostrᚑrelayᚑserverᚋgraphᚋmodelᚐAdminProfile(ctx context.Context, sel ast.SelectionSet, v model.AdminProfile) graphql.Marshaler {

@@ -1,5 +1,11 @@
 # Plano de implementação — API REST pública de leitura
 
+O transporte NIP-FE limita o número de filtros pelo valor
+`security.limits.max_filters_per_req` (fallback: 16) e o tamanho da resposta
+`REQ` por `api.nip_fe.max_response_bytes` (padrão: 8 MiB). Se a resposta
+ultrapassar o limite, o relay retorna HTTP 413 com um frame `CLOSED` em vez de
+retornar uma resposta parcial como completa.
+
 **Status:** proposta, aguardando aprovação antes de qualquer alteração de código.
 
 **Referência do contrato:** [nostrfy REST API](https://nostrfy.org/docs/rest-api/).

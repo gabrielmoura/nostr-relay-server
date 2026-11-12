@@ -23,6 +23,11 @@ func SetStore(store blobstore.Store) {
 	blobStore = store
 }
 
+// CurrentStore returns the configured blob backend or an error if not initialized.
+func CurrentStore() (blobstore.Store, error) {
+	return currentStore()
+}
+
 func currentStore() (blobstore.Store, error) {
 	blobStoreMu.RLock()
 	defer blobStoreMu.RUnlock()

@@ -10,6 +10,7 @@ import (
 
 	"github.com/gabrielmoura/nostr-relay-server/infra/metrics"
 	iredis "github.com/gabrielmoura/nostr-relay-server/infra/redis"
+	"github.com/gabrielmoura/nostr-relay-server/internal/events"
 	"github.com/gabrielmoura/nostr-relay-server/internal/jobs"
 	json "github.com/gabrielmoura/nostr-relay-server/internal/jsonx"
 	goredis "github.com/redis/go-redis/v9"
@@ -113,6 +114,14 @@ func (t *Tracker) Retry(ctx context.Context, queue string, id jobs.JobID) error 
 		metrics.NostrQueueRedisErrorsTotal.WithLabelValues(queue, "retry_manual").Inc()
 		return fmt.Errorf("retry job %s: %w", id.String(), err)
 	}
+	jobs.PublishEvent(events.JobEvent{
+		ID:          id.String(),
+		Queue:       queue,
+		Name:        snapshot.Name,
+		Status:      jobs.StatusQueued.String(),
+		MaxAttempts: int(snapshot.MaxAttempts),
+		UpdatedAt:   now,
+	})
 
 	return nil
 }
@@ -131,6 +140,12 @@ func (t *Tracker) Cancel(ctx context.Context, queue string, id jobs.JobID) error
 		metrics.NostrQueueLuaErrorsTotal.WithLabelValues(queue, "cancel").Inc()
 		return fmt.Errorf("cancel job %s: %w", id.String(), err)
 	}
+	jobs.PublishEvent(events.JobEvent{
+		ID:        id.String(),
+		Queue:     queue,
+		Status:    jobs.StatusCanceled.String(),
+		UpdatedAt: now,
+	})
 
 	return nil
 }
@@ -154,6 +169,14 @@ func (t *Tracker) Resume(ctx context.Context, queue string, id jobs.JobID) error
 		if err != nil {
 			return fmt.Errorf("resume queued job %s: %w", id.String(), err)
 		}
+		jobs.PublishEvent(events.JobEvent{
+			ID:          id.String(),
+			Queue:       queue,
+			Name:        snapshot.Name,
+			Status:      jobs.StatusQueued.String(),
+			MaxAttempts: int(snapshot.MaxAttempts),
+			UpdatedAt:   now,
+		})
 		return nil
 	}
 	return t.enqueueExisting(ctx, queue, id, snapshot.Priority)
@@ -210,6 +233,12 @@ func (t *Tracker) enqueueExisting(ctx context.Context, queue string, id jobs.Job
 		metrics.NostrQueueRedisErrorsTotal.WithLabelValues(queue, "reenqueue_manual").Inc()
 		return fmt.Errorf("reenqueue job %s: %w", id.String(), err)
 	}
+	jobs.PublishEvent(events.JobEvent{
+		ID:        id.String(),
+		Queue:     queue,
+		Status:    jobs.StatusQueued.String(),
+		UpdatedAt: now,
+	})
 	return nil
 }
 

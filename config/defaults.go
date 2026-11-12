@@ -83,6 +83,8 @@ func setDefaults(export bool) {
 	viper.SetDefault("api.nip98.allowed_pubkeys", []string{})
 	viper.SetDefault("api.nip_fe.enabled", false)
 	viper.SetDefault("api.nip_fe.max_body_bytes", 131072)
+	viper.SetDefault("api.nip_fe.max_response_bytes", 8388608)
+	viper.SetDefault("api.nip_fe.max_response_events", 2000)
 	viper.SetDefault("api.nip_fe.timeout_seconds", 15)
 	viper.SetDefault("api.nip_fe.max_concurrent", 20)
 	viper.SetDefault("api.rate_limit.enabled", true)

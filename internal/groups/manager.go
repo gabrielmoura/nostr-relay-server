@@ -9,6 +9,7 @@ import (
 
 	"github.com/gabrielmoura/nostr-relay-server/config"
 	dbstore "github.com/gabrielmoura/nostr-relay-server/infra/db"
+	"github.com/gabrielmoura/nostr-relay-server/infra/handler/listener"
 	"github.com/gabrielmoura/nostr-relay-server/infra/log"
 	"github.com/gabrielmoura/nostr-relay-server/infra/metrics"
 	"github.com/nbd-wtf/go-nostr"
@@ -36,6 +37,7 @@ var M *Manager
 func Init(queries *dbstore.Queries) error {
 	if config.Cfg == nil || !config.Cfg.NIP29.Enabled {
 		M = &Manager{enabled: false}
+		listener.SetLiveEventAuthorizer(CanReadEvent)
 		return nil
 	}
 
@@ -74,6 +76,7 @@ func Init(queries *dbstore.Queries) error {
 	}
 
 	M = mgr
+	listener.SetLiveEventAuthorizer(CanReadEvent)
 	return nil
 }
 
@@ -121,22 +124,79 @@ func QueryEvents(ctx context.Context, authed string, filter nostr.Filter, upstre
 	}
 
 	start := time.Now()
-	defer func() {
-		metrics.NostrNIP29ProcessingSeconds.WithLabelValues("query_events").Observe(time.Since(start).Seconds())
-	}()
 
 	if reject, reason := M.validateFilter(ctx, authed, filter); reject {
+		metrics.NostrNIP29ProcessingSeconds.WithLabelValues("query_events").Observe(time.Since(start).Seconds())
 		return nil, true, errors.New(reason)
 	}
 
 	results, err := upstream(ctx, filter)
 	if err != nil {
+		metrics.NostrNIP29ProcessingSeconds.WithLabelValues("query_events").Observe(time.Since(start).Seconds())
 		return nil, true, err
 	}
 
 	out := make(chan *nostr.Event)
-	go M.forwardAllowedEvents(ctx, authed, results, out)
+	manager := M
+	go func() {
+		defer func() {
+			metrics.NostrNIP29ProcessingSeconds.WithLabelValues("query_events").Observe(time.Since(start).Seconds())
+		}()
+		manager.forwardAllowedEvents(ctx, authed, results, out)
+	}()
 	return out, true, nil
+}
+
+// FilterEvents applies group visibility to a finite result set and returns
+// authorization errors instead of silently dropping events from the result.
+func FilterEvents(ctx context.Context, authed string, filter nostr.Filter, events []*nostr.Event) ([]*nostr.Event, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if !Enabled() {
+		return events, nil
+	}
+	if reject, reason := M.validateFilter(ctx, authed, filter); reject {
+		return nil, errors.New(reason)
+	}
+	reader := newReadAuthorizer(M, authed)
+	return filterFiniteEvents(ctx, events, reader.canReadEvent)
+}
+
+// CanReadEvent reports whether a principal can receive a single event through
+// a live subscription. Unlike FilterEvents, live delivery has no single REQ
+// filter to validate; it must still enforce private and hidden group visibility
+// for every connection before the event is queued.
+//
+// Errors are returned to the caller so delivery boundaries can fail closed.
+func CanReadEvent(ctx context.Context, authed string, event *nostr.Event) (bool, error) {
+	if err := ctx.Err(); err != nil {
+		return false, err
+	}
+	if !Enabled() {
+		return true, nil
+	}
+	return newReadAuthorizer(M, authed).canReadEvent(ctx, event)
+}
+
+func filterFiniteEvents(ctx context.Context, events []*nostr.Event, allowed func(context.Context, *nostr.Event) (bool, error)) ([]*nostr.Event, error) {
+	visible := make([]*nostr.Event, 0, len(events))
+	for _, event := range events {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		if event == nil {
+			continue
+		}
+		ok, err := allowed(ctx, event)
+		if err != nil {
+			return nil, err
+		}
+		if ok {
+			visible = append(visible, event)
+		}
+	}
+	return visible, ctx.Err()
 }
 
 func CountEvents(ctx context.Context, authed string, filter nostr.Filter, upstream EventQueryFunc) (int64, bool, error) {

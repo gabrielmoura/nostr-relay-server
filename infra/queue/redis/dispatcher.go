@@ -10,6 +10,7 @@ import (
 
 	"github.com/gabrielmoura/nostr-relay-server/infra/metrics"
 	iredis "github.com/gabrielmoura/nostr-relay-server/infra/redis"
+	"github.com/gabrielmoura/nostr-relay-server/internal/events"
 	"github.com/gabrielmoura/nostr-relay-server/internal/jobs"
 )
 
@@ -120,6 +121,14 @@ func (d *Dispatcher) dispatch(ctx context.Context, job jobs.Job, runAt time.Time
 	}
 	id := jobs.JobID(idValue)
 	metrics.NostrQueueJobsEnqueuedTotal.WithLabelValues(resolved.Queue, job.Name(), string(resolved.Priority)).Inc()
+	jobs.PublishEvent(events.JobEvent{
+		ID:          id.String(),
+		Queue:       resolved.Queue,
+		Name:        job.Name(),
+		Status:      jobs.StatusQueued.String(),
+		MaxAttempts: int(resolved.MaxAttempts),
+		UpdatedAt:   now,
+	})
 
 	return id, nil
 }

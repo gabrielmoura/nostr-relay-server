@@ -179,13 +179,23 @@ func (m *Manager) applyDeleteGroup(ctx context.Context, evt *nostr.Event) error 
 	if err := m.queries.UpsertNIP29Group(ctx, *group); err != nil {
 		return err
 	}
-	if err := m.queries.ReplaceNIP29GroupRoles(ctx, m.relayScope, group.GroupID, m.defaultGroupRoleIDs()); err != nil {
-		return err
-	}
-	if err := m.emitStateEvents(ctx, group.GroupID); err != nil {
+	if err := finalizeDeletedGroupState(ctx, group.GroupID, m.invalidateGroupCaches,
+		func(ctx context.Context, groupID string) error {
+			return m.queries.ReplaceNIP29GroupRoles(ctx, m.relayScope, groupID, m.defaultGroupRoleIDs())
+		}, m.emitStateEvents); err != nil {
 		return err
 	}
 	return m.refreshActiveGroupsMetric(ctx)
+}
+
+func finalizeDeletedGroupState(ctx context.Context, groupID string, invalidate func(string), replaceRoles, emitState func(context.Context, string) error) error {
+	// State-event delivery authorizes against this cache, so clear the former
+	// public projection before any operation that can emit a deleted-group event.
+	invalidate(groupID)
+	if err := replaceRoles(ctx, groupID); err != nil {
+		return err
+	}
+	return emitState(ctx, groupID)
 }
 
 func (m *Manager) updateMembershipTimestamps(ctx context.Context, groupID string, evt *nostr.Event) error {

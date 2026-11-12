@@ -32,6 +32,7 @@ import (
 	"github.com/gabrielmoura/nostr-relay-server/internal/cordn"
 	"github.com/gabrielmoura/nostr-relay-server/internal/db"
 	"github.com/gabrielmoura/nostr-relay-server/internal/down"
+	"github.com/gabrielmoura/nostr-relay-server/internal/events"
 	"github.com/gabrielmoura/nostr-relay-server/internal/groups"
 	jobcore "github.com/gabrielmoura/nostr-relay-server/internal/jobs"
 	"github.com/gabrielmoura/nostr-relay-server/internal/nip86"
@@ -198,6 +199,7 @@ func runServer(cmd *cobra.Command, args []string) {
 		if err := pubsub.Init(); err != nil {
 			log.Logger.Warn("PubSub initialization failed, continuing without pub/sub", zap.Error(err))
 		}
+		redis.StartEventBridge(mainCtx, events.Default())
 		listener.Init()
 
 		// Iniciar Conexão com o banco de dados

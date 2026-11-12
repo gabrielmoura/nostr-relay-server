@@ -9,6 +9,7 @@ import (
 	dbmodel "github.com/gabrielmoura/nostr-relay-server/infra/db"
 	"github.com/gabrielmoura/nostr-relay-server/infra/log"
 	"github.com/gabrielmoura/nostr-relay-server/infra/metrics"
+	jobcore "github.com/gabrielmoura/nostr-relay-server/internal/jobs"
 	"github.com/nbd-wtf/go-nostr"
 	"go.uber.org/zap"
 )
@@ -80,6 +81,7 @@ func fetchAndStoreEvents(
 		cancel()
 		stats.Pages++
 		metrics.NostrDownloadPageLatencySeconds.WithLabelValues(metrics.ExternalRelayLabel).Observe(time.Since(pageStart).Seconds())
+		jobcore.ReportProgress(ctx, int64(stats.Received), 0, "download")
 
 		if pageCount < pageSize {
 			break

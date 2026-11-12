@@ -9,6 +9,15 @@ import (
 )
 
 func BuildQuery(filter nostr.Filter, cfg *config.RelayConfig, doCount bool) (string, []any, error) {
+	return buildQuery(filter, cfg, doCount, false, false)
+}
+
+// BuildChronologicalQuery orders search and non-search results by time and ID.
+func BuildChronologicalQuery(filter nostr.Filter, cfg *config.RelayConfig, ascending bool) (string, []any, error) {
+	return buildQuery(filter, cfg, false, true, ascending)
+}
+
+func buildQuery(filter nostr.Filter, cfg *config.RelayConfig, doCount, chronological, ascending bool) (string, []any, error) {
 	search := ParseSearchQuery(filter.Search)
 	whereClause, params, searchPlaceholder := buildWhereClause(filter, cfg, search)
 
@@ -21,7 +30,13 @@ func BuildQuery(filter nostr.Filter, cfg *config.RelayConfig, doCount bool) (str
 	builder.WriteString(whereClause)
 
 	if !doCount {
-		if searchPlaceholder != "" {
+		if chronological {
+			if ascending {
+				builder.WriteString(" ORDER BY created_at ASC, id ASC")
+			} else {
+				builder.WriteString(" ORDER BY created_at DESC, id ASC")
+			}
+		} else if searchPlaceholder != "" {
 			builder.WriteString(" ORDER BY ts_rank_cd(content_search, plainto_tsquery('simple', ")
 			builder.WriteString(searchPlaceholder)
 			builder.WriteString(")) DESC, created_at DESC, id")

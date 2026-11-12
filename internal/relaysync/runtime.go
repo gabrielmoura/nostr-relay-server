@@ -2,6 +2,7 @@ package relaysync
 
 import (
 	"context"
+	"errors"
 	"net"
 	"net/http"
 	"strings"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/gabrielmoura/nostr-relay-server/config"
 	"github.com/gabrielmoura/nostr-relay-server/infra/db"
+	"github.com/gabrielmoura/nostr-relay-server/internal/policies"
 	core "github.com/gabrielmoura/nostr-relay-server/pkg/relaySync"
 	relaysyncfiber "github.com/gabrielmoura/nostr-relay-server/pkg/relaySync/fiber"
 	relaysyncv2 "github.com/gabrielmoura/nostr-relay-server/pkg/relaySync/proto/relaysync/v2"
@@ -51,11 +53,7 @@ func Build(cfg config.RelaySyncConfig, queries *db.Queries) (*HTTPRuntime, error
 	}
 	services := relaysyncfiber.Services{Sessions: sessions, Manifests: manifest, Reconcile: reconcile, Resolve: resolvePrincipal}
 	if cfg.ApplyEnabled {
-		writer, err := db.NewRelaySyncEventWriter(queries, core.DefaultLimits(), nil)
-		if err != nil {
-			_ = sessions.Close()
-			return nil, err
-		}
+		writer := NewIngestionWriter()
 		transfer, err := core.NewTransferService(sessions, writer, core.DefaultLimits())
 		if err != nil {
 			_ = sessions.Close()
@@ -89,6 +87,34 @@ func Build(cfg config.RelaySyncConfig, queries *db.Queries) (*HTTPRuntime, error
 		return nil, err
 	}
 	return &HTTPRuntime{Adapter: adapter, Services: services, Sessions: sessions}, nil
+}
+
+func relaySyncWritePolicy(ctx context.Context, event core.Event) error {
+	if policies.P == nil {
+		return db.ErrRelaySyncPolicyUnavailable
+	}
+	native, err := db.RelaySyncEventToNostr(event)
+	if err != nil {
+		return err
+	}
+	// A peer authenticated by IP cannot authorize a protected event on the
+	// author's behalf. Apply the same NIP-70 gate as anonymous publication.
+	if reject, reason := policies.P.RejectProtectedEvent(native, ""); reject {
+		return errors.New(reason)
+	}
+	if reject, reason := policies.P.ValidateIncomingEvent(ctx, native); reject {
+		return relaySyncPolicyRejection(reason)
+	}
+	return nil
+}
+
+func relaySyncPolicyRejection(reason string) error {
+	// Policy checks currently report dependency failures as Nostr reason text.
+	// Keep those failures retryable instead of permanently rejecting the event.
+	if policies.IsTemporaryRejection(reason) {
+		return db.ErrRelaySyncPolicyUnavailable
+	}
+	return errors.New(reason)
 }
 
 func scopeFromProto(scope *relaysyncv2.Scope) core.Scope {
